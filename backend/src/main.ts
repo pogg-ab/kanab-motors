@@ -3,11 +3,57 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DataSource } from 'typeorm';
+import { seedDatabase } from './database/seed';
+import { Client } from 'pg';
+import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
 
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+async function ensureSequences() {
+  const client = new Client({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'kanab_motors',
+  });
+
+  try {
+    await client.connect();
+    const sequences = [
+      'customer_code_seq',
+      'enquiry_number_seq',
+      'booking_number_seq',
+      'receipt_number_seq',
+      'refund_number_seq',
+      'po_number_seq',
+      'shipment_number_seq',
+    ];
+    for (const seq of sequences) {
+      await client.query(`CREATE SEQUENCE IF NOT EXISTS ${seq} START 1;`);
+    }
+  } catch (err) {
+    console.warn('⚠️ Sequence initialization note:', (err as any)?.message || err);
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
 async function bootstrap() {
+  await ensureSequences();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Auto-seed reference and initial master data on startup
+  try {
+    const dataSource = app.get(DataSource);
+    console.log('🌱 Checking and applying seed data...');
+    await seedDatabase(dataSource);
+  } catch (error) {
+    console.error('⚠️ Seeding warning:', error);
+  }
 
   app.enableCors({
     origin: '*',
