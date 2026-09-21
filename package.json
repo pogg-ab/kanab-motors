@@ -1,0 +1,15 @@
+{
+  "name": "kanab-motors-sims",
+  "version": "1.0.0",
+  "description": "KANAB Motors Integrated Sales, Inventory and Customer Account Management System",
+  "scripts": {
+    "dev:backend": "npm run start:dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:backend": "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "test:backend": "npm test --prefix backend",
+    "migration:run": "npm run migration:run --prefix backend",
+    "migration:revert": "npm run migration:revert --prefix backend",
+    "seed": "ts-node -r tsconfig-paths/register ./backend/src/database/seed.ts"
+  }
+}

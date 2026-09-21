@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production / Build outputs
+dist/
+*/dist/
+dist-ssr/
+*/dist-ssr/
+
+# Environment files
+.env
+.env.*
+*.env
+*/.env
+*/.env.*
+!*.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Uploaded documents / user media
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/documents/
+backend/uploads/documents/*
+!backend/uploads/documents/.gitkeep
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.local
