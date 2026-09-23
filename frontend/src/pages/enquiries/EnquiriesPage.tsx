@@ -44,6 +44,15 @@ export const EnquiriesPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Convert to Booking Modal State (Replaces browser alert/confirm)
+  const [convertTarget, setConvertTarget] = useState<SalesEnquiry | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [conversionSuccess, setConversionSuccess] = useState<{
+    bookingNumber: string;
+    enquiryNumber: string;
+  } | null>(null);
+
   const fetchDependencies = async () => {
     try {
       const [custRes, itemRes] = await Promise.all([
@@ -145,18 +154,26 @@ export const EnquiriesPage: React.FC = () => {
       await api.updateEnquiryStatus(enquiryId, 'APPROVED');
       fetchEnquiries();
     } catch (err: any) {
-      alert('Failed to approve enquiry');
+      console.error('Failed to approve enquiry:', err);
     }
   };
 
-  const handleConvertToBooking = async (enquiryId: string) => {
-    if (!window.confirm('Convert this approved enquiry into an official Booking?')) return;
+  const handleConfirmConvert = async () => {
+    if (!convertTarget) return;
+    setConverting(true);
+    setConvertError(null);
     try {
-      const bkg = await api.convertEnquiryToBooking(enquiryId);
-      alert(`Enquiry successfully converted to Booking ${bkg.bookingNumber}!`);
+      const bkg = await api.convertEnquiryToBooking(convertTarget.enquiryId);
+      setConversionSuccess({
+        bookingNumber: bkg.bookingNumber,
+        enquiryNumber: convertTarget.enquiryNumber,
+      });
+      setConvertTarget(null);
       fetchEnquiries();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to convert enquiry to booking');
+      setConvertError(err.response?.data?.message || 'Failed to convert enquiry to booking');
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -379,7 +396,10 @@ export const EnquiriesPage: React.FC = () => {
                         {enq.status === 'APPROVED' && (
                           <button
                             className="btn btn-cyan btn-sm"
-                            onClick={() => handleConvertToBooking(enq.enquiryId)}
+                            onClick={() => {
+                              setConvertError(null);
+                              setConvertTarget(enq);
+                            }}
                           >
                             Convert to Booking <ArrowRight size={13} />
                           </button>
@@ -534,6 +554,123 @@ export const EnquiriesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* BEAUTIFUL CONVERT TO BOOKING CONFIRMATION MODAL */}
+      {convertTarget && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(0, 210, 211, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ArrowRight size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Convert to Vehicle Booking</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Generate an official booking for {convertTarget.enquiryNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConvertTarget(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {convertError && (
+                <div className="alert-banner-danger" style={{ marginBottom: '1rem' }}>
+                  {convertError}
+                </div>
+              )}
+
+              <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: 'var(--radius-md)', padding: '1.15rem', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{convertTarget.customer?.fullName || 'Selected Customer'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Vehicle Model:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>{convertTarget.item?.itemName}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Order Quantity:</span>
+                  <span style={{ fontWeight: 700 }}>{convertTarget.quantity} units</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Gross Quotation Total:</span>
+                  <span style={{ fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                    ETB {Number(convertTarget.estimatedSalesValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Required 25% Advance:</span>
+                  <span style={{ fontWeight: 800, color: 'var(--accent-amber)' }}>
+                    ETB {(Number(convertTarget.estimatedSalesValue) * 0.25).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5, background: 'rgba(99, 102, 241, 0.08)', padding: '0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                ℹ Converting this quotation will generate an immutable reservation order in <strong>Advance Bookings</strong>, lock vehicle pricing, and enable receipt of advance bank deposits (BRV).
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConvertTarget(null)}
+                disabled={converting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-cyan"
+                onClick={handleConfirmConvert}
+                disabled={converting}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                {converting ? 'Generating Booking...' : <>Confirm & Convert <ArrowRight size={15} /></>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONVERSION SUCCESS MODAL */}
+      {conversionSuccess && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '460px', textAlign: 'center' }}>
+            <div style={{ padding: '2rem 1.5rem 1.5rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                <CheckCircle2 size={32} color="var(--accent-emerald)" />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                Booking Successfully Created!
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Enquiry <strong style={{ color: 'var(--text-primary)' }}>{conversionSuccess.enquiryNumber}</strong> has been converted into official Booking:
+              </p>
+              <div style={{ background: 'rgba(0, 210, 211, 0.1)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', padding: '0.85rem', marginBottom: '1.5rem' }}>
+                <span style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--accent-cyan)', letterSpacing: '0.05em' }}>
+                  {conversionSuccess.bookingNumber}
+                </span>
+              </div>
+              <button
+                className="btn btn-cyan"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => setConversionSuccess(null)}
+              >
+                Continue to Pipeline
+              </button>
+            </div>
           </div>
         </div>
       )}
