@@ -161,13 +161,13 @@ export interface VehicleUnit {
   currentWarehouseId?: number;
   currentWarehouse?: Warehouse;
   currentStatus:
-    | 'RECEIVED'
-    | 'AVAILABLE_FOR_SALE'
-    | 'RESERVED'
-    | 'ALLOTTED'
-    | 'READY_FOR_DELIVERY'
-    | 'SOLD'
-    | 'DELIVERED';
+  | 'RECEIVED'
+  | 'AVAILABLE_FOR_SALE'
+  | 'RESERVED'
+  | 'ALLOTTED'
+  | 'READY_FOR_DELIVERY'
+  | 'SOLD'
+  | 'DELIVERED';
   createdAt: string;
 }
 
@@ -231,12 +231,12 @@ export interface Booking {
   outstandingBalance: number;
   bookingDate: string;
   bookingStatus:
-    | 'PENDING_APPROVAL'
-    | 'APPROVED'
-    | 'CONFIRMED'
-    | 'ALLOTTED'
-    | 'SETTLED'
-    | 'CANCELLED';
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'CONFIRMED'
+  | 'ALLOTTED'
+  | 'SETTLED'
+  | 'CANCELLED';
   salespersonName: string;
   cancellationReason?: string;
   createdAt: string;
@@ -274,12 +274,12 @@ export interface CustomerRefund {
   refundMethod: string;
   bankAccountId?: string;
   status:
-    | 'REQUESTED'
-    | 'REVIEWED'
-    | 'APPROVED'
-    | 'FINANCE_PROCESSED'
-    | 'CONFIRMED'
-    | 'REJECTED';
+  | 'REQUESTED'
+  | 'REVIEWED'
+  | 'APPROVED'
+  | 'FINANCE_PROCESSED'
+  | 'CONFIRMED'
+  | 'REJECTED';
   rejectionReason?: string;
   createdAt: string;
 }
@@ -382,12 +382,12 @@ export interface Shipment {
   shipmentId: string;
   shipmentNumber: string;
   currentStage:
-    | 'ORDERED'
-    | 'SHIPPED'
-    | 'AT_DJIBOUTI_PORT'
-    | 'ETHIOPIAN_CUSTOMS_CLEARANCE'
-    | 'IN_TRANSIT_INLAND'
-    | 'RECEIVED';
+  | 'ORDERED'
+  | 'SHIPPED'
+  | 'AT_DJIBOUTI_PORT'
+  | 'ETHIOPIAN_CUSTOMS_CLEARANCE'
+  | 'IN_TRANSIT_INLAND'
+  | 'RECEIVED';
   billOfLadingNumber?: string;
   expectedArrivalDate?: string;
   actualArrivalDate?: string;
