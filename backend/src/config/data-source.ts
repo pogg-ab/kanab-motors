@@ -11,7 +11,8 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'kanab_motors',
-  synchronize: false, // Must use TypeORM migrations / existing schema
+  synchronize: false, // Keep false to prevent PostgreSQL enum dependency collisions
+  migrationsRun: true, // Automatically executes all pending migrations on npm run start:dev (no manual npm run migration needed)
   logging: process.env.NODE_ENV === 'development',
   entities: [path.join(__dirname, '../**/*.entity{.ts,.js}')],
   migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')],
