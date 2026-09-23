@@ -48,11 +48,15 @@ export class BookingsService {
     const vatAmount = Number(((subtotal * taxRatePct) / 100).toFixed(2));
     const grossTotal = Number((subtotal + vatAmount).toFixed(2));
 
-    // Default required advance: 25% if not explicitly entered (Story B4)
+    // Default required advance: 20% if not explicitly entered (Story B2)
     const requiredAdvance =
-      dto.requiredAdvanceAmount !== undefined
+      dto.requiredAdvanceAmount !== undefined && dto.requiredAdvanceAmount !== null
         ? Number(dto.requiredAdvanceAmount)
-        : Number((grossTotal * 0.25).toFixed(2));
+        : Number((grossTotal * 0.20).toFixed(2));
+
+    const deliveryDate = dto.targetDeliveryDate
+      ? new Date(dto.targetDeliveryDate)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 calendar days (Story B9)
 
     let enquiry: SalesEnquiry | null = null;
     if (dto.enquiryId) {
@@ -74,6 +78,7 @@ export class BookingsService {
       requiredAdvanceAmount: requiredAdvance,
       totalAmountDeposited: 0,
       outstandingBalance: grossTotal,
+      targetDeliveryDate: deliveryDate,
       bookingStatus: BookingStatus.APPROVED, // auto-approved on creation
       salespersonName: dto.salespersonName,
       createdBy: userId,
@@ -253,16 +258,35 @@ export class BookingsService {
     target.totalAmountDeposited = Number(target.totalAmountDeposited || 0) + amount;
     target.outstandingBalance = Math.max(0, Number(target.grossTotal) - target.totalAmountDeposited);
 
+    if (
+      target.totalAmountDeposited >= Number(target.requiredAdvanceAmount) &&
+      (target.bookingStatus === BookingStatus.APPROVED ||
+        target.bookingStatus === BookingStatus.PENDING_APPROVAL)
+    ) {
+      target.bookingStatus = BookingStatus.CONFIRMED;
+    }
+
     await this.bookingRepo.save([source, target]);
 
-    // Record in ledger
+    // Record balanced transfer in ledger (Stories B10 & B11)
     await this.ledgerService.postTransaction({
       customerId: source.customerId,
       transactionType: LedgerTransactionType.BOOKING_TRANSFER,
-      referenceNumber: `TRF-${source.bookingNumber}-${target.bookingNumber}`,
-      description: `Transfer of ETB ${amount.toLocaleString()} from Booking ${source.bookingNumber} to ${target.bookingNumber}`,
+      referenceNumber: `TRF-OUT-${source.bookingNumber}`,
+      description: `Transfer Out of ETB ${amount.toLocaleString()} to Booking ${target.bookingNumber}`,
+      debitAmount: amount,
       creditAmount: 0,
+      relatedBookingId: source.bookingId,
+      processedBy: userId,
+    });
+
+    await this.ledgerService.postTransaction({
+      customerId: source.customerId,
+      transactionType: LedgerTransactionType.BOOKING_TRANSFER,
+      referenceNumber: `TRF-IN-${target.bookingNumber}`,
+      description: `Transfer In of ETB ${amount.toLocaleString()} from Booking ${source.bookingNumber}`,
       debitAmount: 0,
+      creditAmount: amount,
       relatedBookingId: target.bookingId,
       processedBy: userId,
     });

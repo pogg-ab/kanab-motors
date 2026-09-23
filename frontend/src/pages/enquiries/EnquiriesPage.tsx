@@ -13,6 +13,7 @@ import {
   X,
   Clock,
   Layers,
+  Printer,
 } from 'lucide-react';
 import {
   api,
@@ -58,6 +59,21 @@ export const EnquiriesPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+
+  // Printable Proforma Quotation Modal (Story E13)
+  const [selectedQuote, setSelectedQuote] = useState<SalesEnquiry | null>(null);
+
+  // Proforma Print Isolation Effect
+  useEffect(() => {
+    if (selectedQuote) {
+      document.body.classList.add('printing-proforma');
+    } else {
+      document.body.classList.remove('printing-proforma');
+    }
+    return () => {
+      document.body.classList.remove('printing-proforma');
+    };
+  }, [selectedQuote]);
 
   const fetchDependencies = async () => {
     try {
@@ -212,7 +228,9 @@ export const EnquiriesPage: React.FC = () => {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
-      {/* Breadcrumb & Header */}
+      {/* Dashboard View (Hidden during quote printing) */}
+      <div className="enquiries-dashboard">
+        {/* Breadcrumb & Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
         <span style={{ color: 'var(--accent-cyan)' }}>★</span>
         <span>Financial Engine</span>
@@ -334,14 +352,14 @@ export const EnquiriesPage: React.FC = () => {
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ENQUIRY #</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>CUSTOMER</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>VEHICLE MODEL</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center' }}>QTY</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right' }}>ESTIMATED VALUE (15% VAT)</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>SALESPERSON</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center' }}>STATUS</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center' }}>ACTIONS</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap', minWidth: '135px' }}>ENQUIRY #</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>CUSTOMER</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>VEHICLE MODEL</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '60px' }}>QTY</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '160px' }}>ESTIMATED VALUE (15% VAT)</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '140px' }}>SALESPERSON</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '110px' }}>STATUS</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '160px' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -360,10 +378,27 @@ export const EnquiriesPage: React.FC = () => {
               ) : (
                 enquiries.map((enq) => (
                   <tr key={enq.enquiryId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.95rem 1.15rem' }}>
-                      <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                    <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap', minWidth: '135px' }}>
+                      <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
                         {enq.enquiryNumber}
                       </span>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
+                        {new Date(enq.createdAt).toLocaleDateString()}
+                      </div>
+                      <div style={{ marginTop: '0.2rem' }}>
+                        {(() => {
+                          const daysRemaining = 30 - Math.floor((Date.now() - new Date(enq.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+                          return (
+                            <span
+                              className={`badge ${daysRemaining > 7 ? 'badge-subtle' : daysRemaining > 0 ? 'badge-amber' : 'badge-rose'}`}
+                              style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', whiteSpace: 'nowrap', display: 'inline-block' }}
+                              title={`Quotation validity window: 30 days (${daysRemaining} days remaining)`}
+                            >
+                              ⏳ {daysRemaining > 0 ? `${daysRemaining}d valid` : 'Expired'}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{enq.customer?.fullName}</div>
@@ -459,6 +494,14 @@ export const EnquiriesPage: React.FC = () => {
                             {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 20)}...` : 'Rejected'}
                           </span>
                         )}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.35rem 0.6rem' }}
+                          title="View & Print Official Quotation / Proforma Invoice (Story E13)"
+                          onClick={() => setSelectedQuote(enq)}
+                        >
+                          <Printer size={13} /> Quote
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -467,6 +510,7 @@ export const EnquiriesPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
 
       {/* CREATE ENQUIRY MODAL */}
@@ -814,6 +858,183 @@ export const EnquiriesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PRINTABLE PROFORMA INVOICE / QUOTATION MODAL (Story E13) */}
+      {selectedQuote && (
+        <div className="modal-backdrop proforma-modal-backdrop">
+          <div className="modal-content proforma-modal-content" style={{ maxWidth: '720px', padding: '0', background: '#0b1120', overflow: 'hidden', border: '1px solid #1e293b', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+            {/* Modal Header Controls (Screen Only) */}
+            <div className="no-print" style={{ padding: '0.9rem 1.4rem', background: '#0f172a', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <FileText size={18} color="#38bdf8" />
+                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>
+                  Proforma Quotation — <span style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 800 }}>{selectedQuote.enquiryNumber}</span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-cyan btn-sm"
+                  onClick={() => window.print()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, padding: '0.45rem 0.95rem' }}
+                >
+                  <Printer size={15} /> Print Quotation (PDF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedQuote(null)}
+                  style={{ background: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '6px', color: '#ffffff', cursor: 'pointer', padding: '0.35rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Close modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Official Printable Proforma Document */}
+            <div className="proforma-document" style={{ padding: '2.25rem', background: '#ffffff', color: '#0f172a' }}>
+              {/* Header Letterhead */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '1.15rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ background: '#0f172a', color: '#ffffff', fontWeight: 900, width: '42px', height: '42px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', letterSpacing: '0.05em' }}>
+                      KM
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em', lineHeight: 1.15 }}>
+                        KANAB MOTORS PLC
+                      </h2>
+                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+                        Automotive Assembly & Commercial Distribution
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: '0.5rem', lineHeight: 1.45 }}>
+                    Gotera Distribution Center · Debre Zeit Road, Addis Ababa, Ethiopia<br />
+                    TIN: 0048291048 · VAT: 8291048002 · Tel: +251-11-467-1122
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    PROFORMA INVOICE
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.35rem' }}>
+                    Quote Ref: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{selectedQuote.enquiryNumber}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
+                    Date: <strong style={{ color: '#0f172a' }}>{new Date(selectedQuote.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#b45309', fontWeight: 800, marginTop: '0.2rem' }}>
+                    Validity: 30 Calendar Days
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Box */}
+              <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.85rem', fontSize: '0.78rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Customer Information</div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', marginTop: '0.15rem' }}>{selectedQuote.customer?.fullName}</div>
+                  <div style={{ color: '#475569' }}>Code: <strong>{selectedQuote.customer?.customerCode}</strong> | Type: {selectedQuote.customer?.customerType}</div>
+                  <div style={{ color: '#475569' }}>Phone: {selectedQuote.customer?.mobileNumber}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Sales Attribution</div>
+                  <div style={{ color: '#0f172a', marginTop: '0.15rem' }}>Salesperson: <strong>{selectedQuote.salespersonName}</strong></div>
+                  <div style={{ color: '#475569' }}>Payment Mode: {selectedQuote.paymentMode?.replace(/_/g, ' ') || 'Bank Deposit'}</div>
+                  <div style={{ color: '#475569' }}>Quote Status: <strong>{selectedQuote.status}</strong></div>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', marginBottom: '1.25rem' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #0f172a' }}>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', color: '#0f172a', fontWeight: 700 }}>ITEM DESCRIPTION / MODEL</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>QTY</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#0f172a', fontWeight: 700 }}>UNIT PRICE (ETB)</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#0f172a', fontWeight: 700 }}>SUBTOTAL (ETB)</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#0f172a', fontWeight: 700 }}>VAT 15% (ETB)</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: '#0f172a', fontWeight: 700 }}>TOTAL (ETB)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '8px', color: '#0f172a' }}>
+                      <strong style={{ color: '#0f172a' }}>{selectedQuote.item?.itemName}</strong>
+                      <div style={{ fontSize: '7pt', color: '#64748b' }}>Code: {selectedQuote.item?.itemCode}</div>
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>
+                      {selectedQuote.quantity}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: '#0f172a' }}>
+                      {Number(selectedQuote.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: '#0f172a' }}>
+                      {(Number(selectedQuote.unitPrice) * selectedQuote.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: '#0f172a' }}>
+                      {Number(selectedQuote.vatAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
+                      {Number(selectedQuote.estimatedSalesValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Financial Summary & Terms */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.68rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.75rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem' }}>Commercial Terms & Conditions:</div>
+                  1. Advance Deposit: 25% minimum required upon formal booking confirmation.<br />
+                  2. Balance: 75% due upon physical vehicle readiness and chassis inspection.<br />
+                  3. Validity: Prices guaranteed for 30 calendar days from issuance.<br />
+                  4. Bank Account: Commercial Bank of Ethiopia (CBE) · A/C: 1000-4829-1048-002
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.35rem', color: '#475569' }}>
+                    <span>Subtotal:</span>
+                    <span>ETB {(Number(selectedQuote.unitPrice) * selectedQuote.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.35rem', color: '#475569' }}>
+                    <span>VAT (15%):</span>
+                    <span>ETB {Number(selectedQuote.vatAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem', fontWeight: 900, color: '#0f172a', paddingTop: '0.45rem', borderTop: '2px solid #0f172a' }}>
+                    <span>Grand Total:</span>
+                    <span>ETB {Number(selectedQuote.estimatedSalesValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#b45309', fontWeight: 700, marginTop: '0.35rem' }}>
+                    <span>Req. Advance (25%):</span>
+                    <span>ETB {(Number(selectedQuote.estimatedSalesValue) * 0.25).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sign-off & Stamp Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', borderTop: '1px solid #cbd5e1', paddingTop: '1rem', fontSize: '0.7rem' }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>Prepared By:</div>
+                  <div style={{ color: '#475569', marginTop: '0.2rem' }}>{selectedQuote.salespersonName}</div>
+                  <div style={{ color: '#64748b', marginTop: '1.25rem' }}>Sign: __________________</div>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>Approved By:</div>
+                  <div style={{ color: '#475569', marginTop: '0.2rem' }}>Sales Operations Manager</div>
+                  <div style={{ color: '#64748b', marginTop: '1.25rem' }}>Sign: __________________</div>
+                </div>
+                <div style={{ border: '1px dashed #94a3b8', borderRadius: '4px', textAlign: 'center', padding: '0.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b' }}>OFFICIAL STAMP</span>
+                  <span style={{ fontSize: '0.58rem', color: '#94a3b8' }}>KANAB MOTORS PLC</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

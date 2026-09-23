@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -58,9 +59,14 @@ export class BookingsController {
   @Post('transfer')
   @ApiOperation({ summary: 'Transfer deposited funds between bookings of same customer (Story B9)' })
   transferFunds(@Body() body: TransferBookingFundsDto) {
+    const targetId = body.targetBookingId || body.destinationBookingId;
+    if (!targetId) {
+      throw new BadRequestException('targetBookingId or destinationBookingId is required');
+    }
+
     return this.bookingsService.transferBetweenBookings(
       body.sourceBookingId,
-      body.targetBookingId,
+      targetId,
       body.amount,
     );
   }

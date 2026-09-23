@@ -41,4 +41,9 @@ export class CreateBookingDto {
   @IsString()
   @IsNotEmpty({ message: 'Salesperson name is required' })
   salespersonName: string;
+
+  @ApiPropertyOptional({ example: '2026-10-23T00:00:00Z' })
+  @IsString()
+  @IsOptional()
+  targetDeliveryDate?: string;
 }

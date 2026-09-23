@@ -53,7 +53,7 @@ export class LedgerService {
     if (debit < 0 || credit < 0) {
       throw new BadRequestException('Debit and Credit amounts must be non-negative');
     }
-    if (debit === 0 && credit === 0) {
+    if (debit === 0 && credit === 0 && !dto.summaryDelta) {
       throw new BadRequestException('Either Debit or Credit must be greater than zero');
     }
 
