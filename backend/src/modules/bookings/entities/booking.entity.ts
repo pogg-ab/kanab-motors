@@ -35,7 +35,7 @@ export class Booking {
     name: 'booking_number',
     length: 30,
     unique: true,
-    default: () => "('BKG-' || lpad(nextval('booking_number_seq')::text, 6, '0'))",
+    default: () => "('BKG-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('booking_number_seq')::text, 5, '0'))",
   })
   bookingNumber: string;
 
@@ -83,6 +83,9 @@ export class Booking {
 
   @Column({ name: 'booking_date', type: 'timestamptz', default: () => 'now()' })
   bookingDate: Date;
+
+  @Column({ name: 'target_delivery_date', type: 'timestamptz', nullable: true })
+  targetDeliveryDate: Date;
 
   @Column({
     name: 'booking_status',

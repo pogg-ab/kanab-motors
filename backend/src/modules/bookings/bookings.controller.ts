@@ -58,18 +58,20 @@ export class BookingsController {
   }
 
   @Post('transfer')
-  @ApiOperation({ summary: 'Transfer deposited funds between bookings of same customer (Story B9)' })
+  @ApiOperation({ summary: 'Transfer deposited funds between bookings of same customer (Story B10)' })
   transferFunds(
     @Body()
     body: {
       sourceBookingId: string;
-      targetBookingId: string;
+      targetBookingId?: string;
+      destinationBookingId?: string;
       amount: number;
     },
   ) {
+    const targetId = body.targetBookingId || body.destinationBookingId;
     return this.bookingsService.transferBetweenBookings(
       body.sourceBookingId,
-      body.targetBookingId,
+      targetId as string,
       body.amount,
     );
   }

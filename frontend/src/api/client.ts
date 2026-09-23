@@ -230,6 +230,7 @@ export interface Booking {
   totalAmountDeposited: number;
   outstandingBalance: number;
   bookingDate: string;
+  targetDeliveryDate?: string;
   bookingStatus:
   | 'PENDING_APPROVAL'
   | 'APPROVED'

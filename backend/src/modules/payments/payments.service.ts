@@ -130,6 +130,7 @@ export class PaymentsService {
         allocatedToBookings: bookingAllocatedPortion,
         outstandingBalance: -bookingAllocatedPortion,
         excessPayments: excessPortion > 0 ? excessPortion : 0,
+        availableCredit: excessPortion > 0 ? excessPortion : 0,
       },
     });
 

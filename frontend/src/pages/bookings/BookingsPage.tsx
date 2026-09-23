@@ -41,6 +41,7 @@ export const BookingsPage: React.FC = () => {
     unitPrice: number;
     requiredAdvanceAmount: number;
     salespersonName: string;
+    targetDeliveryDate: string;
   }>({
     customerId: '',
     itemId: '',
@@ -48,6 +49,7 @@ export const BookingsPage: React.FC = () => {
     unitPrice: 0,
     requiredAdvanceAmount: 0,
     salespersonName: 'Sales Specialist',
+    targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
 
   // Transfer Form State
@@ -145,6 +147,7 @@ export const BookingsPage: React.FC = () => {
         unitPrice: newBooking.unitPrice,
         requiredAdvanceAmount: newBooking.requiredAdvanceAmount,
         salespersonName: newBooking.salespersonName,
+        targetDeliveryDate: newBooking.targetDeliveryDate ? new Date(newBooking.targetDeliveryDate).toISOString() : undefined,
       });
       showToast('success', 'Advance Booking created successfully!');
       setShowCreateModal(false);
@@ -155,6 +158,7 @@ export const BookingsPage: React.FC = () => {
         unitPrice: 0,
         requiredAdvanceAmount: 0,
         salespersonName: 'Sales Specialist',
+        targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       });
       loadData();
     } catch (err: any) {
@@ -355,11 +359,12 @@ export const BookingsPage: React.FC = () => {
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>BOOKING REF</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>BOOKING REF</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>CUSTOMER</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>VEHICLE ITEM / QTY</th>
-                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>GROSS TOTAL</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>GROSS TOTAL</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>DEPOSIT PROGRESS</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>TARGET DELIVERY</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>STATUS</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ACTIONS</th>
               </tr>
@@ -367,13 +372,13 @@ export const BookingsPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     Loading Advance Bookings...
                   </td>
                 </tr>
               ) : filteredBookings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No bookings found matching criteria.
                   </td>
                 </tr>
@@ -388,7 +393,7 @@ export const BookingsPage: React.FC = () => {
 
                   return (
                     <tr key={b.bookingId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '1rem' }}>
+                      <td style={{ padding: '1rem', whiteSpace: 'nowrap' }}>
                         <div style={{ fontWeight: 700, color: 'var(--accent-blue)', fontFamily: 'monospace' }}>
                           {b.bookingNumber}
                         </div>
@@ -410,7 +415,7 @@ export const BookingsPage: React.FC = () => {
                           Qty: {b.quantity} unit(s) • ETB {Number(b.unitPrice || 0).toLocaleString()}/unit
                         </div>
                       </td>
-                      <td style={{ padding: '1rem', textAlign: 'right' }}>
+                      <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                           ETB {total.toLocaleString()}
                         </div>
@@ -435,6 +440,39 @@ export const BookingsPage: React.FC = () => {
                             }}
                           />
                         </div>
+                      </td>
+                      <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const delivery = b.targetDeliveryDate
+                            ? new Date(b.targetDeliveryDate)
+                            : new Date(new Date(b.bookingDate).getTime() + 30 * 24 * 60 * 60 * 1000);
+                          const daysDiff = Math.ceil((delivery.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          const isOverdue = daysDiff < 0 && b.bookingStatus !== 'SETTLED' && b.bookingStatus !== 'CANCELLED';
+                          const isDueSoon = daysDiff >= 0 && daysDiff <= 7 && b.bookingStatus !== 'SETTLED';
+
+                          return (
+                            <div>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.8rem' }}>
+                                {delivery.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </div>
+                              <div style={{ marginTop: '0.2rem' }}>
+                                {isOverdue ? (
+                                  <span className="badge badge-rose" style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
+                                    ⚠️ Overdue ({Math.abs(daysDiff)}d)
+                                  </span>
+                                ) : isDueSoon ? (
+                                  <span className="badge badge-amber" style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
+                                    ⏳ Due Soon ({daysDiff}d)
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
+                                    📅 {daysDiff}d left
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <span
@@ -598,15 +636,27 @@ export const BookingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Sales Representative Name</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={newBooking.salespersonName}
-                    onChange={(e) => setNewBooking({ ...newBooking, salespersonName: e.target.value })}
-                    required
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Sales Representative Name</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={newBooking.salespersonName}
+                      onChange={(e) => setNewBooking({ ...newBooking, salespersonName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Target Delivery Date *</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={newBooking.targetDeliveryDate}
+                      onChange={(e) => setNewBooking({ ...newBooking, targetDeliveryDate: e.target.value })}
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -644,7 +694,7 @@ export const BookingsPage: React.FC = () => {
                   <span style={{ color: 'var(--accent-emerald)', fontWeight: 700 }}>
                     ETB {Number(selectedBooking.totalAmountDeposited || 0).toLocaleString()}
                   </span>
-                  ) to another active booking.
+                  ) to another active booking for customer <strong>{selectedBooking.customer?.fullName}</strong>.
                 </p>
 
                 <div style={{ marginBottom: '1rem' }}>
@@ -657,10 +707,10 @@ export const BookingsPage: React.FC = () => {
                   >
                     <option value="">Select Destination Booking...</option>
                     {bookings
-                      .filter((b) => b.bookingId !== selectedBooking.bookingId && b.bookingStatus !== 'CANCELLED')
+                      .filter((b) => b.bookingId !== selectedBooking.bookingId && b.bookingStatus !== 'CANCELLED' && b.customerId === selectedBooking.customerId)
                       .map((b) => (
                         <option key={b.bookingId} value={b.bookingId}>
-                          {b.bookingNumber} - {b.customer?.fullName} ({b.item?.itemName})
+                          {b.bookingNumber} - {b.item?.itemName} (Bal: ETB {Number(b.outstandingBalance || 0).toLocaleString()})
                         </option>
                       ))}
                   </select>
