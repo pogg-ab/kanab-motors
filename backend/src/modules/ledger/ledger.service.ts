@@ -158,6 +158,14 @@ export class LedgerService {
           summary.excessPayments = Number(summary.excessPayments) + credit;
         } else if (dto.transactionType === LedgerTransactionType.REFUND) {
           summary.refundableBalance = Math.max(0, Number(summary.refundableBalance) - debit);
+        } else if (dto.transactionType === LedgerTransactionType.ADJUSTMENT) {
+          if (credit > 0) {
+            summary.totalDeposits = Number(summary.totalDeposits) + credit;
+            summary.availableCredit = Number(summary.availableCredit) + credit;
+          }
+          if (debit > 0) {
+            summary.availableCredit = Math.max(0, Number(summary.availableCredit) - debit);
+          }
         }
       }
 
@@ -211,14 +219,36 @@ export class LedgerService {
     const [transactions, total] = await qb.getManyAndCount();
 
     // Fetch summary
-    const summary = await this.dataSource
+    let summary = await this.dataSource
       .getRepository(CustomerAccountSummary)
       .findOne({ where: { customerId: params.customerId } });
+
+    // Sync summary metrics with ledger balance if not populated
+    if (summary && transactions.length > 0) {
+      const latestTx = transactions[transactions.length - 1];
+      const currentRunning = Number(latestTx.runningBalance);
+      const totalCreds = transactions.reduce((acc, t) => acc + Number(t.creditAmount || 0), 0);
+
+      let needsSave = false;
+      if (Number(summary.totalDeposits) === 0 && totalCreds > 0) {
+        summary.totalDeposits = totalCreds;
+        needsSave = true;
+      }
+      if (Number(summary.availableCredit) === 0 && currentRunning > 0) {
+        summary.availableCredit = Math.max(0, currentRunning - Number(summary.allocatedToBookings || 0));
+        needsSave = true;
+      }
+      if (needsSave) {
+        summary.lastRecalculatedAt = new Date();
+        summary = await this.dataSource.getRepository(CustomerAccountSummary).save(summary);
+      }
+    }
 
     return {
       customerId: params.customerId,
       summary,
       transactions: transactions.map((t) => ({
+
         transactionId: t.transactionId,
         date: t.transactionDate,
         description: t.description,
