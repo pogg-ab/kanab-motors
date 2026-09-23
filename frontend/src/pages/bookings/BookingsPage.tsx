@@ -495,11 +495,14 @@ export const BookingsPage: React.FC = () => {
                             <>
                               <button
                                 onClick={() => {
+                                  if (paid <= 0) {
+                                    showToast('info', `Booking ${b.bookingNumber} has no deposited funds (ETB 0.00). Only bookings with paid deposits can transfer funds.`);
+                                    return;
+                                  }
                                   setSelectedBooking(b);
                                   setTransferData({ destinationBookingId: '', amount: Number(b.totalAmountDeposited || 0), reason: '' });
                                   setShowTransferModal(true);
                                 }}
-                                disabled={paid <= 0}
                                 className="btn btn-secondary btn-sm"
                                 style={{
                                   display: 'inline-flex',
@@ -509,8 +512,8 @@ export const BookingsPage: React.FC = () => {
                                   padding: '0.35rem 0.65rem',
                                   color: paid > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)',
                                   borderColor: paid > 0 ? 'rgba(6, 182, 212, 0.4)' : 'var(--border-color)',
-                                  cursor: paid > 0 ? 'pointer' : 'not-allowed',
-                                  opacity: paid > 0 ? 1 : 0.45,
+                                  cursor: 'pointer',
+                                  opacity: paid > 0 ? 1 : 0.65,
                                 }}
                                 title={paid > 0 ? `Transfer from available ETB ${paid.toLocaleString()} deposited` : "No deposited funds available to transfer"}
                               >
@@ -731,7 +734,7 @@ export const BookingsPage: React.FC = () => {
                   >
                     <option value="">Select Destination Booking...</option>
                     {bookings
-                      .filter((b) => b.bookingId !== selectedBooking.bookingId && b.bookingStatus !== 'CANCELLED' && b.customerId === selectedBooking.customerId)
+                      .filter((b) => String(b.bookingId) !== String(selectedBooking.bookingId) && b.bookingStatus !== 'CANCELLED' && String(b.customerId) === String(selectedBooking.customerId))
                       .map((b) => (
                         <option key={b.bookingId} value={b.bookingId}>
                           {b.bookingNumber} - {b.item?.itemName} (Bal: ETB {Number(b.outstandingBalance || 0).toLocaleString()})
@@ -821,7 +824,7 @@ export const BookingsPage: React.FC = () => {
                       onChange={(e) => setCancelData({ ...cancelData, routeTo: e.target.value as any })}
                     >
                       <option value="REFUNDABLE">Route to Customer Refundable Balance (enables refund payout)</option>
-                      <option value="CREDIT">Route to Customer Credit Balance (retains in company)</option>
+                      <option value="CUSTOMER_CREDIT">Route to Customer Credit Balance (retains in company)</option>
                     </select>
                   </div>
                 )}
