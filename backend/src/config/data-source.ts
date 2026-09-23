@@ -11,9 +11,10 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'kanab_motors',
-  synchronize: true, // Auto-sync entities with database schema
+  synchronize: false, // Must use TypeORM migrations / existing schema
   logging: process.env.NODE_ENV === 'development',
   entities: [path.join(__dirname, '../**/*.entity{.ts,.js}')],
-  migrations: [],
+  migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')],
   subscribers: [path.join(__dirname, '../**/*.subscriber{.ts,.js}')],
 });
+
