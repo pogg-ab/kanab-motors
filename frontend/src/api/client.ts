@@ -487,6 +487,8 @@ export const api = {
   getUoms: () => apiClient.get<UnitOfMeasure[]>('/products/uoms').then((r) => r.data),
   getTaxConfigs: () =>
     apiClient.get<TaxConfiguration[]>('/products/tax-configs').then((r) => r.data),
+  createTaxConfig: (name: string, ratePct: number) =>
+    apiClient.post<TaxConfiguration>('/products/tax-configs', { name, ratePct }).then((r) => r.data),
 
   // Vehicles
   getVehicles: (params?: any) =>

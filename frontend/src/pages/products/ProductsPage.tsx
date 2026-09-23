@@ -40,6 +40,9 @@ export const ProductsPage: React.FC = () => {
   const [newCatName, setNewCatName] = useState('');
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [isTaxModalOpen, setIsTaxModalOpen] = useState(false);
+  const [newTaxName, setNewTaxName] = useState('');
+  const [newTaxRate, setNewTaxRate] = useState('0');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -99,16 +102,40 @@ export const ProductsPage: React.FC = () => {
     fetchItems();
   }, [selectedCat, selectedBrand, search]);
 
-  const handleOpenCreate = () => {
+  const handleOpenCreate = async () => {
+    let currentTaxes = taxConfigs;
+    let currentCats = categories;
+    let currentBrands = brands;
+    let currentUoms = uoms;
+
+    try {
+      const [cats, brs, uomList, taxes] = await Promise.all([
+        api.getCategories(),
+        api.getBrands(),
+        api.getUoms(),
+        api.getTaxConfigs(),
+      ]);
+      setCategories(cats);
+      setBrands(brs);
+      setUoms(uomList);
+      setTaxConfigs(taxes);
+      currentTaxes = taxes;
+      currentCats = cats;
+      currentBrands = brs;
+      currentUoms = uomList;
+    } catch (e) {
+      console.error('Failed refreshing reference data on open:', e);
+    }
+
     setFormData({
       itemCode: '',
       itemName: '',
-      categoryId: categories[0]?.categoryId || '',
-      brandId: brands[0]?.brandId || '',
+      categoryId: currentCats[0]?.categoryId || '',
+      brandId: currentBrands[0]?.brandId || '',
       model: '',
-      uomId: uoms[0]?.uomId || '',
+      uomId: currentUoms[0]?.uomId || '',
       sellingPrice: '',
-      taxConfigId: taxConfigs[0]?.taxConfigId || '',
+      taxConfigId: currentTaxes[0]?.taxConfigId || '',
       reorderLevel: '5',
     });
     setFormError(null);
@@ -173,6 +200,20 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleCreateTax = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaxName.trim()) return;
+    try {
+      await api.createTaxConfig(newTaxName.trim(), parseFloat(newTaxRate) || 0);
+      setNewTaxName('');
+      setNewTaxRate('0');
+      setIsTaxModalOpen(false);
+      fetchReferenceData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create tax configuration');
+    }
+  };
+
   // Metrics
   const totalModels = items.length;
   const motorcycles = items.filter((i) => i.category?.categoryName === 'MOTORCYCLE').length;
@@ -213,12 +254,15 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" onClick={() => setIsCategoryModalOpen(true)}>
               + Category
             </button>
             <button className="btn btn-secondary" onClick={() => setIsBrandModalOpen(true)}>
               + Brand
+            </button>
+            <button className="btn btn-secondary" onClick={() => setIsTaxModalOpen(true)}>
+              + Tax Rate
             </button>
             <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Plus size={17} /> New Product Item
@@ -703,6 +747,60 @@ export const ProductsPage: React.FC = () => {
                 </button>
                 <button type="submit" className="btn btn-cyan">
                   Save Brand
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK ADD TAX RATE MODAL */}
+      {isTaxModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>+ Add VAT / Tax Configuration</h3>
+              <button
+                onClick={() => setIsTaxModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateTax}>
+              <div className="modal-body">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Tax Name *</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. Zero VAT, Luxury Tax"
+                    required
+                    value={newTaxName}
+                    onChange={(e) => setNewTaxName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Tax Rate (%) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    className="input-field"
+                    placeholder="0"
+                    required
+                    value={newTaxRate}
+                    onChange={(e) => setNewTaxRate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsTaxModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-cyan">
+                  Save Tax Config
                 </button>
               </div>
             </form>
