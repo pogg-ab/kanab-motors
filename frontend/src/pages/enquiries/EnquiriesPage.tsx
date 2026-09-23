@@ -393,6 +393,11 @@ export const EnquiriesPage: React.FC = () => {
                         <User size={13} color="var(--text-muted)" />
                         <span>{enq.salespersonName}</span>
                       </div>
+                      {enq.paymentMode && (
+                        <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.2rem', fontWeight: 600 }}>
+                          {enq.paymentMode.replace(/_/g, ' ')}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                       <span
@@ -553,15 +558,32 @@ export const EnquiriesPage: React.FC = () => {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Salesperson</label>
+                    <label className="form-label">Salesperson *</label>
                     <input
                       type="text"
                       className="input-field"
                       required
+                      placeholder="e.g. Dawit Kebede"
                       value={formData.salespersonName}
                       onChange={(e) => setFormData({ ...formData, salespersonName: e.target.value })}
                     />
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Intended Payment Mode *</label>
+                  <select
+                    className="select-field"
+                    required
+                    value={formData.paymentMode}
+                    onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
+                  >
+                    <option value="BANK_DEPOSIT">Bank Deposit Voucher (BRV)</option>
+                    <option value="BANK_TRANSFER">Direct Electronic Bank Transfer</option>
+                    <option value="LETTER_OF_CREDIT">Letter of Credit (LC)</option>
+                    <option value="CHEQUE">CPO / Bank Certified Cheque</option>
+                    <option value="CASH">Cash Payment</option>
+                  </select>
                 </div>
 
                 {/* Live Value Calculation Preview Box */}
