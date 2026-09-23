@@ -56,6 +56,12 @@ export class CreateProductItemDto {
   @IsOptional()
   reorderLevel?: number;
 
+  @ApiPropertyOptional({ example: 145.5 })
+  @IsNumber()
+  @IsPositive({ message: 'Weight must be greater than 0' })
+  @IsOptional()
+  weightKg?: number;
+
   @ApiPropertyOptional({ default: true })
   @IsBoolean()
   @IsOptional()

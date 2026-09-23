@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { CreateUserDto, LoginDto, UpdateUserDto } from './dto/auth.dto';
 
 @ApiTags('Authentication & RBAC')
 @Controller('auth')
@@ -18,7 +19,7 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation({ summary: 'Login via email / username and password' })
-  login(@Body() body: { email?: string; username?: string; password?: string }) {
+  login(@Body() body: LoginDto) {
     return this.authService.login(body);
   }
 
@@ -48,17 +49,7 @@ export class AuthController {
 
   @Post('users')
   @ApiOperation({ summary: 'Create new user with role assignment' })
-  createUser(
-    @Body()
-    dto: {
-      username: string;
-      fullName: string;
-      email: string;
-      password?: string;
-      roleId: number;
-      permissions?: string[];
-    },
-  ) {
+  createUser(@Body() dto: CreateUserDto) {
     return this.authService.createUser(dto);
   }
 
@@ -66,15 +57,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Update user profile, role, or permissions' })
   updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body()
-    dto: {
-      fullName?: string;
-      email?: string;
-      roleId?: number;
-      isActive?: boolean;
-      permissions?: string[];
-      password?: string;
-    },
+    @Body() dto: UpdateUserDto,
   ) {
     return this.authService.updateUser(id, dto);
   }

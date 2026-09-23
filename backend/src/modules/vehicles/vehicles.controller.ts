@@ -14,7 +14,8 @@ import { VehiclesService } from './vehicles.service';
 import { CreateVehicleUnitDto } from './dto/create-vehicle-unit.dto';
 import { BulkImportVehicleDto } from './dto/bulk-import-vehicle.dto';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
-import { VehicleStatus } from './entities/vehicle-unit.entity';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { UpdateVehicleStatusDto } from './dto/update-vehicle-status.dto';
 
 @ApiTags('Vehicle Units & Chassis Tracking (Module 2)')
 @Controller('vehicles')
@@ -36,15 +37,15 @@ export class VehiclesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get single vehicle unit details' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.vehiclesService.findOne(id);
   }
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'Admin manual status override or warehouse move' })
   updateStatus(
-    @Param('id') id: string,
-    @Body() body: { status: VehicleStatus; warehouseId?: number },
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() body: UpdateVehicleStatusDto,
   ) {
     return this.vehiclesService.updateStatus(id, body.status, body.warehouseId);
   }

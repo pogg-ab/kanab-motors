@@ -12,6 +12,7 @@ import { ExchangeRateDefault } from './entities/exchange-rate-default.entity';
 import { Attachment } from '../customers/entities/attachment.entity';
 import { VehicleUnit } from '../vehicles/entities/vehicle-unit.entity';
 import { PurchaseOrder } from '../purchase-orders/entities/purchase-order.entity';
+import { PurchaseOrderLine } from '../purchase-orders/entities/purchase-order-line.entity';
 import { ShipmentsService } from './services/shipments.service';
 import { LandedCostAllocationService } from './services/landed-cost-allocation.service';
 import { ShipmentsController } from './shipments.controller';
@@ -31,6 +32,7 @@ import { ShipmentsController } from './shipments.controller';
       Attachment,
       VehicleUnit,
       PurchaseOrder,
+      PurchaseOrderLine,
     ]),
   ],
   providers: [ShipmentsService, LandedCostAllocationService],

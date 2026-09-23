@@ -7,6 +7,7 @@ import { ShipmentCostComponent } from '../entities/shipment-cost-component.entit
 import { ShipmentLineLandedCost } from '../entities/shipment-line-landed-cost.entity';
 import { VehicleUnitLandedCost } from '../entities/vehicle-unit-landed-cost.entity';
 import { VehicleUnit } from '../../vehicles/entities/vehicle-unit.entity';
+import { ExchangeRateDefault } from '../entities/exchange-rate-default.entity';
 
 export interface AllocationResultItem {
   shipmentLineId: string;
@@ -56,6 +57,8 @@ export class LandedCostAllocationService {
     private readonly unitCostRepo: Repository<VehicleUnitLandedCost>,
     @InjectRepository(VehicleUnit)
     private readonly vehicleUnitRepo: Repository<VehicleUnit>,
+    @InjectRepository(ExchangeRateDefault)
+    private readonly exchangeRateRepo: Repository<ExchangeRateDefault>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -117,6 +120,9 @@ export class LandedCostAllocationService {
     }
 
     const method = overrideMethod || shipment.allocationMethod || 'BY_VALUE';
+    const exchangeRates = await this.exchangeRateRepo.find();
+    const rateByCurrency = new Map(exchangeRates.map((rate) => [rate.currency, Number(rate.rateToEtb)]));
+    rateByCurrency.set('ETB', 1);
 
     // 1. Compute total landed cost across all components in ETB
     const totalCostEtb = shipment.costComponents.reduce((sum, c) => {
@@ -136,12 +142,21 @@ export class LandedCostAllocationService {
       if (method === 'BY_QUANTITY') {
         return qty;
       } else if (method === 'BY_WEIGHT') {
-        const weightKg = Number(line.poLine?.item?.weightKg) || 1000; // default 1000kg if unset
+        const weightKg = Number(line.poLine?.item?.weightKg);
+        if (!weightKg || weightKg <= 0) {
+          throw new BadRequestException(
+            `Product "${line.poLine?.item?.itemName || line.poLine?.itemId}" needs a positive weight before BY_WEIGHT allocation`,
+          );
+        }
         return qty * weightKg;
       } else {
-        // BY_VALUE (default)
         const unitPrice = Number(line.poLine?.unitPrice) || 0;
-        return qty * unitPrice;
+        const currency = line.poLine?.currency || 'ETB';
+        const rate = rateByCurrency.get(currency);
+        if (!rate || rate <= 0) {
+          throw new BadRequestException(`No default exchange rate is configured for ${currency}`);
+        }
+        return qty * unitPrice * rate;
       }
     });
 
@@ -209,18 +224,15 @@ export class LandedCostAllocationService {
           );
 
           if (lineVehicles.length > 0) {
-            const unitWeights = lineVehicles.map(() => 1);
-            const unitAllocations = this.distributeAmountZeroDrift(
-              allocatedAmounts[i],
-              unitWeights,
-            );
+            const shippedQty = Number(line.quantityShipped);
+            const unitCost = Math.round((allocatedAmounts[i] / shippedQty) * 100) / 100;
 
             for (let vIdx = 0; vIdx < lineVehicles.length; vIdx++) {
               unitCostEntities.push(
                 queryRunner.manager.create(VehicleUnitLandedCost, {
                   vehicleUnitId: lineVehicles[vIdx].vehicleUnitId,
                   shipmentLineId: line.shipmentLineId,
-                  landedCostEtb: unitAllocations[vIdx],
+                  landedCostEtb: unitCost,
                   isCurrent: true,
                   calculatedBy: userId,
                 }),

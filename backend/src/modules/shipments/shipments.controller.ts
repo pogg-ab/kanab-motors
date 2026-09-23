@@ -8,16 +8,33 @@ import {
   Body,
   Param,
   Query,
+  BadRequestException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import {
-  ShipmentsService,
-  CreateShipmentDto,
-  AddCostComponentDto,
-  ReceiveShipmentLineDto,
-} from './services/shipments.service';
+import { diskStorage } from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
+import { ShipmentsService } from './services/shipments.service';
 import { LandedCostAllocationService } from './services/landed-cost-allocation.service';
-import { ShipmentStage, AllocationMethod } from './entities/shipment.entity';
+import { ShipmentStage } from './entities/shipment.entity';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import {
+  AddCostComponentDto,
+  AllocateLandedCostDto,
+  CreateShipmentDto,
+  ReceiveShipmentLineDto,
+  UpdateExchangeRateDto,
+  UpdateShipmentStageDto,
+  UploadShipmentDocumentDto,
+} from './dto/shipment.dto';
+
+const shipmentUploadsDir = path.resolve(process.cwd(), 'uploads/documents');
+if (!fs.existsSync(shipmentUploadsDir)) {
+  fs.mkdirSync(shipmentUploadsDir, { recursive: true });
+}
 
 @ApiTags('Shipments & Landed Cost')
 @Controller('shipments')
@@ -66,14 +83,17 @@ export class ShipmentsController {
   @ApiOperation({ summary: 'Update default exchange rate to ETB' })
   updateExchangeRate(
     @Param('currency') currency: 'ETB' | 'USD' | 'EUR',
-    @Body('rateToEtb') rateToEtb: number,
+    @Body() dto: UpdateExchangeRateDto,
   ) {
-    return this.shipmentsService.updateExchangeRate(currency, rateToEtb);
+    if (!['ETB', 'USD', 'EUR'].includes(currency)) {
+      throw new BadRequestException('Currency must be ETB, USD, or EUR');
+    }
+    return this.shipmentsService.updateExchangeRate(currency, dto.rateToEtb);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get shipment full details, lines, stages, and costs' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.shipmentsService.findOne(id);
   }
 
@@ -82,18 +102,16 @@ export class ShipmentsController {
     summary: 'Advance shipment stage with Document Completeness validation (Story S3/D2)',
   })
   updateStage(
-    @Param('id') id: string,
-    @Body('stage') stage: ShipmentStage,
-    @Body('notes') notes?: string,
-    @Body('userId') userId?: number,
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdateShipmentStageDto,
   ) {
-    return this.shipmentsService.updateStage(id, stage, notes, userId);
+    return this.shipmentsService.updateStage(id, dto.stage, dto.notes, dto.userId);
   }
 
   @Post(':id/costs')
   @ApiOperation({ summary: 'Add multi-currency cost component to shipment (Story C1-C3)' })
   addCostComponent(
-    @Param('id') id: string,
+    @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: AddCostComponentDto,
   ) {
     return this.shipmentsService.addCostComponent(id, dto);
@@ -101,8 +119,11 @@ export class ShipmentsController {
 
   @Delete(':id/costs/:costId')
   @ApiOperation({ summary: 'Remove cost component from shipment' })
-  removeCostComponent(@Param('costId') costId: string) {
-    return this.shipmentsService.removeCostComponent(costId);
+  removeCostComponent(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Param('costId', PositiveBigIntIdPipe) costId: string,
+  ) {
+    return this.shipmentsService.removeCostComponent(id, costId);
   }
 
   @Post(':id/allocate-landed-cost')
@@ -110,21 +131,68 @@ export class ShipmentsController {
     summary: 'Execute Landed Cost Allocation Engine with Zero Rounding Drift (Story A1-A4)',
   })
   allocateLandedCost(
-    @Param('id') id: string,
-    @Body('allocationMethod') allocationMethod?: AllocationMethod,
-    @Body('userId') userId?: number,
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: AllocateLandedCostDto,
   ) {
     return this.landedCostService.calculateAndPersistAllocation(
       id,
-      allocationMethod,
-      userId,
+      dto.allocationMethod,
+      dto.userId,
     );
   }
 
   @Get(':id/landed-cost-report')
   @ApiOperation({ summary: 'Get Landed Cost Breakdown Report for shipment (Story A5)' })
-  getLandedCostReport(@Param('id') id: string) {
+  getLandedCostReport(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.landedCostService.getLandedCostReport(id);
+  }
+
+  @Get(':id/documents')
+  @ApiOperation({ summary: 'List shipment documents' })
+  getDocuments(@Param('id', PositiveBigIntIdPipe) id: string) {
+    return this.shipmentsService.getDocuments(id);
+  }
+
+  @Post(':id/documents')
+  @ApiOperation({ summary: 'Upload shipment document' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: shipmentUploadsDir,
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = path.extname(file.originalname);
+          cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+        },
+      }),
+    }),
+  )
+  uploadDocument(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadShipmentDocumentDto,
+  ) {
+    if (!file) {
+      throw new BadRequestException('A document file is required');
+    }
+
+    return this.shipmentsService.addDocument(id, {
+      fileName: file.originalname,
+      filePath: `/uploads/documents/${file.filename}`,
+      contentType: file.mimetype,
+      sizeBytes: file.size,
+      documentType: dto.documentType,
+      userId: dto.userId,
+    });
+  }
+
+  @Delete(':id/documents/:docId')
+  @ApiOperation({ summary: 'Delete shipment document' })
+  deleteDocument(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Param('docId', PositiveBigIntIdPipe) docId: string,
+  ) {
+    return this.shipmentsService.deleteDocument(id, docId);
   }
 
   @Post(':id/receive')
@@ -132,7 +200,7 @@ export class ShipmentsController {
     summary: 'Receive shipment line into inventory and generate vehicle units (Story R1-R3)',
   })
   receiveLine(
-    @Param('id') id: string,
+    @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: ReceiveShipmentLineDto,
   ) {
     return this.shipmentsService.receiveLine(id, dto);

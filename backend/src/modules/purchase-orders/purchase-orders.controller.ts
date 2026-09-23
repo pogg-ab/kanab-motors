@@ -9,12 +9,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import {
-  PurchaseOrdersService,
-  CreatePODto,
-  UpdatePODto,
-} from './purchase-orders.service';
+import { PurchaseOrdersService } from './purchase-orders.service';
 import { POStatus } from './entities/purchase-order.entity';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { CreatePODto, UpdatePODto, UpdatePOStatusDto } from './dto/purchase-order.dto';
 
 @ApiTags('Purchase Orders')
 @Controller('purchase-orders')
@@ -53,23 +51,22 @@ export class PurchaseOrdersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get Purchase Order details and lines by ID' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.poService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update Purchase Order (Draft status only)' })
-  update(@Param('id') id: string, @Body() dto: UpdatePODto) {
+  update(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: UpdatePODto) {
     return this.poService.update(id, dto);
   }
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'Update Purchase Order approval status (Story PO4/PO5)' })
   updateStatus(
-    @Param('id') id: string,
-    @Body('status') status: POStatus,
-    @Body('userId') userId?: number,
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdatePOStatusDto,
   ) {
-    return this.poService.updateStatus(id, status, userId);
+    return this.poService.updateStatus(id, dto.status, dto.userId);
   }
 }

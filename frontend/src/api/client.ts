@@ -657,16 +657,20 @@ export const api = {
     apiClient.put(`/shipments/lookups/exchange-rates/${currency}`, { rateToEtb }).then((r) => r.data),
   getShipmentPipelineReport: () =>
     apiClient.get<any>('/shipments/reports/pipeline').then((r) => r.data),
+  getShipmentDocs: (shipmentId: string) =>
+    apiClient.get<Attachment[]>(`/shipments/${shipmentId}/documents`).then((r) => r.data),
   uploadShipmentDoc: (shipmentId: string, file: File, documentType: string) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('documentType', documentType);
     return apiClient
-      .post<Attachment>(`/customers/${shipmentId}/documents`, formData, {
+      .post<Attachment>(`/shipments/${shipmentId}/documents`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((r) => r.data);
   },
+  deleteShipmentDoc: (shipmentId: string, docId: string) =>
+    apiClient.delete(`/shipments/${shipmentId}/documents/${docId}`).then((r) => r.data),
 
   // Auth & RBAC
   login: (data: { email?: string; username?: string; password?: string }) =>

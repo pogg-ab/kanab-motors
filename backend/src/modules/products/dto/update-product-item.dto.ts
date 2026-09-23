@@ -57,6 +57,12 @@ export class UpdateProductItemDto {
   reorderLevel?: number;
 
   @ApiPropertyOptional()
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
+  weightKg?: number;
+
+  @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -13,6 +14,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingQueryDto } from './dto/booking-query.dto';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { CancelBookingDto, TransferBookingFundsDto } from './dto/booking-action.dto';
 
 @ApiTags('Advance Order & Booking Management (KMSICAMS-2)')
 @Controller('bookings')
@@ -28,7 +31,7 @@ export class BookingsController {
 
   @Post('convert-enquiry/:enquiryId')
   @ApiOperation({ summary: 'Convert approved Sales Enquiry into Booking (Story B2)' })
-  convertFromEnquiry(@Param('enquiryId') enquiryId: string) {
+  convertFromEnquiry(@Param('enquiryId', PositiveBigIntIdPipe) enquiryId: string) {
     return this.bookingsService.convertFromEnquiry(enquiryId);
   }
 
@@ -40,38 +43,30 @@ export class BookingsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get booking detail' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.bookingsService.findOne(id);
   }
 
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel booking with deposit reversal (Story B8)' })
   cancelBooking(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      reason: string;
-      routeTo?: 'CUSTOMER_CREDIT' | 'REFUNDABLE';
-    },
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() body: CancelBookingDto,
   ) {
     return this.bookingsService.cancelBooking(id, body.reason, body.routeTo);
   }
 
   @Post('transfer')
-  @ApiOperation({ summary: 'Transfer deposited funds between bookings of same customer (Story B10)' })
-  transferFunds(
-    @Body()
-    body: {
-      sourceBookingId: string;
-      targetBookingId?: string;
-      destinationBookingId?: string;
-      amount: number;
-    },
-  ) {
+  @ApiOperation({ summary: 'Transfer deposited funds between bookings of same customer (Story B9)' })
+  transferFunds(@Body() body: TransferBookingFundsDto) {
     const targetId = body.targetBookingId || body.destinationBookingId;
+    if (!targetId) {
+      throw new BadRequestException('targetBookingId or destinationBookingId is required');
+    }
+
     return this.bookingsService.transferBetweenBookings(
       body.sourceBookingId,
-      targetId as string,
+      targetId,
       body.amount,
     );
   }

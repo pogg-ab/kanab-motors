@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
 import { seedDatabase } from './database/seed';
@@ -62,6 +63,7 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
+  app.useGlobalFilters(new TypeOrmExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
