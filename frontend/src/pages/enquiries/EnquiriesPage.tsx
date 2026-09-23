@@ -63,6 +63,18 @@ export const EnquiriesPage: React.FC = () => {
   // Printable Proforma Quotation Modal (Story E13)
   const [selectedQuote, setSelectedQuote] = useState<SalesEnquiry | null>(null);
 
+  // Proforma Print Isolation Effect
+  useEffect(() => {
+    if (selectedQuote) {
+      document.body.classList.add('printing-proforma');
+    } else {
+      document.body.classList.remove('printing-proforma');
+    }
+    return () => {
+      document.body.classList.remove('printing-proforma');
+    };
+  }, [selectedQuote]);
+
   const fetchDependencies = async () => {
     try {
       const [custRes, itemRes] = await Promise.all([
@@ -216,7 +228,9 @@ export const EnquiriesPage: React.FC = () => {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
-      {/* Breadcrumb & Header */}
+      {/* Dashboard View (Hidden during quote printing) */}
+      <div className="enquiries-dashboard">
+        {/* Breadcrumb & Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
         <span style={{ color: 'var(--accent-cyan)' }}>★</span>
         <span>Financial Engine</span>
@@ -338,14 +352,14 @@ export const EnquiriesPage: React.FC = () => {
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ENQUIRY #</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>CUSTOMER</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>VEHICLE MODEL</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center' }}>QTY</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right' }}>ESTIMATED VALUE (15% VAT)</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>SALESPERSON</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center' }}>STATUS</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center' }}>ACTIONS</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap', minWidth: '135px' }}>ENQUIRY #</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>CUSTOMER</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>VEHICLE MODEL</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '60px' }}>QTY</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '160px' }}>ESTIMATED VALUE (15% VAT)</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '140px' }}>SALESPERSON</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '110px' }}>STATUS</th>
+                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '160px' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -364,11 +378,11 @@ export const EnquiriesPage: React.FC = () => {
               ) : (
                 enquiries.map((enq) => (
                   <tr key={enq.enquiryId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.95rem 1.15rem' }}>
-                      <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                    <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap', minWidth: '135px' }}>
+                      <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
                         {enq.enquiryNumber}
                       </span>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
                         {new Date(enq.createdAt).toLocaleDateString()}
                       </div>
                       <div style={{ marginTop: '0.2rem' }}>
@@ -377,7 +391,7 @@ export const EnquiriesPage: React.FC = () => {
                           return (
                             <span
                               className={`badge ${daysRemaining > 7 ? 'badge-subtle' : daysRemaining > 0 ? 'badge-amber' : 'badge-rose'}`}
-                              style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}
+                              style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', whiteSpace: 'nowrap', display: 'inline-block' }}
                               title={`Quotation validity window: 30 days (${daysRemaining} days remaining)`}
                             >
                               ⏳ {daysRemaining > 0 ? `${daysRemaining}d valid` : 'Expired'}
@@ -496,6 +510,7 @@ export const EnquiriesPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
 
       {/* CREATE ENQUIRY MODAL */}
@@ -849,66 +864,71 @@ export const EnquiriesPage: React.FC = () => {
 
       {/* PRINTABLE PROFORMA INVOICE / QUOTATION MODAL (Story E13) */}
       {selectedQuote && (
-        <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '680px', padding: '0', background: '#0d1322', overflow: 'hidden' }}>
+        <div className="modal-backdrop proforma-modal-backdrop">
+          <div className="modal-content proforma-modal-content" style={{ maxWidth: '720px', padding: '0', background: '#0b1120', overflow: 'hidden', border: '1px solid #1e293b', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
             {/* Modal Header Controls (Screen Only) */}
-            <div className="no-print" style={{ padding: '1rem 1.5rem', background: '#090D16', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <FileText size={18} color="var(--accent-cyan)" />
-                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Proforma Quotation — {selectedQuote.enquiryNumber}</span>
+            <div className="no-print" style={{ padding: '0.9rem 1.4rem', background: '#0f172a', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <FileText size={18} color="#38bdf8" />
+                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>
+                  Proforma Quotation — <span style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 800 }}>{selectedQuote.enquiryNumber}</span>
+                </span>
               </div>
-              <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <button
+                  type="button"
                   className="btn btn-cyan btn-sm"
                   onClick={() => window.print()}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, padding: '0.45rem 0.95rem' }}
                 >
-                  <Printer size={14} /> Print Quotation (PDF)
+                  <Printer size={15} /> Print Quotation (PDF)
                 </button>
                 <button
+                  type="button"
                   onClick={() => setSelectedQuote(null)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  style={{ background: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '6px', color: '#ffffff', cursor: 'pointer', padding: '0.35rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Close modal"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
             {/* Official Printable Proforma Document */}
-            <div style={{ padding: '2rem', background: '#ffffff', color: '#0f172a' }}>
+            <div className="proforma-document" style={{ padding: '2.25rem', background: '#ffffff', color: '#0f172a' }}>
               {/* Header Letterhead */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '1.15rem', marginBottom: '1.25rem' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ background: '#0f172a', color: '#ffffff', fontWeight: 900, padding: '0.25rem 0.55rem', borderRadius: '4px', fontSize: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ background: '#0f172a', color: '#ffffff', fontWeight: 900, width: '42px', height: '42px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', letterSpacing: '0.05em' }}>
                       KM
                     </div>
                     <div>
-                      <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>
+                      <h2 style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em', lineHeight: 1.15 }}>
                         KANAB MOTORS PLC
                       </h2>
-                      <p style={{ margin: 0, fontSize: '0.72rem', color: '#475569', fontWeight: 600 }}>
+                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
                         Automotive Assembly & Commercial Distribution
                       </p>
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: '#475569', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: '0.5rem', lineHeight: 1.45 }}>
                     Gotera Distribution Center · Debre Zeit Road, Addis Ababa, Ethiopia<br />
                     TIN: 0048291048 · VAT: 8291048002 · Tel: +251-11-467-1122
                   </div>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase' }}>
-                    Proforma Invoice
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    PROFORMA INVOICE
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
-                    Quote Ref: <strong style={{ color: '#0f172a' }}>{selectedQuote.enquiryNumber}</strong>
+                  <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.35rem' }}>
+                    Quote Ref: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{selectedQuote.enquiryNumber}</strong>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
                     Date: <strong style={{ color: '#0f172a' }}>{new Date(selectedQuote.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</strong>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 700 }}>
+                  <div style={{ fontSize: '0.78rem', color: '#b45309', fontWeight: 800, marginTop: '0.2rem' }}>
                     Validity: 30 Calendar Days
                   </div>
                 </div>
