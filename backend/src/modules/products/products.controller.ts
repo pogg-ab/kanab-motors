@@ -14,6 +14,9 @@ import { ProductsService } from './products.service';
 import { CreateProductItemDto } from './dto/create-product-item.dto';
 import { UpdateProductItemDto } from './dto/update-product-item.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { CreateTaxConfigDto } from './dto/create-tax-config.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { CreateBrandDto } from './dto/create-brand.dto';
 
 @ApiTags('Product & Vehicle Master Data (Module 2)')
 @Controller('products')
@@ -55,8 +58,9 @@ export class ProductsController {
 
   @Post('categories')
   @ApiOperation({ summary: 'Create product category' })
-  createCategory(@Body() body: { name: string }) {
-    return this.productsService.createCategory(body.name);
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.productsService.createCategory(dto.name);
   }
 
   @Get('brands')
@@ -67,8 +71,9 @@ export class ProductsController {
 
   @Post('brands')
   @ApiOperation({ summary: 'Create brand' })
-  createBrand(@Body() body: { name: string }) {
-    return this.productsService.createBrand(body.name);
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createBrand(@Body() dto: CreateBrandDto) {
+    return this.productsService.createBrand(dto.name);
   }
 
   @Get('uoms')
@@ -85,7 +90,9 @@ export class ProductsController {
 
   @Post('tax-configs')
   @ApiOperation({ summary: 'Create tax configuration' })
-  createTaxConfig(@Body() body: { name: string; ratePct: number }) {
-    return this.productsService.createTaxConfig(body.name, body.ratePct);
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createTaxConfig(@Body() dto: CreateTaxConfigDto) {
+    return this.productsService.createTaxConfig(dto.name, dto.ratePct);
   }
 }
+
