@@ -116,6 +116,66 @@ export const StatementOfAccountPage: React.FC = () => {
     }
   };
 
+  const handleExportCsv = () => {
+    if (!statement || !statement.transactions) return;
+    const customer = customers.find((c) => c.customerId === selectedCustomerId);
+
+    const rows: string[][] = [
+      ['KANAB MOTORS PLC - OFFICIAL CUSTOMER STATEMENT OF ACCOUNT'],
+      ['Customer Code', customer?.customerCode || ''],
+      ['Customer Name', customer?.fullName || ''],
+      ['Customer Type', customer?.customerType || ''],
+      ['Statement Date', new Date().toISOString().slice(0, 10)],
+      ['Period Filter', `${startDate || 'All Time'} to ${endDate || 'Present'}`],
+      [],
+      ['ACCOUNT SUMMARY'],
+      ['Total Deposits (ETB)', Number(statement.summary?.totalDeposits || 0).toFixed(2)],
+      ['Allocated to Bookings (ETB)', Number(statement.summary?.allocatedToBookings || 0).toFixed(2)],
+      ['Outstanding Balance (ETB)', Number(statement.summary?.outstandingBalance || 0).toFixed(2)],
+      ['Available Credit (ETB)', Number(statement.summary?.availableCredit || 0).toFixed(2)],
+      ['Excess Payments (ETB)', Number(statement.summary?.excessPayments || 0).toFixed(2)],
+      ['Refundable Balance (ETB)', Number(statement.summary?.refundableBalance || 0).toFixed(2)],
+      [],
+      [
+        'Date',
+        'Transaction Description',
+        'Transaction Type',
+        'Reference Number',
+        'Booking Number',
+        'Debit (ETB)',
+        'Credit (ETB)',
+        'Running Balance (ETB)',
+        'Auditor / User',
+      ],
+    ];
+
+    statement.transactions.forEach((tx) => {
+      rows.push([
+        new Date(tx.date).toLocaleDateString(),
+        `"${(tx.description || '').replace(/"/g, '""')}"`,
+        tx.transactionType,
+        tx.reference,
+        tx.bookingNumber || '',
+        tx.debit > 0 ? tx.debit.toFixed(2) : '0.00',
+        tx.credit > 0 ? tx.credit.toFixed(2) : '0.00',
+        tx.runningBalance.toFixed(2),
+        `"${(tx.processedBy || 'Admin').replace(/"/g, '""')}"`,
+      ]);
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((r) => r.join(',')).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute(
+      'download',
+      `SOA_${customer?.customerCode || 'CUSTOMER'}_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const selectedCustomer = customers.find((c) => c.customerId === selectedCustomerId);
 
   return (
@@ -202,8 +262,11 @@ export const StatementOfAccountPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button className="btn btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Download size={15} /> Export CSV
+          </button>
           <button className="btn btn-secondary" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Printer size={15} /> Print Statement
+            <Printer size={15} /> Print SOA
           </button>
           <button className="btn btn-cyan" onClick={() => setIsAdjOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <PlusCircle size={15} /> Post Ledger Adjustment
