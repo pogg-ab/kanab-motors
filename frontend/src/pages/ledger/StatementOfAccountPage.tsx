@@ -27,10 +27,11 @@ export const StatementOfAccountPage: React.FC = () => {
   const [statement, setStatement] = useState<StatementOfAccount | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Filters
+  // Filters (Story L6)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('');
+  const [bookingFilter, setBookingFilter] = useState('');
 
   // Manual Adjustment Modal (Story L9)
   const [isAdjOpen, setIsAdjOpen] = useState(false);
@@ -63,6 +64,7 @@ export const StatementOfAccountPage: React.FC = () => {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
       if (txTypeFilter) params.transactionType = txTypeFilter;
+      if (bookingFilter) params.bookingNumber = bookingFilter;
 
       const data = await api.getStatement(selectedCustomerId, params);
       setStatement(data);
@@ -81,7 +83,7 @@ export const StatementOfAccountPage: React.FC = () => {
     if (selectedCustomerId) {
       fetchStatement();
     }
-  }, [selectedCustomerId, startDate, endDate, txTypeFilter]);
+  }, [selectedCustomerId, startDate, endDate, txTypeFilter, bookingFilter]);
 
   const handlePostAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,9 +253,20 @@ export const StatementOfAccountPage: React.FC = () => {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Booking #:</span>
+              <input
+                type="text"
+                placeholder="e.g. BKG-2026-001"
+                className="input-field"
+                style={{ padding: '0.4rem 0.65rem', fontSize: '0.8rem', height: '38px', width: '140px', background: 'rgba(15, 23, 42, 0.8)' }}
+                value={bookingFilter}
+                onChange={(e) => setBookingFilter(e.target.value)}
+              />
+            </div>
             <select
               className="select-field"
-              style={{ width: '200px', fontSize: '0.8rem', height: '38px', background: 'rgba(15, 23, 42, 0.8)' }}
+              style={{ width: '180px', fontSize: '0.8rem', height: '38px', background: 'rgba(15, 23, 42, 0.8)' }}
               value={txTypeFilter}
               onChange={(e) => setTxTypeFilter(e.target.value)}
             >
@@ -267,6 +280,22 @@ export const StatementOfAccountPage: React.FC = () => {
               <option value="BOOKING_CANCELLATION">Booking Cancellation</option>
               <option value="BOOKING_TRANSFER">Booking Transfer</option>
             </select>
+            {(startDate || endDate || txTypeFilter || bookingFilter) && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setTxTypeFilter('');
+                  setBookingFilter('');
+                }}
+                style={{ height: '38px', fontSize: '0.75rem', padding: '0 0.75rem' }}
+                title="Reset all filters"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
       </div>

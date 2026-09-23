@@ -185,6 +185,7 @@ export class LedgerService {
     endDate?: string;
     transactionType?: LedgerTransactionType;
     bookingId?: string;
+    bookingNumber?: string;
     page?: number;
     limit?: number;
   }) {
@@ -204,13 +205,22 @@ export class LedgerService {
       qb.andWhere('tx.transaction_date >= :startDate', { startDate: params.startDate });
     }
     if (params.endDate) {
-      qb.andWhere('tx.transaction_date <= :endDate', { endDate: params.endDate });
+      const end = params.endDate.length === 10 ? `${params.endDate} 23:59:59.999` : params.endDate;
+      qb.andWhere('tx.transaction_date <= :endDate', { endDate: end });
     }
     if (params.transactionType) {
       qb.andWhere('tx.transaction_type = :tt', { tt: params.transactionType });
     }
-    if (params.bookingId) {
-      qb.andWhere('tx.related_booking_id = :bid', { bid: params.bookingId });
+    if (params.bookingId || params.bookingNumber) {
+      const bRef = (params.bookingNumber || params.bookingId)!.trim();
+      if (/^\d+$/.test(bRef)) {
+        qb.andWhere('(tx.related_booking_id = :bid OR booking.booking_number = :bnum)', {
+          bid: bRef,
+          bnum: bRef,
+        });
+      } else {
+        qb.andWhere('booking.booking_number = :bnum', { bnum: bRef });
+      }
     }
 
     qb.orderBy('tx.transactionDate', 'ASC');

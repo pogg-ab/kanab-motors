@@ -16,6 +16,7 @@ export class LedgerController {
     @Query('endDate') endDate?: string,
     @Query('transactionType') transactionType?: LedgerTransactionType,
     @Query('bookingId') bookingId?: string,
+    @Query('bookingNumber') bookingNumber?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
@@ -25,6 +26,7 @@ export class LedgerController {
       endDate,
       transactionType,
       bookingId,
+      bookingNumber,
       page,
       limit,
     });
