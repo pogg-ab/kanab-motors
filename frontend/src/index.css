@@ -1453,6 +1453,150 @@ body[data-theme="light"],
   }
 }
 
+/* --------------------------------------------------------------------------
+   PRINT STYLESHEET (Story L5: Official Corporate Statement of Account)
+   -------------------------------------------------------------------------- */
+.print-only {
+  display: none !important;
+}
 
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm 14mm 14mm;
+  }
 
+  html,
+  body,
+  #root,
+  #root > div,
+  main,
+  div[style*="height: 100vh"] {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
 
+  /* Hide navigation, top bars, buttons, dropdowns, and overlays */
+  aside,
+  header,
+  nav,
+  .sidebar-aside,
+  .navbar-header,
+  .sidebar-backdrop,
+  .modal-backdrop,
+  .no-print,
+  button,
+  select,
+  input {
+    display: none !important;
+  }
+
+  /* Show dedicated corporate print elements */
+  .print-only {
+    display: block !important;
+  }
+
+  .print-only-flex {
+    display: flex !important;
+  }
+
+  .print-only-grid {
+    display: grid !important;
+  }
+
+  /* Reset panels and borders for high-contrast paper print */
+  .card,
+  .glass-panel {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    color: #0f172a !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    padding: 0.75rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .card * ,
+  .glass-panel * {
+    text-shadow: none !important;
+  }
+
+  /* Statement Table Print Formatting */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8.5pt !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  thead tr {
+    background: #f1f5f9 !important;
+  }
+
+  th {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #0f172a !important;
+    padding: 6px 8px !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  tr:nth-child(even) {
+    background: #f8fafc !important;
+  }
+
+  td {
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: #0f172a !important;
+    padding: 6px 8px !important;
+  }
+
+  .mono-code {
+    background: transparent !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+  }
+
+  .badge {
+    border: 1px solid #94a3b8 !important;
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+  }
+
+  /* High contrast text on paper */
+  p, h1, h2, h3, h4, span, div, strong {
+    color: #0f172a !important;
+    text-shadow: none !important;
+  }
+
+  /* 3-column clean grid for summary KPI cards */
+  div[style*="repeat(auto-fit, minmax(180px, 1fr))"] {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .glass-panel {
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+  }
+}

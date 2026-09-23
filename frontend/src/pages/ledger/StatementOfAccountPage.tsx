@@ -118,8 +118,69 @@ export const StatementOfAccountPage: React.FC = () => {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
-      {/* Breadcrumb & Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+      {/* ---------------------------------------------------- */}
+      {/* PRINT-ONLY CORPORATE LETTERHEAD & CUSTOMER INFO      */}
+      {/* ---------------------------------------------------- */}
+      <div className="print-only" style={{ marginBottom: '1.5rem', borderBottom: '2px solid #0f172a', paddingBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ background: '#0f172a', color: '#ffffff', fontWeight: 900, padding: '0.35rem 0.65rem', borderRadius: '4px', fontSize: '1.1rem', letterSpacing: '0.05em' }}>
+                KM
+              </div>
+              <div>
+                <h1 style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  KANAB MOTORS PLC
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+                  Automotive Assembly, Logistics & Commercial Distribution
+                </p>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: '0.45rem', lineHeight: 1.4 }}>
+              Gotera Distribution Center & Assembly Plant · Debre Zeit Road, Addis Ababa, Ethiopia<br />
+              TIN: 0048291048 · VAT Reg: 8291048002 · Tel: +251-11-467-1122 · finance@kanabmotors.et
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.01em', textTransform: 'uppercase' }}>
+              Statement of Account
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>
+              Statement Ref: <strong style={{ color: '#0f172a' }}>SOA-{selectedCustomer?.customerCode || 'CUST'}-{new Date().toISOString().slice(0, 10).replace(/-/g, '')}</strong>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              Date Issued: <strong style={{ color: '#0f172a' }}>{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</strong>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+              Period: <strong style={{ color: '#0f172a' }}>{startDate || 'All Time'}</strong> to <strong style={{ color: '#0f172a' }}>{endDate || 'Present'}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Customer Information Box */}
+        <div style={{ marginTop: '1.25rem', padding: '0.85rem 1rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem', fontSize: '0.78rem' }}>
+          <div>
+            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Customer Name & Account</div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginTop: '0.15rem' }}>{selectedCustomer?.fullName || 'N/A'}</div>
+            <div style={{ color: '#475569' }}>Code: <strong>{selectedCustomer?.customerCode}</strong> ({selectedCustomer?.customerType})</div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Contact Details</div>
+            <div style={{ color: '#0f172a', marginTop: '0.15rem' }}>Mobile: <strong>{selectedCustomer?.mobileNumber || 'N/A'}</strong></div>
+            <div style={{ color: '#475569' }}>Town: {selectedCustomer?.addressTown || 'Addis Ababa'}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Tax & Regulatory Info</div>
+            <div style={{ color: '#0f172a', marginTop: '0.15rem' }}>TIN: <strong>{selectedCustomer?.tinNumber || 'N/A'}</strong></div>
+            <div style={{ color: '#475569' }}>Category: {selectedCustomer?.customerType || 'Direct POS'}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Breadcrumb & Header (Screen Only) */}
+      <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
         <span style={{ color: 'var(--accent-cyan)' }}>★</span>
         <span>Financial Engine</span>
         <span>/</span>
@@ -128,7 +189,7 @@ export const StatementOfAccountPage: React.FC = () => {
         <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Statement of Account</span>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
             Customer Ledger & Statement of Account
@@ -148,8 +209,8 @@ export const StatementOfAccountPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Customer Selector & Filter Bar */}
-      <div className="card" style={{ padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
+      {/* Customer Selector & Filter Bar (Screen Only) */}
+      <div className="card no-print" style={{ padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '320px' }}>
             <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -343,6 +404,36 @@ export const StatementOfAccountPage: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* PRINT-ONLY AUDIT ATTESTATION & SIGNATURE BLOCKS      */}
+      {/* ---------------------------------------------------- */}
+      <div className="print-only" style={{ marginTop: '2rem', pageBreakInside: 'avoid' }}>
+        <div style={{ fontSize: '0.72rem', color: '#475569', fontStyle: 'italic', borderTop: '1px solid #cbd5e1', paddingTop: '0.75rem', marginBottom: '1.75rem' }}>
+          * Certification Note: This official Statement of Account is generated from Kanab Motors Enterprise SIMS immutable ledger. All deposits, invoice deductions, and credit allocations are verified against bank receipt vouchers (BRV) and commercial invoices.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginTop: '1rem' }}>
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.5rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>Prepared By:</div>
+            <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.2rem' }}>Finance & Accounts Department</div>
+            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1.5rem' }}>Sign: _______________________</div>
+            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.35rem' }}>Date: _______________________</div>
+          </div>
+
+          <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.5rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>Verified & Approved:</div>
+            <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.2rem' }}>Internal Auditor / Chief Financial Officer</div>
+            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1.5rem' }}>Sign: _______________________</div>
+            <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.35rem' }}>Date: _______________________</div>
+          </div>
+
+          <div style={{ border: '1px dashed #94a3b8', borderRadius: '6px', padding: '0.75rem', textAlign: 'center', minHeight: '90px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Official Corporate Seal</div>
+            <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '0.25rem' }}>KANAB MOTORS PLC · ADDIS ABABA</div>
+          </div>
         </div>
       </div>
 
