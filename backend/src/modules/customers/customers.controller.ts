@@ -11,6 +11,7 @@ import {
   UploadedFile,
   ValidationPipe,
   UsePipes,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -21,6 +22,7 @@ import { CustomerQueryDto } from './dto/customer-query.dto';
 import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 
 const uploadsDir = path.resolve(process.cwd(), 'uploads/documents');
 if (!fs.existsSync(uploadsDir)) {
@@ -47,32 +49,35 @@ export class CustomersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get customer detail by ID (includes banking & account summary)' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.customersService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update customer profile (audited)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
+  update(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: UpdateCustomerDto) {
     return this.customersService.update(id, dto);
   }
 
   @Get(':id/account-summary')
   @ApiOperation({ summary: 'Get Customer Account Summary shell (SRS 1.9 & 1.10 zero-state)' })
-  getAccountSummary(@Param('id') id: string) {
+  getAccountSummary(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.customersService.getAccountSummary(id);
   }
 
   @Post(':id/bank-accounts')
   @ApiOperation({ summary: 'Add bank account for refund/settlement payouts' })
-  addBankAccount(@Param('id') id: string, @Body() dto: CreateBankAccountDto) {
+  addBankAccount(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: CreateBankAccountDto) {
     return this.customersService.addBankAccount(id, dto);
   }
 
   @Delete(':id/bank-accounts/:accountId')
   @ApiOperation({ summary: 'Remove bank account' })
-  deleteBankAccount(@Param('id') id: string, @Param('accountId') accountId: string) {
+  deleteBankAccount(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Param('accountId', PositiveBigIntIdPipe) accountId: string,
+  ) {
     return this.customersService.deleteBankAccount(id, accountId);
   }
 
@@ -91,7 +96,10 @@ export class CustomersController {
       }),
     }),
   )
-  uploadDocument(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+  uploadDocument(@Param('id', PositiveBigIntIdPipe) id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('A document file is required');
+    }
     return this.customersService.addDocument(id, {
       fileName: file.originalname,
       filePath: `/uploads/documents/${file.filename}`,
@@ -102,7 +110,10 @@ export class CustomersController {
 
   @Delete(':id/documents/:docId')
   @ApiOperation({ summary: 'Delete customer supporting document' })
-  deleteDocument(@Param('id') id: string, @Param('docId') docId: string) {
+  deleteDocument(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Param('docId', PositiveBigIntIdPipe) docId: string,
+  ) {
     return this.customersService.deleteDocument(id, docId);
   }
 }

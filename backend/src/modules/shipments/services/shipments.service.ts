@@ -19,41 +19,14 @@ import { ExchangeRateDefault } from '../entities/exchange-rate-default.entity';
 import { Attachment } from '../../customers/entities/attachment.entity';
 import { VehicleUnit, VehicleStatus } from '../../vehicles/entities/vehicle-unit.entity';
 import { PurchaseOrder, POStatus } from '../../purchase-orders/entities/purchase-order.entity';
-
-export interface CreateShipmentLineDto {
-  poLineId: string;
-  quantityShipped: number;
-}
-
-export interface CreateShipmentDto {
-  expectedArrivalDate?: string;
-  billOfLadingNumber?: string;
-  allocationMethod?: AllocationMethod;
-  notes?: string;
-  lines: CreateShipmentLineDto[];
-  userId?: number;
-}
-
-export interface AddCostComponentDto {
-  costComponentTypeId: number;
-  amount: number;
-  currency: 'ETB' | 'USD' | 'EUR';
-  exchangeRateToEtb?: number;
-  notes?: string;
-  userId?: number;
-}
-
-export interface ReceiveShipmentLineDto {
-  shipmentLineId: string;
-  quantityReceived: number;
-  warehouseId?: number;
-  notes?: string;
-  vehicles?: {
-    chassisNumber: string;
-    engineNumber: string;
-  }[];
-  userId?: number;
-}
+import { PurchaseOrderLine } from '../../purchase-orders/entities/purchase-order-line.entity';
+import { ShipmentLineLandedCost } from '../entities/shipment-line-landed-cost.entity';
+import { VehicleUnitLandedCost } from '../entities/vehicle-unit-landed-cost.entity';
+import {
+  AddCostComponentDto,
+  CreateShipmentDto,
+  ReceiveShipmentLineDto,
+} from '../dto/shipment.dto';
 
 @Injectable()
 export class ShipmentsService {
@@ -78,6 +51,12 @@ export class ShipmentsService {
     private readonly vehicleUnitRepo: Repository<VehicleUnit>,
     @InjectRepository(PurchaseOrder)
     private readonly poRepo: Repository<PurchaseOrder>,
+    @InjectRepository(PurchaseOrderLine)
+    private readonly poLineRepo: Repository<PurchaseOrderLine>,
+    @InjectRepository(ShipmentLineLandedCost)
+    private readonly lineCostRepo: Repository<ShipmentLineLandedCost>,
+    @InjectRepository(VehicleUnitLandedCost)
+    private readonly vehicleUnitCostRepo: Repository<VehicleUnitLandedCost>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -91,6 +70,48 @@ export class ShipmentsService {
     await queryRunner.startTransaction();
 
     try {
+      const duplicateLineIds = dto.lines
+        .map((line) => String(line.poLineId))
+        .filter((lineId, idx, arr) => arr.indexOf(lineId) !== idx);
+      if (duplicateLineIds.length > 0) {
+        throw new BadRequestException('A PO line can only appear once in a shipment');
+      }
+
+      for (const requestedLine of dto.lines) {
+        const poLine = await queryRunner.manager
+          .getRepository(PurchaseOrderLine)
+          .createQueryBuilder('pol')
+          .setLock('pessimistic_write')
+          .leftJoinAndSelect('pol.purchaseOrder', 'po')
+          .where('pol.poLineId = :poLineId', { poLineId: requestedLine.poLineId })
+          .getOne();
+
+        if (!poLine) {
+          throw new BadRequestException(`PO line #${requestedLine.poLineId} does not exist`);
+        }
+
+        if (![POStatus.CONFIRMED, POStatus.PARTIALLY_RECEIVED].includes(poLine.purchaseOrder.status)) {
+          throw new BadRequestException(
+            `PO line #${requestedLine.poLineId} belongs to a ${poLine.purchaseOrder.status} purchase order`,
+          );
+        }
+
+        const shipped = await queryRunner.manager
+          .getRepository(ShipmentLine)
+          .createQueryBuilder('sl')
+          .select('COALESCE(SUM(sl.quantityShipped), 0)', 'quantity')
+          .where('sl.poLineId = :poLineId', { poLineId: requestedLine.poLineId })
+          .getRawOne<{ quantity: string }>();
+
+        const alreadyShipped = Number(shipped?.quantity || 0);
+        const remaining = Number(poLine.quantityOrdered) - alreadyShipped;
+        if (Number(requestedLine.quantityShipped) > remaining) {
+          throw new BadRequestException(
+            `PO line #${requestedLine.poLineId} only has ${remaining} unit(s) remaining to ship`,
+          );
+        }
+      }
+
       const shipment = queryRunner.manager.create(Shipment, {
         currentStage: ShipmentStage.ORDERED,
         billOfLadingNumber: dto.billOfLadingNumber,
@@ -205,6 +226,24 @@ export class ShipmentsService {
     userId?: number,
   ): Promise<Shipment> {
     const shipment = await this.findOne(id);
+    const fromStage = shipment.currentStage;
+
+    if (fromStage === targetStage) {
+      throw new BadRequestException(`Shipment is already in ${targetStage}`);
+    }
+
+    const validTransitions: Record<ShipmentStage, ShipmentStage[]> = {
+      [ShipmentStage.ORDERED]: [ShipmentStage.SHIPPED],
+      [ShipmentStage.SHIPPED]: [ShipmentStage.AT_DJIBOUTI_PORT],
+      [ShipmentStage.AT_DJIBOUTI_PORT]: [ShipmentStage.IN_TRANSIT_INLAND],
+      [ShipmentStage.IN_TRANSIT_INLAND]: [ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE],
+      [ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE]: [ShipmentStage.RECEIVED],
+      [ShipmentStage.RECEIVED]: [],
+    };
+
+    if (!validTransitions[fromStage]?.includes(targetStage)) {
+      throw new BadRequestException(`Invalid shipment stage transition from ${fromStage} to ${targetStage}`);
+    }
 
     // Document Completeness Check (Story D2):
     // If advancing to ETHIOPIAN_CUSTOMS_CLEARANCE or RECEIVED, check if customs declaration document exists
@@ -235,11 +274,10 @@ export class ShipmentsService {
 
     const saved = await this.shipmentRepo.save(shipment);
 
-    // Record in history if trigger didn't catch notes
     if (notes) {
       const history = this.stageHistoryRepo.create({
         shipmentId: id,
-        fromStage: shipment.currentStage,
+        fromStage,
         toStage: targetStage,
         changedBy: userId,
         notes,
@@ -252,8 +290,17 @@ export class ShipmentsService {
 
   async addCostComponent(shipmentId: string, dto: AddCostComponentDto): Promise<ShipmentCostComponent> {
     const shipment = await this.findOne(shipmentId);
+    if (shipment.currentStage === ShipmentStage.RECEIVED) {
+      throw new BadRequestException('Cannot add cost components after a shipment is received');
+    }
 
-    // Determine exchange rate
+    const componentType = await this.costTypeRepo.findOne({
+      where: { costComponentTypeId: dto.costComponentTypeId },
+    });
+    if (!componentType) {
+      throw new BadRequestException(`Cost component type #${dto.costComponentTypeId} does not exist`);
+    }
+
     let rate = dto.exchangeRateToEtb;
     if (!rate) {
       if (dto.currency === 'ETB') {
@@ -262,7 +309,10 @@ export class ShipmentsService {
         const defaultRate = await this.exchangeRateRepo.findOne({
           where: { currency: dto.currency },
         });
-        rate = defaultRate ? Number(defaultRate.rateToEtb) : 125.0;
+        if (!defaultRate) {
+          throw new BadRequestException(`No default exchange rate is configured for ${dto.currency}`);
+        }
+        rate = Number(defaultRate.rateToEtb);
       }
     }
 
@@ -283,8 +333,13 @@ export class ShipmentsService {
     return this.costRepo.save(cost);
   }
 
-  async removeCostComponent(costComponentId: string): Promise<void> {
-    const cost = await this.costRepo.findOne({ where: { costComponentId } });
+  async removeCostComponent(shipmentId: string, costComponentId: string): Promise<void> {
+    const shipment = await this.findOne(shipmentId);
+    if (shipment.currentStage === ShipmentStage.RECEIVED) {
+      throw new BadRequestException('Cannot remove cost components after a shipment is received');
+    }
+
+    const cost = await this.costRepo.findOne({ where: { shipmentId, costComponentId } });
     if (!cost) {
       throw new NotFoundException(`Cost Component #${costComponentId} not found`);
     }
@@ -296,6 +351,22 @@ export class ShipmentsService {
     const line = shipment.lines.find((l) => String(l.shipmentLineId) === String(dto.shipmentLineId));
     if (!line) {
       throw new BadRequestException(`Shipment line #${dto.shipmentLineId} not found in this shipment`);
+    }
+
+    const vehicles = dto.vehicles || dto.vehicleUnits || [];
+    if (dto.vehicles && dto.vehicleUnits) {
+      throw new BadRequestException('Use either vehicles or vehicleUnits, not both');
+    }
+
+    if (vehicles.length > 0 && vehicles.length !== Number(dto.quantityReceived)) {
+      throw new BadRequestException('Vehicle count must match quantity received');
+    }
+
+    const currentLineCost = await this.lineCostRepo.findOne({
+      where: { shipmentLineId: dto.shipmentLineId, isCurrent: true },
+    });
+    if (!currentLineCost) {
+      throw new BadRequestException('Allocate landed cost before receiving this shipment line');
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -315,14 +386,14 @@ export class ShipmentsService {
       const savedReceipt = await queryRunner.manager.save(ShipmentReceipt, receipt);
 
       // 2. If serialized vehicles are provided (Story R1), create vehicle_unit records
-      if (dto.vehicles && dto.vehicles.length > 0) {
+      if (vehicles.length > 0) {
         const itemId = line.poLine?.itemId;
         if (!itemId) {
           throw new BadRequestException('Cannot register vehicles: item ID missing on PO line');
         }
 
         const vehicleUnits: VehicleUnit[] = [];
-        for (const v of dto.vehicles) {
+        for (const v of vehicles) {
           const unit = queryRunner.manager.create(VehicleUnit, {
             itemId,
             chassisNumber: v.chassisNumber,
@@ -334,7 +405,86 @@ export class ShipmentsService {
           });
           vehicleUnits.push(unit);
         }
-        await queryRunner.manager.save(VehicleUnit, vehicleUnits);
+        const savedUnits = await queryRunner.manager.save(VehicleUnit, vehicleUnits);
+
+        await queryRunner.manager
+          .createQueryBuilder()
+          .update(VehicleUnitLandedCost)
+          .set({ isCurrent: false })
+          .where('vehicleUnitId IN (:...vehicleUnitIds) AND isCurrent = true', {
+            vehicleUnitIds: savedUnits.map((unit) => unit.vehicleUnitId),
+          })
+          .execute();
+
+        const receivedUnitCount = await queryRunner.manager
+          .getRepository(VehicleUnit)
+          .createQueryBuilder('vu')
+          .where('vu.shipmentLineId = :shipmentLineId', { shipmentLineId: dto.shipmentLineId })
+          .getCount();
+
+        const unitCost = Math.round((Number(currentLineCost.allocatedCostEtb) / Number(line.quantityShipped)) * 100) / 100;
+        const unitCostRows = savedUnits.map((unit) =>
+          queryRunner.manager.create(VehicleUnitLandedCost, {
+            vehicleUnitId: unit.vehicleUnitId,
+            shipmentLineId: dto.shipmentLineId,
+            landedCostEtb: unitCost,
+            isCurrent: true,
+            calculatedBy: dto.userId,
+          }),
+        );
+
+        if (receivedUnitCount <= Number(line.quantityShipped) && unitCostRows.length > 0) {
+          await queryRunner.manager.save(VehicleUnitLandedCost, unitCostRows);
+        }
+      }
+
+      const freshLines = await queryRunner.manager.find(ShipmentLine, {
+        where: { shipmentId },
+      });
+      const allReceived = freshLines.every(
+        (shipmentLine) => Number(shipmentLine.quantityReceived) >= Number(shipmentLine.quantityShipped),
+      );
+      const anyReceived = freshLines.some((shipmentLine) => Number(shipmentLine.quantityReceived) > 0);
+      if (allReceived || anyReceived) {
+        shipment.currentStage = allReceived ? ShipmentStage.RECEIVED : shipment.currentStage;
+        if (allReceived && !shipment.actualArrivalDate) {
+          shipment.actualArrivalDate = new Date().toISOString().split('T')[0];
+        }
+        shipment.updatedBy = dto.userId;
+        await queryRunner.manager.save(Shipment, shipment);
+      }
+
+      const poId = line.poLine?.poId;
+      if (poId) {
+        const poLines = await queryRunner.manager.find(PurchaseOrderLine, {
+          where: { poId },
+        });
+        const poLineIds = poLines.map((poLine) => poLine.poLineId);
+        const receivedRows = await queryRunner.manager
+          .getRepository(ShipmentLine)
+          .createQueryBuilder('sl')
+          .select('sl.poLineId', 'poLineId')
+          .addSelect('COALESCE(SUM(sl.quantityReceived), 0)', 'quantityReceived')
+          .where('sl.poLineId IN (:...poLineIds)', { poLineIds })
+          .groupBy('sl.poLineId')
+          .getRawMany<{ poLineId: string; quantityReceived: string }>();
+
+        const receivedByPoLine = new Map(
+          receivedRows.map((row) => [String(row.poLineId), Number(row.quantityReceived)]),
+        );
+        const poAllReceived = poLines.every(
+          (poLine) => (receivedByPoLine.get(String(poLine.poLineId)) || 0) >= Number(poLine.quantityOrdered),
+        );
+        const poAnyReceived = poLines.some(
+          (poLine) => (receivedByPoLine.get(String(poLine.poLineId)) || 0) > 0,
+        );
+
+        if (poAllReceived || poAnyReceived) {
+          await queryRunner.manager.update(PurchaseOrder, poId, {
+            status: poAllReceived ? POStatus.RECEIVED : POStatus.PARTIALLY_RECEIVED,
+            updatedBy: dto.userId,
+          });
+        }
       }
 
       await queryRunner.commitTransaction();
@@ -364,6 +514,50 @@ export class ShipmentsService {
       rec.rateToEtb = rateToEtb;
     }
     return this.exchangeRateRepo.save(rec);
+  }
+
+  async getDocuments(shipmentId: string): Promise<Attachment[]> {
+    await this.findOne(shipmentId);
+    return this.attachmentRepo.find({
+      where: { entityType: 'shipment', entityId: shipmentId },
+      order: { uploadedAt: 'DESC' },
+    });
+  }
+
+  async addDocument(
+    shipmentId: string,
+    file: {
+      fileName: string;
+      filePath: string;
+      contentType: string;
+      sizeBytes: number;
+      documentType?: string;
+      userId?: number;
+    },
+  ): Promise<Attachment> {
+    await this.findOne(shipmentId);
+    const attachment = this.attachmentRepo.create({
+      entityType: 'shipment',
+      entityId: shipmentId,
+      documentType: file.documentType,
+      fileName: file.fileName,
+      filePath: file.filePath,
+      contentType: file.contentType,
+      fileSizeBytes: String(file.sizeBytes),
+      uploadedBy: file.userId,
+    });
+    return this.attachmentRepo.save(attachment);
+  }
+
+  async deleteDocument(shipmentId: string, docId: string): Promise<void> {
+    await this.findOne(shipmentId);
+    const attachment = await this.attachmentRepo.findOne({
+      where: { attachmentId: docId, entityType: 'shipment', entityId: shipmentId },
+    });
+    if (!attachment) {
+      throw new NotFoundException(`Shipment document #${docId} not found`);
+    }
+    await this.attachmentRepo.remove(attachment);
   }
 
   async getPipelineReport(): Promise<any> {

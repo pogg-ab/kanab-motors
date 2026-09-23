@@ -17,6 +17,7 @@ import { ProductQueryDto } from './dto/product-query.dto';
 import { CreateTaxConfigDto } from './dto/create-tax-config.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateBrandDto } from './dto/create-brand.dto';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 
 @ApiTags('Product & Vehicle Master Data (Module 2)')
 @Controller('products')
@@ -38,14 +39,14 @@ export class ProductsController {
 
   @Get('items/:id')
   @ApiOperation({ summary: 'Get product item detail' })
-  findOneItem(@Param('id') id: string) {
+  findOneItem(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.productsService.findOneItem(id);
   }
 
   @Put('items/:id')
   @ApiOperation({ summary: 'Update product item' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  updateItem(@Param('id') id: string, @Body() dto: UpdateProductItemDto) {
+  updateItem(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: UpdateProductItemDto) {
     return this.productsService.updateItem(id, dto);
   }
 

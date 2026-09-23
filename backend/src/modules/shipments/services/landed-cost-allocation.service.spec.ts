@@ -7,6 +7,7 @@ import { ShipmentCostComponent } from '../entities/shipment-cost-component.entit
 import { ShipmentLineLandedCost } from '../entities/shipment-line-landed-cost.entity';
 import { VehicleUnitLandedCost } from '../entities/vehicle-unit-landed-cost.entity';
 import { VehicleUnit } from '../../vehicles/entities/vehicle-unit.entity';
+import { ExchangeRateDefault } from '../entities/exchange-rate-default.entity';
 import { DataSource } from 'typeorm';
 
 describe('LandedCostAllocationService (Core Mathematical Engine)', () => {
@@ -39,6 +40,10 @@ describe('LandedCostAllocationService (Core Mathematical Engine)', () => {
         {
           provide: getRepositoryToken(VehicleUnit),
           useValue: { find: jest.fn(), createQueryBuilder: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(ExchangeRateDefault),
+          useValue: { find: jest.fn().mockResolvedValue([]) },
         },
         {
           provide: DataSource,

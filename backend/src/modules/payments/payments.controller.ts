@@ -13,6 +13,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentQueryDto } from './dto/payment-query.dto';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { RejectPaymentDto } from './dto/reject-payment.dto';
 
 @ApiTags('Customer Deposit & Payment (Bank Receipt Voucher - BRV)')
 @Controller('payments')
@@ -34,19 +36,19 @@ export class PaymentsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get payment receipt details' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.paymentsService.findOne(id);
   }
 
   @Patch(':id/confirm')
   @ApiOperation({ summary: 'Confirm BRV Payment (Posts to Ledger & Updates Booking Totals)' })
-  confirmPayment(@Param('id') id: string) {
+  confirmPayment(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.paymentsService.confirmPayment(id);
   }
 
   @Patch(':id/reject')
   @ApiOperation({ summary: 'Reject BRV Payment' })
-  rejectPayment(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.paymentsService.rejectPayment(id, reason);
+  rejectPayment(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: RejectPaymentDto) {
+    return this.paymentsService.rejectPayment(id, dto.reason);
   }
 }

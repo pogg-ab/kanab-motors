@@ -13,7 +13,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { EnquiriesService } from './enquiries.service';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { EnquiryQueryDto } from './dto/enquiry-query.dto';
-import { EnquiryStatus } from './entities/sales-enquiry.entity';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { UpdateEnquiryStatusDto } from './dto/update-enquiry-status.dto';
 
 @ApiTags('Sales Enquiry Management (KMSICAMS-2)')
 @Controller('enquiries')
@@ -35,15 +36,15 @@ export class EnquiriesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get sales enquiry details' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.enquiriesService.findOne(id);
   }
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'Approve or Reject Sales Enquiry (Story E9)' })
   updateStatus(
-    @Param('id') id: string,
-    @Body() body: { status: EnquiryStatus; rejectionReason?: string },
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() body: UpdateEnquiryStatusDto,
   ) {
     return this.enquiriesService.updateStatus(id, body.status, body.rejectionReason);
   }

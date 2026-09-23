@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ExcessService } from './excess.service';
+import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { RouteExcessDto } from './dto/route-excess.dto';
 
 @ApiTags('Excess Payment & Customer Credit Management (KMSICAMS-2)')
 @Controller('excess')
@@ -10,13 +12,8 @@ export class ExcessController {
   @Post('customers/:customerId/route')
   @ApiOperation({ summary: 'Route excess payment to Customer Credit or Refundable Balance (Story X3)' })
   routeExcess(
-    @Param('customerId') customerId: string,
-    @Body()
-    body: {
-      amount: number;
-      routeTo: 'CUSTOMER_CREDIT' | 'REFUNDABLE';
-      notes?: string;
-    },
+    @Param('customerId', PositiveBigIntIdPipe) customerId: string,
+    @Body() body: RouteExcessDto,
   ) {
     return this.excessService.routeExcessFunds(customerId, body);
   }

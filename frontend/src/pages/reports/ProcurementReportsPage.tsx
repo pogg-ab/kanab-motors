@@ -25,6 +25,7 @@ export const ProcurementReportsPage: React.FC = () => {
   const [poData, setPoData] = useState<any>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editingRate, setEditingRate] = useState<{ currency: string; rate: number } | null>(null);
   const [updatingRate, setUpdatingRate] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -40,17 +41,20 @@ export const ProcurementReportsPage: React.FC = () => {
 
   const loadReports = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [pipe, po, rates] = await Promise.all([
-        api.getShipmentPipelineReport().catch(() => null),
-        api.getPOStatusReport().catch(() => null),
-        api.getExchangeRates().catch(() => []),
+        api.getShipmentPipelineReport(),
+        api.getPOStatusReport(),
+        api.getExchangeRates(),
       ]);
       setPipelineData(pipe);
       setPoData(po);
       setExchangeRates(rates || []);
     } catch (err: any) {
-      showToast('error', 'Failed to load procurement reports: ' + (err.message || 'Error'));
+      const message = err.response?.data?.message || err.message || 'Error';
+      setLoadError(message);
+      showToast('error', 'Failed to load procurement reports: ' + message);
     } finally {
       setLoading(false);
     }
@@ -92,6 +96,18 @@ export const ProcurementReportsPage: React.FC = () => {
         <span>/</span>
         <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Pipeline Intelligence & Reports</span>
       </div>
+
+      {loadError && (
+        <div className="card" style={{ padding: '1rem', marginBottom: '1rem', borderLeft: '3px solid var(--accent-rose)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-rose)', fontWeight: 700 }}>
+            <AlertTriangle size={16} />
+            <span>Report data failed to load</span>
+          </div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+            {loadError}
+          </div>
+        </div>
+      )}
 
       {/* Notifications */}
       {notification && (

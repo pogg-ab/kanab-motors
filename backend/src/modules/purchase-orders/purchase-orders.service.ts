@@ -3,29 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { PurchaseOrder, POStatus } from './entities/purchase-order.entity';
 import { PurchaseOrderLine } from './entities/purchase-order-line.entity';
-
-export interface CreatePOLineDto {
-  itemId: string;
-  quantityOrdered: number;
-  unitPrice: number;
-}
-
-export interface CreatePODto {
-  supplierId: number;
-  poDate?: string;
-  currency: 'ETB' | 'USD' | 'EUR';
-  lines: CreatePOLineDto[];
-  notes?: string;
-  userId?: number;
-}
-
-export interface UpdatePODto {
-  supplierId?: number;
-  poDate?: string;
-  currency?: 'ETB' | 'USD' | 'EUR';
-  notes?: string;
-  userId?: number;
-}
+import { CreatePODto, UpdatePODto } from './dto/purchase-order.dto';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -132,12 +110,15 @@ export class PurchaseOrdersService {
 
   async update(id: string, dto: UpdatePODto): Promise<PurchaseOrder> {
     const po = await this.findOne(id);
-    if (po.status !== POStatus.DRAFT && po.status !== POStatus.SUBMITTED) {
+    if (po.status !== POStatus.DRAFT) {
       throw new BadRequestException(`Cannot edit PO in ${po.status} status`);
     }
 
     Object.assign(po, {
-      ...dto,
+      supplierId: dto.supplierId ?? po.supplierId,
+      poDate: dto.poDate ?? po.poDate,
+      currency: dto.currency ?? po.currency,
+      notes: dto.notes ?? po.notes,
       updatedBy: dto.userId,
     });
 
@@ -181,7 +162,28 @@ export class PurchaseOrdersService {
       query.andWhere('po.supplierId = :supplierId', { supplierId });
     }
 
-    return query.getMany();
+    const lines = await query.getMany();
+    if (lines.length === 0) {
+      return lines;
+    }
+
+    const shippedRows = await this.dataSource
+      .createQueryBuilder()
+      .select('sl.po_line_id', 'poLineId')
+      .addSelect('COALESCE(SUM(sl.quantity_shipped), 0)', 'quantityShipped')
+      .from('shipment_line', 'sl')
+      .where('sl.po_line_id IN (:...poLineIds)', { poLineIds: lines.map((line) => line.poLineId) })
+      .groupBy('sl.po_line_id')
+      .getRawMany<{ poLineId: string; quantityShipped: string }>();
+
+    const shippedByLine = new Map(shippedRows.map((row) => [String(row.poLineId), Number(row.quantityShipped)]));
+
+    return lines
+      .map((line) => {
+        const remainingQuantity = Number(line.quantityOrdered) - (shippedByLine.get(String(line.poLineId)) || 0);
+        return Object.assign(line, { remainingQuantity });
+      })
+      .filter((line: PurchaseOrderLine & { remainingQuantity: number }) => line.remainingQuantity > 0);
   }
 
   async getPOStatusReport(): Promise<any> {
