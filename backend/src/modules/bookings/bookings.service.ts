@@ -177,12 +177,16 @@ export class BookingsService {
   async cancelBooking(
     id: string,
     reason: string,
-    routeTo: 'CUSTOMER_CREDIT' | 'REFUNDABLE' = 'CUSTOMER_CREDIT',
+    routeTo: 'CUSTOMER_CREDIT' | 'CREDIT' | 'REFUNDABLE' = 'CUSTOMER_CREDIT',
     userId: number = 1,
   ): Promise<Booking> {
     const booking = await this.findOne(id);
     if (booking.bookingStatus === BookingStatus.CANCELLED) {
       throw new BadRequestException('Booking is already cancelled');
+    }
+
+    if (!reason || reason.trim().length < 3) {
+      throw new BadRequestException('Mandatory cancellation reason is required');
     }
 
     const deposited = Number(booking.totalAmountDeposited || 0);
@@ -192,7 +196,9 @@ export class BookingsService {
     booking.cancelledAt = new Date();
     const saved = await this.bookingRepo.save(booking);
 
-    // If customer had deposited funds against this booking, record ledger reversal
+    const isRefundable = routeTo === 'REFUNDABLE';
+
+    // If customer had deposited funds against this booking, record ledger reversal (Story B13)
     if (deposited > 0) {
       await this.ledgerService.postTransaction({
         customerId: booking.customerId,
@@ -205,8 +211,8 @@ export class BookingsService {
         processedBy: userId,
         summaryDelta: {
           allocatedToBookings: -deposited,
-          availableCredit: routeTo === 'CUSTOMER_CREDIT' ? deposited : 0,
-          refundableBalance: routeTo === 'REFUNDABLE' ? deposited : 0,
+          availableCredit: !isRefundable ? deposited : 0,
+          refundableBalance: isRefundable ? deposited : 0,
         },
       });
     }
