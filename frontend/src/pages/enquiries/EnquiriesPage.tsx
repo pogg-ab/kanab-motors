@@ -53,6 +53,12 @@ export const EnquiriesPage: React.FC = () => {
     enquiryNumber: string;
   } | null>(null);
 
+  // Rejection Modal State (Story E9)
+  const [rejectTarget, setRejectTarget] = useState<SalesEnquiry | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState(false);
+
   const fetchDependencies = async () => {
     try {
       const [custRes, itemRes] = await Promise.all([
@@ -174,6 +180,27 @@ export const EnquiriesPage: React.FC = () => {
       setConvertError(err.response?.data?.message || 'Failed to convert enquiry to booking');
     } finally {
       setConverting(false);
+    }
+  };
+
+  const handleConfirmReject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectTarget) return;
+    if (!rejectReason.trim() || rejectReason.trim().length < 5) {
+      setRejectError('Please enter a detailed rejection reason (minimum 5 characters)');
+      return;
+    }
+    setRejecting(true);
+    setRejectError(null);
+    try {
+      await api.updateEnquiryStatus(rejectTarget.enquiryId, 'REJECTED', rejectReason.trim());
+      setRejectTarget(null);
+      setRejectReason('');
+      fetchEnquiries();
+    } catch (err: any) {
+      setRejectError(err.response?.data?.message || 'Failed to reject enquiry');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -385,13 +412,26 @@ export const EnquiriesPage: React.FC = () => {
                     <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
                         {enq.status === 'SUBMITTED' && (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
-                            onClick={() => handleApprove(enq.enquiryId)}
-                          >
-                            <CheckCircle2 size={13} /> Approve
-                          </button>
+                          <>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
+                              onClick={() => handleApprove(enq.enquiryId)}
+                            >
+                              <CheckCircle2 size={13} /> Approve
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.4)' }}
+                              onClick={() => {
+                                setRejectTarget(enq);
+                                setRejectReason('');
+                                setRejectError(null);
+                              }}
+                            >
+                              <XCircle size={13} /> Reject
+                            </button>
+                          </>
                         )}
                         {enq.status === 'APPROVED' && (
                           <button
@@ -407,6 +447,11 @@ export const EnquiriesPage: React.FC = () => {
                         {enq.status === 'CONVERTED' && (
                           <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
                             ✓ Active Booking
+                          </span>
+                        )}
+                        {enq.status === 'REJECTED' && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }} title={enq.rejectionReason}>
+                            {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 20)}...` : 'Rejected'}
                           </span>
                         )}
                       </div>
@@ -671,6 +716,82 @@ export const EnquiriesPage: React.FC = () => {
                 Continue to Pipeline
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BEAUTIFUL REJECTION MODAL (Story E9) */}
+      {rejectTarget && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <XCircle size={20} color="var(--accent-rose)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Reject Sales Enquiry</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Provide mandatory audit justification for {rejectTarget.enquiryNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRejectTarget(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmReject}>
+              <div className="modal-body">
+                {rejectError && (
+                  <div className="alert-banner-danger" style={{ marginBottom: '1rem' }}>
+                    {rejectError}
+                  </div>
+                )}
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', border: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.82rem' }}>
+                  <div>Customer: <strong style={{ color: 'var(--text-primary)' }}>{rejectTarget.customer?.fullName}</strong></div>
+                  <div style={{ marginTop: '0.25rem' }}>Model: <span style={{ color: 'var(--accent-cyan)' }}>{rejectTarget.item?.itemName}</span></div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Mandatory Rejection Reason *</label>
+                  <textarea
+                    className="textarea-field"
+                    rows={3}
+                    placeholder="e.g. Customer chose alternative leasing terms"
+                    required
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                  />
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                    * Required for internal sales audit and compliance (minimum 5 characters).
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setRejectTarget(null)}
+                  disabled={rejecting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ background: 'var(--accent-rose)', borderColor: 'var(--accent-rose)' }}
+                  disabled={rejecting}
+                >
+                  {rejecting ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

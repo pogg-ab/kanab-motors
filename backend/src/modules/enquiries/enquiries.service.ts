@@ -127,8 +127,12 @@ export class EnquiriesService {
     const enquiry = await this.findOne(id);
     const oldStatus = enquiry.status;
 
+    if (status === EnquiryStatus.REJECTED && (!rejectionReason || rejectionReason.trim().length === 0)) {
+      throw new BadRequestException('Mandatory rejection reason is required when rejecting a sales enquiry');
+    }
+
     enquiry.status = status;
-    if (rejectionReason) enquiry.rejectionReason = rejectionReason;
+    if (rejectionReason) enquiry.rejectionReason = rejectionReason.trim();
 
     const saved = await this.enquiryRepo.save(enquiry);
 
