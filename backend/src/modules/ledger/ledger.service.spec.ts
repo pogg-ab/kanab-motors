@@ -86,4 +86,40 @@ describe('LedgerService (Financial Engine - Story L2, L3, L6)', () => {
     expect(result.creditAmount).toBe(100000);
     expect(result.runningBalance).toBe(100000);
   });
+
+  it('should acquire pessimistic_write lock on CustomerAccountSummary to serialize concurrent updates (Story L3)', async () => {
+    let lockModeAcquired: string | null = null;
+    dataSource.transaction = jest.fn(async (cb) => {
+      const qbMock: any = {
+        setLock: jest.fn((mode: string) => {
+          lockModeAcquired = mode;
+          return qbMock;
+        }),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          customerId: '1',
+          totalDeposits: 0,
+          refundableBalance: 0,
+        }),
+      };
+      const mockManager = {
+        createQueryBuilder: jest.fn().mockReturnValue(qbMock),
+        findOne: jest.fn().mockResolvedValue({ customerId: '1' }),
+        create: jest.fn((entityClass, data) => data),
+        save: jest.fn((data) => Promise.resolve(data)),
+      };
+      return cb(mockManager);
+    });
+
+    await service.postTransaction({
+      customerId: '1',
+      transactionType: LedgerTransactionType.ADVANCE_DEPOSIT,
+      referenceNumber: 'BRV-002',
+      description: 'Pessimistic lock verification',
+      creditAmount: 50000,
+    });
+
+    expect(lockModeAcquired).toBe('pessimistic_write');
+  });
 });
