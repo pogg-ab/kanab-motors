@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LookupsService } from './lookups.service';
+import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 
 @ApiTags('Lookups')
 @Controller('lookups')
@@ -21,7 +22,9 @@ export class LookupsController {
 
   @Post('warehouses')
   @ApiOperation({ summary: 'Add a new warehouse' })
-  createWarehouse(@Body() body: { name: string; location?: string }) {
-    return this.lookupsService.createWarehouse(body.name, body.location);
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createWarehouse(@Body() dto: CreateWarehouseDto) {
+    return this.lookupsService.createWarehouse(dto.name, dto.location);
   }
 }
+

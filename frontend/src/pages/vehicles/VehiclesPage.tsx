@@ -36,6 +36,10 @@ export const VehiclesPage: React.FC = () => {
   // Modals
   const [isSingleOpen, setIsSingleOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
+  const [newWarehouseName, setNewWarehouseName] = useState('');
+  const [newWarehouseLocation, setNewWarehouseLocation] = useState('');
+  const [creatingWarehouse, setCreatingWarehouse] = useState(false);
   const [statusModalUnit, setStatusModalUnit] = useState<VehicleUnit | null>(null);
 
   // Single Form State
@@ -106,16 +110,53 @@ export const VehiclesPage: React.FC = () => {
     fetchVehicles();
   }, [selectedStatus, selectedWarehouse, selectedItem, search]);
 
-  const handleOpenSingle = () => {
-    setSingleForm({
-      itemId: items[0]?.itemId || '',
-      chassisNumber: '',
-      engineNumber: '',
-      currentWarehouseId: warehouses[0]?.warehouseId?.toString() || '',
-      productionImportInfo: '',
-    });
+  const handleOpenSingle = async () => {
+    try {
+      const [itms, whs] = await Promise.all([
+        api.getItems({ limit: 100 }),
+        api.getWarehouses(),
+      ]);
+      setItems(itms.items);
+      setWarehouses(whs);
+      setSingleForm({
+        itemId: itms.items[0]?.itemId || '',
+        chassisNumber: '',
+        engineNumber: '',
+        currentWarehouseId: whs[0]?.warehouseId?.toString() || '',
+        productionImportInfo: '',
+      });
+    } catch (e) {
+      console.error('Failed to load fresh dependencies on open:', e);
+    }
     setSingleError(null);
     setIsSingleOpen(true);
+  };
+
+  const handleCreateWarehouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWarehouseName.trim()) return;
+    setCreatingWarehouse(true);
+    try {
+      const created = await api.createWarehouse(
+        newWarehouseName.trim(),
+        newWarehouseLocation.trim() || undefined,
+      );
+      setNewWarehouseName('');
+      setNewWarehouseLocation('');
+      setIsWarehouseModalOpen(false);
+      const whs = await api.getWarehouses();
+      setWarehouses(whs);
+      if (created?.warehouseId) {
+        setSingleForm((prev) => ({
+          ...prev,
+          currentWarehouseId: created.warehouseId.toString(),
+        }));
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create warehouse');
+    } finally {
+      setCreatingWarehouse(false);
+    }
   };
 
   const handleCreateSingle = async (e: React.FormEvent) => {
@@ -253,7 +294,10 @@ export const VehiclesPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" onClick={() => setIsWarehouseModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <WarehouseIcon size={16} color="var(--accent-cyan)" /> + Warehouse
+            </button>
             <button className="btn btn-secondary" onClick={handleOpenBulk} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <FileSpreadsheet size={16} color="var(--accent-emerald)" /> Bulk Import CSV
             </button>
@@ -557,7 +601,16 @@ export const VehiclesPage: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Initial Warehouse</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Initial Warehouse</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsWarehouseModalOpen(true)}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    >
+                      <Plus size={12} /> Add Warehouse
+                    </button>
+                  </div>
                   <select
                     className="select-field"
                     value={singleForm.currentWarehouseId}
@@ -790,6 +843,60 @@ export const VehiclesPage: React.FC = () => {
                 </button>
                 <button type="submit" className="btn btn-cyan">
                   Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK ADD WAREHOUSE MODAL */}
+
+      {isWarehouseModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <WarehouseIcon size={20} color="var(--accent-cyan)" />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>+ Add Warehouse</h3>
+              </div>
+              <button
+                onClick={() => setIsWarehouseModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateWarehouse}>
+              <div className="modal-body">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Warehouse Name *</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. Hawassa Distribution Hub"
+                    required
+                    value={newWarehouseName}
+                    onChange={(e) => setNewWarehouseName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Location / Address</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. Hawassa Industrial Park, Sidama"
+                    value={newWarehouseLocation}
+                    onChange={(e) => setNewWarehouseLocation(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsWarehouseModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-cyan" disabled={creatingWarehouse}>
+                  {creatingWarehouse ? 'Saving...' : 'Save Warehouse'}
                 </button>
               </div>
             </form>
