@@ -285,7 +285,8 @@ export class LedgerService {
       type: 'CREDIT' | 'DEBIT';
       amount: number;
       reason: string;
-      referenceNumber: string;
+      referenceNumber?: string;
+      bookingId?: string | null;
     },
     userId: number = 1,
   ) {
@@ -303,6 +304,7 @@ export class LedgerService {
       description: `Manual Adjustment (${body.type}): ${body.reason}`,
       creditAmount: body.type === 'CREDIT' ? body.amount : 0,
       debitAmount: body.type === 'DEBIT' ? body.amount : 0,
+      relatedBookingId: body.bookingId || undefined,
       processedBy: userId,
     });
 

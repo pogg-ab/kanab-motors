@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LedgerService } from './ledger.service';
 import { LedgerTransactionType } from './entities/customer-ledger-transaction.entity';
+import { ManualAdjustmentDto } from './dto/manual-adjustment.dto';
 
 @ApiTags('Customer Ledger & Statement of Account (KMSICAMS-2)')
 @Controller('ledger')
@@ -34,16 +35,11 @@ export class LedgerController {
 
   @Post('customers/:customerId/adjustment')
   @ApiOperation({ summary: 'Post manual ledger adjustment (restricted with mandatory reason)' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   manualAdjustment(
     @Param('customerId') customerId: string,
-    @Body()
-    body: {
-      type: 'CREDIT' | 'DEBIT';
-      amount: number;
-      reason: string;
-      referenceNumber: string;
-    },
+    @Body() dto: ManualAdjustmentDto,
   ) {
-    return this.ledgerService.manualAdjustment(customerId, body);
+    return this.ledgerService.manualAdjustment(customerId, dto);
   }
 }
