@@ -36,4 +36,19 @@ export class AuditService {
       relations: ['user'],
     });
   }
+
+  async findAll(query?: { entityType?: string; limit?: number }): Promise<AuditLog[]> {
+    const qb = this.auditRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.user', 'user')
+      .orderBy('a.changedAt', 'DESC')
+      .take(query?.limit || 100);
+
+    if (query?.entityType && query.entityType !== 'ALL') {
+      qb.where('a.entityType = :entityType', { entityType: query.entityType });
+    }
+
+    return qb.getMany();
+  }
 }
+

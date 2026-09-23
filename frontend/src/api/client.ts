@@ -439,6 +439,11 @@ export const api = {
   createWarehouse: (name: string, location?: string) =>
     apiClient.post<Warehouse>('/lookups/warehouses', { name, location }).then((r) => r.data),
 
+  // Audit Logs
+  getAuditLogs: (params?: { entityType?: string; limit?: number }) =>
+    apiClient.get<any[]>('/audit', { params }).then((r) => r.data),
+
+
   // Customers
   getCustomers: (params?: any) =>
     apiClient
