@@ -489,9 +489,9 @@ export const BookingsPage: React.FC = () => {
                           {b.bookingStatus}
                         </span>
                       </td>
-                      <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                          {b.bookingStatus !== 'CANCELLED' && (
+                      <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', gap: '0.45rem', justifyContent: 'center', alignItems: 'center' }}>
+                          {b.bookingStatus !== 'CANCELLED' ? (
                             <>
                               <button
                                 onClick={() => {
@@ -500,11 +500,22 @@ export const BookingsPage: React.FC = () => {
                                   setShowTransferModal(true);
                                 }}
                                 disabled={paid <= 0}
-                                className="btn btn-secondary"
-                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.7rem' }}
-                                title="Transfer deposited funds to another booking"
+                                className="btn btn-secondary btn-sm"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  fontSize: '0.72rem',
+                                  padding: '0.35rem 0.65rem',
+                                  color: paid > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                                  borderColor: paid > 0 ? 'rgba(6, 182, 212, 0.4)' : 'var(--border-color)',
+                                  cursor: paid > 0 ? 'pointer' : 'not-allowed',
+                                  opacity: paid > 0 ? 1 : 0.45,
+                                }}
+                                title={paid > 0 ? `Transfer from available ETB ${paid.toLocaleString()} deposited` : "No deposited funds available to transfer"}
                               >
                                 <ArrowRightLeft size={13} />
+                                <span>Transfer</span>
                               </button>
                               <button
                                 onClick={() => {
@@ -512,13 +523,26 @@ export const BookingsPage: React.FC = () => {
                                   setCancelData({ reason: '', routeTo: 'REFUNDABLE' });
                                   setShowCancelModal(true);
                                 }}
-                                className="btn btn-secondary"
-                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.7rem', color: 'var(--accent-rose)' }}
-                                title="Cancel booking & reverse funds"
+                                className="btn btn-secondary btn-sm"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  fontSize: '0.72rem',
+                                  padding: '0.35rem 0.65rem',
+                                  color: 'var(--accent-rose)',
+                                  borderColor: 'rgba(244, 63, 94, 0.35)',
+                                }}
+                                title="Cancel booking & reverse deposits"
                               >
                                 <XCircle size={13} />
+                                <span>Cancel</span>
                               </button>
                             </>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }}>
+                              Cancelled
+                            </span>
                           )}
                         </div>
                       </td>
