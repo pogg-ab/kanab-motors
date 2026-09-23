@@ -55,10 +55,11 @@ export const VehiclesPage: React.FC = () => {
 
   // Bulk CSV State
   const [bulkCsvText, setBulkCsvText] = useState(
-    'CHS-2026-00101,ENG-2026-00101,Shipment Batch A\nCHS-2026-00102,ENG-2026-00102,Shipment Batch A\nCHS-2026-00103,ENG-2026-00103,Shipment Batch A',
+    'CHS-BATCH-01,ENG-BATCH-01,Container A\nCHS-BATCH-02,ENG-BATCH-02,Container A\nCHS-BATCH-03,ENG-BATCH-03,Container A',
   );
   const [bulkItemId, setBulkItemId] = useState('');
   const [bulkWarehouseId, setBulkWarehouseId] = useState('');
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkReport, setBulkReport] = useState<{
     success: boolean;
     importedCount: number;
@@ -181,16 +182,28 @@ export const VehiclesPage: React.FC = () => {
     }
   };
 
-  const handleOpenBulk = () => {
-    setBulkItemId(items[0]?.itemId || '');
-    setBulkWarehouseId(warehouses[0]?.warehouseId?.toString() || '');
+  const handleOpenBulk = async () => {
+    try {
+      const [itms, whs] = await Promise.all([
+        api.getItems({ limit: 100 }),
+        api.getWarehouses(),
+      ]);
+      setItems(itms.items);
+      setWarehouses(whs);
+      setBulkItemId(itms.items[0]?.itemId || '');
+      setBulkWarehouseId(whs[0]?.warehouseId?.toString() || '');
+    } catch (e) {
+      console.error(e);
+    }
+    setBulkError(null);
     setBulkReport(null);
     setIsBulkOpen(true);
   };
 
   const handleExecuteBulkImport = async () => {
+    setBulkError(null);
     if (!bulkItemId) {
-      alert('Please select a Product Model');
+      setBulkError('Please select a Target Product Model.');
       return;
     }
 
@@ -208,7 +221,7 @@ export const VehiclesPage: React.FC = () => {
       });
 
     if (parsedUnits.length === 0) {
-      alert('No units detected in CSV text');
+      setBulkError('No units detected in CSV text. Please provide valid rows.');
       return;
     }
 
@@ -224,7 +237,9 @@ export const VehiclesPage: React.FC = () => {
       setBulkReport(res);
       fetchVehicles();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Bulk import failed');
+      const msg = err.response?.data?.message;
+      const errMsg = Array.isArray(msg) ? msg.join('; ') : msg || 'Bulk import failed. Please verify your data.';
+      setBulkError(errMsg);
     } finally {
       setSubmittingBulk(false);
     }
@@ -672,6 +687,13 @@ export const VehiclesPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
+              {bulkError && (
+                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.85rem' }}>{bulkError}</span>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Target Product Model *</label>
