@@ -15,8 +15,13 @@ export class TransferBookingFundsDto {
   @Matches(/^[1-9]\d*$/)
   sourceBookingId: string;
 
+  @IsOptional()
   @Matches(/^[1-9]\d*$/)
-  targetBookingId: string;
+  targetBookingId?: string;
+
+  @IsOptional()
+  @Matches(/^[1-9]\d*$/)
+  destinationBookingId?: string;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
