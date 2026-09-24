@@ -1019,6 +1019,12 @@ export const api = {
     apiClient.get<any[]>('/reports/operational/bookings').then((r) => r.data),
   getCustomerFinancialSummary: () =>
     apiClient.get<CustomerFinancialSummaryItem[]>('/reports/financial/summary').then((r) => r.data),
+
+  // --- KMSICAMS-8 Endpoints (Management Dashboard) ---
+  getManagementDashboardSummary: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get<ManagementDashboardSummary>('/reports/management-dashboard/summary', { params }).then((r) => r.data),
+  getSalesPerformanceCrossTab: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get<SalesCrossTabItem[]>('/reports/management-dashboard/sales-cross-tab', { params }).then((r) => r.data),
 };
 
 // ============================================================================
@@ -1328,5 +1334,38 @@ export interface CustomerFinancialSummaryItem {
   total_credited: number;
   net_receivable: number;
 }
+
+// ============================================================================
+// KMSICAMS-8 Interfaces (Management Dashboard)
+// ============================================================================
+export interface ManagementDashboardSummary {
+  period_start: string;
+  period_end: string;
+  total_sales: number;
+  invoice_count: number;
+  vehicles_available: number;
+  vehicles_reserved: number;
+  pending_allotment_requests: number;
+  vehicles_ready_for_delivery: number;
+  total_bookings: number;
+  total_customer_deposits: number;
+  outstanding_customer_balance: number;
+  customer_credit_balance: number;
+  excess_payments: number;
+  pending_refunds: number;
+  processed_refunds: number;
+}
+
+export interface SalesCrossTabItem {
+  salesperson_id: number;
+  salesperson_name: string;
+  item_id: string;
+  item_name: string;
+  model?: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
 
 

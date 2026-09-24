@@ -136,4 +136,69 @@ describe('ReportsService (KMSICAMS-7 Dashboard and Reporting)', () => {
     expect(financialSummary[0].customer_code).toBe('CUST-001');
     expect(financialSummary[0].net_receivable).toBe(200000);
   });
+
+  // =========================================================================
+  // KMSICAMS-8 Management Dashboard Tests
+  // =========================================================================
+  it('should query fn_management_dashboard_summary and linked 7 financial KPIs', async () => {
+    dataSource.query
+      .mockResolvedValueOnce([
+        {
+          period_start: '2026-09-01',
+          period_end: '2026-09-24',
+          total_sales: 3500000,
+          invoice_count: 5,
+          vehicles_available: 20,
+          vehicles_reserved: 4,
+          pending_allotment_requests: 2,
+          vehicles_ready_for_delivery: 3,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          total_bookings: 8,
+          total_customer_deposits: 1500000,
+          outstanding_customer_balance: 5000000,
+          customer_credit_balance: 200000,
+          excess_payments: 50000,
+          pending_refunds: 1,
+          processed_refunds: 3,
+        },
+      ]);
+
+    const result = await service.getManagementDashboardSummary('2026-09-01', '2026-09-24');
+    expect(result.total_sales).toBe(3500000);
+    expect(result.vehicles_ready_for_delivery).toBe(3);
+    expect(result.total_bookings).toBe(8);
+    expect(result.total_customer_deposits).toBe(1500000);
+    expect(dataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('fn_management_dashboard_summary'),
+      ['2026-09-01', '2026-09-24'],
+    );
+  });
+
+  it('should query fn_sales_performance_by_product_and_salesperson cross-tab', async () => {
+    dataSource.query.mockResolvedValueOnce([
+      {
+        salesperson_id: 1,
+        salesperson_name: 'Abebe Bikila',
+        item_id: '10',
+        item_name: 'Motorcycle Standard KMT-150',
+        model: 'KMT-150',
+        invoice_count: 3,
+        units_sold: 3,
+        total_sales: 1800000,
+      },
+    ]);
+
+    const result = await service.getSalesPerformanceCrossTab('2026-09-01', '2026-09-24');
+    expect(result.length).toBe(1);
+    expect(result[0].salesperson_name).toBe('Abebe Bikila');
+    expect(result[0].model).toBe('KMT-150');
+    expect(dataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('fn_sales_performance_by_product_and_salesperson'),
+      ['2026-09-01', '2026-09-24'],
+    );
+  });
 });
+

@@ -13,6 +13,24 @@ export class ReportsController {
     return this.reportsService.getDashboardSummary();
   }
 
+  @Get('management-dashboard/summary')
+  @ApiOperation({ summary: 'Management Dashboard 13 KPIs with date range filter (KMSICAMS-8)' })
+  getManagementDashboardSummary(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.reportsService.getManagementDashboardSummary(startDate, endDate);
+  }
+
+  @Get('management-dashboard/sales-cross-tab')
+  @ApiOperation({ summary: 'Sales Performance cross-tab by Product × Salesperson (KMSICAMS-8)' })
+  getSalesPerformanceCrossTab(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.reportsService.getSalesPerformanceCrossTab(startDate, endDate);
+  }
+
   @Get('sales/daily')
   @ApiOperation({ summary: 'Daily sales breakdown report' })
   getDailySalesReport(

@@ -31,6 +31,53 @@ export class ReportsService {
   }
 
   // =========================================================================
+  // 1B. MANAGEMENT DASHBOARD ENGINE (KMSICAMS-8)
+  // =========================================================================
+  async getManagementDashboardSummary(startDate?: string, endDate?: string): Promise<any> {
+    const today = new Date().toISOString().split('T')[0];
+    const sDate = startDate || today;
+    const eDate = endDate || today;
+
+    // Call stored procedure from kanab_motors_schema_management_dashboard.sql
+    const raw = await this.dataSource.query(
+      `SELECT * FROM fn_management_dashboard_summary($1::date, $2::date)`,
+      [sDate, eDate],
+    );
+    const summary = raw[0] || {};
+
+    // 7 Real-data metrics linking to Booking, Payment, Ledger, Excess, and Refunds (Stories G1, G2)
+    const financialKpis = await this.dataSource.query(
+      `
+      SELECT
+        (SELECT COUNT(*) FROM booking WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_bookings,
+        (SELECT COALESCE(SUM(deposit_amount), 0) FROM bank_receipt_voucher WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_customer_deposits,
+        (SELECT COALESCE(SUM(debit - credit), 0) FROM customer_ledger_entry) AS outstanding_customer_balance,
+        (SELECT COALESCE(SUM(available_credit), 0) FROM customer_account_summary) AS customer_credit_balance,
+        (SELECT COALESCE(SUM(excess_amount), 0) FROM excess_routing WHERE created_at::date BETWEEN $1::date AND $2::date) AS excess_payments,
+        (SELECT COUNT(*) FROM customer_refund WHERE status = 'REQUESTED') AS pending_refunds,
+        (SELECT COUNT(*) FROM customer_refund WHERE status IN ('APPROVED', 'PROCESSED')) AS processed_refunds
+    `,
+      [sDate, eDate],
+    );
+
+    return {
+      ...summary,
+      ...(financialKpis[0] || {}),
+    };
+  }
+
+  async getSalesPerformanceCrossTab(startDate?: string, endDate?: string): Promise<any[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const sDate = startDate || today;
+    const eDate = endDate || today;
+
+    return this.dataSource.query(
+      `SELECT * FROM fn_sales_performance_by_product_and_salesperson($1::date, $2::date)`,
+      [sDate, eDate],
+    );
+  }
+
+  // =========================================================================
   // 2. SALES REPORTS (Stories SR1 - SR5)
   // =========================================================================
   async getDailySalesReport(params?: { startDate?: string; endDate?: string }): Promise<any[]> {
