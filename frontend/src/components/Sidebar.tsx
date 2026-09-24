@@ -103,6 +103,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       badge: 'Queue',
     },
     {
+      id: 'allotments',
+      label: 'Vehicle Allotments',
+      module: 'Allotment',
+      icon: CarFront,
+      badge: 'VIN',
+    },
+    {
       id: 'payments',
       label: 'BRV Receipts & Deposits',
       module: 'Finance',

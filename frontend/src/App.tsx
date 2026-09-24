@@ -13,6 +13,7 @@ import { EnquiriesPage } from './pages/enquiries/EnquiriesPage';
 import { BookingsPage } from './pages/bookings/BookingsPage';
 import { PaymentsPage } from './pages/payments/PaymentsPage';
 import { SettlementPage } from './pages/settlement/SettlementPage';
+import { AllotmentPage } from './pages/allotment/AllotmentPage';
 import { SuppliersPage } from './pages/procurement/SuppliersPage';
 import { PurchaseOrdersPage } from './pages/procurement/PurchaseOrdersPage';
 import { ShipmentsPage } from './pages/shipments/ShipmentsPage';
@@ -85,6 +86,8 @@ function MainAppContent() {
         return 'Sales Pipeline: Enquiries, Quotes & Live 15% VAT Engine';
       case 'bookings':
         return 'Sales Pipeline: Advance Order Bookings & Vehicle Allocations';
+      case 'allotments':
+        return 'Vehicle Allotment Management: Physical VIN & Chassis Allocation (KMSICAMS-5)';
       case 'payments':
         return 'Financial Engine: Bank Receipt Vouchers (BRV) & Customer Deposits';
       case 'settlement':
@@ -140,6 +143,7 @@ function MainAppContent() {
           {activeTab === 'statement' && <StatementOfAccountPage />}
           {activeTab === 'enquiries' && <EnquiriesPage />}
           {activeTab === 'bookings' && <BookingsPage />}
+          {activeTab === 'allotments' && <AllotmentPage />}
           {activeTab === 'payments' && <PaymentsPage />}
           {activeTab === 'settlement' && <SettlementPage />}
 

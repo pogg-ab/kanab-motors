@@ -285,6 +285,40 @@ export interface CustomerRefund {
   createdAt: string;
 }
 
+// --- KMSICAMS-5 Interfaces (Vehicle Allotment Management) ---
+
+export interface AllotmentLine {
+  allotmentLineId: string;
+  allotmentId: string;
+  vehicleUnitId: string;
+  vehicleUnit?: VehicleUnit;
+  isActive: boolean;
+  createdAt: string;
+  deactivatedAt?: string;
+  deactivatedBy?: number;
+}
+
+export interface Allotment {
+  allotmentId: string;
+  allotmentNumber: string;
+  bookingId: string;
+  booking?: Booking;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requestedBy?: number;
+  requestedAt: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  rejectionReason?: string;
+  lines?: AllotmentLine[];
+}
+
+export interface EligibleBooking extends Booking {
+  isDepositSatisfied: boolean;
+  requiredQuantity: number;
+  allottedQuantity: number;
+  remainingQuantity: number;
+}
+
 // --- KMSICAMS-3 Interfaces (Import, Shipment Tracking & Landed Cost) ---
 
 export interface Supplier {
@@ -671,6 +705,22 @@ export const api = {
   },
   deleteShipmentDoc: (shipmentId: string, docId: string) =>
     apiClient.delete(`/shipments/${shipmentId}/documents/${docId}`).then((r) => r.data),
+
+  // --- KMSICAMS-5 Endpoints (Vehicle Allotment Management) ---
+  getEligibleBookings: () => apiClient.get<EligibleBooking[]>('/allotments/eligible-bookings').then((r) => r.data),
+  getAvailableAllotmentVehicles: (itemId?: string) =>
+    apiClient.get<VehicleUnit[]>('/allotments/available-vehicles', { params: { itemId } }).then((r) => r.data),
+  getAllotments: (params?: any) =>
+    apiClient
+      .get<{ items: Allotment[]; total: number; page: number; limit: number }>('/allotments', { params })
+      .then((r) => r.data),
+  getAllotment: (id: string) => apiClient.get<Allotment>(`/allotments/${id}`).then((r) => r.data),
+  createAllotment: (data: { bookingId: string; vehicleUnitIds: string[]; notes?: string }) =>
+    apiClient.post<Allotment>('/allotments', data).then((r) => r.data),
+  approveAllotment: (id: string) => apiClient.patch<Allotment>(`/allotments/${id}/approve`).then((r) => r.data),
+  rejectAllotment: (id: string, reason: string) =>
+    apiClient.patch<Allotment>(`/allotments/${id}/reject`, { reason }).then((r) => r.data),
+  reverseAllotment: (id: string) => apiClient.patch<Allotment>(`/allotments/${id}/reverse`).then((r) => r.data),
 
   // Auth & RBAC
   login: (data: { email?: string; username?: string; password?: string }) =>

@@ -17,6 +17,7 @@ import { RefundsModule } from './modules/refunds/refunds.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { ShipmentsModule } from './modules/shipments/shipments.module';
+import { AllotmentsModule } from './modules/allotments/allotments.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ShipmentsModule } from './modules/shipments/shipments.module';
     SuppliersModule,
     PurchaseOrdersModule,
     ShipmentsModule,
+    AllotmentsModule,
   ],
 })
 export class AppModule {}
