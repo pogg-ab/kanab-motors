@@ -22,6 +22,7 @@ import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
     InvoicesModule,
     DeliveriesModule,
     DocumentsModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}

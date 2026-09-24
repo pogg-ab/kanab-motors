@@ -57,6 +57,15 @@ export interface Warehouse {
   warehouseId: number;
   warehouseName: string;
   location?: string;
+  warehouseType?: string;
+  capacity?: number;
+  managerUserId?: number;
+  contactPhone?: string;
+  manager?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
   isActive: boolean;
 }
 
@@ -920,4 +929,264 @@ export const api = {
     apiClient.get<DocumentTypeRef[]>('/documents/types', { params: { entityType } }).then((r) => r.data),
   getAllDocuments: (params?: any) =>
     apiClient.get<UnifiedDocumentItem[]>('/documents', { params }).then((r) => r.data),
+
+  // --- KMSICAMS-4 Endpoints (Inventory & Warehouse Management) ---
+  // Warehouses & Scoped Access
+  getInventoryWarehouses: () => apiClient.get<Warehouse[]>('/inventory/warehouses').then((r) => r.data),
+  updateInventoryWarehouse: (id: number, data: Partial<Warehouse>) =>
+    apiClient.patch<Warehouse>(`/inventory/warehouses/${id}`, data).then((r) => r.data),
+  getUserWarehouseAccess: (userId: number) =>
+    apiClient.get<number[]>(`/inventory/warehouses/user-access/${userId}`).then((r) => r.data),
+  setUserWarehouseAccess: (userId: number, warehouseIds: number[]) =>
+    apiClient.post<void>(`/inventory/warehouses/user-access/${userId}`, { warehouseIds }).then((r) => r.data),
+
+  // Vehicle Status State Machine
+  getTransitionRules: () =>
+    apiClient.get<VehicleStatusTransitionRule[]>('/inventory/transitions/rules').then((r) => r.data),
+  transitionVehicleStatus: (id: string, data: { toStatus: string; notes?: string; module?: string }) =>
+    apiClient.post<any>(`/inventory/vehicles/${id}/transition`, data).then((r) => r.data),
+  getVehicleStatusHistory: (id: string) =>
+    apiClient.get<VehicleStatusHistory[]>(`/inventory/vehicles/${id}/history`).then((r) => r.data),
+
+  // Stock Balances & Alerts
+  getStockBalances: (params?: { warehouseId?: number; itemId?: string }) =>
+    apiClient.get<StockBalance[]>('/inventory/balances', { params }).then((r) => r.data),
+  getLowStockAlerts: () =>
+    apiClient.get<LowStockAlert[]>('/inventory/balances/low-stock-alerts').then((r) => r.data),
+
+  // Stock Transfers
+  createStockTransfer: (data: {
+    fromWarehouseId: number;
+    toWarehouseId: number;
+    lines: Array<{ itemId?: string; quantity?: number; vehicleUnitId?: string }>;
+  }) => apiClient.post<StockTransfer>('/inventory/transfers', data).then((r) => r.data),
+  getStockTransfers: () => apiClient.get<StockTransfer[]>('/inventory/transfers').then((r) => r.data),
+  getStockTransfer: (id: string) => apiClient.get<StockTransfer>(`/inventory/transfers/${id}`).then((r) => r.data),
+  approveStockTransfer: (id: string) =>
+    apiClient.patch<StockTransfer>(`/inventory/transfers/${id}/approve`).then((r) => r.data),
+  completeStockTransfer: (id: string) =>
+    apiClient.patch<StockTransfer>(`/inventory/transfers/${id}/complete`).then((r) => r.data),
+
+  // Stock Adjustments
+  createStockAdjustment: (data: {
+    warehouseId: number;
+    itemId?: string;
+    quantityDelta?: number;
+    vehicleUnitId?: string;
+    reason: string;
+    reasonNotes: string;
+  }) => apiClient.post<StockAdjustment>('/inventory/adjustments', data).then((r) => r.data),
+  getStockAdjustments: () => apiClient.get<StockAdjustment[]>('/inventory/adjustments').then((r) => r.data),
+  getStockAdjustment: (id: string) => apiClient.get<StockAdjustment>(`/inventory/adjustments/${id}`).then((r) => r.data),
+  approveStockAdjustment: (id: string) =>
+    apiClient.patch<StockAdjustment>(`/inventory/adjustments/${id}/approve`).then((r) => r.data),
+
+  // Production Vehicle Intake
+  createProductionReceipt: (data: {
+    itemId: string;
+    chassisNumber: string;
+    engineNumber: string;
+    warehouseId: number;
+    assembledAt?: string;
+  }) => apiClient.post<ProductionReceipt>('/inventory/production-receipts', data).then((r) => r.data),
+  getProductionReceipts: () => apiClient.get<ProductionReceipt[]>('/inventory/production-receipts').then((r) => r.data),
+
+  // Stock Movements & Reports
+  getMovementHistory: (params?: { warehouseId?: number; limit?: number }) =>
+    apiClient.get<StockMovementItem[]>('/inventory/movements', { params }).then((r) => r.data),
+  getCurrentStockReport: () => apiClient.get<CurrentStockReportItem[]>('/inventory/reports/stock').then((r) => r.data),
+  getVehicleInventoryByStatusReport: () =>
+    apiClient.get<VehicleStatusReportItem[]>('/inventory/reports/vehicles-by-status').then((r) => r.data),
 };
+
+// ============================================================================
+// KMSICAMS-4 Interfaces
+// ============================================================================
+export interface VehicleStatusTransitionRule {
+  fromStatus: string;
+  toStatus: string;
+  allowedTriggerModule?: string;
+  description?: string;
+}
+
+export interface VehicleStatusHistory {
+  historyId: string;
+  vehicleUnitId: string;
+  fromStatus?: string;
+  toStatus: string;
+  triggerModule?: string;
+  triggerUserId?: number;
+  triggerUser?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
+  notes?: string;
+  changedAt: string;
+}
+
+export interface StockBalance {
+  balanceId: string;
+  warehouseId: number;
+  itemId: string;
+  quantityOnHand: number;
+  quantityReserved: number;
+  quantityAvailable: number;
+  lastMovementAt?: string;
+  warehouse?: Warehouse;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+    reorderLevel?: number;
+    unitOfMeasure?: string;
+  };
+}
+
+export interface LowStockAlert {
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  reorder_level: number;
+  total_available: number;
+  shortfall: number;
+}
+
+export interface StockTransferLine {
+  lineId: string;
+  transferId: string;
+  itemId?: string;
+  quantity?: number;
+  vehicleUnitId?: string;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+  };
+  vehicleUnit?: {
+    vehicleUnitId: string;
+    chassisNumber: string;
+    engineNumber: string;
+    status: string;
+  };
+}
+
+export interface StockTransfer {
+  transferId: string;
+  fromWarehouseId: number;
+  toWarehouseId: number;
+  status: 'REQUESTED' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
+  requestedBy: number;
+  requestedAt: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  completedAt?: string;
+  notes?: string;
+  fromWarehouse?: Warehouse;
+  toWarehouse?: Warehouse;
+  requester?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
+  approver?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
+  lines?: StockTransferLine[];
+}
+
+export interface StockAdjustment {
+  adjustmentId: string;
+  warehouseId: number;
+  itemId?: string;
+  quantityDelta?: number;
+  vehicleUnitId?: string;
+  reason: 'DAMAGE' | 'LOSS' | 'CYCLE_COUNT' | 'FOUND' | 'STATUS_CORRECTION' | 'SCRAP' | 'OTHER';
+  reasonNotes: string;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED';
+  requestedBy: number;
+  requestedAt: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  warehouse?: Warehouse;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+  };
+  vehicleUnit?: {
+    vehicleUnitId: string;
+    chassisNumber: string;
+    engineNumber: string;
+    status: string;
+  };
+  requester?: {
+    userId: number;
+    fullName: string;
+  };
+  approver?: {
+    userId: number;
+    fullName: string;
+  };
+}
+
+export interface ProductionReceipt {
+  productionReceiptId: string;
+  itemId: string;
+  chassisNumber: string;
+  engineNumber: string;
+  warehouseId: number;
+  assembledAt: string;
+  receivedBy: number;
+  createdAt: string;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+  };
+  warehouse?: Warehouse;
+  receiver?: {
+    userId: number;
+    fullName: string;
+  };
+}
+
+export interface StockMovementItem {
+  movement_id: string;
+  movement_at: string;
+  movement_type: string;
+  warehouse_id: number;
+  warehouse_name: string;
+  item_id?: string;
+  item_code?: string;
+  item_name?: string;
+  vehicle_unit_id?: string;
+  chassis_number?: string;
+  quantity: number;
+  reference_type: string;
+  reference_id: string;
+  performed_by_name?: string;
+}
+
+export interface CurrentStockReportItem {
+  warehouse_id: number;
+  warehouse_name: string;
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  reorder_level: number;
+}
+
+export interface VehicleStatusReportItem {
+  warehouse_id?: number;
+  warehouse_name?: string;
+  model_name?: string;
+  status: string;
+  vehicle_count: number;
+}
+

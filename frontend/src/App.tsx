@@ -24,6 +24,7 @@ import { InvoicesPage } from './pages/invoices/InvoicesPage';
 import { DeliveriesPage } from './pages/deliveries/DeliveriesPage';
 import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
 import { DocumentsPage } from './pages/documents/DocumentsPage';
+import { InventoryPage } from './pages/inventory/InventoryPage';
 
 function MainAppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -82,6 +83,8 @@ function MainAppContent() {
         return 'Internal Controls: Unified Approval Queue & Policy Engine (KMSICAMS-6)';
       case 'documents':
         return 'Document Management: Unified Document Center & Registry (KMSICAMS-6)';
+      case 'inventory':
+        return 'Inventory & Warehouses: Stock Balances, State Machine & Transfers (KMSICAMS-4)';
       case 'shipments':
         return selectedShipmentId
           ? 'Import Management: Shipment Control & Landed Cost Engine'
@@ -142,6 +145,9 @@ function MainAppContent() {
           {activeTab === 'deliveries' && <DeliveriesPage />}
           {activeTab === 'approvals' && <ApprovalsPage />}
           {activeTab === 'documents' && <DocumentsPage />}
+
+          {/* KMSICAMS-4 Pages */}
+          {activeTab === 'inventory' && <InventoryPage />}
 
           {/* KMSICAMS-3 Pages */}
           {activeTab === 'shipments' &&

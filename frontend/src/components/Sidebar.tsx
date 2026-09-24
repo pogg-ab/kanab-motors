@@ -18,6 +18,7 @@ import {
   Truck,
   FolderOpen,
   CheckCircle2,
+  Boxes,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -129,6 +130,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
   ];
 
   const operationsItems = [
+    {
+      id: 'inventory',
+      label: 'Inventory & Warehouses',
+      module: 'Warehouse',
+      icon: Boxes,
+      badge: 'KMS-4',
+    },
     {
       id: 'invoices',
       label: 'Sales Invoices & VAT',
