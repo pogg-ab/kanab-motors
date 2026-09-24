@@ -35,16 +35,16 @@ export class CustomerPayment {
     name: 'receipt_number',
     length: 30,
     unique: true,
-    default: () => "('BRV-' || lpad(nextval('receipt_number_seq')::text, 5, '0'))",
+    default: () => "('BRV-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('receipt_number_seq')::text, 5, '0'))",
   })
   receiptNumber: string;
 
-  @Column({ name: 'booking_id', type: 'bigint' })
-  bookingId: string;
+  @Column({ name: 'booking_id', type: 'bigint', nullable: true })
+  bookingId?: string;
 
-  @ManyToOne(() => Booking, (b) => b.payments)
+  @ManyToOne(() => Booking, (b) => b.payments, { nullable: true })
   @JoinColumn({ name: 'booking_id' })
-  booking: Booking;
+  booking?: Booking;
 
   @Column({ name: 'customer_id', type: 'bigint' })
   customerId: string;

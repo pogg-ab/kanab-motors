@@ -10,9 +10,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentInstrument } from '../entities/customer-payment.entity';
 
 export class CreatePaymentDto {
-  @ApiProperty({ example: '1' })
-  @IsNotEmpty({ message: 'Booking ID is required' })
-  bookingId: string;
+  @ApiPropertyOptional({ example: '1' })
+  @IsOptional()
+  @IsString()
+  bookingId?: string;
+
+  @ApiPropertyOptional({ example: '1' })
+  @IsOptional()
+  @IsString()
+  customerId?: string;
 
   @ApiProperty({ enum: PaymentInstrument, example: PaymentInstrument.BANK_DEPOSIT })
   @IsEnum(PaymentInstrument)

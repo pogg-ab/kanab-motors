@@ -25,19 +25,30 @@ export class PaymentsService {
   ) {}
 
   async create(dto: CreatePaymentDto, userId: number = 1): Promise<CustomerPayment> {
-    const booking = await this.bookingRepo.findOne({
-      where: { bookingId: dto.bookingId },
-      relations: ['customer'],
-    });
-    if (!booking) throw new NotFoundException(`Booking ${dto.bookingId} not found`);
+    let customerId = dto.customerId;
+    let bookingId: string | undefined = undefined;
 
-    if (booking.bookingStatus === BookingStatus.CANCELLED) {
-      throw new BadRequestException('Cannot accept payments for a cancelled booking');
+    if (dto.bookingId) {
+      const booking = await this.bookingRepo.findOne({
+        where: { bookingId: dto.bookingId },
+        relations: ['customer'],
+      });
+      if (!booking) throw new NotFoundException(`Booking ${dto.bookingId} not found`);
+
+      if (booking.bookingStatus === BookingStatus.CANCELLED) {
+        throw new BadRequestException('Cannot accept payments for a cancelled booking');
+      }
+      bookingId = booking.bookingId;
+      customerId = booking.customerId;
+    }
+
+    if (!customerId) {
+      throw new BadRequestException('Customer ID is required for general account deposits');
     }
 
     const payment = this.paymentRepo.create({
-      bookingId: dto.bookingId,
-      customerId: booking.customerId,
+      bookingId: bookingId || undefined,
+      customerId,
       instrumentType: dto.instrumentType,
       bankName: dto.bankName.trim(),
       amount: dto.amount,
@@ -76,63 +87,84 @@ export class PaymentsService {
       throw new BadRequestException('Payment is already confirmed');
     }
 
-    const booking = await this.bookingRepo.findOne({
-      where: { bookingId: payment.bookingId },
-      relations: ['payments'],
-    });
-    if (!booking) throw new NotFoundException(`Booking ${payment.bookingId} not found`);
-
-    // Determine whether this is the 1st deposit or an additional deposit (Story P6)
-    const priorConfirmed = booking.payments?.filter(
-      (p) => p.status === PaymentStatus.CONFIRMED && p.paymentId !== id,
-    );
-    const txType =
-      !priorConfirmed || priorConfirmed.length === 0
-        ? LedgerTransactionType.ADVANCE_DEPOSIT
-        : LedgerTransactionType.ADDITIONAL_PAYMENT;
-
     payment.status = PaymentStatus.CONFIRMED;
     payment.confirmedBy = userId;
     payment.confirmedAt = new Date();
     const savedPayment = await this.paymentRepo.save(payment);
 
-    // Calculate booking totals update (Story P7)
-    const prevDeposited = Number(booking.totalAmountDeposited || 0);
-    const newDeposited = prevDeposited + Number(payment.amount);
-    const grossTotal = Number(booking.grossTotal);
-    const newOutstanding = Math.max(0, grossTotal - newDeposited);
+    let txType: LedgerTransactionType = LedgerTransactionType.CUSTOMER_CREDIT;
+    let newDeposited: number = 0;
 
-    booking.totalAmountDeposited = newDeposited;
-    booking.outstandingBalance = newOutstanding;
-    if (newDeposited >= Number(booking.requiredAdvanceAmount) && booking.bookingStatus === BookingStatus.APPROVED) {
-      booking.bookingStatus = BookingStatus.CONFIRMED;
+    if (payment.bookingId) {
+      const booking = await this.bookingRepo.findOne({
+        where: { bookingId: payment.bookingId },
+        relations: ['payments'],
+      });
+      if (!booking) throw new NotFoundException(`Booking ${payment.bookingId} not found`);
+
+      // Determine whether this is the 1st deposit or an additional deposit (Story P6)
+      const priorConfirmed = booking.payments?.filter(
+        (p) => p.status === PaymentStatus.CONFIRMED && p.paymentId !== id,
+      );
+      txType =
+        !priorConfirmed || priorConfirmed.length === 0
+          ? LedgerTransactionType.ADVANCE_DEPOSIT
+          : LedgerTransactionType.ADDITIONAL_PAYMENT;
+
+      // Calculate booking totals update (Story P7)
+      const prevDeposited = Number(booking.totalAmountDeposited || 0);
+      newDeposited = prevDeposited + Number(payment.amount);
+      const grossTotal = Number(booking.grossTotal);
+      const newOutstanding = Math.max(0, grossTotal - newDeposited);
+
+      booking.totalAmountDeposited = newDeposited;
+      booking.outstandingBalance = newOutstanding;
+      if (newDeposited >= Number(booking.requiredAdvanceAmount) && booking.bookingStatus === BookingStatus.APPROVED) {
+        booking.bookingStatus = BookingStatus.CONFIRMED;
+      }
+      await this.bookingRepo.save(booking);
+
+      // Check for excess payment (Story X1)
+      const isExcess = newDeposited > grossTotal;
+      const excessPortion = isExcess ? newDeposited - Math.max(prevDeposited, grossTotal) : 0;
+      const bookingAllocatedPortion = Number(payment.amount) - excessPortion;
+
+      // Post to Customer Ledger (Story P6 & L4)
+      await this.ledgerService.postTransaction({
+        customerId: payment.customerId,
+        transactionType: txType,
+        referenceNumber: payment.receiptNumber,
+        description: `${txType.replace(/_/g, ' ')} via ${payment.instrumentType} (${payment.bankName} Ref: ${payment.referenceNumber}) for Booking ${booking.bookingNumber}`,
+        creditAmount: Number(payment.amount),
+        debitAmount: 0,
+        relatedBookingId: booking.bookingId,
+        relatedReceiptId: payment.paymentId,
+        processedBy: userId,
+        summaryDelta: {
+          totalDeposits: Number(payment.amount),
+          allocatedToBookings: bookingAllocatedPortion,
+          outstandingBalance: -bookingAllocatedPortion,
+          excessPayments: excessPortion > 0 ? excessPortion : 0,
+          availableCredit: excessPortion > 0 ? excessPortion : 0,
+        },
+      });
+    } else {
+      // General deposit not tied to a booking (Story P4)
+      await this.ledgerService.postTransaction({
+        customerId: payment.customerId,
+        transactionType: LedgerTransactionType.CUSTOMER_CREDIT,
+        referenceNumber: payment.receiptNumber,
+        description: `General Account Deposit via ${payment.instrumentType} (${payment.bankName} Ref: ${payment.referenceNumber})`,
+        creditAmount: Number(payment.amount),
+        debitAmount: 0,
+        relatedReceiptId: payment.paymentId,
+        processedBy: userId,
+        summaryDelta: {
+          totalDeposits: Number(payment.amount),
+          availableCredit: Number(payment.amount),
+        },
+      });
     }
-    await this.bookingRepo.save(booking);
-
-    // Check for excess payment (Story X1)
-    const isExcess = newDeposited > grossTotal;
-    const excessPortion = isExcess ? newDeposited - Math.max(prevDeposited, grossTotal) : 0;
-    const bookingAllocatedPortion = Number(payment.amount) - excessPortion;
-
-    // Post to Customer Ledger (Story P6 & L4)
-    await this.ledgerService.postTransaction({
-      customerId: payment.customerId,
-      transactionType: txType,
-      referenceNumber: payment.receiptNumber,
-      description: `${txType.replace(/_/g, ' ')} via ${payment.instrumentType} (${payment.bankName} Ref: ${payment.referenceNumber}) for Booking ${booking.bookingNumber}`,
-      creditAmount: Number(payment.amount),
-      debitAmount: 0,
-      relatedBookingId: booking.bookingId,
-      relatedReceiptId: payment.paymentId,
-      processedBy: userId,
-      summaryDelta: {
-        totalDeposits: Number(payment.amount),
-        allocatedToBookings: bookingAllocatedPortion,
-        outstandingBalance: -bookingAllocatedPortion,
-        excessPayments: excessPortion > 0 ? excessPortion : 0,
-        availableCredit: excessPortion > 0 ? excessPortion : 0,
-      },
-    });
 
     await this.auditService.log({
       entityType: 'customer_payment',

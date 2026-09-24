@@ -73,13 +73,13 @@ export const BookingsPage: React.FC = () => {
   });
 
   const [saving, setSaving] = useState<boolean>(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const showToast = (type: 'success' | 'error', msg: string) => {
+  const showToast = (type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 4000);
   };
