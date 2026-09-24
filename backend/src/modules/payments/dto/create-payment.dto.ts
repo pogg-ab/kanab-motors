@@ -43,4 +43,9 @@ export class CreatePaymentDto {
   @IsString()
   @IsOptional()
   referenceDate?: string;
+
+  @ApiPropertyOptional({ example: 'Customer advance deposit' })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

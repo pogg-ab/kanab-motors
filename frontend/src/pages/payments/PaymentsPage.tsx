@@ -37,6 +37,36 @@ export const PaymentsPage: React.FC = () => {
   const [rejectingPayment, setRejectingPayment] = useState<CustomerPayment | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('Cheque returned due to insufficient drawer funds');
   const [rejecting, setRejecting] = useState<boolean>(false);
+  const [customBankName, setCustomBankName] = useState<string>('');
+
+  const ETHIOPIAN_BANKS = [
+    'Commercial Bank of Ethiopia (CBE)',
+    'Awash International Bank',
+    'Dashen Bank',
+    'Bank of Abyssinia',
+    'Cooperative Bank of Oromia',
+    'Hibret Bank (United Bank)',
+    'Zemen Bank',
+    'Nib International Bank',
+    'Wegagen Bank',
+    'Lion International Bank',
+    'Oromia Bank',
+    'Berhan Bank',
+    'Bunna International Bank',
+    'Enat Bank',
+    'Abay Bank',
+    'Addis International Bank',
+    'Global Bank Ethiopia',
+    'Sinqee Bank',
+    'Tsedey Bank',
+    'Amhara Bank',
+    'Gadaa Bank',
+    'Hijra Bank',
+    'ZamZam Bank',
+    'Ramis Bank',
+    'Telebirr / CBE Birr',
+    'OTHER',
+  ];
 
   // Form state
   const [newPayment, setNewPayment] = useState<{
@@ -96,14 +126,35 @@ export const PaymentsPage: React.FC = () => {
       showToast('error', 'Customer and positive amount are required');
       return;
     }
+
+    const resolvedBank =
+      newPayment.bankName === 'OTHER' ? customBankName.trim() : (newPayment.bankName || customBankName.trim());
+    if (!resolvedBank) {
+      showToast('error', 'Please select or enter a valid bank name');
+      return;
+    }
+
     setSaving(true);
     try {
-      const created = await api.createPayment({
-        ...newPayment,
-        bookingId: newPayment.bookingId || undefined,
-      });
+      const payload: any = {
+        customerId: String(newPayment.customerId),
+        amount: Number(newPayment.amount),
+        instrumentType: newPayment.instrumentType,
+        bankName: resolvedBank,
+        referenceNumber: newPayment.referenceNumber.trim(),
+        referenceDate: newPayment.referenceDate,
+      };
+      if (newPayment.bookingId) {
+        payload.bookingId = String(newPayment.bookingId);
+      }
+      if (newPayment.notes?.trim()) {
+        payload.notes = newPayment.notes.trim();
+      }
+
+      const created = await api.createPayment(payload);
       showToast('success', `BRV ${created.receiptNumber} recorded! Pending Finance confirmation.`);
       setShowCreateModal(false);
+      setCustomBankName('');
       setNewPayment({
         customerId: '',
         bookingId: '',
@@ -539,17 +590,34 @@ export const PaymentsPage: React.FC = () => {
                     <select
                       className="input"
                       value={newPayment.bankName}
-                      onChange={(e) => setNewPayment({ ...newPayment, bankName: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewPayment({ ...newPayment, bankName: val });
+                        if (val !== 'OTHER') setCustomBankName('');
+                      }}
                       required
                     >
-                      <option value="Commercial Bank of Ethiopia (CBE)">Commercial Bank of Ethiopia (CBE)</option>
-                      <option value="Awash International Bank">Awash International Bank</option>
-                      <option value="Dashen Bank">Dashen Bank</option>
-                      <option value="Bank of Abyssinia">Bank of Abyssinia</option>
-                      <option value="Cooperative Bank of Oromia">Cooperative Bank of Oromia</option>
-                      <option value="Hibret Bank">Hibret Bank</option>
-                      <option value="Zemen Bank">Zemen Bank</option>
+                      {ETHIOPIAN_BANKS.map((b) => (
+                        <option key={b} value={b}>
+                          {b === 'OTHER' ? '+ Other Bank / Custom Financial Institution...' : b}
+                        </option>
+                      ))}
                     </select>
+
+                    {newPayment.bankName === 'OTHER' && (
+                      <div style={{ marginTop: '0.65rem' }}>
+                        <input
+                          type="text"
+                          className="input"
+                          value={customBankName}
+                          onChange={(e) => setCustomBankName(e.target.value)}
+                          placeholder="Type custom bank / financial institution name *"
+                          required
+                          autoFocus
+                          style={{ borderColor: 'var(--accent-cyan)' }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
