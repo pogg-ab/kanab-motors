@@ -15,6 +15,9 @@ import {
   BarChart3,
   UserCog,
   X,
+  Truck,
+  FolderOpen,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -122,6 +125,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Refunds',
       icon: Coins,
       badge: 'Audit',
+    },
+  ];
+
+  const operationsItems = [
+    {
+      id: 'invoices',
+      label: 'Sales Invoices & VAT',
+      module: 'Settlement',
+      icon: Receipt,
+      badge: 'IV1–13',
+    },
+    {
+      id: 'deliveries',
+      label: 'Deliveries & Handover',
+      module: 'Handover',
+      icon: Truck,
+      badge: 'DL1–10',
+    },
+    {
+      id: 'approvals',
+      label: 'Approval Queue & Policies',
+      module: 'Engine',
+      icon: CheckCircle2,
+      badge: 'AW1–10',
+    },
+    {
+      id: 'documents',
+      label: 'Unified Document Center',
+      module: 'Documents',
+      icon: FolderOpen,
+      badge: 'DA1–6',
     },
   ];
 
@@ -308,6 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
 
         {/* Nav Items */}
         <nav style={{ flex: 1, padding: '0.75rem 0.75rem', overflowY: 'auto' }}>
+          {renderNavSection('Operations & Approvals', operationsItems)}
           {renderNavSection('Import & Landed Cost', procurementItems)}
           {renderNavSection('Financial Engine', financialItems)}
           {renderNavSection('Core Masters', masterItems)}

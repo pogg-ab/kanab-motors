@@ -466,6 +466,135 @@ export interface LandedCostReport {
   }[];
 }
 
+// KMSICAMS-6 Interfaces
+export interface WorkflowType {
+  workflowTypeCode: string;
+  workflowTypeName: string;
+}
+
+export interface ApprovalPolicy {
+  workflowTypeCode: string;
+  approvalLevel: number;
+  requiredRoleId: number;
+  workflowType?: WorkflowType;
+  requiredRole?: Role;
+}
+
+export interface ApprovalAction {
+  approvalActionId: string;
+  approvalRequestId: string;
+  approvalLevel: number;
+  decision: 'APPROVED' | 'REJECTED';
+  decidedBy?: number;
+  decider?: AppUser;
+  decidedAt: string;
+  comments?: string;
+}
+
+export interface ApprovalRequest {
+  approvalRequestId: string;
+  requestNumber: string;
+  workflowTypeCode: string;
+  workflowType?: WorkflowType;
+  entityType: string;
+  entityId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  currentLevel: number;
+  requestedBy?: number;
+  requester?: AppUser;
+  requestedAt: string;
+  finalizedAt?: string;
+  actions?: ApprovalAction[];
+}
+
+export interface SalesInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  bookingId: string;
+  booking?: Booking;
+  customerId: string;
+  customer?: Customer;
+  itemId: string;
+  item?: ProductItem;
+  vehicleUnitId?: string;
+  vehicleUnit?: VehicleUnit;
+  quantity: number;
+  unitPrice: number;
+  vatAmount: number;
+  grossTotal: number;
+  depositsApplied: number;
+  outstandingBalance: number;
+  excessPaymentFlag: boolean;
+  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  createdBy?: number;
+  creator?: AppUser;
+  createdAt: string;
+}
+
+export interface PdiChecklistItem {
+  pdiChecklistItemId: number;
+  itemDescription: string;
+}
+
+export interface PdiInspectionResult {
+  pdiInspectionResultId: string;
+  pdiInspectionId: string;
+  pdiChecklistItemId: number;
+  checklistItem?: PdiChecklistItem;
+  passed: boolean;
+  notes?: string;
+}
+
+export interface PdiInspection {
+  pdiInspectionId: string;
+  vehicleUnitId: string;
+  vehicleUnit?: VehicleUnit;
+  inspectedBy?: number;
+  inspector?: AppUser;
+  inspectedAt: string;
+  results?: PdiInspectionResult[];
+}
+
+export interface Delivery {
+  deliveryId: string;
+  deliveryNumber: string;
+  bookingId: string;
+  booking?: Booking;
+  vehicleUnitId: string;
+  vehicleUnit?: VehicleUnit;
+  deliveryDate?: string;
+  responsibleEmployee?: number;
+  responsibleStaff?: AppUser;
+  customerAcknowledged: boolean;
+  pdiCompleted: boolean;
+  financialSettlementValidated: boolean;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  deliveredAt?: string;
+  createdBy?: number;
+  creator?: AppUser;
+  createdAt: string;
+}
+
+export interface DocumentTypeRef {
+  documentTypeCode: string;
+  documentTypeName: string;
+  restrictedToEntityType?: string;
+}
+
+export interface UnifiedDocumentItem {
+  attachmentId: string;
+  entityType: string;
+  entityId: string;
+  fileName: string;
+  filePath: string;
+  contentType?: string;
+  fileSizeBytes?: string;
+  uploadedAt: string;
+  documentTypeCode?: string;
+  documentTypeName?: string;
+  uploadedByName?: string;
+}
+
 // API Methods
 export const api = {
   // Lookups
@@ -750,4 +879,45 @@ export const api = {
   ) => apiClient.put<AppUser>(`/auth/users/${id}`, data).then((r) => r.data),
   toggleUserStatus: (id: number) =>
     apiClient.patch<AppUser>(`/auth/users/${id}/toggle-status`).then((r) => r.data),
+
+  // --- KMSICAMS-6 Endpoints ---
+  // Approvals
+  getPendingApprovals: () => apiClient.get<ApprovalRequest[]>('/approvals/pending').then((r) => r.data),
+  getAllApprovalRequests: (params?: any) =>
+    apiClient.get<ApprovalRequest[]>('/approvals', { params }).then((r) => r.data),
+  getApprovalRequest: (id: string) =>
+    apiClient.get<ApprovalRequest>(`/approvals/${id}`).then((r) => r.data),
+  submitForApproval: (data: { workflowTypeCode: string; entityType: string; entityId: string | number }) =>
+    apiClient.post<{ approvalRequestId: string }>('/approvals/submit', data).then((r) => r.data),
+  recordApprovalDecision: (id: string, data: { decision: 'APPROVED' | 'REJECTED'; comments?: string }) =>
+    apiClient.post<{ success: boolean; message: string; request: ApprovalRequest }>(`/approvals/${id}/decision`, data).then((r) => r.data),
+  getApprovalPolicies: () => apiClient.get<ApprovalPolicy[]>('/approvals/policies').then((r) => r.data),
+  getWorkflowTypes: () => apiClient.get<WorkflowType[]>('/approvals/workflow-types').then((r) => r.data),
+
+  // Sales Invoices
+  getInvoices: (params?: any) => apiClient.get<SalesInvoice[]>('/invoices', { params }).then((r) => r.data),
+  getInvoice: (id: string) => apiClient.get<SalesInvoice>(`/invoices/${id}`).then((r) => r.data),
+  createInvoice: (data: any) => apiClient.post<SalesInvoice>('/invoices', data).then((r) => r.data),
+  approveInvoice: (id: string, comments?: string) =>
+    apiClient.patch<SalesInvoice>(`/invoices/${id}/approve`, { comments }).then((r) => r.data),
+  rejectInvoice: (id: string, comments?: string) =>
+    apiClient.patch<SalesInvoice>(`/invoices/${id}/reject`, { comments }).then((r) => r.data),
+
+  // Deliveries & PDI
+  getDeliveries: () => apiClient.get<Delivery[]>('/deliveries').then((r) => r.data),
+  getDelivery: (id: string) => apiClient.get<Delivery>(`/deliveries/${id}`).then((r) => r.data),
+  createDelivery: (data: any) => apiClient.post<Delivery>('/deliveries', data).then((r) => r.data),
+  authorizeDelivery: (id: string, comments?: string) =>
+    apiClient.patch<Delivery>(`/deliveries/${id}/authorize`, { comments }).then((r) => r.data),
+  getPdiChecklist: () => apiClient.get<PdiChecklistItem[]>('/deliveries/pdi/checklist').then((r) => r.data),
+  recordPdiInspection: (data: any) => apiClient.post<PdiInspection>('/deliveries/pdi/inspection', data).then((r) => r.data),
+  getVehiclePdi: (vehicleUnitId: string) =>
+    apiClient.get<PdiInspection>(`/deliveries/pdi/vehicle/${vehicleUnitId}`).then((r) => r.data),
+  getGatePass: (id: string) => apiClient.get<any>(`/deliveries/${id}/gate-pass`).then((r) => r.data),
+
+  // Documents
+  getDocumentTypes: (entityType?: string) =>
+    apiClient.get<DocumentTypeRef[]>('/documents/types', { params: { entityType } }).then((r) => r.data),
+  getAllDocuments: (params?: any) =>
+    apiClient.get<UnifiedDocumentItem[]>('/documents', { params }).then((r) => r.data),
 };

@@ -20,6 +20,10 @@ import { ShipmentsPage } from './pages/shipments/ShipmentsPage';
 import { ShipmentDetailPage } from './pages/shipments/ShipmentDetailPage';
 import { ProcurementReportsPage } from './pages/reports/ProcurementReportsPage';
 import { UsersPage } from './pages/users/UsersPage';
+import { InvoicesPage } from './pages/invoices/InvoicesPage';
+import { DeliveriesPage } from './pages/deliveries/DeliveriesPage';
+import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
+import { DocumentsPage } from './pages/documents/DocumentsPage';
 
 function MainAppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -70,6 +74,14 @@ function MainAppContent() {
 
   const getModuleTitle = () => {
     switch (activeTab) {
+      case 'invoices':
+        return 'Operations: Sales Invoices, VAT Calculation & Financial Settlement (KMSICAMS-6)';
+      case 'deliveries':
+        return 'Operations: Delivery Handover, PDI Station & Official Gate Pass (KMSICAMS-6)';
+      case 'approvals':
+        return 'Internal Controls: Unified Approval Queue & Policy Engine (KMSICAMS-6)';
+      case 'documents':
+        return 'Document Management: Unified Document Center & Registry (KMSICAMS-6)';
       case 'shipments':
         return selectedShipmentId
           ? 'Import Management: Shipment Control & Landed Cost Engine'
@@ -125,6 +137,12 @@ function MainAppContent() {
         />
 
         <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-primary)' }}>
+          {/* KMSICAMS-6 Pages */}
+          {activeTab === 'invoices' && <InvoicesPage />}
+          {activeTab === 'deliveries' && <DeliveriesPage />}
+          {activeTab === 'approvals' && <ApprovalsPage />}
+          {activeTab === 'documents' && <DocumentsPage />}
+
           {/* KMSICAMS-3 Pages */}
           {activeTab === 'shipments' &&
             (selectedShipmentId ? (
