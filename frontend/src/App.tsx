@@ -25,6 +25,8 @@ import { DeliveriesPage } from './pages/deliveries/DeliveriesPage';
 import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
 import { DocumentsPage } from './pages/documents/DocumentsPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { ReportsHubPage } from './pages/reports/ReportsHubPage';
 
 function MainAppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -75,6 +77,10 @@ function MainAppContent() {
 
   const getModuleTitle = () => {
     switch (activeTab) {
+      case 'dashboard':
+        return 'Executive Management: Real-Time Intelligence & Fleet Dashboard (KMSICAMS-7)';
+      case 'reports':
+        return 'Enterprise Intelligence: Unified Reporting & Analytics Engine (KMSICAMS-7)';
       case 'invoices':
         return 'Operations: Sales Invoices, VAT Calculation & Financial Settlement (KMSICAMS-6)';
       case 'deliveries':
@@ -140,6 +146,10 @@ function MainAppContent() {
         />
 
         <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-primary)' }}>
+          {/* KMSICAMS-7 Pages */}
+          {activeTab === 'dashboard' && <DashboardPage onNavigateTab={(tab) => handleTabChange(tab)} />}
+          {activeTab === 'reports' && <ReportsHubPage />}
+
           {/* KMSICAMS-6 Pages */}
           {activeTab === 'invoices' && <InvoicesPage />}
           {activeTab === 'deliveries' && <DeliveriesPage />}

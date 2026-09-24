@@ -23,6 +23,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     DeliveriesModule,
     DocumentsModule,
     InventoryModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

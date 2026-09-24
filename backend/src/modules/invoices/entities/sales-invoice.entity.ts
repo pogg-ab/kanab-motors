@@ -118,6 +118,13 @@ export class SalesInvoice {
   @JoinColumn({ name: 'created_by' })
   creator: AppUser;
 
+  @Column({ name: 'salesperson_id', type: 'int', nullable: true })
+  salespersonId?: number;
+
+  @ManyToOne(() => AppUser, { nullable: true })
+  @JoinColumn({ name: 'salesperson_id' })
+  salesperson?: AppUser;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

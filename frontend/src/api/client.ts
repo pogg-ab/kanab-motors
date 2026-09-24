@@ -991,12 +991,34 @@ export const api = {
   }) => apiClient.post<ProductionReceipt>('/inventory/production-receipts', data).then((r) => r.data),
   getProductionReceipts: () => apiClient.get<ProductionReceipt[]>('/inventory/production-receipts').then((r) => r.data),
 
-  // Stock Movements & Reports
+  // Stock Movements & Reports (KMSICAMS-4)
   getMovementHistory: (params?: { warehouseId?: number; limit?: number }) =>
     apiClient.get<StockMovementItem[]>('/inventory/movements', { params }).then((r) => r.data),
   getCurrentStockReport: () => apiClient.get<CurrentStockReportItem[]>('/inventory/reports/stock').then((r) => r.data),
   getVehicleInventoryByStatusReport: () =>
     apiClient.get<VehicleStatusReportItem[]>('/inventory/reports/vehicles-by-status').then((r) => r.data),
+
+  // --- KMSICAMS-7 Endpoints (Dashboard & Reporting) ---
+  getDashboardSummary: () => apiClient.get<DashboardSummary>('/reports/dashboard/summary').then((r) => r.data),
+  getDailySalesReport: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get<DailySalesItem[]>('/reports/sales/daily', { params }).then((r) => r.data),
+  getMonthlySalesReport: () => apiClient.get<MonthlySalesItem[]>('/reports/sales/monthly').then((r) => r.data),
+  getSalesByVehicleType: () => apiClient.get<SalesByCategoryItem[]>('/reports/sales/by-vehicle-type').then((r) => r.data),
+  getSalesByModel: () => apiClient.get<SalesByModelItem[]>('/reports/sales/by-model').then((r) => r.data),
+  getSalesByCustomer: () => apiClient.get<SalesByCustomerItem[]>('/reports/sales/by-customer').then((r) => r.data),
+  getSalesByRegion: () => apiClient.get<SalesByRegionItem[]>('/reports/sales/by-region').then((r) => r.data),
+  getSalesByCustomerType: () => apiClient.get<SalesByCustomerTypeItem[]>('/reports/sales/by-customer-type').then((r) => r.data),
+  getSalesBySalesperson: () => apiClient.get<SalesBySalespersonItem[]>('/reports/sales/by-salesperson').then((r) => r.data),
+  getOperationalInvoiceReport: (params?: { status?: string; limit?: number }) =>
+    apiClient.get<InvoiceReportItem[]>('/reports/operational/invoices', { params }).then((r) => r.data),
+  getOperationalDeliveryReport: (params?: { status?: string; limit?: number }) =>
+    apiClient.get<DeliveryReportItem[]>('/reports/operational/deliveries', { params }).then((r) => r.data),
+  getOperationalEnquiriesReport: () =>
+    apiClient.get<any[]>('/reports/operational/enquiries').then((r) => r.data),
+  getOperationalBookingsReport: () =>
+    apiClient.get<any[]>('/reports/operational/bookings').then((r) => r.data),
+  getCustomerFinancialSummary: () =>
+    apiClient.get<CustomerFinancialSummaryItem[]>('/reports/financial/summary').then((r) => r.data),
 };
 
 // ============================================================================
@@ -1189,4 +1211,122 @@ export interface VehicleStatusReportItem {
   status: string;
   vehicle_count: number;
 }
+
+// ============================================================================
+// KMSICAMS-7 Interfaces (Dashboard and Reporting)
+// ============================================================================
+export interface DashboardSummary {
+  todays_sales: number;
+  todays_invoice_count: number;
+  vehicles_available: number;
+  vehicles_reserved: number;
+  vehicles_allotted: number;
+  vehicles_sold: number;
+  vehicles_delivered: number;
+  pending_approvals: number;
+  pending_allotments: number;
+  total_invoiced?: number;
+  total_collected?: number;
+  total_receivables?: number;
+  active_confirmed_bookings?: number;
+  open_enquiries?: number;
+  active_customers?: number;
+  active_shipments?: number;
+}
+
+export interface DailySalesItem {
+  sales_date: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface MonthlySalesItem {
+  sales_month: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface SalesByCategoryItem {
+  category_name: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface SalesByModelItem {
+  model?: string;
+  item_name: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface SalesByCustomerItem {
+  customer_id: string;
+  customer_code: string;
+  full_name: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface SalesByRegionItem {
+  region_name: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface SalesByCustomerTypeItem {
+  customer_type: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface SalesBySalespersonItem {
+  salesperson_id: number;
+  salesperson_name: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface InvoiceReportItem {
+  invoice_id: string;
+  invoice_number: string;
+  status: string;
+  created_at: string;
+  customer_code: string;
+  customer_name: string;
+  item_name: string;
+  chassis_number?: string;
+  quantity: number;
+  unit_price: number;
+  vat_amount: number;
+  gross_total: number;
+  outstanding_balance: number;
+}
+
+export interface DeliveryReportItem {
+  delivery_id: string;
+  delivery_number: string;
+  status: string;
+  delivery_date?: string;
+  delivered_at?: string;
+  chassis_number: string;
+  engine_number: string;
+  responsible_employee?: string;
+  invoice_number?: string;
+  customer_name?: string;
+}
+
+export interface CustomerFinancialSummaryItem {
+  customer_id: string;
+  customer_code: string;
+  full_name: string;
+  customer_type: string;
+  total_debited: number;
+  total_credited: number;
+  net_receivable: number;
+}
+
 

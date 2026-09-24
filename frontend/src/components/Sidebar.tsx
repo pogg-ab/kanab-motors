@@ -19,6 +19,7 @@ import {
   FolderOpen,
   CheckCircle2,
   Boxes,
+  LayoutDashboard,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +30,23 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose }) => {
+  const executiveItems = [
+    {
+      id: 'dashboard',
+      label: 'Executive Dashboard',
+      module: 'Analytics',
+      icon: LayoutDashboard,
+      badge: 'Live',
+    },
+    {
+      id: 'reports',
+      label: 'Reports & Analytics Hub',
+      module: 'BI Engine',
+      icon: BarChart3,
+      badge: 'KMS-7',
+    },
+  ];
+
   const procurementItems = [
     {
       id: 'shipments',
@@ -350,6 +368,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
 
         {/* Nav Items */}
         <nav style={{ flex: 1, padding: '0.75rem 0.75rem', overflowY: 'auto' }}>
+          {renderNavSection('Executive Intelligence', executiveItems)}
           {renderNavSection('Operations & Approvals', operationsItems)}
           {renderNavSection('Import & Landed Cost', procurementItems)}
           {renderNavSection('Financial Engine', financialItems)}
