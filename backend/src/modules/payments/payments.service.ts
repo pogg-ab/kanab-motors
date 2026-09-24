@@ -119,7 +119,9 @@ export class PaymentsService {
 
       booking.totalAmountDeposited = newDeposited;
       booking.outstandingBalance = newOutstanding;
-      if (newDeposited >= Number(booking.requiredAdvanceAmount) && booking.bookingStatus === BookingStatus.APPROVED) {
+      if (newOutstanding === 0) {
+        booking.bookingStatus = BookingStatus.SETTLED;
+      } else if (newDeposited >= Number(booking.requiredAdvanceAmount) && booking.bookingStatus === BookingStatus.APPROVED) {
         booking.bookingStatus = BookingStatus.CONFIRMED;
       }
       await this.bookingRepo.save(booking);

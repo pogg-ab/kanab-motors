@@ -128,12 +128,14 @@ export const SettlementPage: React.FC = () => {
   const handleRouteExcess = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomer || excessAmount <= 0) return;
+    const targetRoute = excessAction === 'TRANSFER_TO_CREDIT' ? 'CUSTOMER_CREDIT' : 'REFUNDABLE';
     setSaving(true);
     try {
       await api.routeExcess(selectedCustomer.customerId, {
-        action: excessAction,
+        routeTo: targetRoute,
+        action: targetRoute,
         amount: excessAmount,
-        notes: `Manual allocation to ${excessAction === 'TRANSFER_TO_CREDIT' ? 'Customer Credit' : 'Refundable Balance'}`,
+        notes: `Manual allocation to ${targetRoute === 'CUSTOMER_CREDIT' ? 'Customer Credit' : 'Refundable Balance'}`,
       });
       showToast('success', `ETB ${excessAmount.toLocaleString()} routed successfully!`);
       setShowExcessRouteModal(false);
@@ -469,37 +471,58 @@ export const SettlementPage: React.FC = () => {
                 <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CUSTOMER CODE</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>NAME / COMPANY</th>
-                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TYPE</th>
-                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ACTIONS</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--accent-amber)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>UNALLOCATED EXCESS</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>STORE CREDIT</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--accent-emerald)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REFUNDABLE BALANCE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map((c) => (
-                  <tr key={c.customerId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                    <td style={{ padding: '1rem 1.25rem' }}>
-                      <span className="mono-code" style={{ color: 'var(--accent-cyan)' }}>{c.customerCode}</span>
-                    </td>
-                    <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {c.fullName}
-                    </td>
-                    <td style={{ padding: '1rem 1.25rem' }}>
-                      <span className="badge badge-indigo">{c.customerType}</span>
-                    </td>
-                    <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                      <button
-                        onClick={() => {
-                          setSelectedCustomer(c);
-                          setExcessAmount(50000);
-                          setShowExcessRouteModal(true);
-                        }}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
-                      >
-                        Route Deposit Funds
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {customers.map((c) => {
+                  const excess = Number(c.accountSummary?.excessPayments || 0);
+                  const credit = Number(c.accountSummary?.availableCredit || 0);
+                  const refundable = Number(c.accountSummary?.refundableBalance || 0);
+
+                  return (
+                    <tr key={c.customerId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <td style={{ padding: '1rem 1.25rem' }}>
+                        <span className="mono-code" style={{ color: 'var(--accent-cyan)' }}>{c.customerCode}</span>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.fullName}</div>
+                        <span className="badge badge-indigo" style={{ fontSize: '0.65rem', marginTop: '0.2rem' }}>{c.customerType}</span>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: excess > 0 ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
+                          ETB {excess.toLocaleString()}
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: credit > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
+                          ETB {credit.toLocaleString()}
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: refundable > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+                          ETB {refundable.toLocaleString()}
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                        <button
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setExcessAmount(excess > 0 ? excess : 50000);
+                            setShowExcessRouteModal(true);
+                          }}
+                          className={`btn ${excess > 0 ? 'btn-cyan' : 'btn-secondary'}`}
+                          style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                        >
+                          Route Deposit Funds
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -623,7 +646,14 @@ export const SettlementPage: React.FC = () => {
               </div>
 
               <div style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount (ETB) *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                    Amount (ETB) *
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', fontWeight: 600 }}>
+                    Available Excess: ETB {Number(selectedCustomer.accountSummary?.excessPayments || 0).toLocaleString()}
+                  </span>
+                </div>
                 <input
                   type="number"
                   step="0.01"

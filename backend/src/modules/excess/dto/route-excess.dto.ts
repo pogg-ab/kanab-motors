@@ -7,11 +7,15 @@ export class RouteExcessDto {
   @Min(0.01)
   amount: number;
 
-  @IsIn(['CUSTOMER_CREDIT', 'REFUNDABLE'])
-  routeTo: 'CUSTOMER_CREDIT' | 'REFUNDABLE';
+  @IsOptional()
+  @IsIn(['CUSTOMER_CREDIT', 'REFUNDABLE', 'TRANSFER_TO_CREDIT', 'TRANSFER_TO_REFUNDABLE'])
+  routeTo?: 'CUSTOMER_CREDIT' | 'REFUNDABLE' | 'TRANSFER_TO_CREDIT' | 'TRANSFER_TO_REFUNDABLE';
+
+  @IsOptional()
+  @IsIn(['CUSTOMER_CREDIT', 'REFUNDABLE', 'TRANSFER_TO_CREDIT', 'TRANSFER_TO_REFUNDABLE'])
+  action?: 'CUSTOMER_CREDIT' | 'REFUNDABLE' | 'TRANSFER_TO_CREDIT' | 'TRANSFER_TO_REFUNDABLE';
 
   @IsOptional()
   @IsString()
-  @MinLength(2)
   notes?: string;
 }
