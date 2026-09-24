@@ -25,7 +25,8 @@ export class ExcessService {
     customerId: string,
     body: {
       amount: number;
-      routeTo: 'CUSTOMER_CREDIT' | 'REFUNDABLE';
+      routeTo?: 'CUSTOMER_CREDIT' | 'REFUNDABLE' | 'TRANSFER_TO_CREDIT' | 'TRANSFER_TO_REFUNDABLE';
+      action?: 'CUSTOMER_CREDIT' | 'REFUNDABLE' | 'TRANSFER_TO_CREDIT' | 'TRANSFER_TO_REFUNDABLE';
       notes?: string;
     },
     userId: number = 1,
@@ -42,14 +43,19 @@ export class ExcessService {
       );
     }
 
+    const targetRoute: 'CUSTOMER_CREDIT' | 'REFUNDABLE' =
+      (body.routeTo || body.action || 'REFUNDABLE').includes('CREDIT')
+        ? 'CUSTOMER_CREDIT'
+        : 'REFUNDABLE';
+
     const txType =
-      body.routeTo === 'CUSTOMER_CREDIT'
+      targetRoute === 'CUSTOMER_CREDIT'
         ? LedgerTransactionType.CUSTOMER_CREDIT
         : LedgerTransactionType.EXCESS_PAYMENT;
 
     const ref = `EXC-${Date.now().toString().slice(-6)}`;
     const description = `Excess Payment Allocation of ETB ${body.amount.toLocaleString()} to ${
-      body.routeTo === 'CUSTOMER_CREDIT' ? 'Customer Credit (Future Purchases)' : 'Refundable Balance'
+      targetRoute === 'CUSTOMER_CREDIT' ? 'Customer Credit (Future Purchases)' : 'Refundable Balance'
     }. ${body.notes || ''}`;
 
     await this.ledgerService.postTransaction({
@@ -62,8 +68,8 @@ export class ExcessService {
       processedBy: userId,
       summaryDelta: {
         excessPayments: -body.amount,
-        availableCredit: body.routeTo === 'CUSTOMER_CREDIT' ? body.amount : 0,
-        refundableBalance: body.routeTo === 'REFUNDABLE' ? body.amount : 0,
+        availableCredit: targetRoute === 'CUSTOMER_CREDIT' ? body.amount : 0,
+        refundableBalance: targetRoute === 'REFUNDABLE' ? body.amount : 0,
       },
     });
 

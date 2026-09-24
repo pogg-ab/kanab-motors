@@ -73,13 +73,13 @@ export const BookingsPage: React.FC = () => {
   });
 
   const [saving, setSaving] = useState<boolean>(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const showToast = (type: 'success' | 'error', msg: string) => {
+  const showToast = (type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 4000);
   };
@@ -489,22 +489,36 @@ export const BookingsPage: React.FC = () => {
                           {b.bookingStatus}
                         </span>
                       </td>
-                      <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                          {b.bookingStatus !== 'CANCELLED' && (
+                      <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', gap: '0.45rem', justifyContent: 'center', alignItems: 'center' }}>
+                          {b.bookingStatus !== 'CANCELLED' ? (
                             <>
                               <button
                                 onClick={() => {
+                                  if (paid <= 0) {
+                                    showToast('info', `Booking ${b.bookingNumber} has no deposited funds (ETB 0.00). Only bookings with paid deposits can transfer funds.`);
+                                    return;
+                                  }
                                   setSelectedBooking(b);
                                   setTransferData({ destinationBookingId: '', amount: Number(b.totalAmountDeposited || 0), reason: '' });
                                   setShowTransferModal(true);
                                 }}
-                                disabled={paid <= 0}
-                                className="btn btn-secondary"
-                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.7rem' }}
-                                title="Transfer deposited funds to another booking"
+                                className="btn btn-secondary btn-sm"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  fontSize: '0.72rem',
+                                  padding: '0.35rem 0.65rem',
+                                  color: paid > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                                  borderColor: paid > 0 ? 'rgba(6, 182, 212, 0.4)' : 'var(--border-color)',
+                                  cursor: 'pointer',
+                                  opacity: paid > 0 ? 1 : 0.65,
+                                }}
+                                title={paid > 0 ? `Transfer from available ETB ${paid.toLocaleString()} deposited` : "No deposited funds available to transfer"}
                               >
                                 <ArrowRightLeft size={13} />
+                                <span>Transfer</span>
                               </button>
                               <button
                                 onClick={() => {
@@ -512,13 +526,26 @@ export const BookingsPage: React.FC = () => {
                                   setCancelData({ reason: '', routeTo: 'REFUNDABLE' });
                                   setShowCancelModal(true);
                                 }}
-                                className="btn btn-secondary"
-                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.7rem', color: 'var(--accent-rose)' }}
-                                title="Cancel booking & reverse funds"
+                                className="btn btn-secondary btn-sm"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  fontSize: '0.72rem',
+                                  padding: '0.35rem 0.65rem',
+                                  color: 'var(--accent-rose)',
+                                  borderColor: 'rgba(244, 63, 94, 0.35)',
+                                }}
+                                title="Cancel booking & reverse deposits"
                               >
                                 <XCircle size={13} />
+                                <span>Cancel</span>
                               </button>
                             </>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }}>
+                              Cancelled
+                            </span>
                           )}
                         </div>
                       </td>
@@ -707,7 +734,7 @@ export const BookingsPage: React.FC = () => {
                   >
                     <option value="">Select Destination Booking...</option>
                     {bookings
-                      .filter((b) => b.bookingId !== selectedBooking.bookingId && b.bookingStatus !== 'CANCELLED' && b.customerId === selectedBooking.customerId)
+                      .filter((b) => String(b.bookingId) !== String(selectedBooking.bookingId) && b.bookingStatus !== 'CANCELLED' && String(b.customerId) === String(selectedBooking.customerId))
                       .map((b) => (
                         <option key={b.bookingId} value={b.bookingId}>
                           {b.bookingNumber} - {b.item?.itemName} (Bal: ETB {Number(b.outstandingBalance || 0).toLocaleString()})
@@ -797,7 +824,7 @@ export const BookingsPage: React.FC = () => {
                       onChange={(e) => setCancelData({ ...cancelData, routeTo: e.target.value as any })}
                     >
                       <option value="REFUNDABLE">Route to Customer Refundable Balance (enables refund payout)</option>
-                      <option value="CREDIT">Route to Customer Credit Balance (retains in company)</option>
+                      <option value="CUSTOMER_CREDIT">Route to Customer Credit Balance (retains in company)</option>
                     </select>
                   </div>
                 )}

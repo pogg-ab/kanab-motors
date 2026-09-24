@@ -69,6 +69,9 @@ export class ProductItem {
   @Column({ name: 'weight_kg', type: 'numeric', precision: 10, scale: 2, nullable: true })
   weightKg?: number;
 
+  @Column({ name: 'is_individually_tracked', type: 'boolean', default: false })
+  isIndividuallyTracked: boolean;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

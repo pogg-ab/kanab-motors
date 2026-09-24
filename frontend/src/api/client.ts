@@ -57,6 +57,15 @@ export interface Warehouse {
   warehouseId: number;
   warehouseName: string;
   location?: string;
+  warehouseType?: string;
+  capacity?: number;
+  managerUserId?: number;
+  contactPhone?: string;
+  manager?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
   isActive: boolean;
 }
 
@@ -286,6 +295,40 @@ export interface CustomerRefund {
   createdAt: string;
 }
 
+// --- KMSICAMS-5 Interfaces (Vehicle Allotment Management) ---
+
+export interface AllotmentLine {
+  allotmentLineId: string;
+  allotmentId: string;
+  vehicleUnitId: string;
+  vehicleUnit?: VehicleUnit;
+  isActive: boolean;
+  createdAt: string;
+  deactivatedAt?: string;
+  deactivatedBy?: number;
+}
+
+export interface Allotment {
+  allotmentId: string;
+  allotmentNumber: string;
+  bookingId: string;
+  booking?: Booking;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requestedBy?: number;
+  requestedAt: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  rejectionReason?: string;
+  lines?: AllotmentLine[];
+}
+
+export interface EligibleBooking extends Booking {
+  isDepositSatisfied: boolean;
+  requiredQuantity: number;
+  allottedQuantity: number;
+  remainingQuantity: number;
+}
+
 // --- KMSICAMS-3 Interfaces (Import, Shipment Tracking & Landed Cost) ---
 
 export interface Supplier {
@@ -434,6 +477,135 @@ export interface LandedCostReport {
     shipmentLineId: string;
     landedCostEtb: number;
   }[];
+}
+
+// KMSICAMS-6 Interfaces
+export interface WorkflowType {
+  workflowTypeCode: string;
+  workflowTypeName: string;
+}
+
+export interface ApprovalPolicy {
+  workflowTypeCode: string;
+  approvalLevel: number;
+  requiredRoleId: number;
+  workflowType?: WorkflowType;
+  requiredRole?: Role;
+}
+
+export interface ApprovalAction {
+  approvalActionId: string;
+  approvalRequestId: string;
+  approvalLevel: number;
+  decision: 'APPROVED' | 'REJECTED';
+  decidedBy?: number;
+  decider?: AppUser;
+  decidedAt: string;
+  comments?: string;
+}
+
+export interface ApprovalRequest {
+  approvalRequestId: string;
+  requestNumber: string;
+  workflowTypeCode: string;
+  workflowType?: WorkflowType;
+  entityType: string;
+  entityId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  currentLevel: number;
+  requestedBy?: number;
+  requester?: AppUser;
+  requestedAt: string;
+  finalizedAt?: string;
+  actions?: ApprovalAction[];
+}
+
+export interface SalesInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  bookingId: string;
+  booking?: Booking;
+  customerId: string;
+  customer?: Customer;
+  itemId: string;
+  item?: ProductItem;
+  vehicleUnitId?: string;
+  vehicleUnit?: VehicleUnit;
+  quantity: number;
+  unitPrice: number;
+  vatAmount: number;
+  grossTotal: number;
+  depositsApplied: number;
+  outstandingBalance: number;
+  excessPaymentFlag: boolean;
+  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  createdBy?: number;
+  creator?: AppUser;
+  createdAt: string;
+}
+
+export interface PdiChecklistItem {
+  pdiChecklistItemId: number;
+  itemDescription: string;
+}
+
+export interface PdiInspectionResult {
+  pdiInspectionResultId: string;
+  pdiInspectionId: string;
+  pdiChecklistItemId: number;
+  checklistItem?: PdiChecklistItem;
+  passed: boolean;
+  notes?: string;
+}
+
+export interface PdiInspection {
+  pdiInspectionId: string;
+  vehicleUnitId: string;
+  vehicleUnit?: VehicleUnit;
+  inspectedBy?: number;
+  inspector?: AppUser;
+  inspectedAt: string;
+  results?: PdiInspectionResult[];
+}
+
+export interface Delivery {
+  deliveryId: string;
+  deliveryNumber: string;
+  bookingId: string;
+  booking?: Booking;
+  vehicleUnitId: string;
+  vehicleUnit?: VehicleUnit;
+  deliveryDate?: string;
+  responsibleEmployee?: number;
+  responsibleStaff?: AppUser;
+  customerAcknowledged: boolean;
+  pdiCompleted: boolean;
+  financialSettlementValidated: boolean;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  deliveredAt?: string;
+  createdBy?: number;
+  creator?: AppUser;
+  createdAt: string;
+}
+
+export interface DocumentTypeRef {
+  documentTypeCode: string;
+  documentTypeName: string;
+  restrictedToEntityType?: string;
+}
+
+export interface UnifiedDocumentItem {
+  attachmentId: string;
+  entityType: string;
+  entityId: string;
+  fileName: string;
+  filePath: string;
+  contentType?: string;
+  fileSizeBytes?: string;
+  uploadedAt: string;
+  documentTypeCode?: string;
+  documentTypeName?: string;
+  uploadedByName?: string;
 }
 
 // API Methods
@@ -676,6 +848,22 @@ export const api = {
   deleteShipmentDoc: (shipmentId: string, docId: string) =>
     apiClient.delete(`/shipments/${shipmentId}/documents/${docId}`).then((r) => r.data),
 
+  // --- KMSICAMS-5 Endpoints (Vehicle Allotment Management) ---
+  getEligibleBookings: () => apiClient.get<EligibleBooking[]>('/allotments/eligible-bookings').then((r) => r.data),
+  getAvailableAllotmentVehicles: (itemId?: string) =>
+    apiClient.get<VehicleUnit[]>('/allotments/available-vehicles', { params: { itemId } }).then((r) => r.data),
+  getAllotments: (params?: any) =>
+    apiClient
+      .get<{ items: Allotment[]; total: number; page: number; limit: number }>('/allotments', { params })
+      .then((r) => r.data),
+  getAllotment: (id: string) => apiClient.get<Allotment>(`/allotments/${id}`).then((r) => r.data),
+  createAllotment: (data: { bookingId: string; vehicleUnitIds: string[]; notes?: string }) =>
+    apiClient.post<Allotment>('/allotments', data).then((r) => r.data),
+  approveAllotment: (id: string) => apiClient.patch<Allotment>(`/allotments/${id}/approve`).then((r) => r.data),
+  rejectAllotment: (id: string, reason: string) =>
+    apiClient.patch<Allotment>(`/allotments/${id}/reject`, { reason }).then((r) => r.data),
+  reverseAllotment: (id: string) => apiClient.patch<Allotment>(`/allotments/${id}/reverse`).then((r) => r.data),
+
   // Auth & RBAC
   login: (data: { email?: string; username?: string; password?: string }) =>
     apiClient.post<{ access_token: string; user: AppUser }>('/auth/login', data).then((r) => r.data),
@@ -705,4 +893,3 @@ export const api = {
   toggleUserStatus: (id: number) =>
     apiClient.patch<AppUser>(`/auth/users/${id}/toggle-status`).then((r) => r.data),
 };
-

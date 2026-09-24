@@ -36,6 +36,17 @@ async function ensureSequences() {
     for (const seq of sequences) {
       await client.query(`CREATE SEQUENCE IF NOT EXISTS ${seq} START 1;`);
     }
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS typeorm_metadata (
+        type VARCHAR,
+        database VARCHAR,
+        schema VARCHAR,
+        "table" VARCHAR,
+        name VARCHAR,
+        value TEXT
+      );
+    `);
   } catch (err) {
     console.warn('⚠️ Sequence initialization note:', (err as any)?.message || err);
   } finally {
@@ -47,13 +58,15 @@ async function bootstrap() {
   await ensureSequences();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Auto-seed reference and initial master data on startup
+  // Auto-run pending migrations and seed reference data on startup
   try {
     const dataSource = app.get(DataSource);
+    console.log('🔄 Checking and executing pending migrations...');
+    await dataSource.runMigrations();
     console.log('🌱 Checking and applying seed data...');
     await seedDatabase(dataSource);
   } catch (error) {
-    console.error('⚠️ Seeding warning:', error);
+    console.error('⚠️ Startup migration/seeding note:', error);
   }
 
   app.enableCors({

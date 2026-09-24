@@ -64,6 +64,9 @@ export class VehicleUnit {
   })
   currentStatus: VehicleStatus;
 
+  @Column({ name: 'hold_for_inspection', type: 'boolean', default: false })
+  holdForInspection: boolean;
+
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy: number;
 

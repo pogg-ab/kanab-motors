@@ -13,12 +13,20 @@ import { EnquiriesPage } from './pages/enquiries/EnquiriesPage';
 import { BookingsPage } from './pages/bookings/BookingsPage';
 import { PaymentsPage } from './pages/payments/PaymentsPage';
 import { SettlementPage } from './pages/settlement/SettlementPage';
+import { AllotmentPage } from './pages/allotment/AllotmentPage';
 import { SuppliersPage } from './pages/procurement/SuppliersPage';
 import { PurchaseOrdersPage } from './pages/procurement/PurchaseOrdersPage';
 import { ShipmentsPage } from './pages/shipments/ShipmentsPage';
 import { ShipmentDetailPage } from './pages/shipments/ShipmentDetailPage';
 import { ProcurementReportsPage } from './pages/reports/ProcurementReportsPage';
 import { UsersPage } from './pages/users/UsersPage';
+import { InvoicesPage } from './pages/invoices/InvoicesPage';
+import { DeliveriesPage } from './pages/deliveries/DeliveriesPage';
+import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
+import { DocumentsPage } from './pages/documents/DocumentsPage';
+import { InventoryPage } from './pages/inventory/InventoryPage';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { ReportsHubPage } from './pages/reports/ReportsHubPage';
 
 function MainAppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -69,6 +77,20 @@ function MainAppContent() {
 
   const getModuleTitle = () => {
     switch (activeTab) {
+      case 'dashboard':
+        return 'Executive Management: Real-Time Intelligence & Fleet Dashboard (KMSICAMS-7)';
+      case 'reports':
+        return 'Enterprise Intelligence: Unified Reporting & Analytics Engine (KMSICAMS-7)';
+      case 'invoices':
+        return 'Operations: Sales Invoices, VAT Calculation & Financial Settlement (KMSICAMS-6)';
+      case 'deliveries':
+        return 'Operations: Delivery Handover, PDI Station & Official Gate Pass (KMSICAMS-6)';
+      case 'approvals':
+        return 'Internal Controls: Unified Approval Queue & Policy Engine (KMSICAMS-6)';
+      case 'documents':
+        return 'Document Management: Unified Document Center & Registry (KMSICAMS-6)';
+      case 'inventory':
+        return 'Inventory & Warehouses: Stock Balances, State Machine & Transfers (KMSICAMS-4)';
       case 'shipments':
         return selectedShipmentId
           ? 'Import Management: Shipment Control & Landed Cost Engine'
@@ -85,6 +107,8 @@ function MainAppContent() {
         return 'Sales Pipeline: Enquiries, Quotes & Live 15% VAT Engine';
       case 'bookings':
         return 'Sales Pipeline: Advance Order Bookings & Vehicle Allocations';
+      case 'allotments':
+        return 'Vehicle Allotment Management: Physical VIN & Chassis Allocation (KMSICAMS-5)';
       case 'payments':
         return 'Financial Engine: Bank Receipt Vouchers (BRV) & Customer Deposits';
       case 'settlement':
@@ -122,6 +146,19 @@ function MainAppContent() {
         />
 
         <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-primary)' }}>
+          {/* KMSICAMS-7 Pages */}
+          {activeTab === 'dashboard' && <DashboardPage onNavigateTab={(tab) => handleTabChange(tab)} />}
+          {activeTab === 'reports' && <ReportsHubPage />}
+
+          {/* KMSICAMS-6 Pages */}
+          {activeTab === 'invoices' && <InvoicesPage />}
+          {activeTab === 'deliveries' && <DeliveriesPage />}
+          {activeTab === 'approvals' && <ApprovalsPage />}
+          {activeTab === 'documents' && <DocumentsPage />}
+
+          {/* KMSICAMS-4 Pages */}
+          {activeTab === 'inventory' && <InventoryPage />}
+
           {/* KMSICAMS-3 Pages */}
           {activeTab === 'shipments' &&
             (selectedShipmentId ? (
@@ -140,6 +177,7 @@ function MainAppContent() {
           {activeTab === 'statement' && <StatementOfAccountPage />}
           {activeTab === 'enquiries' && <EnquiriesPage />}
           {activeTab === 'bookings' && <BookingsPage />}
+          {activeTab === 'allotments' && <AllotmentPage />}
           {activeTab === 'payments' && <PaymentsPage />}
           {activeTab === 'settlement' && <SettlementPage />}
 

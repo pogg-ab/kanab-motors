@@ -13,6 +13,7 @@ import {
   Printer,
   ChevronRight,
   ExternalLink,
+  XCircle,
 } from 'lucide-react';
 import {
   api,
@@ -32,6 +33,40 @@ export const PaymentsPage: React.FC = () => {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [selectedReceipt, setSelectedReceipt] = useState<CustomerPayment | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+  const [rejectingPayment, setRejectingPayment] = useState<CustomerPayment | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string>('Cheque returned due to insufficient drawer funds');
+  const [rejecting, setRejecting] = useState<boolean>(false);
+  const [customBankName, setCustomBankName] = useState<string>('');
+
+  const ETHIOPIAN_BANKS = [
+    'Commercial Bank of Ethiopia (CBE)',
+    'Awash International Bank',
+    'Dashen Bank',
+    'Bank of Abyssinia',
+    'Cooperative Bank of Oromia',
+    'Hibret Bank (United Bank)',
+    'Zemen Bank',
+    'Nib International Bank',
+    'Wegagen Bank',
+    'Lion International Bank',
+    'Oromia Bank',
+    'Berhan Bank',
+    'Bunna International Bank',
+    'Enat Bank',
+    'Abay Bank',
+    'Addis International Bank',
+    'Global Bank Ethiopia',
+    'Sinqee Bank',
+    'Tsedey Bank',
+    'Amhara Bank',
+    'Gadaa Bank',
+    'Hijra Bank',
+    'ZamZam Bank',
+    'Ramis Bank',
+    'Telebirr / CBE Birr',
+    'OTHER',
+  ];
 
   // Form state
   const [newPayment, setNewPayment] = useState<{
@@ -91,14 +126,35 @@ export const PaymentsPage: React.FC = () => {
       showToast('error', 'Customer and positive amount are required');
       return;
     }
+
+    const resolvedBank =
+      newPayment.bankName === 'OTHER' ? customBankName.trim() : (newPayment.bankName || customBankName.trim());
+    if (!resolvedBank) {
+      showToast('error', 'Please select or enter a valid bank name');
+      return;
+    }
+
     setSaving(true);
     try {
-      const created = await api.createPayment({
-        ...newPayment,
-        bookingId: newPayment.bookingId || undefined,
-      });
+      const payload: any = {
+        customerId: String(newPayment.customerId),
+        amount: Number(newPayment.amount),
+        instrumentType: newPayment.instrumentType,
+        bankName: resolvedBank,
+        referenceNumber: newPayment.referenceNumber.trim(),
+        referenceDate: newPayment.referenceDate,
+      };
+      if (newPayment.bookingId) {
+        payload.bookingId = String(newPayment.bookingId);
+      }
+      if (newPayment.notes?.trim()) {
+        payload.notes = newPayment.notes.trim();
+      }
+
+      const created = await api.createPayment(payload);
       showToast('success', `BRV ${created.receiptNumber} recorded! Pending Finance confirmation.`);
       setShowCreateModal(false);
+      setCustomBankName('');
       setNewPayment({
         customerId: '',
         bookingId: '',
@@ -127,6 +183,27 @@ export const PaymentsPage: React.FC = () => {
       showToast('error', err.message || 'Confirmation failed');
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  const handleRejectPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingPayment) return;
+    if (!rejectionReason.trim()) {
+      showToast('error', 'Rejection reason is mandatory');
+      return;
+    }
+    setRejecting(true);
+    try {
+      const result = await api.rejectPayment(rejectingPayment.paymentId, rejectionReason.trim());
+      showToast('success', `Payment ${result.receiptNumber} rejected`);
+      setShowRejectModal(false);
+      setRejectingPayment(null);
+      loadData();
+    } catch (err: any) {
+      showToast('error', err.message || 'Rejection failed');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -364,15 +441,36 @@ export const PaymentsPage: React.FC = () => {
                       <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
                           {p.status === 'SUBMITTED' && (
-                            <button
-                              onClick={() => handleConfirmPayment(p.paymentId)}
-                              disabled={confirmingId === p.paymentId}
-                              className="btn btn-cyan btn-sm"
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                            >
-                              <FileCheck size={13} />
-                              {confirmingId === p.paymentId ? 'Posting...' : 'Confirm'}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleConfirmPayment(p.paymentId)}
+                                disabled={confirmingId === p.paymentId}
+                                className="btn btn-cyan btn-sm"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                                title="Finance Confirm & Post to Ledger"
+                              >
+                                <FileCheck size={13} />
+                                {confirmingId === p.paymentId ? 'Posting...' : 'Confirm'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setRejectingPayment(p);
+                                  setShowRejectModal(true);
+                                }}
+                                className="btn btn-secondary btn-sm"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  color: 'var(--accent-rose)',
+                                  borderColor: 'rgba(244, 63, 94, 0.4)',
+                                }}
+                                title="Reject Voucher with Audit Reason"
+                              >
+                                <XCircle size={13} />
+                                Reject
+                              </button>
+                            </>
                           )}
                           <button
                             onClick={() => setSelectedReceipt(p)}
@@ -492,17 +590,34 @@ export const PaymentsPage: React.FC = () => {
                     <select
                       className="input"
                       value={newPayment.bankName}
-                      onChange={(e) => setNewPayment({ ...newPayment, bankName: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewPayment({ ...newPayment, bankName: val });
+                        if (val !== 'OTHER') setCustomBankName('');
+                      }}
                       required
                     >
-                      <option value="Commercial Bank of Ethiopia (CBE)">Commercial Bank of Ethiopia (CBE)</option>
-                      <option value="Awash International Bank">Awash International Bank</option>
-                      <option value="Dashen Bank">Dashen Bank</option>
-                      <option value="Bank of Abyssinia">Bank of Abyssinia</option>
-                      <option value="Cooperative Bank of Oromia">Cooperative Bank of Oromia</option>
-                      <option value="Hibret Bank">Hibret Bank</option>
-                      <option value="Zemen Bank">Zemen Bank</option>
+                      {ETHIOPIAN_BANKS.map((b) => (
+                        <option key={b} value={b}>
+                          {b === 'OTHER' ? '+ Other Bank / Custom Financial Institution...' : b}
+                        </option>
+                      ))}
                     </select>
+
+                    {newPayment.bankName === 'OTHER' && (
+                      <div style={{ marginTop: '0.65rem' }}>
+                        <input
+                          type="text"
+                          className="input"
+                          value={customBankName}
+                          onChange={(e) => setCustomBankName(e.target.value)}
+                          placeholder="Type custom bank / financial institution name *"
+                          required
+                          autoFocus
+                          style={{ borderColor: 'var(--accent-cyan)' }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -616,6 +731,59 @@ export const PaymentsPage: React.FC = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Reject BRV Payment */}
+      {showRejectModal && rejectingPayment && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
+                  Reject Bank Receipt Voucher
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Voucher: {rejectingPayment.receiptNumber} (ETB {Number(rejectingPayment.amount).toLocaleString()})
+                </span>
+              </div>
+              <button onClick={() => setShowRejectModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleRejectPayment}>
+              <div className="modal-body">
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Mandatory Audit Rejection Reason *</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Provide specific justification (e.g. Cheque returned due to insufficient drawer funds, Bank slip reference mismatch)..."
+                    required
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  ⚠️ Rejecting this voucher transitions its status to <strong>REJECTED</strong> without posting any credit entry to the customer ledger.
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowRejectModal(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={rejecting}
+                  className="btn"
+                  style={{ background: 'var(--accent-rose)', color: '#fff', border: 'none' }}
+                >
+                  {rejecting ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
