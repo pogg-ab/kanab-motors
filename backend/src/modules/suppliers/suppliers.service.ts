@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, ILike } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Supplier } from './entities/supplier.entity';
 
 export interface CreateSupplierDto {
@@ -31,8 +31,9 @@ export class SuppliersService {
   ) {}
 
   async create(dto: CreateSupplierDto): Promise<Supplier> {
+    await this.ensureSupplierNameIsUnique(dto.supplierName);
     const supplier = this.supplierRepo.create({
-      supplierName: dto.supplierName,
+      supplierName: dto.supplierName.trim(),
       country: dto.country,
       contactPerson: dto.contactPerson,
       phone: dto.phone,
@@ -71,6 +72,10 @@ export class SuppliersService {
 
   async update(id: number, dto: UpdateSupplierDto): Promise<Supplier> {
     const supplier = await this.findOne(id);
+    if (dto.supplierName && dto.supplierName.trim().toLowerCase() !== supplier.supplierName.toLowerCase()) {
+      await this.ensureSupplierNameIsUnique(dto.supplierName, id);
+      dto.supplierName = dto.supplierName.trim();
+    }
     Object.assign(supplier, dto);
     return this.supplierRepo.save(supplier);
   }
@@ -79,5 +84,21 @@ export class SuppliersService {
     const supplier = await this.findOne(id);
     supplier.isActive = false;
     await this.supplierRepo.save(supplier);
+  }
+
+  private async ensureSupplierNameIsUnique(supplierName: string, excludeSupplierId?: number): Promise<void> {
+    const normalizedName = supplierName?.trim();
+    if (!normalizedName) {
+      throw new BadRequestException('Supplier name is required');
+    }
+
+    const existing = await this.supplierRepo
+      .createQueryBuilder('s')
+      .where('LOWER(s.supplierName) = LOWER(:supplierName)', { supplierName: normalizedName })
+      .getOne();
+
+    if (existing && existing.supplierId !== excludeSupplierId) {
+      throw new BadRequestException(`Supplier '${normalizedName}' already exists`);
+    }
   }
 }

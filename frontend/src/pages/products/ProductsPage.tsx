@@ -55,6 +55,7 @@ export const ProductsPage: React.FC = () => {
     sellingPrice: '',
     taxConfigId: '' as string | number,
     reorderLevel: '5',
+    weightKg: '',
   });
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -137,6 +138,7 @@ export const ProductsPage: React.FC = () => {
       sellingPrice: '',
       taxConfigId: currentTaxes[0]?.taxConfigId || '',
       reorderLevel: '5',
+      weightKg: '',
     });
     setFormError(null);
     setIsCreateOpen(true);
@@ -164,6 +166,7 @@ export const ProductsPage: React.FC = () => {
         sellingPrice: price,
         taxConfigId: formData.taxConfigId ? Number(formData.taxConfigId) : undefined,
         reorderLevel: Number(formData.reorderLevel) || 0,
+        weightKg: formData.weightKg ? Number(formData.weightKg) : undefined,
       });
       setIsCreateOpen(false);
       fetchItems();
@@ -645,15 +648,30 @@ export const ProductsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Reorder Level (Alert Threshold)</label>
-                  <input
-                    type="number"
-                    className="input-field"
-                    placeholder="5"
-                    value={formData.reorderLevel}
-                    onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Reorder Level (Alert Threshold)</label>
+                    <input
+                      type="number"
+                      className="input-field"
+                      placeholder="5"
+                      value={formData.reorderLevel}
+                      onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Weight per Unit (KG)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      className="input-field"
+                      placeholder="e.g. 145.50"
+                      value={formData.weightKg}
+                      onChange={(e) => setFormData({ ...formData, weightKg: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
 

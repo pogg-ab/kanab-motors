@@ -25,7 +25,9 @@ export class PurchaseOrdersService {
     await queryRunner.startTransaction();
 
     try {
+      const poNumber = await this.generatePONumber(queryRunner.manager);
       const po = queryRunner.manager.create(PurchaseOrder, {
+        poNumber,
         supplierId: dto.supplierId,
         poDate: dto.poDate || new Date().toISOString().split('T')[0],
         currency: dto.currency,
@@ -44,6 +46,7 @@ export class PurchaseOrdersService {
           quantityOrdered: l.quantityOrdered,
           unitPrice: l.unitPrice,
           currency: dto.currency,
+          lineTotal: Number(l.quantityOrdered) * Number(l.unitPrice),
         }),
       );
 
@@ -57,6 +60,15 @@ export class PurchaseOrdersService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private async generatePONumber(manager: DataSource['manager']): Promise<string> {
+    const result = await manager.query(`SELECT nextval('po_number_seq') AS value`);
+    const value = Number(result?.[0]?.value || 0);
+    if (!value) {
+      throw new BadRequestException('Unable to generate purchase order number');
+    }
+    return `PO-${String(value).padStart(6, '0')}`;
   }
 
   async findAll(params?: {
@@ -114,15 +126,49 @@ export class PurchaseOrdersService {
       throw new BadRequestException(`Cannot edit PO in ${po.status} status`);
     }
 
-    Object.assign(po, {
-      supplierId: dto.supplierId ?? po.supplierId,
-      poDate: dto.poDate ?? po.poDate,
-      currency: dto.currency ?? po.currency,
-      notes: dto.notes ?? po.notes,
-      updatedBy: dto.userId,
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    return this.poRepo.save(po);
+    try {
+      const nextCurrency = dto.currency ?? po.currency;
+      Object.assign(po, {
+        supplierId: dto.supplierId ?? po.supplierId,
+        poDate: dto.poDate ?? po.poDate,
+        currency: nextCurrency,
+        notes: dto.notes ?? po.notes,
+        updatedBy: dto.userId,
+      });
+
+      await queryRunner.manager.save(PurchaseOrder, po);
+
+      if (dto.lines) {
+        if (dto.lines.length === 0) {
+          throw new BadRequestException('Purchase Order must have at least one line item');
+        }
+
+        await queryRunner.manager.delete(PurchaseOrderLine, { poId: id });
+        const updatedLines = dto.lines.map((line) =>
+          queryRunner.manager.create(PurchaseOrderLine, {
+            poId: id,
+            itemId: line.itemId,
+            quantityOrdered: line.quantityOrdered,
+            unitPrice: line.unitPrice,
+            currency: nextCurrency,
+            lineTotal: Number(line.quantityOrdered) * Number(line.unitPrice),
+          }),
+        );
+        await queryRunner.manager.save(PurchaseOrderLine, updatedLines);
+      }
+
+      await queryRunner.commitTransaction();
+      return this.findOne(id);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async updateStatus(id: string, status: POStatus, userId?: number): Promise<PurchaseOrder> {

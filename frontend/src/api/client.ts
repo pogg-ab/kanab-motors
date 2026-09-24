@@ -84,6 +84,7 @@ export interface CustomerAccountSummary {
 
 export interface Attachment {
   attachmentId: string;
+  documentType?: string;
   fileName: string;
   filePath: string;
   contentType?: string;
@@ -314,6 +315,7 @@ export interface PurchaseOrderLine {
   itemId: string;
   item?: ProductItem;
   quantityOrdered: number;
+  remainingQuantity?: number;
   unitPrice: number;
   currency: 'ETB' | 'USD' | 'EUR';
   lineTotal: number;
@@ -420,6 +422,8 @@ export interface LandedCostReport {
     itemName: string;
     quantityShipped: number;
     basisValue: number;
+    fobValueEtb: number;
+    allocatedAdditionalCostEtb: number;
     allocatedCostEtb: number;
     unitCostEtb: number;
   }[];
@@ -701,3 +705,4 @@ export const api = {
   toggleUserStatus: (id: number) =>
     apiClient.patch<AppUser>(`/auth/users/${id}/toggle-status`).then((r) => r.data),
 };
+

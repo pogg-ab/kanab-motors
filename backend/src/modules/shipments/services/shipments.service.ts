@@ -82,7 +82,6 @@ export class ShipmentsService {
           .getRepository(PurchaseOrderLine)
           .createQueryBuilder('pol')
           .setLock('pessimistic_write')
-          .leftJoinAndSelect('pol.purchaseOrder', 'po')
           .where('pol.poLineId = :poLineId', { poLineId: requestedLine.poLineId })
           .getOne();
 
@@ -90,9 +89,17 @@ export class ShipmentsService {
           throw new BadRequestException(`PO line #${requestedLine.poLineId} does not exist`);
         }
 
-        if (![POStatus.CONFIRMED, POStatus.PARTIALLY_RECEIVED].includes(poLine.purchaseOrder.status)) {
+        const purchaseOrder = await queryRunner.manager.findOne(PurchaseOrder, {
+          where: { poId: poLine.poId },
+        });
+
+        if (!purchaseOrder) {
+          throw new BadRequestException(`PO line #${requestedLine.poLineId} is not linked to a purchase order`);
+        }
+
+        if (![POStatus.CONFIRMED, POStatus.PARTIALLY_RECEIVED].includes(purchaseOrder.status)) {
           throw new BadRequestException(
-            `PO line #${requestedLine.poLineId} belongs to a ${poLine.purchaseOrder.status} purchase order`,
+            `PO line #${requestedLine.poLineId} belongs to a ${purchaseOrder.status} purchase order`,
           );
         }
 
@@ -112,7 +119,9 @@ export class ShipmentsService {
         }
       }
 
+      const shipmentNumber = await this.generateShipmentNumber(queryRunner.manager);
       const shipment = queryRunner.manager.create(Shipment, {
+        shipmentNumber,
         currentStage: ShipmentStage.ORDERED,
         billOfLadingNumber: dto.billOfLadingNumber,
         expectedArrivalDate: dto.expectedArrivalDate,
@@ -154,6 +163,16 @@ export class ShipmentsService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private async generateShipmentNumber(manager: DataSource['manager']): Promise<string> {
+    await manager.query(`CREATE SEQUENCE IF NOT EXISTS shipment_number_seq START WITH 1 INCREMENT BY 1`);
+    const result = await manager.query(`SELECT nextval('shipment_number_seq') AS value`);
+    const value = Number(result?.[0]?.value || 0);
+    if (!value) {
+      throw new BadRequestException('Unable to generate shipment number');
+    }
+    return `SH-${String(value).padStart(6, '0')}`;
   }
 
   async findAll(params?: {
@@ -216,6 +235,17 @@ export class ShipmentsService {
       throw new NotFoundException(`Shipment #${id} not found`);
     }
 
+    shipment.lines = (shipment.lines || []).map((line) => {
+      const receiptTotal = (line.receipts || []).reduce(
+        (sum, receipt) => sum + Number(receipt.quantityReceived || 0),
+        0,
+      );
+      if (receiptTotal > Number(line.quantityReceived || 0)) {
+        line.quantityReceived = receiptTotal;
+      }
+      return line;
+    });
+
     return shipment;
   }
 
@@ -235,9 +265,9 @@ export class ShipmentsService {
     const validTransitions: Record<ShipmentStage, ShipmentStage[]> = {
       [ShipmentStage.ORDERED]: [ShipmentStage.SHIPPED],
       [ShipmentStage.SHIPPED]: [ShipmentStage.AT_DJIBOUTI_PORT],
-      [ShipmentStage.AT_DJIBOUTI_PORT]: [ShipmentStage.IN_TRANSIT_INLAND],
-      [ShipmentStage.IN_TRANSIT_INLAND]: [ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE],
-      [ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE]: [ShipmentStage.RECEIVED],
+      [ShipmentStage.AT_DJIBOUTI_PORT]: [ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE],
+      [ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE]: [ShipmentStage.IN_TRANSIT_INLAND],
+      [ShipmentStage.IN_TRANSIT_INLAND]: [ShipmentStage.RECEIVED],
       [ShipmentStage.RECEIVED]: [],
     };
 
@@ -326,11 +356,14 @@ export class ShipmentsService {
       amount: dto.amount,
       currency: dto.currency,
       exchangeRateToEtb: rate,
+      amountEtb: Math.round(Number(dto.amount) * Number(rate) * 100) / 100,
       notes: dto.notes,
       createdBy: dto.userId,
     });
 
-    return this.costRepo.save(cost);
+    const savedCost = await this.costRepo.save(cost);
+    await this.invalidateCurrentAllocation(shipmentId);
+    return savedCost;
   }
 
   async removeCostComponent(shipmentId: string, costComponentId: string): Promise<void> {
@@ -344,6 +377,29 @@ export class ShipmentsService {
       throw new NotFoundException(`Cost Component #${costComponentId} not found`);
     }
     await this.costRepo.remove(cost);
+    await this.invalidateCurrentAllocation(shipmentId);
+  }
+
+  private async invalidateCurrentAllocation(shipmentId: string): Promise<void> {
+    const lines = await this.shipmentLineRepo.find({ where: { shipmentId } });
+    const lineIds = lines.map((line) => line.shipmentLineId);
+    if (lineIds.length === 0) {
+      return;
+    }
+
+    await this.lineCostRepo
+      .createQueryBuilder()
+      .update(ShipmentLineLandedCost)
+      .set({ isCurrent: false })
+      .where('shipmentLineId IN (:...lineIds) AND isCurrent = true', { lineIds })
+      .execute();
+
+    await this.vehicleUnitCostRepo
+      .createQueryBuilder()
+      .update(VehicleUnitLandedCost)
+      .set({ isCurrent: false })
+      .where('shipmentLineId IN (:...lineIds) AND isCurrent = true', { lineIds })
+      .execute();
   }
 
   async receiveLine(shipmentId: string, dto: ReceiveShipmentLineDto): Promise<ShipmentReceipt> {
@@ -374,6 +430,21 @@ export class ShipmentsService {
     await queryRunner.startTransaction();
 
     try {
+      const receivedSoFar = await queryRunner.manager
+        .getRepository(ShipmentReceipt)
+        .createQueryBuilder('sr')
+        .select('COALESCE(SUM(sr.quantityReceived), 0)', 'quantity')
+        .where('sr.shipmentLineId = :shipmentLineId', { shipmentLineId: dto.shipmentLineId })
+        .getRawOne<{ quantity: string }>();
+      const totalReceivedAfterThisReceipt = Number(receivedSoFar?.quantity || 0) + Number(dto.quantityReceived);
+      if (totalReceivedAfterThisReceipt > Number(line.quantityShipped)) {
+        throw new BadRequestException(
+          `Shipment line #${dto.shipmentLineId} only has ${
+            Number(line.quantityShipped) - Number(receivedSoFar?.quantity || 0)
+          } unit(s) remaining to receive`,
+        );
+      }
+
       // 1. Record shipment_receipt (trigger enforces quantityReceived <= quantityShipped under lock)
       const receipt = queryRunner.manager.create(ShipmentReceipt, {
         shipmentLineId: dto.shipmentLineId,
@@ -384,6 +455,10 @@ export class ShipmentsService {
       });
 
       const savedReceipt = await queryRunner.manager.save(ShipmentReceipt, receipt);
+
+      await queryRunner.manager.update(ShipmentLine, dto.shipmentLineId, {
+        quantityReceived: totalReceivedAfterThisReceipt,
+      });
 
       // 2. If serialized vehicles are provided (Story R1), create vehicle_unit records
       if (vehicles.length > 0) {

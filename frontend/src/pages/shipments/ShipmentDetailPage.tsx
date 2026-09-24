@@ -21,14 +21,17 @@ import {
   Printer,
   Sparkles,
   Zap,
+  Eye,
 } from 'lucide-react';
 import {
   api,
+  API_BASE_URL,
   Shipment,
   ShipmentStage,
   CostComponentType,
   LandedCostReport,
   ExchangeRateDefault,
+  Attachment,
 } from '../../api/client';
 
 interface ShipmentDetailPageProps {
@@ -53,6 +56,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const [costTypes, setCostTypes] = useState<CostComponentType[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
   const [landedReport, setLandedReport] = useState<LandedCostReport | null>(null);
+  const [shipmentDocuments, setShipmentDocuments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<'tracking' | 'costs' | 'allocation' | 'docs' | 'receipt'>('allocation');
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -110,6 +114,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setCostTypes(types);
       setExchangeRates(rates);
       setSelectedMethod(shipData.allocationMethod || 'BY_VALUE');
+
+      api.getShipmentDocs(shipmentId)
+        .then(setShipmentDocuments)
+        .catch(() => setShipmentDocuments([]));
 
       // Attempt to load existing landed cost report
       try {
@@ -174,7 +182,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       });
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to add cost');
+      showToast('error', err.response?.data?.message || err.message || 'Failed to add cost');
     } finally {
       setSaving(false);
     }
@@ -198,7 +206,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', `Landed Cost allocated using ${selectedMethod} with ZERO rounding drift!`);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.message || 'Allocation failed');
+      showToast('error', err.response?.data?.message || err.message || 'Allocation failed');
     } finally {
       setSaving(false);
     }
@@ -253,6 +261,47 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   }, 0) || 0;
 
   const grandTotalLanded = totalFobEtb + totalCostEtb;
+  const allocatedAdditionalCostEtb = landedReport?.lines?.reduce(
+    (sum, line) => sum + Number(line.allocatedAdditionalCostEtb || 0),
+    0,
+  ) || 0;
+  const allocatedGrandTotalEtb = landedReport?.lines?.reduce(
+    (sum, line) => sum + Number(line.allocatedCostEtb || 0),
+    0,
+  ) || 0;
+  const allocatedFobEtb = landedReport?.lines?.reduce((sum, line) => {
+    const totalLineLanded = Number(line.allocatedCostEtb || 0);
+    const additionalLineCost = Number(line.allocatedAdditionalCostEtb || 0);
+    return sum + Math.max(0, totalLineLanded - additionalLineCost);
+  }, 0) || 0;
+  const displayFobEtb = allocatedGrandTotalEtb > 0 ? allocatedFobEtb : totalFobEtb;
+  const displayAdditionalCostEtb = allocatedGrandTotalEtb > 0 ? allocatedAdditionalCostEtb : totalCostEtb;
+  const displayGrandTotalEtb = allocatedGrandTotalEtb > 0 ? allocatedGrandTotalEtb : grandTotalLanded;
+  const usdFobAmount = shipment.lines?.reduce((sum, line) => {
+    if (line.poLine?.currency !== 'USD') return sum;
+    return sum + Number(line.quantityShipped || 0) * Number(line.poLine?.unitPrice || 0);
+  }, 0) || 0;
+  const currentUsdRate = Number(exchangeRates.find((rate) => rate.currency === 'USD')?.rateToEtb || 0);
+  const displayedUsdRate = usdFobAmount > 0 && displayFobEtb > 0
+    ? displayFobEtb / usdFobAmount
+    : currentUsdRate;
+  const fxBadgeLabel = usdFobAmount > 0 && displayedUsdRate > 0
+    ? `FX: 1 USD = ${displayedUsdRate.toFixed(2)} ETB`
+    : 'FX: ETB base';
+  const hasCurrentAllocation = allocatedGrandTotalEtb > 0;
+  const allocationLocked = hasCurrentAllocation || shipment.currentStage === 'RECEIVED';
+  const allocationButtonLabel = shipment.currentStage === 'RECEIVED'
+    ? 'Landed Cost Locked'
+    : hasCurrentAllocation
+    ? 'Allocation Completed'
+    : 'Execute Hare-Niemeyer Zero-Drift Allocation';
+  const allocationButtonTitle = shipment.currentStage === 'RECEIVED'
+    ? 'Shipment has been received; landed cost is locked in inventory'
+    : hasCurrentAllocation
+    ? 'Allocation is current. Add or remove a cost component before receipt to re-run allocation.'
+    : displayGrandTotalEtb <= 0
+    ? 'Confirm PO line prices or add cost components before allocation'
+    : 'Run landed cost allocation';
 
   return (
     <div style={{ padding: '1.75rem 2rem', maxWidth: '1680px', margin: '0 auto' }}>
@@ -342,7 +391,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Consignment Landed Total</div>
               <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
-                ETB {grandTotalLanded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ETB {displayGrandTotalEtb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
           </div>
@@ -703,7 +752,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   Landed Cost Aggregation Ledger (ETB)
                 </h4>
                 <span className="badge badge-subtle" style={{ fontSize: '0.65rem' }}>
-                  FX: 1 USD = 125.00 ETB
+                  {fxBadgeLabel}
                 </span>
               </div>
 
@@ -711,13 +760,13 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                   <span>● Total FOB Value:</span>
                   <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                    {totalFobEtb.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB
+                    {displayFobEtb.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                   <span>+ Total Additional Costs:</span>
                   <span style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
-                    {totalCostEtb.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB
+                    {displayAdditionalCostEtb.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB
                   </span>
                 </div>
                 <div
@@ -738,7 +787,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     </span>
                   </div>
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
-                    {grandTotalLanded.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span style={{ fontSize: '0.85rem' }}>ETB</span>
+                    {displayGrandTotalEtb.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span style={{ fontSize: '0.85rem' }}>ETB</span>
                   </div>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
                     Inclusive of all duties, marine insurance, freight & dry port entry tariffs.
@@ -749,12 +798,19 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               {/* Action Button */}
               <button
                 onClick={handleRunAllocation}
-                disabled={saving || totalCostEtb <= 0}
-                className="btn btn-cyan"
-                style={{ width: '100%', marginTop: '1.25rem', padding: '0.65rem' }}
+                disabled={saving || displayGrandTotalEtb <= 0 || allocationLocked}
+                className={allocationLocked ? 'btn btn-secondary' : 'btn btn-cyan'}
+                style={{
+                  width: '100%',
+                  marginTop: '1.25rem',
+                  padding: '0.65rem',
+                  opacity: allocationLocked ? 0.72 : 1,
+                  cursor: allocationLocked ? 'not-allowed' : 'pointer',
+                }}
+                title={allocationButtonTitle}
               >
-                <Zap size={16} />
-                <span>Execute Hare-Niemeyer Zero-Drift Allocation</span>
+                {allocationLocked ? <CheckCircle2 size={16} /> : <Zap size={16} />}
+                <span>{allocationButtonLabel}</span>
               </button>
 
               <div
@@ -802,10 +858,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   {landedReport.lines.map((line, idx) => {
                     const unitLanded = Number(line.unitCostEtb || 0);
                     const qty = Number(line.quantityShipped || 1);
-                    const totalLanded = unitLanded * qty;
-                    const addCostEtb = Number(line.allocatedCostEtb || 0);
+                    const totalLanded = Number(line.allocatedCostEtb || 0) || unitLanded * qty;
+                    const addCostEtb = Number(line.allocatedAdditionalCostEtb || 0);
                     const fobEtb = Math.max(0, totalLanded - addCostEtb);
-                    const sharePct = totalFobEtb > 0 ? ((fobEtb / totalFobEtb) * 100).toFixed(2) : '50.00';
+                    const sharePct = displayFobEtb > 0 ? ((fobEtb / displayFobEtb) * 100).toFixed(2) : '50.00';
 
                     return (
                       <div
@@ -908,7 +964,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               )}
 
               {/* Bottom Reconciliation Bar */}
-              {landedReport && (
+              {hasCurrentAllocation && landedReport && (
                 <div
                   style={{
                     marginTop: '1.5rem',
@@ -927,7 +983,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       RECONCILED & ZERO-DRIFT VERIFIED [AUDIT PASS]
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                      Sum of Vehicle Lines: {grandTotalLanded.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB · Discrepancy: <strong style={{ color: 'var(--accent-emerald)' }}>0.00 ETB</strong>
+                      Sum of Vehicle Lines: {displayGrandTotalEtb.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB · Discrepancy: <strong style={{ color: 'var(--accent-emerald)' }}>0.00 ETB</strong>
                     </div>
                   </div>
 
@@ -973,48 +1029,102 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               { type: 'PACKING_LIST', label: 'Packing List' },
               { type: 'BILL_OF_LADING', label: 'Bill of Lading' },
               { type: 'CUSTOMS_DECLARATION', label: 'Customs Declaration (MANDATORY)' },
-            ].map((doc) => (
-              <div
-                key={doc.type}
-                style={{
-                  padding: '1.25rem',
-                  border: doc.type === 'CUSTOMS_DECLARATION' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'rgba(15, 23, 42, 0.6)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{doc.label}</span>
-                  <span className={`badge ${doc.type === 'CUSTOMS_DECLARATION' ? 'badge-amber' : 'badge-subtle'}`} style={{ fontSize: '0.65rem' }}>
-                    Required
-                  </span>
-                </div>
-                <input
-                  type="file"
-                  id={`file-${doc.type}`}
-                  style={{ display: 'none' }}
-                  onChange={async (e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      try {
-                        await api.uploadShipmentDoc(shipmentId, e.target.files[0], doc.type);
-                        showToast('success', `${doc.label} uploaded successfully!`);
-                        loadShipmentData();
-                      } catch (err: any) {
-                        showToast('error', err.message || 'Upload failed');
-                      }
-                    }
+            ].map((doc) => {
+              const uploadedDoc = shipmentDocuments.find((d) => d.documentType === doc.type);
+              return (
+                <div
+                  key={doc.type}
+                  style={{
+                    padding: '1.25rem',
+                    border: uploadedDoc
+                      ? '1px solid rgba(16, 185, 129, 0.45)'
+                      : doc.type === 'CUSTOMS_DECLARATION'
+                      ? '1px solid rgba(245, 158, 11, 0.4)'
+                      : '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    background: uploadedDoc ? 'rgba(16, 185, 129, 0.06)' : 'rgba(15, 23, 42, 0.6)',
                   }}
-                />
-                <button
-                  type="button"
-                  onClick={() => document.getElementById(`file-${doc.type}`)?.click()}
-                  className="btn btn-secondary"
-                  style={{ width: '100%', fontSize: '0.76rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                 >
-                  <Upload size={13} /> Upload {doc.label}
-                </button>
-              </div>
-            ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{doc.label}</span>
+                    <span className={`badge ${uploadedDoc ? 'badge-emerald' : doc.type === 'CUSTOMS_DECLARATION' ? 'badge-amber' : 'badge-subtle'}`} style={{ fontSize: '0.65rem' }}>
+                      {uploadedDoc ? 'Uploaded' : 'Required'}
+                    </span>
+                  </div>
+
+                  {uploadedDoc && (
+                    <div
+                      style={{
+                        marginTop: '0.65rem',
+                        padding: '0.65rem',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(11, 15, 25, 0.45)',
+                        border: '1px solid rgba(16, 185, 129, 0.18)',
+                        fontSize: '0.72rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: 'var(--accent-emerald)', marginBottom: '0.2rem' }}>
+                        ✓ {uploadedDoc.fileName}
+                      </div>
+                      <div>
+                        Uploaded {new Date(uploadedDoc.uploadedAt).toLocaleString()}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const origin = API_BASE_URL.replace(/\/api$/, '');
+                          window.open(`${origin}${uploadedDoc.filePath}`, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="btn btn-secondary"
+                        style={{
+                          width: '100%',
+                          fontSize: '0.72rem',
+                          marginTop: '0.55rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <Eye size={13} /> View Attached File
+                      </button>
+                    </div>
+                  )}
+
+                  <input
+                    type="file"
+                    id={`file-${doc.type}`}
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        try {
+                          const uploaded = await api.uploadShipmentDoc(shipmentId, e.target.files[0], doc.type);
+                          setShipmentDocuments((current) => [
+                            uploaded,
+                            ...current.filter((existing) => existing.documentType !== doc.type),
+                          ]);
+                          showToast('success', `${doc.label} uploaded successfully!`);
+                        } catch (err: any) {
+                          showToast('error', err.response?.data?.message || err.message || 'Upload failed');
+                        } finally {
+                          e.target.value = '';
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`file-${doc.type}`)?.click()}
+                    className="btn btn-secondary"
+                    style={{ width: '100%', fontSize: '0.76rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                  >
+                    <Upload size={13} /> {uploadedDoc ? `Replace ${doc.label}` : `Upload ${doc.label}`}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1059,18 +1169,23 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       {remaining}
                     </td>
                     <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                      <button
-                        onClick={() => {
-                          setSelectedLineForReceipt(line);
-                          setReceiptQty(Math.min(1, remaining));
-                          setShowReceiptModal(true);
-                        }}
-                        disabled={remaining <= 0}
-                        className="btn btn-primary"
-                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
-                      >
-                        Receive Batch
-                      </button>
+                      {remaining > 0 ? (
+                        <button
+                          onClick={() => {
+                            setSelectedLineForReceipt(line);
+                            setReceiptQty(remaining);
+                            setShowReceiptModal(true);
+                          }}
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                        >
+                          Receive Batch
+                        </button>
+                      ) : (
+                        <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                          Fully Received
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

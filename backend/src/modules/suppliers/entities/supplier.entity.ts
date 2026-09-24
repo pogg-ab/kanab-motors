@@ -11,7 +11,7 @@ export class Supplier {
   @PrimaryGeneratedColumn('increment', { name: 'supplier_id' })
   supplierId: number;
 
-  @Column({ name: 'supplier_name', length: 200 })
+  @Column({ name: 'supplier_name', length: 200, unique: true })
   supplierName: string;
 
   @Column({ length: 100, nullable: true })
