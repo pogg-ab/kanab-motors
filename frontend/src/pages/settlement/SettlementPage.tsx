@@ -30,6 +30,9 @@ export const SettlementPage: React.FC = () => {
   // Modals
   const [showNewRefundModal, setShowNewRefundModal] = useState<boolean>(false);
   const [showExcessRouteModal, setShowExcessRouteModal] = useState<boolean>(false);
+  const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+  const [rejectingRefund, setRejectingRefund] = useState<CustomerRefund | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   // Refund Form State
@@ -98,7 +101,7 @@ export const SettlementPage: React.FC = () => {
       });
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Refund submission failed');
+      showToast('error', err.response?.data?.message || err.message || 'Refund submission failed');
     } finally {
       setSaving(false);
     }
@@ -122,9 +125,27 @@ export const SettlementPage: React.FC = () => {
       }
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Workflow action failed');
+      showToast('error', err.response?.data?.message || err.message || 'Workflow action failed');
     } finally {
       setActioningId(null);
+    }
+  };
+
+  const handleRejectRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingRefund || !rejectionReason.trim()) return;
+    setSaving(true);
+    try {
+      await api.rejectRefund(rejectingRefund.refundId, rejectionReason.trim());
+      showToast('success', `Refund request ${rejectingRefund.refundNumber} rejected. Balance remains intact.`);
+      setShowRejectModal(false);
+      setRejectingRefund(null);
+      setRejectionReason('');
+      loadData();
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || err.message || 'Refund rejection failed');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -407,7 +428,7 @@ export const SettlementPage: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', alignItems: 'center' }}>
                             {r.status === 'REQUESTED' && (
                               <button
                                 onClick={() => handleAdvanceWorkflow(r.refundId, 'review')}
@@ -452,9 +473,29 @@ export const SettlementPage: React.FC = () => {
                               </button>
                             )}
 
+                            {r.status !== 'CONFIRMED' && r.status !== 'REJECTED' && (
+                              <button
+                                onClick={() => {
+                                  setRejectingRefund(r);
+                                  setRejectionReason('');
+                                  setShowRejectModal(true);
+                                }}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.35)' }}
+                              >
+                                Reject
+                              </button>
+                            )}
+
                             {r.status === 'CONFIRMED' && (
                               <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
                                 <CheckCircle2 size={14} /> Settled & Debited
+                              </span>
+                            )}
+
+                            {r.status === 'REJECTED' && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--accent-rose)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
+                                <ShieldAlert size={14} /> Rejected
                               </span>
                             )}
                           </div>
@@ -548,83 +589,179 @@ export const SettlementPage: React.FC = () => {
       {/* Modal: New Refund Request */}
       {showNewRefundModal && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '600px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Initiate Customer Refund Request</h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Validated against available refundable balance</span>
+          <div className="modal-content" style={{ maxWidth: '620px', width: '95%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.55rem', background: 'rgba(244, 63, 94, 0.12)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Coins size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Initiate Customer Refund Request</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Strictly validated against customer refundable balance per SRS §7.4</span>
+                </div>
               </div>
-              <button onClick={() => setShowNewRefundModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowNewRefundModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>
+                <X size={16} />
+              </button>
             </div>
 
             <form onSubmit={handleCreateRefund}>
-              <div style={{ marginBottom: '1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer *</label>
-                <select
-                  className="input"
-                  value={newRefund.customerId}
-                  onChange={(e) => setNewRefund({ ...newRefund, customerId: e.target.value })}
-                  required
-                >
-                  <option value="">Select Customer...</option>
-                  {customers.map((c) => (
-                    <option key={c.customerId} value={c.customerId}>
-                      {c.fullName} ({c.customerCode})
-                    </option>
-                  ))}
-                </select>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                {(() => {
+                  const selCust = customers.find((c) => c.customerId === newRefund.customerId);
+                  const availRefundable = Number(selCust?.accountSummary?.refundableBalance || 0);
+                  const isOverLimit = newRefund.refundAmount > availRefundable;
+
+                  return (
+                    <>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer *</label>
+                        <select
+                          className="input"
+                          value={newRefund.customerId}
+                          onChange={(e) => setNewRefund({ ...newRefund, customerId: e.target.value })}
+                          required
+                        >
+                          <option value="">Select Customer...</option>
+                          {customers.map((c) => (
+                            <option key={c.customerId} value={c.customerId}>
+                              {c.fullName} ({c.customerCode})
+                            </option>
+                          ))}
+                        </select>
+                        {selCust && (
+                          <div style={{ marginTop: '0.4rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Available Refundable Balance:</span>
+                            <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                              ETB {availRefundable.toLocaleString()}
+                            </strong>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                            Refund Amount (ETB) *
+                          </label>
+                          {selCust && availRefundable > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setNewRefund({ ...newRefund, refundAmount: availRefundable })}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem', height: 'auto', color: 'var(--accent-cyan)' }}
+                            >
+                              Max Available (ETB {availRefundable.toLocaleString()})
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="1"
+                          className="input"
+                          value={newRefund.refundAmount || ''}
+                          onChange={(e) => setNewRefund({ ...newRefund, refundAmount: parseFloat(e.target.value) || 0 })}
+                          placeholder="Amount to disburse"
+                          required
+                        />
+                        {selCust && isOverLimit && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--accent-rose)' }}>
+                            <AlertTriangle size={14} />
+                            <span>Refund amount exceeds customer's available refundable balance of ETB {availRefundable.toLocaleString()} (SRS §7.4 Violation)</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Disbursement Method *</label>
+                        <select
+                          className="input"
+                          value={newRefund.refundMethod}
+                          onChange={(e) => setNewRefund({ ...newRefund, refundMethod: e.target.value })}
+                          required
+                        >
+                          <option value="BANK_TRANSFER">Bank Wire Transfer</option>
+                          <option value="CPO">Cashier Payment Order (CPO)</option>
+                          <option value="CHEQUE">Bank Cheque</option>
+                          <option value="CASH">Cash Payout</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Refund Reason & Justification *</label>
+                        <textarea
+                          className="input"
+                          rows={2}
+                          value={newRefund.refundReason}
+                          onChange={(e) => setNewRefund({ ...newRefund, refundReason: e.target.value })}
+                          placeholder="Order cancelled, excess wire deposit, bank loan rejected..."
+                          required
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Refund Amount (ETB) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="1"
-                  className="input"
-                  value={newRefund.refundAmount || ''}
-                  onChange={(e) => setNewRefund({ ...newRefund, refundAmount: parseFloat(e.target.value) || 0 })}
-                  placeholder="Amount to disburse"
-                  required
-                />
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  Validation: Amount must not exceed customer's available refundable balance.
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Disbursement Method *</label>
-                <select
-                  className="input"
-                  value={newRefund.refundMethod}
-                  onChange={(e) => setNewRefund({ ...newRefund, refundMethod: e.target.value })}
-                  required
-                >
-                  <option value="BANK_TRANSFER">Bank Wire Transfer</option>
-                  <option value="CPO">Cashier Payment Order (CPO)</option>
-                  <option value="CHEQUE">Bank Cheque</option>
-                  <option value="CASH">Cash Payout</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Refund Reason & Justification *</label>
-                <textarea
-                  className="input"
-                  rows={2}
-                  value={newRefund.refundReason}
-                  onChange={(e) => setNewRefund({ ...newRefund, refundReason: e.target.value })}
-                  placeholder="Order cancelled, excess wire deposit, bank loan rejected..."
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <div className="modal-footer">
                 <button type="button" onClick={() => setShowNewRefundModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} className="btn btn-cyan">
                   {saving ? 'Validating...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Reject Refund */}
+      {showRejectModal && rejectingRefund && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px', width: '95%' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
+                  Reject Refund Request
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Request: {rejectingRefund.refundNumber} (ETB {Number(rejectingRefund.refundAmount).toLocaleString()})
+                </span>
+              </div>
+              <button onClick={() => setShowRejectModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectRefund}>
+              <div className="modal-body">
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Mandatory Rejection Explanation *
+                  </label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Provide specific reason (e.g. Invalid claim documentation, duplicate refund submitted)..."
+                    required
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  ℹ️ Rejecting this request transitions its status to <strong>REJECTED</strong>. The customer's refundable balance remains intact without any deduction.
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowRejectModal(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving || !rejectionReason.trim()} className="btn btn-rose">
+                  {saving ? 'Rejecting...' : 'Confirm Rejection'}
                 </button>
               </div>
             </form>
