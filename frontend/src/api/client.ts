@@ -124,6 +124,7 @@ export interface Attachment {
   filePath: string;
   contentType?: string;
   fileSizeBytes?: string;
+  documentType?: string;
   uploadedAt: string;
 }
 
@@ -384,6 +385,7 @@ export interface PurchaseOrderLine {
   itemId: string;
   item?: ProductItem;
   quantityOrdered: number;
+  remainingQuantity?: number;
   unitPrice: number;
   currency: 'ETB' | 'USD' | 'EUR';
   lineTotal: number;
@@ -491,6 +493,7 @@ export interface LandedCostReport {
     quantityShipped: number;
     basisValue: number;
     allocatedCostEtb: number;
+    allocatedAdditionalCostEtb?: number;
     unitCostEtb: number;
   }[];
   vehicleUnits: {
