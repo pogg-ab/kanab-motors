@@ -19,12 +19,17 @@ import {
   Check,
   ShieldCheck,
   Edit3,
+  Clock,
+  Zap,
 } from 'lucide-react';
 import { api, AppUser, Role, SystemPermission } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { RolePermissionMatrixTab } from './RolePermissionMatrixTab';
+import { LivePermissionSimulatorTab } from './LivePermissionSimulatorTab';
 
 export const UsersPage: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'simulator'>('users');
   const [users, setUsers] = useState<AppUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<SystemPermission[]>([]);
@@ -237,6 +242,15 @@ export const UsersPage: React.FC = () => {
     e.preventDefault();
     if (!createForm.fullName || !createForm.username || !createForm.email || !createForm.password) {
       showNotification('error', 'Please fill in all mandatory fields.');
+      return;
+    }
+
+    const pw = createForm.password;
+    if (pw.length < 8 || !/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[\d\W]/.test(pw)) {
+      showNotification(
+        'error',
+        'Password does not comply with security policy (minimum 8 characters, 1 uppercase, 1 lowercase, 1 number or special character).',
+      );
       return;
     }
 
@@ -988,7 +1002,59 @@ export const UsersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4 Metric KPI Cards */}
+      {/* KMSICAMS-9 Tabs Navigation */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.65rem',
+          marginBottom: '1.5rem',
+          borderBottom: '1px solid var(--border-color)',
+          paddingBottom: '0.75rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('users')}
+          className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.84rem' }}
+        >
+          <Users size={16} />
+          <span>Corporate Users ({users.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('matrix')}
+          className={`btn ${activeTab === 'matrix' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.84rem' }}
+        >
+          <Shield size={16} />
+          <span>Role & Permission Matrix (18 × 9)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('simulator')}
+          className={`btn ${activeTab === 'simulator' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.84rem' }}
+        >
+          <Zap size={16} />
+          <span>Live RBAC Evaluator & QA</span>
+        </button>
+      </div>
+
+      {activeTab === 'matrix' && (
+        <RolePermissionMatrixTab roles={roles} onNotification={showNotification} />
+      )}
+
+      {activeTab === 'simulator' && (
+        <LivePermissionSimulatorTab users={users} roles={roles} />
+      )}
+
+      {activeTab === 'users' && (
+        <>
+          {/* 4 Metric KPI Cards */}
       <div
         style={{
           display: 'grid',
@@ -1213,6 +1279,7 @@ export const UsersPage: React.FC = () => {
                 <th style={{ padding: '0.85rem 1.25rem', fontWeight: 700, color: 'var(--text-muted)' }}>USER PROFILE</th>
                 <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-muted)' }}>ROLE & DESCRIPTION</th>
                 <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-muted)' }}>PERMISSIONS OVERVIEW</th>
+                <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-muted)' }}>LAST LOGIN</th>
                 <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-muted)' }}>STATUS</th>
                 <th style={{ padding: '0.85rem 1.25rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>ACTIONS</th>
               </tr>
@@ -1220,20 +1287,21 @@ export const UsersPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem auto' }} />
                     <div>Loading system user directory...</div>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No users matching criteria.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((u) => {
                   const roleName = u.role?.roleName || (u as any).roleName || 'USER';
+                  const displayName = u.role?.displayName || roleName;
                   const initials = u.fullName
                     .split(' ')
                     .map((n) => n[0])
@@ -1293,11 +1361,31 @@ export const UsersPage: React.FC = () => {
 
                       {/* Role */}
                       <td style={{ padding: '0.85rem 1rem' }}>
-                        <span className={`badge ${getRoleBadgeClass(roleName)}`} style={{ fontWeight: 700 }}>
-                          {roleName}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span className={`badge ${getRoleBadgeClass(roleName)}`} style={{ fontWeight: 700 }}>
+                            {displayName}
+                          </span>
+                          {u.role?.isSystemRole && (
+                            <span
+                              title="Protected Built-in System Role"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                                fontSize: '0.62rem',
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: '4px',
+                                background: 'rgba(56, 189, 248, 0.1)',
+                                color: 'var(--accent-cyan)',
+                                border: '1px solid rgba(56, 189, 248, 0.25)',
+                              }}
+                            >
+                              <Lock size={9} /> SYSTEM
+                            </span>
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                          {u.role?.description || 'Enterprise role'}
+                          {u.role?.description || 'Enterprise role profile'}
                         </div>
                       </td>
 
@@ -1320,7 +1408,7 @@ export const UsersPage: React.FC = () => {
                                 border: '1px solid var(--border-color)',
                               }}
                             >
-                              {perms.length} Granular Privileges
+                              {perms.length} Privileges
                             </span>
                             {perms.slice(0, 2).map((p) => (
                               <span
@@ -1341,6 +1429,25 @@ export const UsersPage: React.FC = () => {
                                 +{perms.length - 2} more
                               </span>
                             )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Last Login */}
+                      <td style={{ padding: '0.85rem 1rem', whiteSpace: 'nowrap' }}>
+                        {u.lastLoginAt ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <Clock size={13} style={{ color: 'var(--accent-cyan)' }} />
+                            <span>{new Date(u.lastLoginAt).toLocaleString()}</span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            Never logged in
+                          </span>
+                        )}
+                        {u.mustChangePassword && (
+                          <div style={{ fontSize: '0.65rem', color: 'var(--accent-amber)', marginTop: '0.15rem', fontWeight: 600 }}>
+                            Must change password
                           </div>
                         )}
                       </td>
@@ -1410,6 +1517,8 @@ export const UsersPage: React.FC = () => {
           </table>
         </div>
       </div>
+        </>
+      )}
 
       {/* CREATE USER MODAL */}
       {showCreateModal && (
@@ -1592,7 +1701,61 @@ export const UsersPage: React.FC = () => {
                         {showCreatePassword ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
+
+                    {/* Password Policy Real-time Verification */}
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '0.68rem',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
+                        Security Policy:
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.2rem' }}>
+                        <span style={{ color: createForm.password.length >= 8 ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+                          {createForm.password.length >= 8 ? '✓' : '○'} Min 8 characters
+                        </span>
+                        <span style={{ color: /[A-Z]/.test(createForm.password) ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+                          {/[A-Z]/.test(createForm.password) ? '✓' : '○'} 1+ Uppercase
+                        </span>
+                        <span style={{ color: /[a-z]/.test(createForm.password) ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+                          {/[a-z]/.test(createForm.password) ? '✓' : '○'} 1+ Lowercase
+                        </span>
+                        <span style={{ color: /[\d\W]/.test(createForm.password) ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+                          {/[\d\W]/.test(createForm.password) ? '✓' : '○'} 1+ Number / Symbol
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                {/* Force Password Change on First Login */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.78rem',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(createForm as any).mustChangePassword || false}
+                      onChange={(e) =>
+                        setCreateForm((prev: any) => ({ ...prev, mustChangePassword: e.target.checked }))
+                      }
+                      style={{ accentColor: 'var(--accent-cyan)' }}
+                    />
+                    <span>Force user to change password upon first login (KMSICAMS-9)</span>
+                  </label>
                 </div>
 
                 {/* Role Selection */}

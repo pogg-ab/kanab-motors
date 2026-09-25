@@ -26,19 +26,46 @@ export interface AppUser {
   role?: {
     roleId: number;
     roleName: string;
+    displayName?: string;
     description?: string;
     permissions?: string[];
+    isSystemRole?: boolean;
   };
   permissions: string[];
   isActive: boolean;
+  lastLoginAt?: string;
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 
 export interface Role {
   roleId: number;
   roleName: string;
+  displayName?: string;
   description?: string;
   permissions?: string[];
+  isSystemRole?: boolean;
+}
+
+export interface SystemModule {
+  moduleCode: string;
+  moduleName: string;
+  description?: string;
+  displayOrder: number;
+}
+
+export interface SystemAction {
+  actionCode: string;
+  actionName: string;
+  description?: string;
+  displayOrder: number;
+}
+
+export interface RolePermissionMatrixResponse {
+  roles: Role[];
+  modules: SystemModule[];
+  actions: SystemAction[];
+  matrix: Record<number, Record<string, Record<string, boolean>>>;
 }
 
 export interface SystemPermission {
@@ -888,6 +915,30 @@ export const api = {
   ) => apiClient.put<AppUser>(`/auth/users/${id}`, data).then((r) => r.data),
   toggleUserStatus: (id: number) =>
     apiClient.patch<AppUser>(`/auth/users/${id}/toggle-status`).then((r) => r.data),
+  deleteRole: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/auth/roles/${id}`).then((r) => r.data),
+  getSystemModules: () =>
+    apiClient.get<SystemModule[]>('/auth/modules').then((r) => r.data),
+  getSystemActions: () =>
+    apiClient.get<SystemAction[]>('/auth/actions').then((r) => r.data),
+  getPermissionMatrix: () =>
+    apiClient.get<RolePermissionMatrixResponse>('/auth/permissions/matrix').then((r) => r.data),
+  updateRolePermissions: (
+    roleId: number,
+    permissions: { moduleCode: string; actionCode: string; granted: boolean }[],
+  ) =>
+    apiClient
+      .put<{ success: boolean; message: string; roleId: number }>(`/auth/permissions/matrix/${roleId}`, {
+        permissions,
+      })
+      .then((r) => r.data),
+  checkPermission: (data: { userId: number; moduleCode: string; actionCode: string }) =>
+    apiClient
+      .post<{ userId: number; moduleCode: string; actionCode: string; granted: boolean }>(
+        '/auth/permissions/check',
+        data,
+      )
+      .then((r) => r.data),
 
   // --- KMSICAMS-6 Endpoints ---
   // Approvals
