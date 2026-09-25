@@ -400,13 +400,18 @@ export const LivePermissionSimulatorTab: React.FC<Props> = ({ users, roles }) =>
 
               {/* Searchable User Popover */}
               {userDropdownOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    right: 0,
-                    zIndex: 100,
+                <>
+                  <div
+                    onClick={() => setUserDropdownOpen(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      right: 0,
+                      zIndex: 100,
                     background: 'var(--bg-secondary)',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--radius-md)',
@@ -493,9 +498,10 @@ export const LivePermissionSimulatorTab: React.FC<Props> = ({ users, roles }) =>
                     })}
                   </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
+        </div>
 
           {/* STEP 2: FUNCTIONAL MODULE (Category Chips & Interactive Grid) */}
           <div>
