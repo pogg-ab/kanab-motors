@@ -45,8 +45,6 @@ export class ShipmentCostComponent {
     type: 'numeric',
     precision: 18,
     scale: 2,
-    insert: false,
-    update: false,
   })
   amountEtb: number;
 

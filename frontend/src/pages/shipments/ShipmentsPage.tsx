@@ -92,7 +92,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
         ...newShipment,
         selectedLines: newShipment.selectedLines.filter((l) => l.poLineId !== poLineId),
       });
-    } else {
+    } else if (maxQty > 0) {
       setNewShipment({
         ...newShipment,
         selectedLines: [...newShipment.selectedLines, { poLineId, quantityShipped: maxQty }],
@@ -100,11 +100,12 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
     }
   };
 
-  const handleLineQtyChange = (poLineId: string, qty: number) => {
+  const handleLineQtyChange = (poLineId: string, qty: number, maxQty: number) => {
+    const clampedQty = Math.min(Math.max(qty, 1), maxQty);
     setNewShipment({
       ...newShipment,
       selectedLines: newShipment.selectedLines.map((l) =>
-        l.poLineId === poLineId ? { ...l, quantityShipped: qty } : l,
+        l.poLineId === poLineId ? { ...l, quantityShipped: clampedQty } : l,
       ),
     });
   };
@@ -1012,6 +1013,12 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                     }}
                   >
                     {openPoLines.map((line) => {
+                      const orderedQty = Number(line.quantityOrdered || 0);
+                      const remainingQty = line.remainingQuantity !== undefined ? Number(line.remainingQuantity) : orderedQty;
+                      const shipmentQtyLimit = Math.max(0, remainingQty);
+                      const quantityLabel = line.remainingQuantity !== undefined
+                        ? `Remaining: ${shipmentQtyLimit} / Ordered: ${orderedQty} unit(s)`
+                        : `Ordered: ${orderedQty} unit(s)`;
                       const isSelected = newShipment.selectedLines.some((l) => l.poLineId === line.poLineId);
                       const selectedObj = newShipment.selectedLines.find((l) => l.poLineId === line.poLineId);
                       return (
@@ -1026,18 +1033,19 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                             background: isSelected ? 'rgba(0, 210, 211, 0.08)' : 'transparent',
                           }}
                         >
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: shipmentQtyLimit > 0 ? 'pointer' : 'not-allowed', flex: 1 }}>
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => handleTogglePoLine(line.poLineId, Number(line.quantityOrdered))}
+                              disabled={shipmentQtyLimit <= 0}
+                              onChange={() => handleTogglePoLine(line.poLineId, shipmentQtyLimit)}
                             />
                             <div>
                               <div style={{ fontWeight: 600, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
                                 {line.item?.itemName} ({line.item?.model || line.item?.itemCode})
                               </div>
                               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                                PO: <strong style={{ color: 'var(--accent-cyan)' }}>{line.purchaseOrder?.poNumber}</strong> · Ordered: {line.quantityOrdered} unit(s) @ {line.currency} {Number(line.unitPrice).toLocaleString()}
+                                PO: <strong style={{ color: 'var(--accent-cyan)' }}>{line.purchaseOrder?.poNumber}</strong> · {quantityLabel} @ {line.currency} {Number(line.unitPrice).toLocaleString()}
                               </div>
                             </div>
                           </label>
@@ -1048,11 +1056,11 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                               <input
                                 type="number"
                                 min="1"
-                                max={Number(line.quantityOrdered)}
+                                max={shipmentQtyLimit}
                                 style={{ width: '85px', textAlign: 'center' }}
                                 className="input-field"
                                 value={selectedObj?.quantityShipped || 1}
-                                onChange={(e) => handleLineQtyChange(line.poLineId, parseInt(e.target.value) || 1)}
+                                onChange={(e) => handleLineQtyChange(line.poLineId, parseInt(e.target.value) || 1, shipmentQtyLimit)}
                               />
                             </div>
                           )}
@@ -1097,3 +1105,4 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
     </div>
   );
 };
+

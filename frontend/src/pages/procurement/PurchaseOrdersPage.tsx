@@ -14,18 +14,21 @@ import {
   XCircle,
   Eye,
   Send,
+  Edit3,
 } from 'lucide-react';
 import {
   api,
   PurchaseOrder,
   Supplier,
   ProductItem,
+  ExchangeRateDefault,
 } from '../../api/client';
 
 export const PurchaseOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -33,6 +36,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
 
   // Form State
   const [supplierId, setSupplierId] = useState<number | ''>('');
@@ -58,14 +62,16 @@ export const PurchaseOrdersPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [posRes, suppsData, prodsRes] = await Promise.all([
+      const [posRes, suppsData, prodsRes, rates] = await Promise.all([
         api.getPurchaseOrders(),
         api.getSuppliers('', true),
         api.getItems(),
+        api.getExchangeRates(),
       ]);
       setOrders(posRes.items || []);
       setSuppliers(suppsData);
       setProducts(prodsRes.items || []);
+      setExchangeRates(rates || []);
     } catch (err: any) {
       showToast('error', err.message || 'Failed to load purchase orders');
     } finally {
@@ -77,9 +83,64 @@ export const PurchaseOrdersPage: React.FC = () => {
     setLines([...lines, { itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
   };
 
+  const getRateToEtb = (curr: 'USD' | 'EUR' | 'ETB') => {
+    if (curr === 'ETB') return 1;
+    return Number(exchangeRates.find((r) => r.currency === curr)?.rateToEtb || 0);
+  };
+
+  const suggestUnitPrice = (product: ProductItem, curr: 'USD' | 'EUR' | 'ETB') => {
+    const sellingPriceEtb = Number(product.sellingPrice || 0);
+    const rate = getRateToEtb(curr);
+    if (curr === 'ETB') return Math.round(sellingPriceEtb * 100) / 100;
+    if (!rate || rate <= 0) return 0;
+    return Math.round((sellingPriceEtb / rate) * 100) / 100;
+  };
+
+  const handleCurrencyChange = (nextCurrency: 'USD' | 'EUR' | 'ETB') => {
+    setCurrency(nextCurrency);
+    setLines((currentLines) =>
+      currentLines.map((line) => {
+        const product = products.find((p) => p.itemId === line.itemId);
+        return product ? { ...line, unitPrice: suggestUnitPrice(product, nextCurrency) } : line;
+      }),
+    );
+  };
+
   const handleRemoveLine = (idx: number) => {
     if (lines.length === 1) return;
     setLines(lines.filter((_, i) => i !== idx));
+  };
+
+  const resetForm = () => {
+    setSupplierId('');
+    setCurrency('USD');
+    setPoDate(new Date().toISOString().split('T')[0]);
+    setNotes('');
+    setLines([{ itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
+    setEditingOrder(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setShowCreateModal(true);
+  };
+
+  const openEditModal = (order: PurchaseOrder) => {
+    setEditingOrder(order);
+    setSupplierId(order.supplierId);
+    setCurrency(order.currency);
+    setPoDate(order.poDate);
+    setNotes(order.notes || '');
+    setLines(
+      order.lines && order.lines.length > 0
+        ? order.lines.map((line) => ({
+            itemId: line.itemId,
+            quantityOrdered: Number(line.quantityOrdered),
+            unitPrice: Number(line.unitPrice),
+          }))
+        : [{ itemId: '', quantityOrdered: 1, unitPrice: 0 }],
+    );
+    setShowCreateModal(true);
   };
 
   const handleLineChange = (idx: number, field: string, val: any) => {
@@ -90,20 +151,25 @@ export const PurchaseOrdersPage: React.FC = () => {
     if (field === 'itemId') {
       const prod = products.find((p) => p.itemId === val);
       if (prod) {
-        // approximate export price if in USD
-        updated[idx].unitPrice = currency === 'USD' ? Math.round(Number(prod.sellingPrice) / 125) : Number(prod.sellingPrice);
+        updated[idx].unitPrice = suggestUnitPrice(prod, currency);
       }
     }
     setLines(updated);
   };
 
-  const handleCreatePO = async (e: React.FormEvent) => {
+  const handleSavePO = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supplierId) {
       showToast('error', 'Supplier is required');
       return;
     }
-    const validLines = lines.filter((l) => l.itemId && l.quantityOrdered > 0 && l.unitPrice > 0);
+    const validLines = lines
+      .filter((l) => l.itemId && l.quantityOrdered > 0 && l.unitPrice > 0)
+      .map((line) => ({
+        itemId: String(line.itemId),
+        quantityOrdered: Number(line.quantityOrdered),
+        unitPrice: Number(line.unitPrice),
+      }));
     if (validLines.length === 0) {
       showToast('error', 'Please enter at least one valid line item');
       return;
@@ -111,21 +177,26 @@ export const PurchaseOrdersPage: React.FC = () => {
 
     setSaving(true);
     try {
-      const created = await api.createPurchaseOrder({
+      const payload = {
         supplierId: Number(supplierId),
         currency,
         poDate,
         notes,
         lines: validLines,
-      });
-      showToast('success', `Purchase Order ${created.poNumber} created in DRAFT status!`);
+      };
+
+      if (editingOrder) {
+        const updated = await api.updatePurchaseOrder(editingOrder.poId, payload);
+        showToast('success', `Purchase Order ${updated.poNumber} updated successfully!`);
+      } else {
+        const created = await api.createPurchaseOrder(payload);
+        showToast('success', `Purchase Order ${created.poNumber} created in DRAFT status!`);
+      }
       setShowCreateModal(false);
-      setSupplierId('');
-      setNotes('');
-      setLines([{ itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
+      resetForm();
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to create PO');
+      showToast('error', err.response?.data?.message || err.message || 'Failed to save PO');
     } finally {
       setSaving(false);
     }
@@ -187,7 +258,7 @@ export const PurchaseOrdersPage: React.FC = () => {
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
             Refresh Feed
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button onClick={openCreateModal} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Plus size={16} />
             Create Purchase Order
           </button>
@@ -400,6 +471,16 @@ export const PurchaseOrdersPage: React.FC = () => {
                           </button>
                           {o.status === 'DRAFT' && (
                             <button
+                              onClick={() => openEditModal(o)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', color: 'var(--accent-cyan)', borderColor: 'rgba(0, 210, 211, 0.4)' }}
+                              title="Edit Draft Order"
+                            >
+                              <Edit3 size={13} /> Edit
+                            </button>
+                          )}
+                          {o.status === 'DRAFT' && (
+                            <button
                               onClick={() => handleStatusTransition(o.poId, 'SUBMITTED')}
                               className="btn btn-secondary"
                               style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', color: 'var(--accent-indigo)', borderColor: 'rgba(99, 102, 241, 0.4)' }}
@@ -446,14 +527,14 @@ export const PurchaseOrdersPage: React.FC = () => {
             <div className="modal-header">
               <div>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Create International Purchase Order
+                  {editingOrder ? `Edit Purchase Order ${editingOrder.poNumber}` : 'Create International Purchase Order'}
                 </h2>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Multi-currency procurement contract & line items</span>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => { setShowCreateModal(false); resetForm(); }} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
             </div>
 
-            <form onSubmit={handleCreatePO}>
+            <form onSubmit={handleSavePO}>
               <div className="modal-body">
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                   <div>
@@ -478,7 +559,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                     <select
                       className="input"
                       value={currency}
-                      onChange={(e) => setCurrency(e.target.value as any)}
+                      onChange={(e) => handleCurrencyChange(e.target.value as 'USD' | 'EUR' | 'ETB')}
                     >
                       <option value="USD">USD ($)</option>
                       <option value="EUR">EUR (€)</option>
@@ -596,11 +677,11 @@ export const PurchaseOrdersPage: React.FC = () => {
               </div>
 
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-secondary">
+                <button type="button" onClick={() => { setShowCreateModal(false); resetForm(); }} className="btn btn-secondary">
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} className="btn btn-cyan">
-                  {saving ? 'Creating Contract...' : 'Create Purchase Order'}
+                  {saving ? 'Saving Contract...' : editingOrder ? 'Update Purchase Order' : 'Create Purchase Order'}
                 </button>
               </div>
             </form>

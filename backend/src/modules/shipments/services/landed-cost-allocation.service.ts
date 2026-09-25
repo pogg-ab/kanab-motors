@@ -15,6 +15,8 @@ export interface AllocationResultItem {
   itemName: string;
   quantityShipped: number;
   basisValue: number;
+  fobValueEtb: number;
+  allocatedAdditionalCostEtb: number;
   allocatedCostEtb: number;
   unitCostEtb: number;
 }
@@ -124,15 +126,26 @@ export class LandedCostAllocationService {
     const rateByCurrency = new Map(exchangeRates.map((rate) => [rate.currency, Number(rate.rateToEtb)]));
     rateByCurrency.set('ETB', 1);
 
-    // 1. Compute total landed cost across all components in ETB
-    const totalCostEtb = shipment.costComponents.reduce((sum, c) => {
+    // 1. Compute total landed cost in ETB: FOB/CIF PO value plus added landed cost components.
+    const totalComponentCostEtb = shipment.costComponents.reduce((sum, c) => {
       const etb = Number(c.amount) * Number(c.exchangeRateToEtb);
       return sum + etb;
     }, 0);
+    const totalFobEtb = shipment.lines.reduce((sum, line) => {
+      const qty = Number(line.quantityShipped) || 0;
+      const unitPrice = Number(line.poLine?.unitPrice) || 0;
+      const currency = line.poLine?.currency || 'ETB';
+      const rate = rateByCurrency.get(currency);
+      if (!rate || rate <= 0) {
+        throw new BadRequestException(`No default exchange rate is configured for ${currency}`);
+      }
+      return sum + qty * unitPrice * rate;
+    }, 0);
+    const totalCostEtb = totalFobEtb + totalComponentCostEtb;
 
     if (totalCostEtb <= 0) {
       throw new BadRequestException(
-        'Shipment total landed cost is 0. Record at least one cost component before allocation.',
+        'Shipment total landed cost is 0. Confirm PO line prices or record at least one cost component before allocation.',
       );
     }
 
@@ -295,19 +308,40 @@ export class LandedCostAllocationService {
           .getMany()
       : [];
 
-    const totalCostEtb = shipment.costComponents.reduce((sum, c) => {
+    const exchangeRates = await this.exchangeRateRepo.find();
+    const rateByCurrency = new Map(exchangeRates.map((rate) => [rate.currency, Number(rate.rateToEtb)]));
+    rateByCurrency.set('ETB', 1);
+
+    const totalComponentCostEtb = shipment.costComponents.reduce((sum, c) => {
       return sum + Number(c.amount) * Number(c.exchangeRateToEtb);
     }, 0);
+    const totalFobEtb = shipment.lines.reduce((sum, line) => {
+      const qty = Number(line.quantityShipped) || 0;
+      const unitPrice = Number(line.poLine?.unitPrice) || 0;
+      const currency = line.poLine?.currency || 'ETB';
+      const rate = rateByCurrency.get(currency) || 0;
+      return sum + qty * unitPrice * rate;
+    }, 0);
+    const totalCostEtb = totalFobEtb + totalComponentCostEtb;
+
+    const totalAllocated = Array.from(lineCostMap.values()).reduce((sum, value) => sum + value, 0);
+    const additionalCostRatio = totalAllocated > 0 ? totalComponentCostEtb / totalAllocated : 0;
 
     const lines: AllocationResultItem[] = shipment.lines.map((line) => {
       const qty = Number(line.quantityShipped) || 1;
       const allocated = lineCostMap.get(String(line.shipmentLineId)) || 0;
+      const currency = line.poLine?.currency || 'ETB';
+      const rate = rateByCurrency.get(currency) || 0;
+      const fobValueEtb = qty * (Number(line.poLine?.unitPrice) || 0) * rate;
+      const allocatedAdditionalCostEtb = Math.round(allocated * additionalCostRatio * 100) / 100;
       return {
         shipmentLineId: line.shipmentLineId,
         itemId: line.poLine?.itemId || '',
         itemName: line.poLine?.item?.itemName || 'Product Item',
         quantityShipped: qty,
         basisValue: Number(line.poLine?.unitPrice) || 0,
+        fobValueEtb: Math.round(fobValueEtb * 100) / 100,
+        allocatedAdditionalCostEtb,
         allocatedCostEtb: allocated,
         unitCostEtb: qty > 0 ? Math.round((allocated / qty) * 100) / 100 : 0,
       };

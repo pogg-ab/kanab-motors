@@ -94,7 +94,7 @@ export const SuppliersPage: React.FC = () => {
       });
       loadSuppliers();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to save supplier');
+      showToast('error', err.response?.data?.message || err.message || 'Failed to save supplier');
     } finally {
       setSaving(false);
     }
