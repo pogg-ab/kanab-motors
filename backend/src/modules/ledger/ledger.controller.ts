@@ -4,12 +4,14 @@ import { LedgerService } from './ledger.service';
 import { LedgerTransactionType } from './entities/customer-ledger-transaction.entity';
 import { ManualAdjustmentDto } from './dto/manual-adjustment.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Customer Ledger & Statement of Account (KMSICAMS-2)')
 @Controller('ledger')
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
 
+  @RequirePermissions('LEDGER_VIEW')
   @Get('customers/:customerId/statement')
   @ApiOperation({ summary: 'Get Customer Statement of Account (SRS §8.7 table format)' })
   getStatement(
@@ -34,6 +36,7 @@ export class LedgerController {
     });
   }
 
+  @RequirePermissions('LEDGER_ADJUST')
   @Post('customers/:customerId/adjustment')
   @ApiOperation({ summary: 'Post manual ledger adjustment (restricted with mandatory reason)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

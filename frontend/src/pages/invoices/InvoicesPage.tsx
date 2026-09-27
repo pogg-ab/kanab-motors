@@ -15,8 +15,13 @@ import {
   Receipt,
 } from 'lucide-react';
 import { api, SalesInvoice, Booking } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const InvoicesPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateInvoice = can('PAYMENTS_RECORD');
+  const canApproveInvoice = can('PAYMENTS_CONFIRM');
+  const canRejectInvoice = can('PAYMENTS_REJECT');
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +63,7 @@ export const InvoicesPage: React.FC = () => {
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateInvoice) return;
     if (!selectedBookingId) {
       setErrorMsg('Please select a booking to invoice');
       return;
@@ -83,6 +89,7 @@ export const InvoicesPage: React.FC = () => {
   };
 
   const handleApprove = async (invoiceId: string) => {
+    if (!canApproveInvoice) return;
     if (!window.confirm('Approve this sales invoice? This will finalize financial settlement and mark vehicle as SOLD.')) {
       return;
     }
@@ -103,6 +110,7 @@ export const InvoicesPage: React.FC = () => {
   };
 
   const handleReject = async (invoiceId: string) => {
+    if (!canRejectInvoice) return;
     const reason = window.prompt('Enter rejection reason:');
     if (reason === null) return;
     try {
@@ -208,6 +216,7 @@ export const InvoicesPage: React.FC = () => {
             <RefreshCw size={16} className={loading ? 'spin' : ''} />
             Refresh
           </button>
+          {canCreateInvoice && (
           <button
             onClick={() => setShowCreateModal(true)}
             style={{
@@ -227,6 +236,7 @@ export const InvoicesPage: React.FC = () => {
             <Plus size={18} />
             Generate Sales Invoice
           </button>
+          )}
         </div>
       </div>
 
@@ -533,8 +543,9 @@ export const InvoicesPage: React.FC = () => {
                           <Eye size={15} />
                         </button>
 
-                        {inv.status === 'PENDING_APPROVAL' && (
+                        {inv.status === 'PENDING_APPROVAL' && (canApproveInvoice || canRejectInvoice) && (
                           <>
+                            {canApproveInvoice && (
                             <button
                               onClick={() => handleApprove(inv.invoiceId)}
                               title="Approve Invoice & Settle"
@@ -549,6 +560,8 @@ export const InvoicesPage: React.FC = () => {
                             >
                               <CheckCircle2 size={15} />
                             </button>
+                            )}
+                            {canRejectInvoice && (
                             <button
                               onClick={() => handleReject(inv.invoiceId)}
                               title="Reject Invoice"
@@ -563,6 +576,7 @@ export const InvoicesPage: React.FC = () => {
                             >
                               <XCircle size={15} />
                             </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -835,8 +849,9 @@ export const InvoicesPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              {selectedInvoice.status === 'PENDING_APPROVAL' && (
+              {selectedInvoice.status === 'PENDING_APPROVAL' && (canApproveInvoice || canRejectInvoice) && (
                 <>
+                  {canApproveInvoice && (
                   <button
                     onClick={() => handleApprove(selectedInvoice.invoiceId)}
                     style={{
@@ -851,6 +866,8 @@ export const InvoicesPage: React.FC = () => {
                   >
                     Approve & Settle
                   </button>
+                  )}
+                  {canRejectInvoice && (
                   <button
                     onClick={() => handleReject(selectedInvoice.invoiceId)}
                     style={{
@@ -865,6 +882,7 @@ export const InvoicesPage: React.FC = () => {
                   >
                     Reject
                   </button>
+                  )}
                 </>
               )}
               <button

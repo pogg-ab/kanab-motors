@@ -21,8 +21,13 @@ import {
   Customer,
   Booking,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const PaymentsPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canRecordPayment = can('PAYMENTS_RECORD');
+  const canConfirmPayment = can('PAYMENTS_CONFIRM');
+  const canRejectPayment = can('PAYMENTS_REJECT');
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -122,6 +127,7 @@ export const PaymentsPage: React.FC = () => {
 
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRecordPayment) return;
     if (!newPayment.customerId || !newPayment.amount || newPayment.amount <= 0) {
       showToast('error', 'Customer and positive amount are required');
       return;
@@ -174,6 +180,7 @@ export const PaymentsPage: React.FC = () => {
   };
 
   const handleConfirmPayment = async (id: string) => {
+    if (!canConfirmPayment) return;
     setConfirmingId(id);
     try {
       const result = await api.confirmPayment(id);
@@ -188,6 +195,7 @@ export const PaymentsPage: React.FC = () => {
 
   const handleRejectPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRejectPayment) return;
     if (!rejectingPayment) return;
     if (!rejectionReason.trim()) {
       showToast('error', 'Rejection reason is mandatory');
@@ -254,10 +262,12 @@ export const PaymentsPage: React.FC = () => {
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
             Refresh
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Plus size={16} />
-            Record BRV Deposit
-          </button>
+          {canRecordPayment && (
+            <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Plus size={16} />
+              Record BRV Deposit
+            </button>
+          )}
         </div>
       </div>
 
@@ -440,8 +450,9 @@ export const PaymentsPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                          {p.status === 'SUBMITTED' && (
+                          {p.status === 'SUBMITTED' && (canConfirmPayment || canRejectPayment) && (
                             <>
+                              {canConfirmPayment && (
                               <button
                                 onClick={() => handleConfirmPayment(p.paymentId)}
                                 disabled={confirmingId === p.paymentId}
@@ -452,6 +463,8 @@ export const PaymentsPage: React.FC = () => {
                                 <FileCheck size={13} />
                                 {confirmingId === p.paymentId ? 'Posting...' : 'Confirm'}
                               </button>
+                              )}
+                              {canRejectPayment && (
                               <button
                                 onClick={() => {
                                   setRejectingPayment(p);
@@ -470,6 +483,7 @@ export const PaymentsPage: React.FC = () => {
                                 <XCircle size={13} />
                                 Reject
                               </button>
+                              )}
                             </>
                           )}
                           <button

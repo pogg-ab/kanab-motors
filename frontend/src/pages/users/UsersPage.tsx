@@ -28,7 +28,10 @@ import { RolePermissionMatrixTab } from './RolePermissionMatrixTab';
 import { LivePermissionSimulatorTab } from './LivePermissionSimulatorTab';
 
 export const UsersPage: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, hasPermission } = useAuth();
+  const canCreateUser = hasPermission('USERS_CREATE') || hasPermission('USERS_EDIT');
+  const canEditUser = hasPermission('USERS_EDIT');
+  const canManageRoles = hasPermission('ROLES_MANAGE');
   const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'simulator'>('users');
   const [users, setUsers] = useState<AppUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -103,6 +106,7 @@ export const UsersPage: React.FC = () => {
   }, []);
 
   const handleToggleStatus = async (user: AppUser) => {
+    if (!canEditUser) return;
     if (user.userId === currentUser?.userId) {
       showNotification('error', 'You cannot deactivate your own account.');
       return;
@@ -118,6 +122,7 @@ export const UsersPage: React.FC = () => {
 
   // Open in-page editing for a user
   const handleStartEdit = (user: AppUser) => {
+    if (!canEditUser) return;
     setEditingUser(user);
     const userRole = roles.find((r) => r.roleId === user.roleId || r.roleName === user.role?.roleName);
     const initialPerms = user.permissions && user.permissions.length > 0
@@ -180,6 +185,7 @@ export const UsersPage: React.FC = () => {
 
   const handleSaveEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditUser) return;
     if (!editingUser) return;
 
     setSaving(true);
@@ -240,6 +246,7 @@ export const UsersPage: React.FC = () => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateUser) return;
     if (!createForm.fullName || !createForm.username || !createForm.email || !createForm.password) {
       showNotification('error', 'Please fill in all mandatory fields.');
       return;
@@ -991,6 +998,7 @@ export const UsersPage: React.FC = () => {
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
+          {canCreateUser && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary"
@@ -999,6 +1007,7 @@ export const UsersPage: React.FC = () => {
             <UserPlus size={16} />
             <span>Register New User</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -1023,6 +1032,7 @@ export const UsersPage: React.FC = () => {
           <span>Corporate Users ({users.length})</span>
         </button>
 
+        {canManageRoles && (
         <button
           type="button"
           onClick={() => setActiveTab('matrix')}
@@ -1032,6 +1042,7 @@ export const UsersPage: React.FC = () => {
           <Shield size={16} />
           <span>Role & Permission Matrix (18 × 9)</span>
         </button>
+        )}
 
         <button
           type="button"
@@ -1044,7 +1055,7 @@ export const UsersPage: React.FC = () => {
         </button>
       </div>
 
-      {activeTab === 'matrix' && (
+      {activeTab === 'matrix' && canManageRoles && (
         <RolePermissionMatrixTab roles={roles} onNotification={showNotification} />
       )}
 
@@ -1454,6 +1465,7 @@ export const UsersPage: React.FC = () => {
 
                       {/* Status */}
                       <td style={{ padding: '0.85rem 1rem' }}>
+                        {canEditUser && (
                         <button
                           onClick={() => handleToggleStatus(u)}
                           disabled={isCurrent}
@@ -1489,10 +1501,12 @@ export const UsersPage: React.FC = () => {
                             </>
                           )}
                         </button>
+                        )}
                       </td>
 
                       {/* Actions */}
                       <td style={{ padding: '0.85rem 1.25rem', textAlign: 'right' }}>
+                        {canEditUser && (
                         <button
                           onClick={() => handleStartEdit(u)}
                           className="btn btn-secondary"
@@ -1508,6 +1522,7 @@ export const UsersPage: React.FC = () => {
                           <Edit3 size={13} />
                           <span>Edit Privileges</span>
                         </button>
+                        )}
                       </td>
                     </tr>
                   );

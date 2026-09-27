@@ -1,18 +1,21 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Dashboard and Reporting (KMSICAMS-7)')
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('dashboard/summary')
   @ApiOperation({ summary: 'Executive Real-Time Dashboard Summary KPIs' })
   getDashboardSummary() {
     return this.reportsService.getDashboardSummary();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('management-dashboard/summary')
   @ApiOperation({ summary: 'Management Dashboard 13 KPIs with date range filter (KMSICAMS-8)' })
   getManagementDashboardSummary(
@@ -22,6 +25,7 @@ export class ReportsController {
     return this.reportsService.getManagementDashboardSummary(startDate, endDate);
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('management-dashboard/sales-cross-tab')
   @ApiOperation({ summary: 'Sales Performance cross-tab by Product × Salesperson (KMSICAMS-8)' })
   getSalesPerformanceCrossTab(
@@ -31,6 +35,7 @@ export class ReportsController {
     return this.reportsService.getSalesPerformanceCrossTab(startDate, endDate);
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/daily')
   @ApiOperation({ summary: 'Daily sales breakdown report' })
   getDailySalesReport(
@@ -40,48 +45,56 @@ export class ReportsController {
     return this.reportsService.getDailySalesReport({ startDate, endDate });
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/monthly')
   @ApiOperation({ summary: 'Monthly sales aggregate report' })
   getMonthlySalesReport() {
     return this.reportsService.getMonthlySalesReport();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/by-vehicle-type')
   @ApiOperation({ summary: 'Sales distribution by vehicle category' })
   getSalesByVehicleType() {
     return this.reportsService.getSalesByVehicleType();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/by-model')
   @ApiOperation({ summary: 'Sales distribution by vehicle model' })
   getSalesByModel() {
     return this.reportsService.getSalesByModel();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/by-customer')
   @ApiOperation({ summary: 'Sales revenue breakdown by customer' })
   getSalesByCustomer() {
     return this.reportsService.getSalesByCustomer();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/by-region')
   @ApiOperation({ summary: 'Regional sales distribution' })
   getSalesByRegion() {
     return this.reportsService.getSalesByRegion();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/by-customer-type')
   @ApiOperation({ summary: 'Sales by customer segment (Direct POS, Dealer, Govt)' })
   getSalesByCustomerType() {
     return this.reportsService.getSalesByCustomerType();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('sales/by-salesperson')
   @ApiOperation({ summary: 'Sales team performance by salesperson' })
   getSalesBySalesperson() {
     return this.reportsService.getSalesBySalesperson();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('operational/invoices')
   @ApiOperation({ summary: 'Detailed invoice operations report' })
   getInvoiceReport(
@@ -94,6 +107,7 @@ export class ReportsController {
     });
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('operational/deliveries')
   @ApiOperation({ summary: 'Detailed vehicle deliveries operations report' })
   getDeliveryReport(
@@ -106,18 +120,21 @@ export class ReportsController {
     });
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('operational/enquiries')
   @ApiOperation({ summary: 'Sales enquiries pipeline status report' })
   getEnquiriesReport() {
     return this.reportsService.getEnquiriesReport();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('operational/bookings')
   @ApiOperation({ summary: 'Advance bookings pipeline status report' })
   getBookingsReport() {
     return this.reportsService.getBookingsReport();
   }
 
+  @RequirePermissions('REPORTS_VIEW')
   @Get('financial/summary')
   @ApiOperation({ summary: 'Customer financial ledger and receivables summary report' })
   getCustomerFinancialSummary() {

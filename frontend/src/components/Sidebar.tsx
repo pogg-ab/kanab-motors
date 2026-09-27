@@ -21,6 +21,8 @@ import {
   Boxes,
   LayoutDashboard,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { TAB_PERMISSIONS, canAccessAny } from '../authz/permissions';
 
 interface SidebarProps {
   activeTab: string;
@@ -30,6 +32,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose }) => {
+  const { hasPermission } = useAuth();
+  const navRef = React.useRef<HTMLElement>(null);
   const executiveItems = [
     {
       id: 'dashboard',
@@ -37,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Analytics',
       icon: LayoutDashboard,
       badge: 'Live',
+      permissions: TAB_PERMISSIONS.dashboard,
     },
     {
       id: 'reports',
@@ -44,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'BI Engine',
       icon: BarChart3,
       badge: 'KMS-7',
+      permissions: TAB_PERMISSIONS.reports,
     },
   ];
 
@@ -54,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Logistics',
       icon: Ship,
       badge: 'Engine',
+      permissions: TAB_PERMISSIONS.shipments,
     },
     {
       id: 'purchase-orders',
@@ -61,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Procurement',
       icon: ClipboardList,
       badge: 'Orders',
+      permissions: TAB_PERMISSIONS['purchase-orders'],
     },
     {
       id: 'suppliers',
@@ -68,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Vendor',
       icon: Building2,
       badge: 'Global',
+      permissions: TAB_PERMISSIONS.suppliers,
     },
     {
       id: 'procurement-reports',
@@ -75,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Analytics',
       icon: BarChart3,
       badge: 'BI',
+      permissions: TAB_PERMISSIONS['procurement-reports'],
     },
   ];
 
@@ -85,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Directory',
       icon: Users,
       badge: 'Core',
+      permissions: TAB_PERMISSIONS.customers,
     },
     {
       id: 'products',
@@ -92,6 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Inventory',
       icon: Package,
       badge: 'Catalog',
+      permissions: TAB_PERMISSIONS.products,
     },
     {
       id: 'vehicles',
@@ -99,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Registry',
       icon: CarFront,
       badge: 'Tracking',
+      permissions: TAB_PERMISSIONS.vehicles,
     },
   ];
 
@@ -109,6 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Ledger',
       icon: FileSpreadsheet,
       badge: 'Ledger',
+      permissions: TAB_PERMISSIONS.statement,
     },
     {
       id: 'enquiries',
@@ -116,6 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Pipeline',
       icon: FileText,
       badge: 'CRM',
+      permissions: TAB_PERMISSIONS.enquiries,
     },
     {
       id: 'bookings',
@@ -123,6 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Orders',
       icon: Bookmark,
       badge: 'Queue',
+      permissions: TAB_PERMISSIONS.bookings,
     },
     {
       id: 'allotments',
@@ -130,6 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Allotment',
       icon: CarFront,
       badge: 'VIN',
+      permissions: TAB_PERMISSIONS.allotments,
     },
     {
       id: 'payments',
@@ -137,6 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Finance',
       icon: Receipt,
       badge: 'Inflow',
+      permissions: TAB_PERMISSIONS.payments,
     },
     {
       id: 'settlement',
@@ -144,6 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Refunds',
       icon: Coins,
       badge: 'Audit',
+      permissions: TAB_PERMISSIONS.settlement,
     },
   ];
 
@@ -154,6 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Warehouse',
       icon: Boxes,
       badge: 'KMS-4',
+      permissions: TAB_PERMISSIONS.inventory,
     },
     {
       id: 'invoices',
@@ -161,6 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Settlement',
       icon: Receipt,
       badge: 'IV1–13',
+      permissions: TAB_PERMISSIONS.invoices,
     },
     {
       id: 'deliveries',
@@ -168,6 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Handover',
       icon: Truck,
       badge: 'DL1–10',
+      permissions: TAB_PERMISSIONS.deliveries,
     },
     {
       id: 'approvals',
@@ -175,6 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Engine',
       icon: CheckCircle2,
       badge: 'AW1–10',
+      permissions: TAB_PERMISSIONS.approvals,
     },
     {
       id: 'documents',
@@ -182,6 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Documents',
       icon: FolderOpen,
       badge: 'DA1–6',
+      permissions: TAB_PERMISSIONS.documents,
     },
   ];
 
@@ -192,6 +216,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'RBAC',
       icon: UserCog,
       badge: 'Access',
+      permissions: TAB_PERMISSIONS.users,
     },
     {
       id: 'audit',
@@ -199,6 +224,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'System',
       icon: ShieldCheck,
       badge: 'Audit',
+      permissions: TAB_PERMISSIONS.audit,
     },
   ];
 
@@ -209,7 +235,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
     }
   };
 
-  const renderNavSection = (title: string, items: typeof masterItems) => (
+  type NavItem = (typeof masterItems)[number];
+  const renderNavSection = (title: string, items: NavItem[]) => {
+    const visibleItems = items.filter((item) => canAccessAny(hasPermission, item.permissions));
+    if (visibleItems.length === 0) return null;
+
+    return (
     <div style={{ marginBottom: '1.25rem' }}>
       <div
         style={{
@@ -223,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       >
         {title}
       </div>
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
         return (
@@ -268,7 +299,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         );
       })}
     </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -281,7 +313,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         />
       )}
 
-      <aside className={`sidebar-aside ${isOpen ? 'sidebar-open' : ''}`}>
+      <aside
+        className={`sidebar-aside ${isOpen ? 'sidebar-open' : ''}`}
+        onWheel={(e) => {
+          if (navRef.current && !navRef.current.contains(e.target as Node)) {
+            navRef.current.scrollTop += e.deltaY;
+          }
+        }}
+      >
         {/* Brand Header */}
         <div
           style={{
@@ -367,7 +406,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         </div>
 
         {/* Nav Items */}
-        <nav style={{ flex: 1, padding: '0.75rem 0.75rem', overflowY: 'auto' }}>
+        <nav ref={navRef} className="sidebar-nav">
           {renderNavSection('Executive Intelligence', executiveItems)}
           {renderNavSection('Operations & Approvals', operationsItems)}
           {renderNavSection('Import & Landed Cost', procurementItems)}

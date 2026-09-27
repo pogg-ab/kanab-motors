@@ -35,8 +35,11 @@ import {
   VehicleStatusTransitionRule,
   ProductItem,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const InventoryPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canManageWarehouses = can('WAREHOUSES_MANAGE');
   const [activeTab, setActiveTab] = useState<
     'balances' | 'transfers' | 'adjustments' | 'production' | 'transitions' | 'movements'
   >('balances');
@@ -163,6 +166,7 @@ export const InventoryPage: React.FC = () => {
   // Transfer Actions
   const handleCreateTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageWarehouses) return;
     if (transferFromWh === transferToWh) {
       showToast('error', 'Source and destination warehouse cannot be the same');
       return;
@@ -193,6 +197,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleApproveTransfer = async (transferId: string) => {
+    if (!canManageWarehouses) return;
     setActionLoading(true);
     try {
       await api.approveStockTransfer(transferId);
@@ -206,6 +211,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleCompleteTransfer = async (transferId: string) => {
+    if (!canManageWarehouses) return;
     setActionLoading(true);
     try {
       await api.completeStockTransfer(transferId);
@@ -221,6 +227,7 @@ export const InventoryPage: React.FC = () => {
   // Adjustment Actions
   const handleCreateAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageWarehouses) return;
     if (!adjReasonNotes.trim()) {
       showToast('error', 'A detailed reason note is mandatory for audit compliance');
       return;
@@ -248,6 +255,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleApproveAdjustment = async (adjustmentId: string) => {
+    if (!canManageWarehouses) return;
     setActionLoading(true);
     try {
       await api.approveStockAdjustment(adjustmentId);
@@ -263,6 +271,7 @@ export const InventoryPage: React.FC = () => {
   // Production Receipt Actions
   const handleCreateProductionReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageWarehouses) return;
     if (!prodChassis || !prodEngine) {
       showToast('error', 'Chassis and engine numbers are required');
       return;
@@ -380,7 +389,7 @@ export const InventoryPage: React.FC = () => {
             <ArrowRightLeft size={16} /> New Transfer
           </button>
           <button
-            onClick={() => setShowProductionModal(true)}
+            onClick={() => canManageWarehouses && setShowProductionModal(true)}
             style={{
               padding: '0.6rem 1rem',
               display: 'flex',
@@ -758,6 +767,7 @@ export const InventoryPage: React.FC = () => {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ fontSize: '1rem', fontWeight: 700 }}>Inter-Warehouse Stock Transfers</div>
+            {canManageWarehouses && (
             <button
               onClick={() => setShowTransferModal(true)}
               style={{
@@ -776,6 +786,7 @@ export const InventoryPage: React.FC = () => {
             >
               <Plus size={16} /> Request Transfer
             </button>
+            )}
           </div>
 
           <div
@@ -861,7 +872,7 @@ export const InventoryPage: React.FC = () => {
                           >
                             <Eye size={14} /> Lines
                           </button>
-                          {t.status === 'REQUESTED' && (
+                          {t.status === 'REQUESTED' && canManageWarehouses && (
                             <button
                               disabled={actionLoading}
                               onClick={() => handleApproveTransfer(t.transferId)}
@@ -879,7 +890,7 @@ export const InventoryPage: React.FC = () => {
                               Approve
                             </button>
                           )}
-                          {t.status === 'APPROVED' && (
+                          {t.status === 'APPROVED' && canManageWarehouses && (
                             <button
                               disabled={actionLoading}
                               onClick={() => handleCompleteTransfer(t.transferId)}
@@ -913,6 +924,7 @@ export const InventoryPage: React.FC = () => {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ fontSize: '1rem', fontWeight: 700 }}>Stock Quantity & Condition Adjustments</div>
+            {canManageWarehouses && (
             <button
               onClick={() => setShowAdjustmentModal(true)}
               style={{
@@ -931,6 +943,7 @@ export const InventoryPage: React.FC = () => {
             >
               <Plus size={16} /> New Adjustment
             </button>
+            )}
           </div>
 
           <div
@@ -1061,6 +1074,7 @@ export const InventoryPage: React.FC = () => {
                 Fills SRS gap: directly receives locally assembled three-wheelers/motorcycles into warehouse inventory with auto-activation to AVAILABLE_FOR_SALE
               </div>
             </div>
+            {canManageWarehouses && (
             <button
               onClick={() => setShowProductionModal(true)}
               style={{
@@ -1079,6 +1093,7 @@ export const InventoryPage: React.FC = () => {
             >
               <Plus size={16} /> Record Assembly Receipt
             </button>
+            )}
           </div>
 
           <div

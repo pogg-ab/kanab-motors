@@ -20,8 +20,12 @@ import {
   UnitOfMeasure,
   TaxConfiguration,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const ProductsPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateProduct = can('PRODUCTS_CREATE');
+  const canManageCategories = can('PRODUCTS_CATEGORIES_MANAGE');
   const [items, setItems] = useState<ProductItem[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -104,6 +108,7 @@ export const ProductsPage: React.FC = () => {
   }, [selectedCat, selectedBrand, search]);
 
   const handleOpenCreate = async () => {
+    if (!canCreateProduct) return;
     let currentTaxes = taxConfigs;
     let currentCats = categories;
     let currentBrands = brands;
@@ -146,6 +151,7 @@ export const ProductsPage: React.FC = () => {
 
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateProduct) return;
     setFormError(null);
 
     const price = parseFloat(formData.sellingPrice);
@@ -179,6 +185,7 @@ export const ProductsPage: React.FC = () => {
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCategories) return;
     if (!newCatName.trim()) return;
     try {
       await api.createCategory(newCatName.trim().toUpperCase());
@@ -192,6 +199,7 @@ export const ProductsPage: React.FC = () => {
 
   const handleCreateBrand = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCategories) return;
     if (!newBrandName.trim()) return;
     try {
       await api.createBrand(newBrandName.trim());
@@ -205,6 +213,7 @@ export const ProductsPage: React.FC = () => {
 
   const handleCreateTax = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCategories) return;
     if (!newTaxName.trim()) return;
     try {
       await api.createTaxConfig(newTaxName.trim(), parseFloat(newTaxRate) || 0);
@@ -258,18 +267,24 @@ export const ProductsPage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary" onClick={() => setIsCategoryModalOpen(true)}>
-              + Category
-            </button>
-            <button className="btn btn-secondary" onClick={() => setIsBrandModalOpen(true)}>
-              + Brand
-            </button>
-            <button className="btn btn-secondary" onClick={() => setIsTaxModalOpen(true)}>
-              + Tax Rate
-            </button>
-            <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Plus size={17} /> New Product Item
-            </button>
+            {canManageCategories && (
+              <>
+                <button className="btn btn-secondary" onClick={() => setIsCategoryModalOpen(true)}>
+                  + Category
+                </button>
+                <button className="btn btn-secondary" onClick={() => setIsBrandModalOpen(true)}>
+                  + Brand
+                </button>
+                <button className="btn btn-secondary" onClick={() => setIsTaxModalOpen(true)}>
+                  + Tax Rate
+                </button>
+              </>
+            )}
+            {canCreateProduct && (
+              <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plus size={17} /> New Product Item
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -20,8 +20,12 @@ import {
   StatementOfAccount,
   LedgerTransaction,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const StatementOfAccountPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canAdjustLedger = can('LEDGER_ADJUST');
+  const canExportLedger = can('LEDGER_EXPORT');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [statement, setStatement] = useState<StatementOfAccount | null>(null);
@@ -87,6 +91,7 @@ export const StatementOfAccountPage: React.FC = () => {
 
   const handlePostAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAdjustLedger) return;
     setAdjError(null);
     const amt = parseFloat(adjForm.amount);
     if (isNaN(amt) || amt <= 0) {
@@ -117,6 +122,7 @@ export const StatementOfAccountPage: React.FC = () => {
   };
 
   const handleExportCsv = () => {
+    if (!canExportLedger) return;
     if (!statement || !statement.transactions) return;
     const customer = customers.find((c) => c.customerId === selectedCustomerId);
 
@@ -262,15 +268,19 @@ export const StatementOfAccountPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <button className="btn btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Download size={15} /> Export CSV
-          </button>
+          {canExportLedger && (
+            <button className="btn btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Download size={15} /> Export CSV
+            </button>
+          )}
           <button className="btn btn-secondary" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Printer size={15} /> Print SOA
           </button>
-          <button className="btn btn-cyan" onClick={() => setIsAdjOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <PlusCircle size={15} /> Post Ledger Adjustment
-          </button>
+          {canAdjustLedger && (
+            <button className="btn btn-cyan" onClick={() => setIsAdjOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <PlusCircle size={15} /> Post Ledger Adjustment
+            </button>
+          )}
         </div>
       </div>
 

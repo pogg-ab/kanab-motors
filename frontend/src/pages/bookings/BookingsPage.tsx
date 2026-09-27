@@ -18,8 +18,13 @@ import {
   Customer,
   ProductItem,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const BookingsPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateBooking = can('BOOKINGS_CREATE');
+  const canTransferFunds = can('BOOKINGS_TRANSFER_FUNDS');
+  const canCancelBooking = can('BOOKINGS_CANCEL');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -134,6 +139,7 @@ export const BookingsPage: React.FC = () => {
 
   const handleCreateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateBooking) return;
     if (!newBooking.customerId || !newBooking.itemId) {
       showToast('error', 'Customer and Vehicle Item are required');
       return;
@@ -170,6 +176,7 @@ export const BookingsPage: React.FC = () => {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canTransferFunds) return;
     if (!selectedBooking) return;
     if (!transferData.destinationBookingId || transferData.amount <= 0) {
       showToast('error', 'Please specify a destination booking and valid transfer amount');
@@ -196,6 +203,7 @@ export const BookingsPage: React.FC = () => {
 
   const handleCancel = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCancelBooking) return;
     if (!selectedBooking) return;
     setSaving(true);
     try {
@@ -252,10 +260,12 @@ export const BookingsPage: React.FC = () => {
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
             Refresh
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Plus size={16} />
-            Create Booking
-          </button>
+          {canCreateBooking && (
+            <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Plus size={16} />
+              Create Booking
+            </button>
+          )}
         </div>
       </div>
 

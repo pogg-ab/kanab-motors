@@ -113,7 +113,9 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div style={{
+      height: '100vh',
       minHeight: '100vh',
+      overflowY: 'auto',
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',

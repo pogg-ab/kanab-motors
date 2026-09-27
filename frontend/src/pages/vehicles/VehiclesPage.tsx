@@ -20,8 +20,14 @@ import {
   ProductItem,
   Warehouse,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const VehiclesPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateVehicle = can('VEHICLES_CREATE');
+  const canBulkImportVehicles = can('VEHICLES_BULK_IMPORT');
+  const canUpdateVehicleStatus = can('VEHICLES_STATUS_UPDATE');
+  const canManageWarehouses = can('WAREHOUSES_MANAGE');
   const [vehicles, setVehicles] = useState<VehicleUnit[]>([]);
   const [items, setItems] = useState<ProductItem[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -112,6 +118,7 @@ export const VehiclesPage: React.FC = () => {
   }, [selectedStatus, selectedWarehouse, selectedItem, search]);
 
   const handleOpenSingle = async () => {
+    if (!canCreateVehicle) return;
     try {
       const [itms, whs] = await Promise.all([
         api.getItems({ limit: 100 }),
@@ -135,6 +142,7 @@ export const VehiclesPage: React.FC = () => {
 
   const handleCreateWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageWarehouses) return;
     if (!newWarehouseName.trim()) return;
     setCreatingWarehouse(true);
     try {
@@ -162,6 +170,7 @@ export const VehiclesPage: React.FC = () => {
 
   const handleCreateSingle = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateVehicle) return;
     setSingleError(null);
     setSubmittingSingle(true);
 
@@ -183,6 +192,7 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const handleOpenBulk = async () => {
+    if (!canBulkImportVehicles) return;
     try {
       const [itms, whs] = await Promise.all([
         api.getItems({ limit: 100 }),
@@ -201,6 +211,7 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const handleExecuteBulkImport = async () => {
+    if (!canBulkImportVehicles) return;
     setBulkError(null);
     if (!bulkItemId) {
       setBulkError('Please select a Target Product Model.');
@@ -246,6 +257,7 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const handleOpenStatusModal = (unit: VehicleUnit) => {
+    if (!canUpdateVehicleStatus) return;
     setStatusModalUnit(unit);
     setNewStatus(unit.currentStatus);
     setNewWarehouseId(unit.currentWarehouseId ? unit.currentWarehouseId.toString() : '');
@@ -253,6 +265,7 @@ export const VehiclesPage: React.FC = () => {
 
   const handleUpdateStatus = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canUpdateVehicleStatus) return;
     if (!statusModalUnit) return;
     try {
       await api.updateVehicleStatus(
@@ -310,15 +323,21 @@ export const VehiclesPage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {canManageWarehouses && (
             <button className="btn btn-secondary" onClick={() => setIsWarehouseModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <WarehouseIcon size={16} color="var(--accent-cyan)" /> + Warehouse
             </button>
+            )}
+            {canBulkImportVehicles && (
             <button className="btn btn-secondary" onClick={handleOpenBulk} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <FileSpreadsheet size={16} color="var(--accent-emerald)" /> Bulk Import CSV
             </button>
+            )}
+            {canCreateVehicle && (
             <button className="btn btn-cyan" onClick={handleOpenSingle} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Plus size={17} /> Register Unit
             </button>
+            )}
           </div>
         </div>
       </div>
@@ -527,6 +546,7 @@ export const VehiclesPage: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                      {canUpdateVehicleStatus && (
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => handleOpenStatusModal(v)}
@@ -534,6 +554,7 @@ export const VehiclesPage: React.FC = () => {
                       >
                         <Edit2 size={13} /> Update Status
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))

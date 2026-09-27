@@ -15,8 +15,12 @@ import {
   UserX,
 } from 'lucide-react';
 import { api, Supplier } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 export const SuppliersPage: React.FC = () => {
+  const { hasPermission } = useAuth();
+  const canCreateSupplier = hasPermission('SUPPLIERS_CREATE');
+  const canEditSupplier = hasPermission('SUPPLIERS_EDIT');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -151,18 +155,20 @@ export const SuppliersPage: React.FC = () => {
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
             Refresh
           </button>
-          <button
-            onClick={() => {
-              setEditingSupplier(null);
-              setFormData({ supplierName: '', country: 'China', contactPerson: '', phone: '', email: '', address: '' });
-              setShowCreateModal(true);
-            }}
-            className="btn btn-cyan"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <Plus size={16} />
-            Register Supplier
-          </button>
+          {canCreateSupplier && (
+            <button
+              onClick={() => {
+                setEditingSupplier(null);
+                setFormData({ supplierName: '', country: 'China', contactPerson: '', phone: '', email: '', address: '' });
+                setShowCreateModal(true);
+              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Plus size={16} />
+              Register Supplier
+            </button>
+          )}
         </div>
       </div>
 
@@ -346,33 +352,37 @@ export const SuppliersPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => {
-                            setEditingSupplier(s);
-                            setFormData({
-                              supplierName: s.supplierName,
-                              country: s.country || '',
-                              contactPerson: s.contactPerson || '',
-                              phone: s.phone || '',
-                              email: s.email || '',
-                              address: s.address || '',
-                            });
-                            setShowCreateModal(true);
-                          }}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
-                          title="Edit Supplier"
-                        >
-                          <Edit2 size={13} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(s)}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
-                          title={s.isActive ? 'Deactivate' : 'Activate'}
-                        >
-                          {s.isActive ? <UserX size={13} color="var(--accent-rose)" /> : <UserCheck size={13} color="var(--accent-emerald)" />}
-                        </button>
+                        {canEditSupplier && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingSupplier(s);
+                                setFormData({
+                                  supplierName: s.supplierName,
+                                  country: s.country || '',
+                                  contactPerson: s.contactPerson || '',
+                                  phone: s.phone || '',
+                                  email: s.email || '',
+                                  address: s.address || '',
+                                });
+                                setShowCreateModal(true);
+                              }}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                              title="Edit Supplier"
+                            >
+                              <Edit2 size={13} /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(s)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                              title={s.isActive ? 'Deactivate' : 'Activate'}
+                            >
+                              {s.isActive ? <UserX size={13} color="var(--accent-rose)" /> : <UserCheck size={13} color="var(--accent-emerald)" />}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

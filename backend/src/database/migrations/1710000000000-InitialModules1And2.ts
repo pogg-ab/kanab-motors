@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialModules1And2171000000000 implements MigrationInterface {
-  name = 'InitialModules1And2171000000000';
+export class InitialModules1And2_1710000000000 implements MigrationInterface {
+  name = 'InitialModules1And2_1710000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Roles & Users stubs

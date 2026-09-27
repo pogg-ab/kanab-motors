@@ -33,6 +33,7 @@ import {
   ExchangeRateDefault,
   Attachment,
 } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 interface ShipmentDetailPageProps {
   shipmentId: string;
@@ -52,6 +53,12 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   shipmentId,
   onBack,
 }) => {
+  const { hasPermission } = useAuth();
+  const canUpdateStage = hasPermission('SHIPMENTS_UPDATE_STAGE');
+  const canAddCost = hasPermission('LANDED_COST_ADD_EXPENSE');
+  const canAllocateCost = hasPermission('LANDED_COST_ALLOCATE');
+  const canUploadShipmentDocs = hasPermission('SHIPMENTS_DOCS_UPLOAD');
+  const canReceiveStock = hasPermission('SHIPMENTS_RECEIVE_STOCK');
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [costTypes, setCostTypes] = useState<CostComponentType[]>([]);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
@@ -134,6 +141,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   };
 
   const handleAdvanceStage = async (targetStage: ShipmentStage) => {
+    if (!canUpdateStage) {
+      showToast('error', 'You do not have permission to update shipment stages');
+      return;
+    }
     setSaving(true);
     try {
       await api.updateShipmentStage(shipmentId, targetStage);
@@ -158,6 +169,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleAddCost = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddCost) {
+      showToast('error', 'You do not have permission to add landed cost expenses');
+      setShowCostModal(false);
+      return;
+    }
     if (shipment?.currentStage === 'RECEIVED') {
       showToast('error', 'Cannot add cost components after a shipment is received');
       setShowCostModal(false);
@@ -194,6 +210,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   };
 
   const handleRemoveCost = async (costId: string) => {
+    if (!canAddCost) {
+      showToast('error', 'You do not have permission to remove landed cost expenses');
+      return;
+    }
     if (shipment?.currentStage === 'RECEIVED') {
       showToast('error', 'Cannot remove cost components after a shipment is received');
       return;
@@ -208,6 +228,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   };
 
   const handleRunAllocation = async () => {
+    if (!canAllocateCost) {
+      showToast('error', 'You do not have permission to allocate landed costs');
+      return;
+    }
     setSaving(true);
     try {
       const report = await api.allocateLandedCost(shipmentId, selectedMethod);
@@ -223,6 +247,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleReceiveCargo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canReceiveStock) {
+      showToast('error', 'You do not have permission to receive shipment stock');
+      setShowReceiptModal(false);
+      return;
+    }
     if (!selectedLineForReceipt) return;
     setSaving(true);
     try {
@@ -357,7 +386,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         </div>
 
         {/* Advance Stage Button */}
-        {nextStage && (
+        {nextStage && canUpdateStage && (
           <button
             onClick={() => handleAdvanceStage(nextStage)}
             disabled={saving}
@@ -585,7 +614,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               <span className="badge badge-emerald" style={{ padding: '0.45rem 0.95rem' }}>
                 Costs Locked After Receipt
               </span>
-            ) : (
+            ) : canAddCost ? (
               <button
                 onClick={() => setShowCostModal(true)}
                 className="btn btn-cyan"
@@ -593,6 +622,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               >
                 <Plus size={15} /> Add Cost Component
               </button>
+            ) : (
+              <span className="badge badge-subtle" style={{ padding: '0.45rem 0.95rem' }}>
+                Cost Entry Restricted
+              </span>
             )}
           </div>
 
@@ -631,7 +664,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
                         {costsLocked ? (
                           <span className="badge badge-emerald">Locked</span>
-                        ) : (
+                        ) : canAddCost ? (
                           <button
                             onClick={() => handleRemoveCost(c.costComponentId)}
                             className="btn btn-secondary"
@@ -640,6 +673,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                           >
                             <Trash2 size={13} />
                           </button>
+                        ) : (
+                          <span className="badge badge-subtle">Restricted</span>
                         )}
                       </td>
                     </tr>
@@ -818,22 +853,29 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               </div>
 
               {/* Action Button */}
-              <button
-                onClick={handleRunAllocation}
-                disabled={saving || displayGrandTotalEtb <= 0 || allocationLocked}
-                className={allocationLocked ? 'btn btn-secondary' : 'btn btn-cyan'}
-                style={{
-                  width: '100%',
-                  marginTop: '1.25rem',
-                  padding: '0.65rem',
-                  opacity: allocationLocked ? 0.72 : 1,
-                  cursor: allocationLocked ? 'not-allowed' : 'pointer',
-                }}
-                title={allocationButtonTitle}
-              >
-                {allocationLocked ? <CheckCircle2 size={16} /> : <Zap size={16} />}
-                <span>{allocationButtonLabel}</span>
-              </button>
+              {canAllocateCost ? (
+                <button
+                  onClick={handleRunAllocation}
+                  disabled={saving || displayGrandTotalEtb <= 0 || allocationLocked}
+                  className={allocationLocked ? 'btn btn-secondary' : 'btn btn-cyan'}
+                  style={{
+                    width: '100%',
+                    marginTop: '1.25rem',
+                    padding: '0.65rem',
+                    opacity: allocationLocked ? 0.72 : 1,
+                    cursor: allocationLocked ? 'not-allowed' : 'pointer',
+                  }}
+                  title={allocationButtonTitle}
+                >
+                  {allocationLocked ? <CheckCircle2 size={16} /> : <Zap size={16} />}
+                  <span>{allocationButtonLabel}</span>
+                </button>
+              ) : (
+                <div className="btn btn-secondary" style={{ width: '100%', marginTop: '1.25rem', padding: '0.65rem', justifyContent: 'center', opacity: 0.72 }}>
+                  <ShieldAlert size={16} />
+                  <span>Landed Cost Allocation Restricted</span>
+                </div>
+              )}
 
               <div
                 style={{
@@ -1120,6 +1162,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     id={`file-${doc.type}`}
                     style={{ display: 'none' }}
                     onChange={async (e) => {
+                      if (!canUploadShipmentDocs) {
+                        showToast('error', 'You do not have permission to upload shipment documents');
+                        e.target.value = '';
+                        return;
+                      }
                       if (e.target.files && e.target.files[0]) {
                         try {
                           const uploaded = await api.uploadShipmentDoc(shipmentId, e.target.files[0], doc.type);
@@ -1136,14 +1183,16 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       }
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById(`file-${doc.type}`)?.click()}
-                    className="btn btn-secondary"
-                    style={{ width: '100%', fontSize: '0.76rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
-                  >
-                    <Upload size={13} /> {uploadedDoc ? `Replace ${doc.label}` : `Upload ${doc.label}`}
-                  </button>
+                  {canUploadShipmentDocs && (
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById(`file-${doc.type}`)?.click()}
+                      className="btn btn-secondary"
+                      style={{ width: '100%', fontSize: '0.76rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                    >
+                      <Upload size={13} /> {uploadedDoc ? `Replace ${doc.label}` : `Upload ${doc.label}`}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -1191,7 +1240,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       {remaining}
                     </td>
                     <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                      {remaining > 0 ? (
+                      {remaining > 0 && canReceiveStock ? (
                         <button
                           onClick={() => {
                             setSelectedLineForReceipt(line);
@@ -1203,6 +1252,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                         >
                           Receive Batch
                         </button>
+                      ) : remaining > 0 ? (
+                        <span className="badge badge-subtle" style={{ fontSize: '0.7rem' }}>
+                          Restricted
+                        </span>
                       ) : (
                         <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
                           Fully Received

@@ -20,8 +20,11 @@ import {
   EligibleBooking,
   VehicleUnit,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const AllotmentPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canAllocateBookings = can('BOOKINGS_ALLOCATE');
   const [activeTab, setActiveTab] = useState<'allotments' | 'queue'>('allotments');
   const [allotments, setAllotments] = useState<Allotment[]>([]);
   const [eligibleBookings, setEligibleBookings] = useState<EligibleBooking[]>([]);
@@ -93,6 +96,7 @@ export const AllotmentPage: React.FC = () => {
   }, [selectedBookingId, eligibleBookings]);
 
   const handleOpenCreateModal = (presetBookingId?: string) => {
+    if (!canAllocateBookings) return;
     setSelectedBookingId(presetBookingId || (eligibleBookings.length > 0 ? eligibleBookings[0].bookingId : ''));
     setSelectedUnitIds([]);
     setAllotmentNotes('');
@@ -113,6 +117,7 @@ export const AllotmentPage: React.FC = () => {
 
   const handleCreateAllotment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAllocateBookings) return;
     if (!selectedBookingId || selectedUnitIds.length === 0) {
       showToast('error', 'Please select a booking and at least one vehicle unit to allot');
       return;
@@ -139,6 +144,7 @@ export const AllotmentPage: React.FC = () => {
   };
 
   const handleApproveAllotment = async (id: string) => {
+    if (!canAllocateBookings) return;
     setActioningId(id);
     try {
       const updated = await api.approveAllotment(id);
@@ -153,6 +159,7 @@ export const AllotmentPage: React.FC = () => {
 
   const handleRejectAllotment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAllocateBookings) return;
     if (!targetAllotment || !rejectionReason.trim()) return;
 
     setSaving(true);
@@ -171,6 +178,7 @@ export const AllotmentPage: React.FC = () => {
   };
 
   const handleReverseAllotment = async () => {
+    if (!canAllocateBookings) return;
     if (!targetAllotment) return;
 
     setSaving(true);
@@ -243,6 +251,7 @@ export const AllotmentPage: React.FC = () => {
               <RefreshCw size={15} className={loading ? 'spin' : ''} />
               Refresh
             </button>
+            {canAllocateBookings && (
             <button
               onClick={() => handleOpenCreateModal()}
               className="btn btn-cyan"
@@ -252,6 +261,7 @@ export const AllotmentPage: React.FC = () => {
               <Plus size={16} />
               New Allotment Request
             </button>
+            )}
           </div>
         </div>
       </div>

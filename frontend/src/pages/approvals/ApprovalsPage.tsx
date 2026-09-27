@@ -20,8 +20,11 @@ import {
   ApprovalPolicy,
   WorkflowType,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const ApprovalsPage: React.FC = () => {
+  const { any } = usePermissions();
+  const canRecordDecision = any(['ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM']);
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [policies, setPolicies] = useState<ApprovalPolicy[]>([]);
   const [workflowTypes, setWorkflowTypes] = useState<WorkflowType[]>([]);
@@ -62,6 +65,7 @@ export const ApprovalsPage: React.FC = () => {
   };
 
   const handleDecisionSubmit = async () => {
+    if (!canRecordDecision) return;
     if (!selectedRequest || !decisionModalMode || decisionModalMode === 'AUDIT') return;
 
     try {
@@ -438,7 +442,7 @@ export const ApprovalsPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                        {req.status === 'PENDING' ? (
+                        {req.status === 'PENDING' && canRecordDecision ? (
                           <>
                             <button
                               onClick={() => {
@@ -671,7 +675,7 @@ export const ApprovalsPage: React.FC = () => {
                 Close
               </button>
 
-              {decisionModalMode !== 'AUDIT' && (
+              {decisionModalMode !== 'AUDIT' && canRecordDecision && (
                 <button
                   type="button"
                   onClick={handleDecisionSubmit}

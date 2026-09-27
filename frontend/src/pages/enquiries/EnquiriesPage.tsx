@@ -21,8 +21,14 @@ import {
   Customer,
   ProductItem,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const EnquiriesPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateEnquiry = can('ENQUIRIES_CREATE');
+  const canApproveEnquiry = can('ENQUIRIES_APPROVE');
+  const canRejectEnquiry = can('ENQUIRIES_REJECT');
+  const canCreateBooking = can('BOOKINGS_CREATE');
   const [enquiries, setEnquiries] = useState<SalesEnquiry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [items, setItems] = useState<ProductItem[]>([]);
@@ -113,6 +119,7 @@ export const EnquiriesPage: React.FC = () => {
   }, [selectedStatus, search]);
 
   const handleOpenCreate = () => {
+    if (!canCreateEnquiry) return;
     const defaultItem = items[0];
     setFormData({
       customerId: customers[0]?.customerId || '',
@@ -146,6 +153,7 @@ export const EnquiriesPage: React.FC = () => {
 
   const handleCreateEnquiry = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateEnquiry) return;
     setFormError(null);
     if (!formData.customerId || !formData.itemId) {
       setFormError('Please select both a Customer and a Product Model');
@@ -172,6 +180,7 @@ export const EnquiriesPage: React.FC = () => {
   };
 
   const handleApprove = async (enquiryId: string) => {
+    if (!canApproveEnquiry) return;
     try {
       await api.updateEnquiryStatus(enquiryId, 'APPROVED');
       fetchEnquiries();
@@ -181,6 +190,7 @@ export const EnquiriesPage: React.FC = () => {
   };
 
   const handleConfirmConvert = async () => {
+    if (!canCreateBooking) return;
     if (!convertTarget) return;
     setConverting(true);
     setConvertError(null);
@@ -201,6 +211,7 @@ export const EnquiriesPage: React.FC = () => {
 
   const handleConfirmReject = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRejectEnquiry) return;
     if (!rejectTarget) return;
     if (!rejectReason.trim() || rejectReason.trim().length < 5) {
       setRejectError('Please enter a detailed rejection reason (minimum 5 characters)');
@@ -250,9 +261,11 @@ export const EnquiriesPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Plus size={16} /> New Sales Enquiry
-        </button>
+        {canCreateEnquiry && (
+          <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Plus size={16} /> New Sales Enquiry
+          </button>
+        )}
       </div>
 
       {/* Metrics Cards */}
@@ -451,29 +464,33 @@ export const EnquiriesPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                        {enq.status === 'SUBMITTED' && (
+                        {enq.status === 'SUBMITTED' && (canApproveEnquiry || canRejectEnquiry) && (
                           <>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
-                              onClick={() => handleApprove(enq.enquiryId)}
-                            >
-                              <CheckCircle2 size={13} /> Approve
-                            </button>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.4)' }}
-                              onClick={() => {
-                                setRejectTarget(enq);
-                                setRejectReason('');
-                                setRejectError(null);
-                              }}
-                            >
-                              <XCircle size={13} /> Reject
-                            </button>
+                            {canApproveEnquiry && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
+                                onClick={() => handleApprove(enq.enquiryId)}
+                              >
+                                <CheckCircle2 size={13} /> Approve
+                              </button>
+                            )}
+                            {canRejectEnquiry && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.4)' }}
+                                onClick={() => {
+                                  setRejectTarget(enq);
+                                  setRejectReason('');
+                                  setRejectError(null);
+                                }}
+                              >
+                                <XCircle size={13} /> Reject
+                              </button>
+                            )}
                           </>
                         )}
-                        {enq.status === 'APPROVED' && (
+                        {enq.status === 'APPROVED' && canCreateBooking && (
                           <button
                             className="btn btn-cyan btn-sm"
                             onClick={() => {

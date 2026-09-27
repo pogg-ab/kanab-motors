@@ -16,12 +16,14 @@ import { BulkImportVehicleDto } from './dto/bulk-import-vehicle.dto';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import { UpdateVehicleStatusDto } from './dto/update-vehicle-status.dto';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Vehicle Units & Chassis Tracking (Module 2)')
 @Controller('vehicles')
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
 
+  @RequirePermissions('VEHICLES_CREATE')
   @Post()
   @ApiOperation({ summary: 'Register a single Vehicle Unit (Chassis & Engine)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -29,18 +31,21 @@ export class VehiclesController {
     return this.vehiclesService.create(dto);
   }
 
+  @RequirePermissions('VEHICLES_VIEW')
   @Get()
   @ApiOperation({ summary: 'List and filter vehicle units by chassis, status, warehouse' })
   findAll(@Query() query: VehicleQueryDto) {
     return this.vehiclesService.findAll(query);
   }
 
+  @RequirePermissions('VEHICLES_VIEW')
   @Get(':id')
   @ApiOperation({ summary: 'Get single vehicle unit details' })
   findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.vehiclesService.findOne(id);
   }
 
+  @RequirePermissions('VEHICLES_STATUS_UPDATE')
   @Patch(':id/status')
   @ApiOperation({ summary: 'Admin manual status override or warehouse move' })
   updateStatus(
@@ -50,6 +55,7 @@ export class VehiclesController {
     return this.vehiclesService.updateStatus(id, body.status, body.warehouseId);
   }
 
+  @RequirePermissions('VEHICLES_BULK_IMPORT')
   @Post('bulk-import')
   @ApiOperation({ summary: 'Bulk import vehicle units via batch list (CSV payload)' })
   bulkImport(@Body() dto: BulkImportVehicleDto) {

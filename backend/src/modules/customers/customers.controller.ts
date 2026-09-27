@@ -23,6 +23,7 @@ import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 const uploadsDir = path.resolve(process.cwd(), 'uploads/documents');
 if (!fs.existsSync(uploadsDir)) {
@@ -34,6 +35,7 @@ if (!fs.existsSync(uploadsDir)) {
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
+  @RequirePermissions('CUSTOMERS_CREATE')
   @Post()
   @ApiOperation({ summary: 'Register a new Customer or Dealer' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -41,18 +43,21 @@ export class CustomersController {
     return this.customersService.create(dto);
   }
 
+  @RequirePermissions('CUSTOMERS_VIEW')
   @Get()
   @ApiOperation({ summary: 'List and search customers with pagination & filters' })
   findAll(@Query() query: CustomerQueryDto) {
     return this.customersService.findAll(query);
   }
 
+  @RequirePermissions('CUSTOMERS_VIEW')
   @Get(':id')
   @ApiOperation({ summary: 'Get customer detail by ID (includes banking & account summary)' })
   findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.customersService.findOne(id);
   }
 
+  @RequirePermissions('CUSTOMERS_EDIT')
   @Put(':id')
   @ApiOperation({ summary: 'Update customer profile (audited)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -60,18 +65,21 @@ export class CustomersController {
     return this.customersService.update(id, dto);
   }
 
+  @RequirePermissions('CUSTOMERS_VIEW')
   @Get(':id/account-summary')
   @ApiOperation({ summary: 'Get Customer Account Summary shell (SRS 1.9 & 1.10 zero-state)' })
   getAccountSummary(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.customersService.getAccountSummary(id);
   }
 
+  @RequirePermissions('CUSTOMERS_BANK_MANAGE')
   @Post(':id/bank-accounts')
   @ApiOperation({ summary: 'Add bank account for refund/settlement payouts' })
   addBankAccount(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: CreateBankAccountDto) {
     return this.customersService.addBankAccount(id, dto);
   }
 
+  @RequirePermissions('CUSTOMERS_BANK_MANAGE')
   @Delete(':id/bank-accounts/:accountId')
   @ApiOperation({ summary: 'Remove bank account' })
   deleteBankAccount(
@@ -81,6 +89,7 @@ export class CustomersController {
     return this.customersService.deleteBankAccount(id, accountId);
   }
 
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD')
   @Post(':id/documents')
   @ApiOperation({ summary: 'Upload supporting document (ID, TIN certificate, license)' })
   @ApiConsumes('multipart/form-data')
@@ -108,6 +117,7 @@ export class CustomersController {
     });
   }
 
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD')
   @Delete(':id/documents/:docId')
   @ApiOperation({ summary: 'Delete customer supporting document' })
   deleteDocument(

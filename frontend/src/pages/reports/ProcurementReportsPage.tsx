@@ -18,8 +18,11 @@ import {
   Sliders,
 } from 'lucide-react';
 import { api, ExchangeRateDefault } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const ProcurementReportsPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canManageExchangeRates = can('EXCHANGE_RATES_MANAGE');
   const [activeTab, setActiveTab] = useState<'pipeline' | 'po_status' | 'exchange_rates'>('pipeline');
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [poData, setPoData] = useState<any>(null);
@@ -61,7 +64,7 @@ export const ProcurementReportsPage: React.FC = () => {
   };
 
   const handleUpdateExchangeRate = async () => {
-    if (!editingRate) return;
+    if (!canManageExchangeRates || !editingRate) return;
     setUpdatingRate(true);
     try {
       await api.updateExchangeRate(editingRate.currency, editingRate.rate);
@@ -655,7 +658,7 @@ export const ProcurementReportsPage: React.FC = () => {
                         Cancel
                       </button>
                     </div>
-                  ) : (
+                  ) : canManageExchangeRates ? (
                     <button
                       onClick={() => setEditingRate({ currency: rate.currency, rate: Number(rate.rateToEtb) })}
                       className="btn btn-secondary"
@@ -663,7 +666,7 @@ export const ProcurementReportsPage: React.FC = () => {
                     >
                       Update Default Rate
                     </button>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -673,3 +676,4 @@ export const ProcurementReportsPage: React.FC = () => {
     </div>
   );
 };
+

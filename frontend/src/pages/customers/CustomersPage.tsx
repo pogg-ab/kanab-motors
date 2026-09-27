@@ -30,8 +30,14 @@ import {
   CustomerAccountSummary,
   Attachment,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const CustomersPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateCustomer = can('CUSTOMERS_CREATE');
+  const canEditCustomer = can('CUSTOMERS_EDIT');
+  const canManageBank = can('CUSTOMERS_BANK_MANAGE');
+  const canUploadDocs = can('CUSTOMERS_DOCS_UPLOAD');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,6 +140,7 @@ export const CustomersPage: React.FC = () => {
   }, [selectedType, selectedRegion, search]);
 
   const handleOpenCreate = () => {
+    if (!canCreateCustomer) return;
     setFormData({
       customerType: 'DIRECT_POS',
       fullName: '',
@@ -176,6 +183,7 @@ export const CustomersPage: React.FC = () => {
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateCustomer) return;
     setFormError(null);
 
     // Conditional Validation Rule Check
@@ -226,6 +234,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleOpenEdit = (cust: Customer) => {
+    if (!canEditCustomer) return;
     setEditingCustomer(cust);
     setEditFormData({
       customerType: cust.customerType,
@@ -241,6 +250,7 @@ export const CustomersPage: React.FC = () => {
 
   const handleUpdateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditCustomer) return;
     if (!editingCustomer) return;
     setEditError(null);
 
@@ -288,6 +298,7 @@ export const CustomersPage: React.FC = () => {
 
   const handleAddBankToExisting = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageBank) return;
     if (!selectedCustomer) return;
     try {
       await api.addBankAccount(selectedCustomer.customerId, newBankForm);
@@ -300,6 +311,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleDeleteBankAccount = async (bankAccountId: string) => {
+    if (!canManageBank) return;
     if (!selectedCustomer || !window.confirm('Delete this bank account?')) return;
     try {
       await api.deleteBankAccount(selectedCustomer.customerId, bankAccountId);
@@ -311,6 +323,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleUploadDocument = async () => {
+    if (!canUploadDocs) return;
     if (!selectedCustomer || !uploadFile) return;
     setUploading(true);
     try {
@@ -326,6 +339,7 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleDeleteDocument = async (docId: string) => {
+    if (!canUploadDocs) return;
     if (!selectedCustomer || !window.confirm('Delete this document?')) return;
     try {
       await api.deleteCustomerDoc(selectedCustomer.customerId, docId);
@@ -376,9 +390,11 @@ export const CustomersPage: React.FC = () => {
             </div>
           </div>
 
-          <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <UserPlus size={17} /> Register Customer / Dealer
-          </button>
+          {canCreateCustomer && (
+            <button className="btn btn-cyan" onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <UserPlus size={17} /> Register Customer / Dealer
+            </button>
+          )}
         </div>
       </div>
 
@@ -584,14 +600,16 @@ export const CustomersPage: React.FC = () => {
                     <td style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{c.region?.regionName || '—'}</td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleOpenEdit(c)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.4rem 0.65rem' }}
-                          title="Edit Customer Profile"
-                        >
-                          <Edit3 size={13} /> Edit
-                        </button>
+                        {canEditCustomer && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleOpenEdit(c)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.4rem 0.65rem' }}
+                            title="Edit Customer Profile"
+                          >
+                            <Edit3 size={13} /> Edit
+                          </button>
+                        )}
                         <button
                           className="btn btn-secondary btn-sm"
                           onClick={() => handleViewCustomer(c)}
@@ -1297,12 +1315,14 @@ export const CustomersPage: React.FC = () => {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               {b.isPrimary && <span className="badge badge-emerald">Primary</span>}
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => handleDeleteBankAccount(b.bankAccountId)}
-                              >
-                                <Trash2 size={14} color="var(--accent-rose)" />
-                              </button>
+                              {canManageBank && (
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleDeleteBankAccount(b.bankAccountId)}
+                                >
+                                  <Trash2 size={14} color="var(--accent-rose)" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1315,7 +1335,7 @@ export const CustomersPage: React.FC = () => {
                   </div>
 
                   {/* Add New Bank Account */}
-                  <form onSubmit={handleAddBankToExisting} className="glass-panel" style={{ padding: '1.25rem' }}>
+                  {canManageBank && <form onSubmit={handleAddBankToExisting} className="glass-panel" style={{ padding: '1.25rem' }}>
                     <h5 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem' }}>
                       + Add New Bank Account
                     </h5>
@@ -1355,14 +1375,14 @@ export const CustomersPage: React.FC = () => {
                         Add
                       </button>
                     </div>
-                  </form>
+                  </form>}
                 </div>
               )}
 
               {/* TAB 4: DOCUMENTS (Story 1.8) */}
               {activeDetailTab === 'documents' && (
                 <div>
-                  <div style={{
+                  {canUploadDocs && <div style={{
                     padding: '1.5rem',
                     border: '2px dashed var(--border-color)',
                     borderRadius: 'var(--radius-lg)',
@@ -1402,7 +1422,7 @@ export const CustomersPage: React.FC = () => {
                         </button>
                       )}
                     </div>
-                  </div>
+                  </div>}
 
                   {/* List of uploaded documents */}
                   <div>
@@ -1466,14 +1486,16 @@ export const CustomersPage: React.FC = () => {
                               >
                                 <ExternalLink size={13} />
                               </a>
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => handleDeleteDocument(doc.attachmentId)}
-                                title="Delete Document"
-                              >
-                                <Trash2 size={14} color="var(--accent-rose)" />
-                              </button>
+                              {canUploadDocs && (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleDeleteDocument(doc.attachmentId)}
+                                  title="Delete Document"
+                                >
+                                  <Trash2 size={14} color="var(--accent-rose)" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}

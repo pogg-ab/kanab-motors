@@ -16,6 +16,7 @@ import { PurchaseOrderLine } from '../purchase-orders/entities/purchase-order-li
 import { ShipmentsService } from './services/shipments.service';
 import { LandedCostAllocationService } from './services/landed-cost-allocation.service';
 import { ShipmentsController } from './shipments.controller';
+import { PermissionGuard } from '../../common/guards/permission.guard';
 
 @Module({
   imports: [
@@ -35,7 +36,7 @@ import { ShipmentsController } from './shipments.controller';
       PurchaseOrderLine,
     ]),
   ],
-  providers: [ShipmentsService, LandedCostAllocationService],
+  providers: [ShipmentsService, LandedCostAllocationService, PermissionGuard],
   controllers: [ShipmentsController],
   exports: [ShipmentsService, LandedCostAllocationService],
 })

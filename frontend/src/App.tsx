@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/auth/LoginPage';
@@ -27,14 +27,25 @@ import { DocumentsPage } from './pages/documents/DocumentsPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ReportsHubPage } from './pages/reports/ReportsHubPage';
+import { canAccessTab, getFirstAuthorizedTab } from './authz/permissions';
 
 function MainAppContent() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<string>(() => {
     return localStorage.getItem('kanab_active_tab') || 'dashboard';
   });
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
+  const fallbackTab = getFirstAuthorizedTab(hasPermission);
+  const canAccessActiveTab = canAccessTab(activeTab, hasPermission);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated && !canAccessActiveTab) {
+      setActiveTab(fallbackTab);
+      localStorage.setItem('kanab_active_tab', fallbackTab);
+      setSelectedShipmentId(null);
+    }
+  }, [activeTab, canAccessActiveTab, fallbackTab, isAuthenticated, loading]);
 
   if (loading) {
     return (
@@ -70,6 +81,9 @@ function MainAppContent() {
   }
 
   const handleTabChange = (tab: string) => {
+    if (!canAccessTab(tab, hasPermission)) {
+      return;
+    }
     setActiveTab(tab);
     localStorage.setItem('kanab_active_tab', tab);
     setIsMobileNavOpen(false);
@@ -132,7 +146,7 @@ function MainAppContent() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
+    <div style={{ display: 'flex', height: '100vh', maxHeight: '100vh', width: '100%', overflow: 'hidden' }}>
       {/* Navigation Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -142,28 +156,28 @@ function MainAppContent() {
       />
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
         <Navbar
           currentModuleTitle={getModuleTitle()}
           onToggleSidebar={() => setIsMobileNavOpen(!isMobileNavOpen)}
         />
 
-        <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-primary)' }}>
+        <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--bg-primary)', overscrollBehavior: 'contain' }}>
           {/* KMSICAMS-7 Pages */}
-          {activeTab === 'dashboard' && <DashboardPage onNavigateTab={(tab) => handleTabChange(tab)} />}
-          {activeTab === 'reports' && <ReportsHubPage />}
+          {canAccessActiveTab && activeTab === 'dashboard' && <DashboardPage onNavigateTab={(tab) => handleTabChange(tab)} />}
+          {canAccessActiveTab && activeTab === 'reports' && <ReportsHubPage />}
 
           {/* KMSICAMS-6 Pages */}
-          {activeTab === 'invoices' && <InvoicesPage />}
-          {activeTab === 'deliveries' && <DeliveriesPage />}
-          {activeTab === 'approvals' && <ApprovalsPage />}
-          {activeTab === 'documents' && <DocumentsPage />}
+          {canAccessActiveTab && activeTab === 'invoices' && <InvoicesPage />}
+          {canAccessActiveTab && activeTab === 'deliveries' && <DeliveriesPage />}
+          {canAccessActiveTab && activeTab === 'approvals' && <ApprovalsPage />}
+          {canAccessActiveTab && activeTab === 'documents' && <DocumentsPage />}
 
           {/* KMSICAMS-4 Pages */}
-          {activeTab === 'inventory' && <InventoryPage />}
+          {canAccessActiveTab && activeTab === 'inventory' && <InventoryPage />}
 
           {/* KMSICAMS-3 Pages */}
-          {activeTab === 'shipments' &&
+          {canAccessActiveTab && activeTab === 'shipments' &&
             (selectedShipmentId ? (
               <ShipmentDetailPage
                 shipmentId={selectedShipmentId}
@@ -172,24 +186,24 @@ function MainAppContent() {
             ) : (
               <ShipmentsPage onSelectShipment={(id) => setSelectedShipmentId(id)} />
             ))}
-          {activeTab === 'purchase-orders' && <PurchaseOrdersPage />}
-          {activeTab === 'suppliers' && <SuppliersPage />}
-          {activeTab === 'procurement-reports' && <ProcurementReportsPage />}
+          {canAccessActiveTab && activeTab === 'purchase-orders' && <PurchaseOrdersPage />}
+          {canAccessActiveTab && activeTab === 'suppliers' && <SuppliersPage />}
+          {canAccessActiveTab && activeTab === 'procurement-reports' && <ProcurementReportsPage />}
 
           {/* KMSICAMS-2 Pages */}
-          {activeTab === 'statement' && <StatementOfAccountPage />}
-          {activeTab === 'enquiries' && <EnquiriesPage />}
-          {activeTab === 'bookings' && <BookingsPage />}
-          {activeTab === 'allotments' && <AllotmentPage />}
-          {activeTab === 'payments' && <PaymentsPage />}
-          {activeTab === 'settlement' && <SettlementPage />}
+          {canAccessActiveTab && activeTab === 'statement' && <StatementOfAccountPage />}
+          {canAccessActiveTab && activeTab === 'enquiries' && <EnquiriesPage />}
+          {canAccessActiveTab && activeTab === 'bookings' && <BookingsPage />}
+          {canAccessActiveTab && activeTab === 'allotments' && <AllotmentPage />}
+          {canAccessActiveTab && activeTab === 'payments' && <PaymentsPage />}
+          {canAccessActiveTab && activeTab === 'settlement' && <SettlementPage />}
 
           {/* KMSICAMS-1 Pages */}
-          {activeTab === 'customers' && <CustomersPage />}
-          {activeTab === 'products' && <ProductsPage />}
-          {activeTab === 'vehicles' && <VehiclesPage />}
-          {activeTab === 'users' && <UsersPage />}
-          {activeTab === 'audit' && <AuditLogsPage />}
+          {canAccessActiveTab && activeTab === 'customers' && <CustomersPage />}
+          {canAccessActiveTab && activeTab === 'products' && <ProductsPage />}
+          {canAccessActiveTab && activeTab === 'vehicles' && <VehiclesPage />}
+          {canAccessActiveTab && activeTab === 'users' && <UsersPage />}
+          {canAccessActiveTab && activeTab === 'audit' && <AuditLogsPage />}
         </main>
       </div>
     </div>

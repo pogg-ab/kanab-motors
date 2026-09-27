@@ -14,6 +14,7 @@ import {
   User,
   Key,
 } from 'lucide-react';
+import { usePermissions } from '../../authz/usePermissions';
 import {
   api,
   Delivery,
@@ -23,6 +24,8 @@ import {
 } from '../../api/client';
 
 export const DeliveriesPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canUpdateVehicleStatus = can('VEHICLES_STATUS_UPDATE');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [checklistItems, setChecklistItems] = useState<PdiChecklistItem[]>([]);
   const [vehicles, setVehicles] = useState<VehicleUnit[]>([]);
@@ -85,6 +88,7 @@ export const DeliveriesPage: React.FC = () => {
 
   const handleRecordPdi = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canUpdateVehicleStatus) return;
     if (!pdiVehicleId) {
       setErrorMsg('Please select a vehicle for PDI inspection');
       return;
@@ -116,6 +120,7 @@ export const DeliveriesPage: React.FC = () => {
 
   const handleCreateDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canUpdateVehicleStatus) return;
     if (!deliveryBookingId || !deliveryVehicleId) {
       setErrorMsg('Please select both a booking and a vehicle unit');
       return;
@@ -144,6 +149,7 @@ export const DeliveriesPage: React.FC = () => {
   };
 
   const handleAuthorize = async (deliveryId: string) => {
+    if (!canUpdateVehicleStatus) return;
     if (!window.confirm('Authorize vehicle release? This will verify PDI and financial settlement, and set vehicle to DELIVERED.')) {
       return;
     }
@@ -227,6 +233,7 @@ export const DeliveriesPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {canUpdateVehicleStatus && (
           <button
             onClick={() => setShowPdiModal(true)}
             style={{
@@ -245,6 +252,8 @@ export const DeliveriesPage: React.FC = () => {
             <ClipboardCheck size={18} />
             Record PDI Inspection
           </button>
+          )}
+          {canUpdateVehicleStatus && (
           <button
             onClick={() => setShowDeliveryModal(true)}
             style={{
@@ -264,6 +273,7 @@ export const DeliveriesPage: React.FC = () => {
             <Plus size={18} />
             New Handover Order
           </button>
+          )}
         </div>
       </div>
 
@@ -465,7 +475,7 @@ export const DeliveriesPage: React.FC = () => {
                               Gate Pass
                             </button>
 
-                            {del.status === 'PENDING' && (
+                            {del.status === 'PENDING' && canUpdateVehicleStatus && (
                               <button
                                 onClick={() => handleAuthorize(del.deliveryId)}
                                 title="Authorize Dispatch"
@@ -507,6 +517,7 @@ export const DeliveriesPage: React.FC = () => {
                 SRS Precondition: All 7 checks must pass before a vehicle can be authorized for exit (Stories DL4, DL7).
               </p>
             </div>
+            {canUpdateVehicleStatus && (
             <button
               onClick={() => setShowPdiModal(true)}
               style={{
@@ -521,6 +532,7 @@ export const DeliveriesPage: React.FC = () => {
             >
               Start Inspection
             </button>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>

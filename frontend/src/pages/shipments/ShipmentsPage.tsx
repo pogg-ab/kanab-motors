@@ -27,12 +27,15 @@ import {
   Shipment,
   PurchaseOrderLine,
 } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 interface ShipmentsPageProps {
   onSelectShipment?: (shipmentId: string) => void;
 }
 
 export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }) => {
+  const { hasPermission } = useAuth();
+  const canCreateShipment = hasPermission('SHIPMENTS_CREATE');
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [openPoLines, setOpenPoLines] = useState<PurchaseOrderLine[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -232,14 +235,16 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
             <span>Refresh Live Feed</span>
           </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn btn-cyan"
-            style={{ fontSize: '0.85rem', padding: '0.55rem 1.15rem' }}
-          >
-            <Plus size={16} />
-            <span>Create Import Shipment</span>
-          </button>
+          {canCreateShipment && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="btn btn-cyan"
+              style={{ fontSize: '0.85rem', padding: '0.55rem 1.15rem' }}
+            >
+              <Plus size={16} />
+              <span>Create Import Shipment</span>
+            </button>
+          )}
         </div>
       </div>
 

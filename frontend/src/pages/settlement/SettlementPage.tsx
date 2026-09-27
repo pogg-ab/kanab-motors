@@ -19,8 +19,16 @@ import {
   CustomerRefund,
   Customer,
 } from '../../api/client';
+import { usePermissions } from '../../authz/usePermissions';
 
 export const SettlementPage: React.FC = () => {
+  const { can } = usePermissions();
+  const canCreateRefund = can('REFUNDS_CREATE');
+  const canReviewRefund = can('REFUNDS_REVIEW');
+  const canApproveRefund = can('REFUNDS_APPROVE');
+  const canProcessRefund = can('REFUNDS_PROCESS');
+  const canRejectRefund = can('REFUNDS_REJECT');
+  const canRouteExcess = can('EXCESS_ROUTE');
   const [activeTab, setActiveTab] = useState<'refunds' | 'excess'>('refunds');
   const [refunds, setRefunds] = useState<CustomerRefund[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -84,6 +92,7 @@ export const SettlementPage: React.FC = () => {
 
   const handleCreateRefund = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateRefund) return;
     if (!newRefund.customerId || newRefund.refundAmount <= 0) {
       showToast('error', 'Customer and positive refund amount are required');
       return;
@@ -108,6 +117,7 @@ export const SettlementPage: React.FC = () => {
   };
 
   const handleAdvanceWorkflow = async (id: string, stage: 'review' | 'approve' | 'process' | 'payout') => {
+    if ((stage === 'review' && !canReviewRefund) || (stage === 'approve' && !canApproveRefund) || ((stage === 'process' || stage === 'payout') && !canProcessRefund)) return;
     setActioningId(id);
     try {
       if (stage === 'review') {
@@ -133,6 +143,7 @@ export const SettlementPage: React.FC = () => {
 
   const handleRejectRefund = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRejectRefund) return;
     if (!rejectingRefund || !rejectionReason.trim()) return;
     setSaving(true);
     try {
@@ -151,6 +162,7 @@ export const SettlementPage: React.FC = () => {
 
   const handleRouteExcess = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRouteExcess) return;
     if (!selectedCustomer) return;
     const available = Number(selectedCustomer.accountSummary?.excessPayments || 0);
     if (excessAmount <= 0) {
@@ -235,10 +247,12 @@ export const SettlementPage: React.FC = () => {
               <RefreshCw size={15} className={loading ? 'spin' : ''} />
               Refresh
             </button>
-            <button onClick={() => setShowNewRefundModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Plus size={16} />
-              Request Refund
-            </button>
+            {canCreateRefund && (
+              <button onClick={() => setShowNewRefundModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plus size={16} />
+                Request Refund
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -429,7 +443,7 @@ export const SettlementPage: React.FC = () => {
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', alignItems: 'center' }}>
-                            {r.status === 'REQUESTED' && (
+                            {r.status === 'REQUESTED' && canReviewRefund && (
                               <button
                                 onClick={() => handleAdvanceWorkflow(r.refundId, 'review')}
                                 disabled={actioningId === r.refundId}
@@ -440,7 +454,7 @@ export const SettlementPage: React.FC = () => {
                               </button>
                             )}
 
-                            {r.status === 'REVIEWED' && (
+                            {r.status === 'REVIEWED' && canApproveRefund && (
                               <button
                                 onClick={() => handleAdvanceWorkflow(r.refundId, 'approve')}
                                 disabled={actioningId === r.refundId}
@@ -451,7 +465,7 @@ export const SettlementPage: React.FC = () => {
                               </button>
                             )}
 
-                            {r.status === 'APPROVED' && (
+                            {r.status === 'APPROVED' && canProcessRefund && (
                               <button
                                 onClick={() => handleAdvanceWorkflow(r.refundId, 'process')}
                                 disabled={actioningId === r.refundId}
@@ -462,7 +476,7 @@ export const SettlementPage: React.FC = () => {
                               </button>
                             )}
 
-                            {r.status === 'FINANCE_PROCESSED' && (
+                            {r.status === 'FINANCE_PROCESSED' && canProcessRefund && (
                               <button
                                 onClick={() => handleAdvanceWorkflow(r.refundId, 'payout')}
                                 disabled={actioningId === r.refundId}
@@ -473,7 +487,7 @@ export const SettlementPage: React.FC = () => {
                               </button>
                             )}
 
-                            {r.status !== 'CONFIRMED' && r.status !== 'REJECTED' && (
+                            {r.status !== 'CONFIRMED' && r.status !== 'REJECTED' && canRejectRefund && (
                               <button
                                 onClick={() => {
                                   setRejectingRefund(r);
@@ -563,6 +577,7 @@ export const SettlementPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                        {canRouteExcess && (
                         <button
                           onClick={() => {
                             setSelectedCustomer(c);
@@ -576,6 +591,7 @@ export const SettlementPage: React.FC = () => {
                         >
                           Route Deposit Funds
                         </button>
+                        )}
                       </td>
                     </tr>
                   );

@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UseInterceptors,
   UploadedFile,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -30,6 +31,8 @@ import {
   UpdateShipmentStageDto,
   UploadShipmentDocumentDto,
 } from './dto/shipment.dto';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { PermissionGuard } from '../../common/guards/permission.guard';
 
 const shipmentUploadsDir = path.resolve(process.cwd(), 'uploads/documents');
 if (!fs.existsSync(shipmentUploadsDir)) {
@@ -45,6 +48,8 @@ export class ShipmentsController {
   ) {}
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_CREATE')
   @ApiOperation({ summary: 'Create new import shipment consolidating PO lines (Story S1/S2)' })
   create(@Body() dto: CreateShipmentDto) {
     return this.shipmentsService.create(dto);
@@ -80,6 +85,8 @@ export class ShipmentsController {
   }
 
   @Put('lookups/exchange-rates/:currency')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('EXCHANGE_RATES_MANAGE')
   @ApiOperation({ summary: 'Update default exchange rate to ETB' })
   updateExchangeRate(
     @Param('currency') currency: 'ETB' | 'USD' | 'EUR',
@@ -98,6 +105,8 @@ export class ShipmentsController {
   }
 
   @Patch(':id/stage')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
   @ApiOperation({
     summary: 'Advance shipment stage with Document Completeness validation (Story S3/D2)',
   })
@@ -109,6 +118,8 @@ export class ShipmentsController {
   }
 
   @Post(':id/costs')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('LANDED_COST_ADD_EXPENSE')
   @ApiOperation({ summary: 'Add multi-currency cost component to shipment (Story C1-C3)' })
   addCostComponent(
     @Param('id', PositiveBigIntIdPipe) id: string,
@@ -118,6 +129,8 @@ export class ShipmentsController {
   }
 
   @Delete(':id/costs/:costId')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('LANDED_COST_ADD_EXPENSE')
   @ApiOperation({ summary: 'Remove cost component from shipment' })
   removeCostComponent(
     @Param('id', PositiveBigIntIdPipe) id: string,
@@ -127,6 +140,8 @@ export class ShipmentsController {
   }
 
   @Post(':id/allocate-landed-cost')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('LANDED_COST_ALLOCATE')
   @ApiOperation({
     summary: 'Execute Landed Cost Allocation Engine with Zero Rounding Drift (Story A1-A4)',
   })
@@ -154,6 +169,8 @@ export class ShipmentsController {
   }
 
   @Post(':id/documents')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_DOCS_UPLOAD')
   @ApiOperation({ summary: 'Upload shipment document' })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -187,6 +204,8 @@ export class ShipmentsController {
   }
 
   @Delete(':id/documents/:docId')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_DOCS_UPLOAD')
   @ApiOperation({ summary: 'Delete shipment document' })
   deleteDocument(
     @Param('id', PositiveBigIntIdPipe) id: string,
@@ -196,6 +215,8 @@ export class ShipmentsController {
   }
 
   @Post(':id/receive')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_RECEIVE_STOCK')
   @ApiOperation({
     summary: 'Receive shipment line into inventory and generate vehicle units (Story R1-R3)',
   })

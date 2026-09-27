@@ -16,6 +16,7 @@ import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { CreateProductionReceiptDto } from './dto/create-production-receipt.dto';
 import { VehicleStatus } from '../vehicles/entities/vehicle-unit.entity';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Inventory and Warehouse Management (KMSICAMS-4)')
 @Controller('inventory')
@@ -25,12 +26,14 @@ export class InventoryController {
   // =========================================================================
   // 1. WAREHOUSES & SCOPED ACCESS (W1 - W3)
   // =========================================================================
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('warehouses')
   @ApiOperation({ summary: 'List warehouses with capacity & manager info' })
   getWarehouses() {
     return this.inventoryService.getWarehouses();
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Patch('warehouses/:id')
   @ApiOperation({ summary: 'Update warehouse details' })
   updateWarehouse(
@@ -40,12 +43,14 @@ export class InventoryController {
     return this.inventoryService.updateWarehouse(id, body);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('warehouses/user-access/:userId')
   @ApiOperation({ summary: 'Get warehouse IDs accessible by a user' })
   getUserWarehouseAccess(@Param('userId', ParseIntPipe) userId: number) {
     return this.inventoryService.getUserWarehouseAccess(userId);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Post('warehouses/user-access/:userId')
   @ApiOperation({ summary: 'Configure warehouse IDs accessible by a user' })
   setUserWarehouseAccess(
@@ -58,12 +63,14 @@ export class InventoryController {
   // =========================================================================
   // 2. VEHICLE STATUS STATE MACHINE (V1 - V4)
   // =========================================================================
+  @RequirePermissions('VEHICLES_VIEW', 'VEHICLES_STATUS_UPDATE')
   @Get('transitions/rules')
   @ApiOperation({ summary: 'List valid vehicle status transition rules' })
   getTransitionRules() {
     return this.inventoryService.getTransitionRules();
   }
 
+  @RequirePermissions('VEHICLES_STATUS_UPDATE')
   @Post('vehicles/:id/transition')
   @ApiOperation({ summary: 'Execute an atomic vehicle status transition' })
   transitionVehicleStatus(
@@ -81,6 +88,7 @@ export class InventoryController {
     );
   }
 
+  @RequirePermissions('VEHICLES_VIEW', 'VEHICLES_STATUS_UPDATE')
   @Get('vehicles/:id/history')
   @ApiOperation({ summary: 'Get vehicle status transition audit history' })
   getVehicleStatusHistory(@Param('id') vehicleUnitId: string) {
@@ -90,6 +98,7 @@ export class InventoryController {
   // =========================================================================
   // 3. STOCK BALANCES & LOW STOCK ALERTS (G1 - G3)
   // =========================================================================
+  @RequirePermissions('WAREHOUSES_MANAGE', 'VEHICLES_VIEW')
   @Get('balances')
   @ApiOperation({ summary: 'Get stock balances with optional warehouse or item filters' })
   getStockBalances(
@@ -102,6 +111,7 @@ export class InventoryController {
     );
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('balances/low-stock-alerts')
   @ApiOperation({ summary: 'List products at or below their reorder level' })
   getLowStockAlerts() {
@@ -111,6 +121,7 @@ export class InventoryController {
   // =========================================================================
   // 4. STOCK TRANSFERS (T1 - T5)
   // =========================================================================
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Post('transfers')
   @ApiOperation({ summary: 'Create inter-warehouse stock transfer request' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -118,24 +129,28 @@ export class InventoryController {
     return this.inventoryService.createStockTransfer(dto);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('transfers')
   @ApiOperation({ summary: 'List all stock transfer requests' })
   getStockTransfers() {
     return this.inventoryService.getStockTransfers();
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('transfers/:id')
   @ApiOperation({ summary: 'Get transfer request details with lines' })
   getStockTransferById(@Param('id') id: string) {
     return this.inventoryService.getStockTransferById(id);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Patch('transfers/:id/approve')
   @ApiOperation({ summary: 'Approve inter-warehouse transfer request' })
   approveStockTransfer(@Param('id') id: string) {
     return this.inventoryService.approveStockTransfer(id);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Patch('transfers/:id/complete')
   @ApiOperation({ summary: 'Complete inter-warehouse transfer and execute inventory adjustments' })
   completeStockTransfer(@Param('id') id: string) {
@@ -145,6 +160,7 @@ export class InventoryController {
   // =========================================================================
   // 5. STOCK ADJUSTMENTS (J1 - J5)
   // =========================================================================
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Post('adjustments')
   @ApiOperation({ summary: 'Create a stock adjustment request with mandatory reason' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -152,18 +168,21 @@ export class InventoryController {
     return this.inventoryService.createStockAdjustment(dto);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('adjustments')
   @ApiOperation({ summary: 'List all stock adjustments' })
   getStockAdjustments() {
     return this.inventoryService.getStockAdjustments();
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('adjustments/:id')
   @ApiOperation({ summary: 'Get single stock adjustment details' })
   getStockAdjustmentById(@Param('id') id: string) {
     return this.inventoryService.getStockAdjustmentById(id);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Patch('adjustments/:id/approve')
   @ApiOperation({ summary: 'Approve stock adjustment and update balances' })
   approveStockAdjustment(@Param('id') id: string) {
@@ -173,6 +192,7 @@ export class InventoryController {
   // =========================================================================
   // 6. PRODUCTION VEHICLE INTAKE (P1 - P3)
   // =========================================================================
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Post('production-receipts')
   @ApiOperation({ summary: 'Record local vehicle assembly intake into inventory' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -180,6 +200,7 @@ export class InventoryController {
     return this.inventoryService.createProductionReceipt(dto);
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('production-receipts')
   @ApiOperation({ summary: 'List local production receipts' })
   getProductionReceipts() {
@@ -189,6 +210,7 @@ export class InventoryController {
   // =========================================================================
   // 7. STOCK MOVEMENT HISTORY & REPORTS (H1, RP1 - RP3)
   // =========================================================================
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('movements')
   @ApiOperation({ summary: 'Unified double-entry stock movement history' })
   getMovementHistory(
@@ -201,12 +223,14 @@ export class InventoryController {
     });
   }
 
+  @RequirePermissions('WAREHOUSES_MANAGE')
   @Get('reports/stock')
   @ApiOperation({ summary: 'Current stock balance aggregate report' })
   getCurrentStockReport() {
     return this.inventoryService.getCurrentStockReport();
   }
 
+  @RequirePermissions('VEHICLES_VIEW', 'WAREHOUSES_MANAGE')
   @Get('reports/vehicles-by-status')
   @ApiOperation({ summary: 'Vehicle inventory breakdown by status' })
   getVehicleInventoryByStatusReport() {

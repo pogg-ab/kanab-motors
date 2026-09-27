@@ -1,12 +1,14 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AuditService } from './audit.service';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Audit Logs')
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
+  @RequirePermissions('AUDIT_VIEW')
   @Get()
   @ApiOperation({ summary: 'List recent immutable system audit trail logs' })
   @ApiQuery({ name: 'entityType', required: false, description: 'Filter by entity type (e.g. vehicle_unit, product_item, customer)' })

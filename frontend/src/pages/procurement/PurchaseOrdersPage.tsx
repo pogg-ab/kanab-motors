@@ -23,8 +23,14 @@ import {
   ProductItem,
   ExchangeRateDefault,
 } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 export const PurchaseOrdersPage: React.FC = () => {
+  const { hasPermission } = useAuth();
+  const canCreatePO = hasPermission('PURCHASE_ORDERS_CREATE');
+  const canEditPO = hasPermission('PURCHASE_ORDERS_EDIT');
+  const canConfirmPO = hasPermission('PURCHASE_ORDERS_CONFIRM');
+  const canCancelPO = hasPermission('PURCHASE_ORDERS_CANCEL');
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -258,10 +264,12 @@ export const PurchaseOrdersPage: React.FC = () => {
             <RefreshCw size={15} className={loading ? 'spin' : ''} />
             Refresh Feed
           </button>
-          <button onClick={openCreateModal} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Plus size={16} />
-            Create Purchase Order
-          </button>
+          {canCreatePO && (
+            <button onClick={openCreateModal} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Plus size={16} />
+              Create Purchase Order
+            </button>
+          )}
         </div>
       </div>
 
@@ -469,7 +477,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                           >
                             <Eye size={13} /> View
                           </button>
-                          {o.status === 'DRAFT' && (
+                          {o.status === 'DRAFT' && canEditPO && (
                             <button
                               onClick={() => openEditModal(o)}
                               className="btn btn-secondary"
@@ -479,7 +487,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                               <Edit3 size={13} /> Edit
                             </button>
                           )}
-                          {o.status === 'DRAFT' && (
+                          {o.status === 'DRAFT' && canConfirmPO && (
                             <button
                               onClick={() => handleStatusTransition(o.poId, 'SUBMITTED')}
                               className="btn btn-secondary"
@@ -489,7 +497,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                               <Send size={13} /> Submit
                             </button>
                           )}
-                          {o.status === 'SUBMITTED' && (
+                          {o.status === 'SUBMITTED' && canConfirmPO && (
                             <button
                               onClick={() => handleStatusTransition(o.poId, 'CONFIRMED')}
                               className="btn btn-cyan"
@@ -499,7 +507,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                               <Check size={13} /> Confirm
                             </button>
                           )}
-                          {o.status !== 'CANCELLED' && o.status !== 'RECEIVED' && (
+                          {o.status !== 'CANCELLED' && o.status !== 'RECEIVED' && canCancelPO && (
                             <button
                               onClick={() => handleStatusTransition(o.poId, 'CANCELLED')}
                               className="btn btn-secondary"

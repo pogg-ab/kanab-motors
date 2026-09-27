@@ -15,12 +15,14 @@ import { CreateRefundDto } from './dto/create-refund.dto';
 import { RefundQueryDto } from './dto/refund-query.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import { RejectRefundDto } from './dto/reject-refund.dto';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Customer Refund Management (KMSICAMS-2)')
 @Controller('refunds')
 export class RefundsController {
   constructor(private readonly refundsService: RefundsService) {}
 
+  @RequirePermissions('REFUNDS_CREATE')
   @Post()
   @ApiOperation({ summary: 'Submit Customer Refund Request (Validates against available balance per SRS §7.4)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -28,42 +30,49 @@ export class RefundsController {
     return this.refundsService.create(dto);
   }
 
+  @RequirePermissions('REFUNDS_VIEW')
   @Get()
   @ApiOperation({ summary: 'List and filter refund requests' })
   findAll(@Query() query: RefundQueryDto) {
     return this.refundsService.findAll(query);
   }
 
+  @RequirePermissions('REFUNDS_VIEW')
   @Get(':id')
   @ApiOperation({ summary: 'Get refund request details' })
   findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.refundsService.findOne(id);
   }
 
+  @RequirePermissions('REFUNDS_REVIEW')
   @Patch(':id/review')
   @ApiOperation({ summary: 'Review refund request (Step 1)' })
   review(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.refundsService.review(id);
   }
 
+  @RequirePermissions('REFUNDS_APPROVE')
   @Patch(':id/approve')
   @ApiOperation({ summary: 'Approve refund request (Step 2 - Approver Role)' })
   approve(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.refundsService.approve(id);
   }
 
+  @RequirePermissions('REFUNDS_PROCESS')
   @Patch(':id/process')
   @ApiOperation({ summary: 'Process refund in finance (Step 3 - Finance Role)' })
   process(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.refundsService.financeProcess(id);
   }
 
+  @RequirePermissions('REFUNDS_PROCESS')
   @Patch(':id/confirm-payout')
   @ApiOperation({ summary: 'Confirm refund payment & post to ledger (Step 4)' })
   confirmPayout(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.refundsService.confirmPayout(id);
   }
 
+  @RequirePermissions('REFUNDS_REJECT')
   @Patch(':id/reject')
   @ApiOperation({ summary: 'Reject refund request' })
   reject(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: RejectRefundDto) {

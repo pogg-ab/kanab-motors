@@ -8,9 +8,12 @@ import {
   Param,
   Query,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { SuppliersService, CreateSupplierDto, UpdateSupplierDto } from './suppliers.service';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { PermissionGuard } from '../../common/guards/permission.guard';
 
 @ApiTags('Suppliers')
 @Controller('suppliers')
@@ -18,6 +21,8 @@ export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SUPPLIERS_CREATE')
   @ApiOperation({ summary: 'Create a new international or local supplier (Story F1)' })
   create(@Body() dto: CreateSupplierDto) {
     return this.suppliersService.create(dto);
@@ -40,6 +45,8 @@ export class SuppliersController {
   }
 
   @Put(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SUPPLIERS_EDIT')
   @ApiOperation({ summary: 'Update supplier details' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -49,6 +56,8 @@ export class SuppliersController {
   }
 
   @Delete(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SUPPLIERS_EDIT')
   @ApiOperation({ summary: 'Deactivate supplier' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.suppliersService.remove(id);
