@@ -8,8 +8,14 @@ import {
   IsString,
   Min,
   MinLength,
+  Matches,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W]).{8,}$/;
+export const PASSWORD_MESSAGE =
+  'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number or special character.';
 
 export class LoginDto {
   @IsOptional()
@@ -28,6 +34,9 @@ export class LoginDto {
 export class CreateUserDto {
   @IsString()
   @MinLength(3)
+  @Matches(/^[a-zA-Z0-9._-]+$/, {
+    message: 'Username can only contain alphanumeric characters, dots, underscores, and hyphens.',
+  })
   username: string;
 
   @IsString()
@@ -39,7 +48,9 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(6)
+  @Matches(PASSWORD_REGEX, {
+    message: PASSWORD_MESSAGE,
+  })
   password?: string;
 
   @Type(() => Number)
@@ -52,6 +63,10 @@ export class CreateUserDto {
   @ArrayMaxSize(200)
   @IsString({ each: true })
   permissions?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  mustChangePassword?: boolean;
 }
 
 export class UpdateUserDto {
@@ -82,6 +97,42 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(6)
+  @Matches(PASSWORD_REGEX, {
+    message: PASSWORD_MESSAGE,
+  })
   password?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  mustChangePassword?: boolean;
+}
+
+export class PermissionToggleDto {
+  @IsString()
+  moduleCode: string;
+
+  @IsString()
+  actionCode: string;
+
+  @IsBoolean()
+  granted: boolean;
+}
+
+export class UpdateRolePermissionsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PermissionToggleDto)
+  permissions: PermissionToggleDto[];
+}
+
+export class CheckPermissionDto {
+  @Type(() => Number)
+  @IsInt()
+  userId: number;
+
+  @IsString()
+  moduleCode: string;
+
+  @IsString()
+  actionCode: string;
 }

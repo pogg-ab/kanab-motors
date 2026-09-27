@@ -15,13 +15,13 @@ export class ReportsService {
     // Supplementary real-time metrics
     const financialMetrics = await this.dataSource.query(`
       SELECT
-        (SELECT COALESCE(SUM(debit), 0) FROM customer_ledger_entry) AS total_invoiced,
-        (SELECT COALESCE(SUM(credit), 0) FROM customer_ledger_entry) AS total_collected,
-        (SELECT COALESCE(SUM(debit - credit), 0) FROM customer_ledger_entry) AS total_receivables,
-        (SELECT COUNT(*) FROM booking WHERE status = 'CONFIRMED') AS active_confirmed_bookings,
-        (SELECT COUNT(*) FROM sales_enquiry WHERE status = 'OPEN') AS open_enquiries,
+        (SELECT COALESCE(SUM(debit_amount), 0) FROM customer_ledger_transaction) AS total_invoiced,
+        (SELECT COALESCE(SUM(credit_amount), 0) FROM customer_ledger_transaction) AS total_collected,
+        (SELECT COALESCE(SUM(debit_amount - credit_amount), 0) FROM customer_ledger_transaction) AS total_receivables,
+        (SELECT COUNT(*) FROM booking WHERE booking_status = 'CONFIRMED') AS active_confirmed_bookings,
+        (SELECT COUNT(*) FROM sales_enquiry WHERE status = 'SUBMITTED') AS open_enquiries,
         (SELECT COUNT(*) FROM customer WHERE is_active = true) AS active_customers,
-        (SELECT COUNT(*) FROM shipment WHERE status NOT IN ('CLEARED', 'COMPLETED')) AS active_shipments
+        (SELECT COUNT(*) FROM shipment WHERE current_stage != 'RECEIVED') AS active_shipments
     `);
 
     return {
@@ -50,12 +50,12 @@ export class ReportsService {
       `
       SELECT
         (SELECT COUNT(*) FROM booking WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_bookings,
-        (SELECT COALESCE(SUM(deposit_amount), 0) FROM bank_receipt_voucher WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_customer_deposits,
-        (SELECT COALESCE(SUM(debit - credit), 0) FROM customer_ledger_entry) AS outstanding_customer_balance,
+        (SELECT COALESCE(SUM(amount), 0) FROM customer_payment WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_customer_deposits,
+        (SELECT COALESCE(SUM(debit_amount - credit_amount), 0) FROM customer_ledger_transaction) AS outstanding_customer_balance,
         (SELECT COALESCE(SUM(available_credit), 0) FROM customer_account_summary) AS customer_credit_balance,
-        (SELECT COALESCE(SUM(excess_amount), 0) FROM excess_routing WHERE created_at::date BETWEEN $1::date AND $2::date) AS excess_payments,
+        (SELECT COALESCE(SUM(excess_payments), 0) FROM customer_account_summary) AS excess_payments,
         (SELECT COUNT(*) FROM customer_refund WHERE status = 'REQUESTED') AS pending_refunds,
-        (SELECT COUNT(*) FROM customer_refund WHERE status IN ('APPROVED', 'PROCESSED')) AS processed_refunds
+        (SELECT COUNT(*) FROM customer_refund WHERE status IN ('APPROVED', 'FINANCE_PROCESSED', 'CONFIRMED')) AS processed_refunds
     `,
       [sDate, eDate],
     );
@@ -148,7 +148,7 @@ export class ReportsService {
       SELECT
         status,
         COUNT(*) AS enquiry_count,
-        COALESCE(SUM(total_amount), 0) AS pipeline_value
+        COALESCE(SUM(estimated_sales_value), 0) AS pipeline_value
       FROM sales_enquiry
       GROUP BY status
     `);
@@ -157,12 +157,12 @@ export class ReportsService {
   async getBookingsReport(): Promise<any[]> {
     return this.dataSource.query(`
       SELECT
-        status,
+        booking_status AS status,
         COUNT(*) AS booking_count,
-        COALESCE(SUM(booking_fee), 0) AS total_fees,
-        COALESCE(SUM(deposit_paid), 0) AS total_deposits_paid
+        COALESCE(SUM(required_advance_amount), 0) AS total_fees,
+        COALESCE(SUM(total_amount_deposited), 0) AS total_deposits_paid
       FROM booking
-      GROUP BY status
+      GROUP BY booking_status
     `);
   }
 
@@ -176,11 +176,11 @@ export class ReportsService {
         c.customer_code,
         c.full_name,
         c.customer_type,
-        COALESCE(SUM(cle.debit), 0) AS total_debited,
-        COALESCE(SUM(cle.credit), 0) AS total_credited,
-        COALESCE(SUM(cle.debit - cle.credit), 0) AS net_receivable
+        COALESCE(SUM(cle.debit_amount), 0) AS total_debited,
+        COALESCE(SUM(cle.credit_amount), 0) AS total_credited,
+        COALESCE(SUM(cle.debit_amount - cle.credit_amount), 0) AS net_receivable
       FROM customer c
-      LEFT JOIN customer_ledger_entry cle ON cle.customer_id = c.customer_id
+      LEFT JOIN customer_ledger_transaction cle ON cle.customer_id = c.customer_id
       GROUP BY c.customer_id, c.customer_code, c.full_name, c.customer_type
       ORDER BY net_receivable DESC
       LIMIT 100

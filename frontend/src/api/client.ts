@@ -26,19 +26,46 @@ export interface AppUser {
   role?: {
     roleId: number;
     roleName: string;
+    displayName?: string;
     description?: string;
     permissions?: string[];
+    isSystemRole?: boolean;
   };
   permissions: string[];
   isActive: boolean;
+  lastLoginAt?: string;
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 
 export interface Role {
   roleId: number;
   roleName: string;
+  displayName?: string;
   description?: string;
   permissions?: string[];
+  isSystemRole?: boolean;
+}
+
+export interface SystemModule {
+  moduleCode: string;
+  moduleName: string;
+  description?: string;
+  displayOrder: number;
+}
+
+export interface SystemAction {
+  actionCode: string;
+  actionName: string;
+  description?: string;
+  displayOrder: number;
+}
+
+export interface RolePermissionMatrixResponse {
+  roles: Role[];
+  modules: SystemModule[];
+  actions: SystemAction[];
+  matrix: Record<number, Record<string, Record<string, boolean>>>;
 }
 
 export interface SystemPermission {
@@ -93,11 +120,11 @@ export interface CustomerAccountSummary {
 
 export interface Attachment {
   attachmentId: string;
-  documentType?: string;
   fileName: string;
   filePath: string;
   contentType?: string;
   fileSizeBytes?: string;
+  documentType?: string;
   uploadedAt: string;
 }
 
@@ -465,9 +492,8 @@ export interface LandedCostReport {
     itemName: string;
     quantityShipped: number;
     basisValue: number;
-    fobValueEtb: number;
-    allocatedAdditionalCostEtb: number;
     allocatedCostEtb: number;
+    allocatedAdditionalCostEtb?: number;
     unitCostEtb: number;
   }[];
   vehicleUnits: {
@@ -902,4 +928,508 @@ export const api = {
   ) => apiClient.put<AppUser>(`/auth/users/${id}`, data).then((r) => r.data),
   toggleUserStatus: (id: number) =>
     apiClient.patch<AppUser>(`/auth/users/${id}/toggle-status`).then((r) => r.data),
+  deleteRole: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/auth/roles/${id}`).then((r) => r.data),
+  getSystemModules: () =>
+    apiClient.get<SystemModule[]>('/auth/modules').then((r) => r.data),
+  getSystemActions: () =>
+    apiClient.get<SystemAction[]>('/auth/actions').then((r) => r.data),
+  getPermissionMatrix: () =>
+    apiClient.get<RolePermissionMatrixResponse>('/auth/permissions/matrix').then((r) => r.data),
+  updateRolePermissions: (
+    roleId: number,
+    permissions: { moduleCode: string; actionCode: string; granted: boolean }[],
+  ) =>
+    apiClient
+      .put<{ success: boolean; message: string; roleId: number }>(`/auth/permissions/matrix/${roleId}`, {
+        permissions,
+      })
+      .then((r) => r.data),
+  checkPermission: (data: { userId: number; moduleCode: string; actionCode: string }) =>
+    apiClient
+      .post<{ userId: number; moduleCode: string; actionCode: string; granted: boolean }>(
+        '/auth/permissions/check',
+        data,
+      )
+      .then((r) => r.data),
+
+  // --- KMSICAMS-6 Endpoints ---
+  // Approvals
+  getPendingApprovals: () => apiClient.get<ApprovalRequest[]>('/approvals/pending').then((r) => r.data),
+  getAllApprovalRequests: (params?: any) =>
+    apiClient.get<ApprovalRequest[]>('/approvals', { params }).then((r) => r.data),
+  getApprovalRequest: (id: string) =>
+    apiClient.get<ApprovalRequest>(`/approvals/${id}`).then((r) => r.data),
+  submitForApproval: (data: { workflowTypeCode: string; entityType: string; entityId: string | number }) =>
+    apiClient.post<{ approvalRequestId: string }>('/approvals/submit', data).then((r) => r.data),
+  recordApprovalDecision: (id: string, data: { decision: 'APPROVED' | 'REJECTED'; comments?: string }) =>
+    apiClient.post<{ success: boolean; message: string; request: ApprovalRequest }>(`/approvals/${id}/decision`, data).then((r) => r.data),
+  getApprovalPolicies: () => apiClient.get<ApprovalPolicy[]>('/approvals/policies').then((r) => r.data),
+  getWorkflowTypes: () => apiClient.get<WorkflowType[]>('/approvals/workflow-types').then((r) => r.data),
+
+  // Sales Invoices
+  getInvoices: (params?: any) => apiClient.get<SalesInvoice[]>('/invoices', { params }).then((r) => r.data),
+  getInvoice: (id: string) => apiClient.get<SalesInvoice>(`/invoices/${id}`).then((r) => r.data),
+  createInvoice: (data: any) => apiClient.post<SalesInvoice>('/invoices', data).then((r) => r.data),
+  approveInvoice: (id: string, comments?: string) =>
+    apiClient.patch<SalesInvoice>(`/invoices/${id}/approve`, { comments }).then((r) => r.data),
+  rejectInvoice: (id: string, comments?: string) =>
+    apiClient.patch<SalesInvoice>(`/invoices/${id}/reject`, { comments }).then((r) => r.data),
+
+  // Deliveries & PDI
+  getDeliveries: () => apiClient.get<Delivery[]>('/deliveries').then((r) => r.data),
+  getDelivery: (id: string) => apiClient.get<Delivery>(`/deliveries/${id}`).then((r) => r.data),
+  createDelivery: (data: any) => apiClient.post<Delivery>('/deliveries', data).then((r) => r.data),
+  authorizeDelivery: (id: string, comments?: string) =>
+    apiClient.patch<Delivery>(`/deliveries/${id}/authorize`, { comments }).then((r) => r.data),
+  getPdiChecklist: () => apiClient.get<PdiChecklistItem[]>('/deliveries/pdi/checklist').then((r) => r.data),
+  recordPdiInspection: (data: any) => apiClient.post<PdiInspection>('/deliveries/pdi/inspection', data).then((r) => r.data),
+  getVehiclePdi: (vehicleUnitId: string) =>
+    apiClient.get<PdiInspection>(`/deliveries/pdi/vehicle/${vehicleUnitId}`).then((r) => r.data),
+  getGatePass: (id: string) => apiClient.get<any>(`/deliveries/${id}/gate-pass`).then((r) => r.data),
+
+  // Documents
+  getDocumentTypes: (entityType?: string) =>
+    apiClient.get<DocumentTypeRef[]>('/documents/types', { params: { entityType } }).then((r) => r.data),
+  getAllDocuments: (params?: any) =>
+    apiClient.get<UnifiedDocumentItem[]>('/documents', { params }).then((r) => r.data),
+
+  // --- KMSICAMS-4 Endpoints (Inventory & Warehouse Management) ---
+  // Warehouses & Scoped Access
+  getInventoryWarehouses: () => apiClient.get<Warehouse[]>('/inventory/warehouses').then((r) => r.data),
+  updateInventoryWarehouse: (id: number, data: Partial<Warehouse>) =>
+    apiClient.patch<Warehouse>(`/inventory/warehouses/${id}`, data).then((r) => r.data),
+  getUserWarehouseAccess: (userId: number) =>
+    apiClient.get<number[]>(`/inventory/warehouses/user-access/${userId}`).then((r) => r.data),
+  setUserWarehouseAccess: (userId: number, warehouseIds: number[]) =>
+    apiClient.post<void>(`/inventory/warehouses/user-access/${userId}`, { warehouseIds }).then((r) => r.data),
+
+  // Vehicle Status State Machine
+  getTransitionRules: () =>
+    apiClient.get<VehicleStatusTransitionRule[]>('/inventory/transitions/rules').then((r) => r.data),
+  transitionVehicleStatus: (id: string, data: { toStatus: string; notes?: string; module?: string }) =>
+    apiClient.post<any>(`/inventory/vehicles/${id}/transition`, data).then((r) => r.data),
+  getVehicleStatusHistory: (id: string) =>
+    apiClient.get<VehicleStatusHistory[]>(`/inventory/vehicles/${id}/history`).then((r) => r.data),
+
+  // Stock Balances & Alerts
+  getStockBalances: (params?: { warehouseId?: number; itemId?: string }) =>
+    apiClient.get<StockBalance[]>('/inventory/balances', { params }).then((r) => r.data),
+  getLowStockAlerts: () =>
+    apiClient.get<LowStockAlert[]>('/inventory/balances/low-stock-alerts').then((r) => r.data),
+
+  // Stock Transfers
+  createStockTransfer: (data: {
+    fromWarehouseId: number;
+    toWarehouseId: number;
+    lines: Array<{ itemId?: string; quantity?: number; vehicleUnitId?: string }>;
+  }) => apiClient.post<StockTransfer>('/inventory/transfers', data).then((r) => r.data),
+  getStockTransfers: () => apiClient.get<StockTransfer[]>('/inventory/transfers').then((r) => r.data),
+  getStockTransfer: (id: string) => apiClient.get<StockTransfer>(`/inventory/transfers/${id}`).then((r) => r.data),
+  approveStockTransfer: (id: string) =>
+    apiClient.patch<StockTransfer>(`/inventory/transfers/${id}/approve`).then((r) => r.data),
+  completeStockTransfer: (id: string) =>
+    apiClient.patch<StockTransfer>(`/inventory/transfers/${id}/complete`).then((r) => r.data),
+
+  // Stock Adjustments
+  createStockAdjustment: (data: {
+    warehouseId: number;
+    itemId?: string;
+    quantityDelta?: number;
+    vehicleUnitId?: string;
+    reason: string;
+    reasonNotes: string;
+  }) => apiClient.post<StockAdjustment>('/inventory/adjustments', data).then((r) => r.data),
+  getStockAdjustments: () => apiClient.get<StockAdjustment[]>('/inventory/adjustments').then((r) => r.data),
+  getStockAdjustment: (id: string) => apiClient.get<StockAdjustment>(`/inventory/adjustments/${id}`).then((r) => r.data),
+  approveStockAdjustment: (id: string) =>
+    apiClient.patch<StockAdjustment>(`/inventory/adjustments/${id}/approve`).then((r) => r.data),
+
+  // Production Vehicle Intake
+  createProductionReceipt: (data: {
+    itemId: string;
+    chassisNumber: string;
+    engineNumber: string;
+    warehouseId: number;
+    assembledAt?: string;
+  }) => apiClient.post<ProductionReceipt>('/inventory/production-receipts', data).then((r) => r.data),
+  getProductionReceipts: () => apiClient.get<ProductionReceipt[]>('/inventory/production-receipts').then((r) => r.data),
+
+  // Stock Movements & Reports (KMSICAMS-4)
+  getMovementHistory: (params?: { warehouseId?: number; limit?: number }) =>
+    apiClient.get<StockMovementItem[]>('/inventory/movements', { params }).then((r) => r.data),
+  getCurrentStockReport: () => apiClient.get<CurrentStockReportItem[]>('/inventory/reports/stock').then((r) => r.data),
+  getVehicleInventoryByStatusReport: () =>
+    apiClient.get<VehicleStatusReportItem[]>('/inventory/reports/vehicles-by-status').then((r) => r.data),
+
+  // --- KMSICAMS-7 Endpoints (Dashboard & Reporting) ---
+  getDashboardSummary: () => apiClient.get<DashboardSummary>('/reports/dashboard/summary').then((r) => r.data),
+  getDailySalesReport: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get<DailySalesItem[]>('/reports/sales/daily', { params }).then((r) => r.data),
+  getMonthlySalesReport: () => apiClient.get<MonthlySalesItem[]>('/reports/sales/monthly').then((r) => r.data),
+  getSalesByVehicleType: () => apiClient.get<SalesByCategoryItem[]>('/reports/sales/by-vehicle-type').then((r) => r.data),
+  getSalesByModel: () => apiClient.get<SalesByModelItem[]>('/reports/sales/by-model').then((r) => r.data),
+  getSalesByCustomer: () => apiClient.get<SalesByCustomerItem[]>('/reports/sales/by-customer').then((r) => r.data),
+  getSalesByRegion: () => apiClient.get<SalesByRegionItem[]>('/reports/sales/by-region').then((r) => r.data),
+  getSalesByCustomerType: () => apiClient.get<SalesByCustomerTypeItem[]>('/reports/sales/by-customer-type').then((r) => r.data),
+  getSalesBySalesperson: () => apiClient.get<SalesBySalespersonItem[]>('/reports/sales/by-salesperson').then((r) => r.data),
+  getOperationalInvoiceReport: (params?: { status?: string; limit?: number }) =>
+    apiClient.get<InvoiceReportItem[]>('/reports/operational/invoices', { params }).then((r) => r.data),
+  getOperationalDeliveryReport: (params?: { status?: string; limit?: number }) =>
+    apiClient.get<DeliveryReportItem[]>('/reports/operational/deliveries', { params }).then((r) => r.data),
+  getOperationalEnquiriesReport: () =>
+    apiClient.get<any[]>('/reports/operational/enquiries').then((r) => r.data),
+  getOperationalBookingsReport: () =>
+    apiClient.get<any[]>('/reports/operational/bookings').then((r) => r.data),
+  getCustomerFinancialSummary: () =>
+    apiClient.get<CustomerFinancialSummaryItem[]>('/reports/financial/summary').then((r) => r.data),
+
+  // --- KMSICAMS-8 Endpoints (Management Dashboard) ---
+  getManagementDashboardSummary: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get<ManagementDashboardSummary>('/reports/management-dashboard/summary', { params }).then((r) => r.data),
+  getSalesPerformanceCrossTab: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get<SalesCrossTabItem[]>('/reports/management-dashboard/sales-cross-tab', { params }).then((r) => r.data),
 };
+
+// ============================================================================
+// KMSICAMS-4 Interfaces
+// ============================================================================
+export interface VehicleStatusTransitionRule {
+  fromStatus: string;
+  toStatus: string;
+  allowedTriggerModule?: string;
+  description?: string;
+}
+
+export interface VehicleStatusHistory {
+  historyId: string;
+  vehicleUnitId: string;
+  fromStatus?: string;
+  toStatus: string;
+  triggerModule?: string;
+  triggerUserId?: number;
+  triggerUser?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
+  notes?: string;
+  changedAt: string;
+}
+
+export interface StockBalance {
+  balanceId: string;
+  warehouseId: number;
+  itemId: string;
+  quantityOnHand: number;
+  quantityReserved: number;
+  quantityAvailable: number;
+  lastMovementAt?: string;
+  warehouse?: Warehouse;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+    reorderLevel?: number;
+    unitOfMeasure?: string;
+  };
+}
+
+export interface LowStockAlert {
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  reorder_level: number;
+  total_available: number;
+  shortfall: number;
+}
+
+export interface StockTransferLine {
+  lineId: string;
+  transferId: string;
+  itemId?: string;
+  quantity?: number;
+  vehicleUnitId?: string;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+  };
+  vehicleUnit?: {
+    vehicleUnitId: string;
+    chassisNumber: string;
+    engineNumber: string;
+    status: string;
+  };
+}
+
+export interface StockTransfer {
+  transferId: string;
+  fromWarehouseId: number;
+  toWarehouseId: number;
+  status: 'REQUESTED' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
+  requestedBy: number;
+  requestedAt: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  completedAt?: string;
+  notes?: string;
+  fromWarehouse?: Warehouse;
+  toWarehouse?: Warehouse;
+  requester?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
+  approver?: {
+    userId: number;
+    fullName: string;
+    username: string;
+  };
+  lines?: StockTransferLine[];
+}
+
+export interface StockAdjustment {
+  adjustmentId: string;
+  warehouseId: number;
+  itemId?: string;
+  quantityDelta?: number;
+  vehicleUnitId?: string;
+  reason: 'DAMAGE' | 'LOSS' | 'CYCLE_COUNT' | 'FOUND' | 'STATUS_CORRECTION' | 'SCRAP' | 'OTHER';
+  reasonNotes: string;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED';
+  requestedBy: number;
+  requestedAt: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  warehouse?: Warehouse;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+  };
+  vehicleUnit?: {
+    vehicleUnitId: string;
+    chassisNumber: string;
+    engineNumber: string;
+    status: string;
+  };
+  requester?: {
+    userId: number;
+    fullName: string;
+  };
+  approver?: {
+    userId: number;
+    fullName: string;
+  };
+}
+
+export interface ProductionReceipt {
+  productionReceiptId: string;
+  itemId: string;
+  chassisNumber: string;
+  engineNumber: string;
+  warehouseId: number;
+  assembledAt: string;
+  receivedBy: number;
+  createdAt: string;
+  item?: {
+    itemId: string;
+    itemCode: string;
+    name: string;
+  };
+  warehouse?: Warehouse;
+  receiver?: {
+    userId: number;
+    fullName: string;
+  };
+}
+
+export interface StockMovementItem {
+  movement_id: string;
+  movement_at: string;
+  movement_type: string;
+  warehouse_id: number;
+  warehouse_name: string;
+  item_id?: string;
+  item_code?: string;
+  item_name?: string;
+  vehicle_unit_id?: string;
+  chassis_number?: string;
+  quantity: number;
+  reference_type: string;
+  reference_id: string;
+  performed_by_name?: string;
+}
+
+export interface CurrentStockReportItem {
+  warehouse_id: number;
+  warehouse_name: string;
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  reorder_level: number;
+}
+
+export interface VehicleStatusReportItem {
+  warehouse_id?: number;
+  warehouse_name?: string;
+  model_name?: string;
+  status: string;
+  vehicle_count: number;
+}
+
+// ============================================================================
+// KMSICAMS-7 Interfaces (Dashboard and Reporting)
+// ============================================================================
+export interface DashboardSummary {
+  todays_sales: number;
+  todays_invoice_count: number;
+  vehicles_available: number;
+  vehicles_reserved: number;
+  vehicles_allotted: number;
+  vehicles_sold: number;
+  vehicles_delivered: number;
+  pending_approvals: number;
+  pending_allotments: number;
+  total_invoiced?: number;
+  total_collected?: number;
+  total_receivables?: number;
+  active_confirmed_bookings?: number;
+  open_enquiries?: number;
+  active_customers?: number;
+  active_shipments?: number;
+}
+
+export interface DailySalesItem {
+  sales_date: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface MonthlySalesItem {
+  sales_month: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface SalesByCategoryItem {
+  category_name: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface SalesByModelItem {
+  model?: string;
+  item_name: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+export interface SalesByCustomerItem {
+  customer_id: string;
+  customer_code: string;
+  full_name: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface SalesByRegionItem {
+  region_name: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface SalesByCustomerTypeItem {
+  customer_type: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface SalesBySalespersonItem {
+  salesperson_id: number;
+  salesperson_name: string;
+  invoice_count: number;
+  total_sales: number;
+}
+
+export interface InvoiceReportItem {
+  invoice_id: string;
+  invoice_number: string;
+  status: string;
+  created_at: string;
+  customer_code: string;
+  customer_name: string;
+  item_name: string;
+  chassis_number?: string;
+  quantity: number;
+  unit_price: number;
+  vat_amount: number;
+  gross_total: number;
+  outstanding_balance: number;
+}
+
+export interface DeliveryReportItem {
+  delivery_id: string;
+  delivery_number: string;
+  status: string;
+  delivery_date?: string;
+  delivered_at?: string;
+  chassis_number: string;
+  engine_number: string;
+  responsible_employee?: string;
+  invoice_number?: string;
+  customer_name?: string;
+}
+
+export interface CustomerFinancialSummaryItem {
+  customer_id: string;
+  customer_code: string;
+  full_name: string;
+  customer_type: string;
+  total_debited: number;
+  total_credited: number;
+  net_receivable: number;
+}
+
+// ============================================================================
+// KMSICAMS-8 Interfaces (Management Dashboard)
+// ============================================================================
+export interface ManagementDashboardSummary {
+  period_start: string;
+  period_end: string;
+  total_sales: number;
+  invoice_count: number;
+  vehicles_available: number;
+  vehicles_reserved: number;
+  pending_allotment_requests: number;
+  vehicles_ready_for_delivery: number;
+  total_bookings: number;
+  total_customer_deposits: number;
+  outstanding_customer_balance: number;
+  customer_credit_balance: number;
+  excess_payments: number;
+  pending_refunds: number;
+  processed_refunds: number;
+}
+
+export interface SalesCrossTabItem {
+  salesperson_id: number;
+  salesperson_name: string;
+  item_id: string;
+  item_name: string;
+  model?: string;
+  invoice_count: number;
+  units_sold: number;
+  total_sales: number;
+}
+
+
+

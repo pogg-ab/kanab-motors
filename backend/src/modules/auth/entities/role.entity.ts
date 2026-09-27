@@ -9,11 +9,17 @@ export class Role {
   @Column({ name: 'role_name', length: 50, unique: true })
   roleName: string;
 
+  @Column({ name: 'display_name', length: 100, nullable: true })
+  displayName?: string;
+
   @Column({ length: 255, nullable: true })
   description?: string;
 
   @Column({ type: 'text', array: true, default: '{}' })
   permissions: string[];
+
+  @Column({ name: 'is_system_role', type: 'boolean', default: false })
+  isSystemRole: boolean;
 
   @OneToMany(() => AppUser, (user) => user.role)
   users: AppUser[];
