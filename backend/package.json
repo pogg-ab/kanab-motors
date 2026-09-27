@@ -15,6 +15,7 @@
     "typeorm": "node --max-semi-space-size=128 ./node_modules/ts-node/dist/bin.js -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "typeorm:win": "node --max-semi-space-size=128 ./node_modules/ts-node/dist/bin.js -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d ./src/config/data-source.ts",
     "migration:run": "npm run typeorm:win -- migration:run",
+    "dev:migration": "npm run migration:run",
     "migration:revert": "npm run typeorm:win -- migration:revert",
     "migration:generate": "npm run typeorm:win -- migration:generate",
     "seed": "node --max-semi-space-size=128 ./node_modules/ts-node/dist/bin.js -r tsconfig-paths/register ./src/database/seed.ts",

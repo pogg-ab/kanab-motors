@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import {
   Shipment,
   ShipmentStage,
@@ -304,16 +304,14 @@ export class ShipmentsService {
 
     const saved = await this.shipmentRepo.save(shipment);
 
-    if (notes) {
-      const history = this.stageHistoryRepo.create({
-        shipmentId: id,
-        fromStage,
-        toStage: targetStage,
-        changedBy: userId,
-        notes,
-      });
-      await this.stageHistoryRepo.save(history);
-    }
+    const history = this.stageHistoryRepo.create({
+      shipmentId: id,
+      fromStage,
+      toStage: targetStage,
+      changedBy: userId,
+      notes,
+    });
+    await this.stageHistoryRepo.save(history);
 
     return this.findOne(id);
   }
@@ -521,45 +519,29 @@ export class ShipmentsService {
       );
       const anyReceived = freshLines.some((shipmentLine) => Number(shipmentLine.quantityReceived) > 0);
       if (allReceived || anyReceived) {
+        const previousStage = shipment.currentStage;
         shipment.currentStage = allReceived ? ShipmentStage.RECEIVED : shipment.currentStage;
         if (allReceived && !shipment.actualArrivalDate) {
           shipment.actualArrivalDate = new Date().toISOString().split('T')[0];
         }
         shipment.updatedBy = dto.userId;
         await queryRunner.manager.save(Shipment, shipment);
+
+        if (allReceived && previousStage !== ShipmentStage.RECEIVED) {
+          const history = queryRunner.manager.create(ShipmentStageHistory, {
+            shipmentId,
+            fromStage: previousStage,
+            toStage: ShipmentStage.RECEIVED,
+            changedBy: dto.userId,
+            notes: dto.notes || 'Shipment automatically marked RECEIVED after full inventory receipt',
+          });
+          await queryRunner.manager.save(ShipmentStageHistory, history);
+        }
       }
 
       const poId = line.poLine?.poId;
       if (poId) {
-        const poLines = await queryRunner.manager.find(PurchaseOrderLine, {
-          where: { poId },
-        });
-        const poLineIds = poLines.map((poLine) => poLine.poLineId);
-        const receivedRows = await queryRunner.manager
-          .getRepository(ShipmentLine)
-          .createQueryBuilder('sl')
-          .select('sl.poLineId', 'poLineId')
-          .addSelect('COALESCE(SUM(sl.quantityReceived), 0)', 'quantityReceived')
-          .where('sl.poLineId IN (:...poLineIds)', { poLineIds })
-          .groupBy('sl.poLineId')
-          .getRawMany<{ poLineId: string; quantityReceived: string }>();
-
-        const receivedByPoLine = new Map(
-          receivedRows.map((row) => [String(row.poLineId), Number(row.quantityReceived)]),
-        );
-        const poAllReceived = poLines.every(
-          (poLine) => (receivedByPoLine.get(String(poLine.poLineId)) || 0) >= Number(poLine.quantityOrdered),
-        );
-        const poAnyReceived = poLines.some(
-          (poLine) => (receivedByPoLine.get(String(poLine.poLineId)) || 0) > 0,
-        );
-
-        if (poAllReceived || poAnyReceived) {
-          await queryRunner.manager.update(PurchaseOrder, poId, {
-            status: poAllReceived ? POStatus.RECEIVED : POStatus.PARTIALLY_RECEIVED,
-            updatedBy: dto.userId,
-          });
-        }
+        await this.syncPurchaseOrderFulfillmentStatus(poId, dto.userId, queryRunner.manager);
       }
 
       await queryRunner.commitTransaction();
@@ -569,6 +551,44 @@ export class ShipmentsService {
       throw err;
     } finally {
       await queryRunner.release();
+    }
+  }
+
+  private async syncPurchaseOrderFulfillmentStatus(
+    poId: string,
+    userId?: number,
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<void> {
+    const poLines = await manager.find(PurchaseOrderLine, { where: { poId } });
+    if (poLines.length === 0) {
+      return;
+    }
+
+    const poLineIds = poLines.map((poLine) => poLine.poLineId);
+    const receivedRows = await manager
+      .getRepository(ShipmentLine)
+      .createQueryBuilder('sl')
+      .select('sl.poLineId', 'poLineId')
+      .addSelect('COALESCE(SUM(sl.quantityReceived), 0)', 'quantityReceived')
+      .where('sl.poLineId IN (:...poLineIds)', { poLineIds })
+      .groupBy('sl.poLineId')
+      .getRawMany<{ poLineId: string; quantityReceived: string }>();
+
+    const receivedByPoLine = new Map(
+      receivedRows.map((row) => [String(row.poLineId), Number(row.quantityReceived)]),
+    );
+    const poAllReceived = poLines.every(
+      (poLine) => (receivedByPoLine.get(String(poLine.poLineId)) || 0) >= Number(poLine.quantityOrdered),
+    );
+    const poAnyReceived = poLines.some(
+      (poLine) => (receivedByPoLine.get(String(poLine.poLineId)) || 0) > 0,
+    );
+
+    if (poAllReceived || poAnyReceived) {
+      await manager.update(PurchaseOrder, poId, {
+        status: poAllReceived ? POStatus.RECEIVED : POStatus.PARTIALLY_RECEIVED,
+        updatedBy: userId,
+      });
     }
   }
 

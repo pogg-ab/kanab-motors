@@ -30,7 +30,9 @@ import { ReportsHubPage } from './pages/reports/ReportsHubPage';
 
 function MainAppContent() {
   const { isAuthenticated, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('shipments');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    return localStorage.getItem('kanab_active_tab') || 'dashboard';
+  });
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
 
@@ -69,6 +71,7 @@ function MainAppContent() {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
+    localStorage.setItem('kanab_active_tab', tab);
     setIsMobileNavOpen(false);
     if (tab !== 'shipments') {
       setSelectedShipmentId(null);

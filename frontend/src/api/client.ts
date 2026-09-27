@@ -848,6 +848,16 @@ export const api = {
   deleteShipmentDoc: (shipmentId: string, docId: string) =>
     apiClient.delete(`/shipments/${shipmentId}/documents/${docId}`).then((r) => r.data),
 
+  // --- KMSICAMS-7/8 Dashboard & Reports Endpoints ---
+  getManagementDashboardSummary: (params: { startDate: string; endDate: string }) =>
+    apiClient
+      .get<any>('/reports/management-dashboard/summary', { params })
+      .then((r) => r.data),
+  getSalesPerformanceCrossTab: (params: { startDate: string; endDate: string }) =>
+    apiClient
+      .get<any[]>('/reports/management-dashboard/sales-cross-tab', { params })
+      .then((r) => r.data),
+
   // --- KMSICAMS-5 Endpoints (Vehicle Allotment Management) ---
   getEligibleBookings: () => apiClient.get<EligibleBooking[]>('/allotments/eligible-bookings').then((r) => r.data),
   getAvailableAllotmentVehicles: (itemId?: string) =>

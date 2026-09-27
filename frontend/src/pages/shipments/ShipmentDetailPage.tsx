@@ -158,6 +158,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleAddCost = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (shipment?.currentStage === 'RECEIVED') {
+      showToast('error', 'Cannot add cost components after a shipment is received');
+      setShowCostModal(false);
+      return;
+    }
     if (!newCost.costComponentTypeId || newCost.amount <= 0) {
       showToast('error', 'Select cost type and enter valid amount');
       return;
@@ -189,6 +194,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   };
 
   const handleRemoveCost = async (costId: string) => {
+    if (shipment?.currentStage === 'RECEIVED') {
+      showToast('error', 'Cannot remove cost components after a shipment is received');
+      return;
+    }
     try {
       await api.removeShipmentCost(shipmentId, costId);
       showToast('success', 'Cost component removed');
@@ -289,7 +298,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
     ? `FX: 1 USD = ${displayedUsdRate.toFixed(2)} ETB`
     : 'FX: ETB base';
   const hasCurrentAllocation = allocatedGrandTotalEtb > 0;
-  const allocationLocked = hasCurrentAllocation || shipment.currentStage === 'RECEIVED';
+  const costsLocked = shipment.currentStage === 'RECEIVED';
+  const allocationLocked = hasCurrentAllocation || costsLocked;
   const allocationButtonLabel = shipment.currentStage === 'RECEIVED'
     ? 'Landed Cost Locked'
     : hasCurrentAllocation
@@ -571,13 +581,19 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                 Multi-currency expense vouchers with immutable snapshot of exchange rate to ETB
               </p>
             </div>
-            <button
-              onClick={() => setShowCostModal(true)}
-              className="btn btn-cyan"
-              style={{ fontSize: '0.82rem', padding: '0.45rem 0.95rem' }}
-            >
-              <Plus size={15} /> Add Cost Component
-            </button>
+            {costsLocked ? (
+              <span className="badge badge-emerald" style={{ padding: '0.45rem 0.95rem' }}>
+                Costs Locked After Receipt
+              </span>
+            ) : (
+              <button
+                onClick={() => setShowCostModal(true)}
+                className="btn btn-cyan"
+                style={{ fontSize: '0.82rem', padding: '0.45rem 0.95rem' }}
+              >
+                <Plus size={15} /> Add Cost Component
+              </button>
+            )}
           </div>
 
           {/* Table */}
@@ -613,21 +629,27 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                         ETB {(Number(c.amount) * Number(c.exchangeRateToEtb)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
-                        <button
-                          onClick={() => handleRemoveCost(c.costComponentId)}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.25rem 0.5rem', color: 'var(--accent-rose)' }}
-                          title="Delete Cost"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {costsLocked ? (
+                          <span className="badge badge-emerald">Locked</span>
+                        ) : (
+                          <button
+                            onClick={() => handleRemoveCost(c.costComponentId)}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', color: 'var(--accent-rose)' }}
+                            title="Delete Cost"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      No cost components recorded yet. Click "+ Add Cost Component".
+                      {costsLocked
+                        ? 'No cost components recorded. Cost entry is locked because this shipment is RECEIVED.'
+                        : 'No cost components recorded yet. Click "+ Add Cost Component".'}
                     </td>
                   </tr>
                 )}
