@@ -41,13 +41,13 @@ BEGIN;
 -- ---------------------------------------------------------------------
 -- Retroactive change 1: weight-based allocation support
 -- ---------------------------------------------------------------------
-ALTER TABLE product_item ADD COLUMN weight_kg NUMERIC(10,2)
+ALTER TABLE product_item ADD COLUMN IF NOT EXISTS weight_kg NUMERIC(10,2)
     CHECK (weight_kg IS NULL OR weight_kg > 0);
 
 -- ---------------------------------------------------------------------
 -- Retroactive change 2: document type tagging on the shared attachment table
 -- ---------------------------------------------------------------------
-ALTER TABLE attachment ADD COLUMN document_type VARCHAR(50);
+ALTER TABLE attachment ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);
 -- e.g. 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'BILL_OF_LADING',
 -- 'CUSTOMS_DECLARATION' when entity_type = 'shipment'
 
@@ -56,7 +56,7 @@ ALTER TABLE attachment ADD COLUMN document_type VARCHAR(50);
 -- FOUNDATIONAL REFERENCE DATA
 -- =====================================================================
 
-CREATE TABLE supplier (
+CREATE TABLE IF NOT EXISTS supplier (
     supplier_id     SERIAL PRIMARY KEY,
     supplier_name   VARCHAR(200) NOT NULL,
     country         VARCHAR(100),
@@ -68,7 +68,7 @@ CREATE TABLE supplier (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE cost_component_type (
+CREATE TABLE IF NOT EXISTS cost_component_type (
     cost_component_type_id SMALLSERIAL PRIMARY KEY,
     type_code       VARCHAR(40) NOT NULL UNIQUE,
     type_name       VARCHAR(150) NOT NULL
@@ -81,30 +81,40 @@ INSERT INTO cost_component_type (type_code, type_name) VALUES
     ('ETHIOPIAN_CUSTOMS_DUTY', 'Ethiopian Customs Duty'),
     ('ETHIOPIAN_VAT', 'Ethiopian VAT'),
     ('INLAND_TRANSPORT', 'Inland Transport'),
-    ('CLEARING_AGENT_FEES', 'Clearing Agent Fees');
+    ('CLEARING_AGENT_FEES', 'Clearing Agent Fees')
+ON CONFLICT (type_code) DO NOTHING;
 
-CREATE TYPE currency_enum AS ENUM ('ETB', 'USD', 'EUR');
+DO $$ BEGIN
+    CREATE TYPE currency_enum AS ENUM ('ETB', 'USD', 'EUR');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Editable SUGGESTED default rate only — see design note above.
-CREATE TABLE exchange_rate_default (
+CREATE TABLE IF NOT EXISTS exchange_rate_default (
     currency      currency_enum PRIMARY KEY,
     rate_to_etb   NUMERIC(18,6) NOT NULL CHECK (rate_to_etb > 0),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-INSERT INTO exchange_rate_default (currency, rate_to_etb) VALUES ('ETB', 1.000000);
+INSERT INTO exchange_rate_default (currency, rate_to_etb) VALUES ('ETB', 1.000000)
+ON CONFLICT (currency) DO NOTHING;
 
 
 -- =====================================================================
 -- PURCHASE ORDER MANAGEMENT
 -- =====================================================================
 
-CREATE TYPE po_status_enum AS ENUM (
-    'DRAFT', 'SUBMITTED', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'
-);
+DO $$ BEGIN
+    CREATE TYPE po_status_enum AS ENUM (
+        'DRAFT', 'SUBMITTED', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
-CREATE SEQUENCE po_number_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS po_number_seq START 1;
 
-CREATE TABLE purchase_order (
+CREATE TABLE IF NOT EXISTS purchase_order (
     po_id       BIGSERIAL PRIMARY KEY,
     po_number   VARCHAR(20) NOT NULL UNIQUE
                 DEFAULT ('PO-' || lpad(nextval('po_number_seq')::text, 6, '0')),
@@ -118,14 +128,15 @@ CREATE TABLE purchase_order (
     updated_by  INT REFERENCES app_user(user_id),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_po_supplier ON purchase_order(supplier_id);
-CREATE INDEX idx_po_status ON purchase_order(status);
+CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_order(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_po_status ON purchase_order(status);
 
+DROP TRIGGER IF EXISTS trg_po_touch_updated_at ON purchase_order;
 CREATE TRIGGER trg_po_touch_updated_at
 BEFORE UPDATE ON purchase_order
 FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
-CREATE TABLE purchase_order_line (
+CREATE TABLE IF NOT EXISTS purchase_order_line (
     po_line_id       BIGSERIAL PRIMARY KEY,
     po_id            BIGINT NOT NULL REFERENCES purchase_order(po_id) ON DELETE CASCADE,
     item_id          BIGINT NOT NULL REFERENCES product_item(item_id),
@@ -134,8 +145,8 @@ CREATE TABLE purchase_order_line (
     currency         currency_enum NOT NULL,
     line_total       NUMERIC(18,2) GENERATED ALWAYS AS (quantity_ordered * unit_price) STORED
 );
-CREATE INDEX idx_po_line_po ON purchase_order_line(po_id);
-CREATE INDEX idx_po_line_item ON purchase_order_line(item_id);
+CREATE INDEX IF NOT EXISTS idx_po_line_po ON purchase_order_line(po_id);
+CREATE INDEX IF NOT EXISTS idx_po_line_item ON purchase_order_line(item_id);
 
 
 -- =====================================================================
@@ -145,14 +156,18 @@ CREATE INDEX idx_po_line_item ON purchase_order_line(item_id);
 -- Stage names are a reasonable default for an Ethiopia-via-Djibouti import
 -- chain, NOT confirmed against KANAB Motors' actual tracked checkpoints
 -- (see implementation plan, Open Question 2).
-CREATE TYPE shipment_stage_enum AS ENUM (
-    'ORDERED', 'SHIPPED', 'AT_DJIBOUTI_PORT', 'ETHIOPIAN_CUSTOMS_CLEARANCE',
-    'IN_TRANSIT_INLAND', 'RECEIVED'
-);
+DO $$ BEGIN
+    CREATE TYPE shipment_stage_enum AS ENUM (
+        'ORDERED', 'SHIPPED', 'AT_DJIBOUTI_PORT', 'ETHIOPIAN_CUSTOMS_CLEARANCE',
+        'IN_TRANSIT_INLAND', 'RECEIVED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
-CREATE SEQUENCE shipment_number_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS shipment_number_seq START 1;
 
-CREATE TABLE shipment (
+CREATE TABLE IF NOT EXISTS shipment (
     shipment_id            BIGSERIAL PRIMARY KEY,
     shipment_number        VARCHAR(20) NOT NULL UNIQUE
                            DEFAULT ('SHIP-' || lpad(nextval('shipment_number_seq')::text, 6, '0')),
@@ -172,15 +187,16 @@ CREATE TABLE shipment (
     updated_by             INT REFERENCES app_user(user_id),
     updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_shipment_stage ON shipment(current_stage);
+CREATE INDEX IF NOT EXISTS idx_shipment_stage ON shipment(current_stage);
 
+DROP TRIGGER IF EXISTS trg_shipment_touch_updated_at ON shipment;
 CREATE TRIGGER trg_shipment_touch_updated_at
 BEFORE UPDATE ON shipment
 FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
 -- Many-to-many: a shipment can consolidate multiple PO lines; a PO line can
 -- ship across multiple shipments (assumed cardinality — Open Question 1).
-CREATE TABLE shipment_line (
+CREATE TABLE IF NOT EXISTS shipment_line (
     shipment_line_id  BIGSERIAL PRIMARY KEY,
     shipment_id       BIGINT NOT NULL REFERENCES shipment(shipment_id) ON DELETE CASCADE,
     po_line_id        BIGINT NOT NULL REFERENCES purchase_order_line(po_line_id),
@@ -191,11 +207,11 @@ CREATE TABLE shipment_line (
     quantity_received NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (quantity_received >= 0),
     UNIQUE (shipment_id, po_line_id)
 );
-CREATE INDEX idx_shipment_line_shipment ON shipment_line(shipment_id);
-CREATE INDEX idx_shipment_line_po_line ON shipment_line(po_line_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_line_shipment ON shipment_line(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_line_po_line ON shipment_line(po_line_id);
 
 -- Timestamped stage-transition history.
-CREATE TABLE shipment_stage_history (
+CREATE TABLE IF NOT EXISTS shipment_stage_history (
     stage_history_id  BIGSERIAL PRIMARY KEY,
     shipment_id       BIGINT NOT NULL REFERENCES shipment(shipment_id) ON DELETE CASCADE,
     from_stage        shipment_stage_enum,
@@ -204,7 +220,7 @@ CREATE TABLE shipment_stage_history (
     changed_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     notes             TEXT
 );
-CREATE INDEX idx_shipment_stage_history_shipment ON shipment_stage_history(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_stage_history_shipment ON shipment_stage_history(shipment_id);
 
 -- Auto-log every stage change — no application code path can skip logging it.
 CREATE OR REPLACE FUNCTION fn_log_shipment_stage_change()
@@ -218,6 +234,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_log_shipment_stage_change ON shipment;
 CREATE TRIGGER trg_log_shipment_stage_change
 AFTER UPDATE ON shipment
 FOR EACH ROW EXECUTE FUNCTION fn_log_shipment_stage_change();
@@ -226,15 +243,15 @@ FOR EACH ROW EXECUTE FUNCTION fn_log_shipment_stage_change();
 -- Retroactive change 3: link received vehicles back to their shipment line.
 -- Runs here, not earlier, since it needs shipment_line to exist first.
 -- ---------------------------------------------------------------------
-ALTER TABLE vehicle_unit ADD COLUMN shipment_line_id BIGINT REFERENCES shipment_line(shipment_line_id);
-CREATE INDEX idx_vehicle_unit_shipment_line ON vehicle_unit(shipment_line_id);
+ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS shipment_line_id BIGINT REFERENCES shipment_line(shipment_line_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_unit_shipment_line ON vehicle_unit(shipment_line_id);
 
 
 -- =====================================================================
 -- MULTI-CURRENCY COST COMPONENT RECORDING
 -- =====================================================================
 
-CREATE TABLE shipment_cost_component (
+CREATE TABLE IF NOT EXISTS shipment_cost_component (
     cost_component_id      BIGSERIAL PRIMARY KEY,
     shipment_id            BIGINT NOT NULL REFERENCES shipment(shipment_id) ON DELETE CASCADE,
     cost_component_type_id SMALLINT NOT NULL REFERENCES cost_component_type(cost_component_type_id),
@@ -249,7 +266,7 @@ CREATE TABLE shipment_cost_component (
 
     CONSTRAINT chk_etb_rate_is_one CHECK (currency <> 'ETB' OR exchange_rate_to_etb = 1)
 );
-CREATE INDEX idx_shipment_cost_component_shipment ON shipment_cost_component(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_cost_component_shipment ON shipment_cost_component(shipment_id);
 
 
 -- =====================================================================
@@ -259,7 +276,7 @@ CREATE INDEX idx_shipment_cost_component_shipment ON shipment_cost_component(shi
 -- from the initial estimate) preserves history instead of erasing it.
 -- =====================================================================
 
-CREATE TABLE shipment_line_landed_cost (
+CREATE TABLE IF NOT EXISTS shipment_line_landed_cost (
     line_landed_cost_id  BIGSERIAL PRIMARY KEY,
     shipment_line_id     BIGINT NOT NULL REFERENCES shipment_line(shipment_line_id) ON DELETE CASCADE,
     allocated_cost_etb   NUMERIC(18,2) NOT NULL,
@@ -268,17 +285,17 @@ CREATE TABLE shipment_line_landed_cost (
     calculated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     calculated_by        INT REFERENCES app_user(user_id)
 );
-CREATE INDEX idx_shipment_line_landed_cost_line ON shipment_line_landed_cost(shipment_line_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_line_landed_cost_line ON shipment_line_landed_cost(shipment_line_id);
 -- Enforces "at most one CURRENT allocation per line" while still allowing
 -- historical (is_current = false) rows to accumulate.
-CREATE UNIQUE INDEX uq_shipment_line_landed_cost_current
+CREATE UNIQUE INDEX IF NOT EXISTS uq_shipment_line_landed_cost_current
     ON shipment_line_landed_cost(shipment_line_id) WHERE is_current;
 
 -- Per-unit landed cost for individually tracked vehicles. One shipment_line
 -- can cover several vehicle_unit rows (e.g. 5 units of the same model on
 -- one line) — this table is where the line-level allocation gets divided
 -- down to each specific chassis/engine-tracked unit.
-CREATE TABLE vehicle_unit_landed_cost (
+CREATE TABLE IF NOT EXISTS vehicle_unit_landed_cost (
     vehicle_unit_cost_id  BIGSERIAL PRIMARY KEY,
     vehicle_unit_id       BIGINT NOT NULL REFERENCES vehicle_unit(vehicle_unit_id) ON DELETE CASCADE,
     shipment_line_id      BIGINT NOT NULL REFERENCES shipment_line(shipment_line_id),
@@ -287,8 +304,8 @@ CREATE TABLE vehicle_unit_landed_cost (
     calculated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     calculated_by         INT REFERENCES app_user(user_id)
 );
-CREATE INDEX idx_vehicle_unit_landed_cost_unit ON vehicle_unit_landed_cost(vehicle_unit_id);
-CREATE UNIQUE INDEX uq_vehicle_unit_landed_cost_current
+CREATE INDEX IF NOT EXISTS idx_vehicle_unit_landed_cost_unit ON vehicle_unit_landed_cost(vehicle_unit_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vehicle_unit_landed_cost_current
     ON vehicle_unit_landed_cost(vehicle_unit_id) WHERE is_current;
 
 -- NOTE: the allocation CALCULATION itself (dividing a shipment's total
@@ -305,7 +322,7 @@ CREATE UNIQUE INDEX uq_vehicle_unit_landed_cost_current
 -- receipt against a single shipment_line.
 -- =====================================================================
 
-CREATE TABLE shipment_receipt (
+CREATE TABLE IF NOT EXISTS shipment_receipt (
     receipt_id         BIGSERIAL PRIMARY KEY,
     shipment_line_id   BIGINT NOT NULL REFERENCES shipment_line(shipment_line_id),
     quantity_received  NUMERIC(12,2) NOT NULL CHECK (quantity_received > 0),
@@ -313,7 +330,7 @@ CREATE TABLE shipment_receipt (
     received_by        INT REFERENCES app_user(user_id),
     warehouse_id       INT REFERENCES warehouse(warehouse_id)
 );
-CREATE INDEX idx_shipment_receipt_line ON shipment_receipt(shipment_line_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_receipt_line ON shipment_receipt(shipment_line_id);
 
 -- Keeps shipment_line.quantity_received in sync automatically, and — under
 -- a row lock on the parent line — rejects any receipt that would push the
@@ -344,6 +361,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_shipment_line_received_qty ON shipment_receipt;
 CREATE TRIGGER trg_update_shipment_line_received_qty
 AFTER INSERT ON shipment_receipt
 FOR EACH ROW EXECUTE FUNCTION fn_update_shipment_line_received_qty();
