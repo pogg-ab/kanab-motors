@@ -92,7 +92,7 @@ export const DocumentsPage: React.FC = () => {
             <div>
               <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>Unified Document Center</h1>
               <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.875rem' }}>
-                KMSICAMS-6 Sub-module 4: Document Reference Types & Cross-Entity Document Registry (DA1–DA6)
+                Central Cross-Entity Document Archive & Regulatory Compliance Registry
               </p>
             </div>
           </div>
@@ -160,7 +160,7 @@ export const DocumentsPage: React.FC = () => {
             Formal Document Types
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: '#3b82f6' }}>
-            {docTypes.length} Types (DA1)
+            {docTypes.length} Standard Types
           </div>
         </div>
 
@@ -364,7 +364,7 @@ export const DocumentsPage: React.FC = () => {
       {/* Formal Document Type Reference Cards */}
       <div style={{ background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '1.5rem' }}>
         <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', fontWeight: 700 }}>
-          Formal Document Types Reference (DA1 & Validation Rules)
+          Standard Document Types & Compliance Scope Reference
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
           {docTypes.map((dt) => (

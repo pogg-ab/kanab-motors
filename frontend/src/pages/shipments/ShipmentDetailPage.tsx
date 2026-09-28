@@ -381,7 +381,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             {shipment.shipmentNumber}
           </span>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            BL: {shipment.billOfLadingNumber || 'Pending'} · Toyota Tsusho Corp · Maersk Mc-Kinney Moller v.2604
+            BL: {shipment.billOfLadingNumber || 'Pending'} · Method: {shipment.allocationMethod ? shipment.allocationMethod.replace('_', ' ') : 'Standard'}
           </span>
         </div>
 
@@ -1083,7 +1083,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               Document Centre & Compliance Checklist
             </h3>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-              Stories D1–D2: Mandatory customs documents required prior to Ethiopian customs clearance
+              Mandatory shipping & customs documentation required prior to Ethiopian customs clearance
             </p>
           </div>
 
@@ -1208,7 +1208,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               Warehouse Inventory Physical Receipts
             </h3>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-              Stories R1–R3: Multi-batch receipt creating physical vehicle VIN units in inventory
+              Multi-batch physical receiving and automatic serial/VIN registration into warehouse inventory
             </p>
           </div>
 

@@ -1001,7 +1001,7 @@ export const UsersPage: React.FC = () => {
           {canCreateUser && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary"
+            className="btn btn-cyan"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '40px' }}
           >
             <UserPlus size={16} />
@@ -1769,7 +1769,7 @@ export const UsersPage: React.FC = () => {
                       }
                       style={{ accentColor: 'var(--accent-cyan)' }}
                     />
-                    <span>Force user to change password upon first login (KMSICAMS-9)</span>
+                    <span>Force user to change password upon first login</span>
                   </label>
                 </div>
 

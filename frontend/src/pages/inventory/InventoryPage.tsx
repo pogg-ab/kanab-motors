@@ -348,7 +348,7 @@ export const InventoryPage: React.FC = () => {
             Inventory & Warehouse Management
           </h1>
           <p style={{ margin: '0.35rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            KMSICAMS-4 • Multi-Warehouse Stock Balances, State Transitions, Transfers, & Local Assembly Intake
+            Multi-Warehouse Stock Balances, State Transitions, Transfers & Local Assembly Intake
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -372,37 +372,15 @@ export const InventoryPage: React.FC = () => {
           </button>
           <button
             onClick={() => setShowTransferModal(true)}
-            style={{
-              padding: '0.6rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '6px',
-              background: 'linear-gradient(135deg, #00D2D3, #00A8FF)',
-              color: '#0D1117',
-              border: 'none',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
             <ArrowRightLeft size={16} /> New Transfer
           </button>
           <button
             onClick={() => canManageWarehouses && setShowProductionModal(true)}
-            style={{
-              padding: '0.6rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '6px',
-              background: 'linear-gradient(135deg, #10B981, #059669)',
-              color: '#FFFFFF',
-              border: 'none',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
+            className="btn btn-cyan"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
             <Wrench size={16} /> Assembly Intake
           </button>
@@ -427,7 +405,7 @@ export const InventoryPage: React.FC = () => {
           }}
         >
           <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>ACTIVE WAREHOUSES</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#00D2D3' }}>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: 'var(--accent-cyan)' }}>
             {warehouses.length}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
@@ -525,10 +503,10 @@ export const InventoryPage: React.FC = () => {
                 padding: '0.75rem 1.25rem',
                 border: 'none',
                 background: 'transparent',
-                color: isActive ? '#00D2D3' : 'var(--text-secondary)',
+                color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
                 fontWeight: isActive ? 700 : 500,
                 fontSize: '0.9rem',
-                borderBottom: isActive ? '2px solid #00D2D3' : '2px solid transparent',
+                borderBottom: isActive ? '2px solid var(--accent-cyan)' : '2px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 whiteSpace: 'nowrap',
@@ -703,7 +681,7 @@ export const InventoryPage: React.FC = () => {
                         <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>
                           {b.warehouse?.warehouseName || `Warehouse #${b.warehouseId}`}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>
+                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: 'var(--accent-cyan)' }}>
                           {b.item?.itemCode || b.itemId}
                         </td>
                         <td style={{ padding: '0.85rem 1rem' }}>{b.item?.name || '—'}</td>
@@ -773,8 +751,8 @@ export const InventoryPage: React.FC = () => {
               style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '6px',
-                background: '#00D2D3',
-                color: '#0D1117',
+                background: 'var(--accent-cyan)',
+                color: '#031726',
                 border: 'none',
                 fontWeight: 700,
                 fontSize: '0.85rem',
@@ -846,7 +824,7 @@ export const InventoryPage: React.FC = () => {
                               t.status === 'COMPLETED'
                                 ? '#10B981'
                                 : t.status === 'APPROVED'
-                                ? '#00D2D3'
+                                ? 'var(--accent-cyan)'
                                 : '#F59E0B',
                           }}
                         >
@@ -877,9 +855,9 @@ export const InventoryPage: React.FC = () => {
                               disabled={actionLoading}
                               onClick={() => handleApproveTransfer(t.transferId)}
                               style={{
-                                background: '#00D2D3',
+                                background: 'var(--accent-cyan)',
                                 border: 'none',
-                                color: '#0D1117',
+                                color: '#ffffff',
                                 padding: '0.3rem 0.6rem',
                                 borderRadius: '4px',
                                 cursor: 'pointer',
@@ -927,19 +905,8 @@ export const InventoryPage: React.FC = () => {
             {canManageWarehouses && (
             <button
               onClick={() => setShowAdjustmentModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#A855F7',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> New Adjustment
             </button>
@@ -1071,25 +1038,14 @@ export const InventoryPage: React.FC = () => {
             <div>
               <div style={{ fontSize: '1rem', fontWeight: 700 }}>Local Vehicle Assembly Intake</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Fills SRS gap: directly receives locally assembled three-wheelers/motorcycles into warehouse inventory with auto-activation to AVAILABLE_FOR_SALE
+                Directly receive locally assembled vehicles into warehouse inventory with immediate status update to Available for Sale
               </div>
             </div>
             {canManageWarehouses && (
             <button
               onClick={() => setShowProductionModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#10B981',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> Record Assembly Receipt
             </button>
@@ -1129,7 +1085,7 @@ export const InventoryPage: React.FC = () => {
                       <td style={{ padding: '0.85rem 1rem', fontWeight: 700, fontFamily: 'monospace' }}>
                         #{p.productionReceiptId}
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3', fontWeight: 700 }}>
+                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: 'var(--accent-cyan)', fontWeight: 700 }}>
                         {p.chassisNumber}
                       </td>
                       <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace' }}>{p.engineNumber}</td>
@@ -1167,7 +1123,7 @@ export const InventoryPage: React.FC = () => {
               Vehicle Lifecycle State Machine Rules
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Enforced by database function <code style={{ color: '#00D2D3' }}>fn_transition_vehicle_status()</code>.
+              Enforced by database function <code style={{ color: 'var(--accent-cyan)' }}>fn_transition_vehicle_status()</code>.
               Direct unauthorized status jumps (e.g. RECEIVED → SOLD) are strictly blocked.
             </div>
           </div>
@@ -1202,7 +1158,7 @@ export const InventoryPage: React.FC = () => {
                   <span
                     style={{
                       background: 'rgba(0, 210, 211, 0.1)',
-                      color: '#00D2D3',
+                      color: 'var(--accent-cyan)',
                       fontSize: '0.7rem',
                       padding: '0.15rem 0.5rem',
                       borderRadius: '4px',
@@ -1265,7 +1221,7 @@ export const InventoryPage: React.FC = () => {
                           {vr.status}
                         </span>
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-cyan)' }}>
                         {vr.vehicle_count}
                       </td>
                     </tr>
@@ -1281,7 +1237,7 @@ export const InventoryPage: React.FC = () => {
       {activeTab === 'movements' && (
         <div>
           <div style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: 700 }}>
-            Unified Double-Entry Stock Movement History (Story H1)
+            Unified Double-Entry Stock Movement History
           </div>
 
           <div
@@ -1565,8 +1521,8 @@ export const InventoryPage: React.FC = () => {
                   style={{
                     padding: '0.6rem 1.25rem',
                     borderRadius: '6px',
-                    background: '#00D2D3',
-                    color: '#0D1117',
+                    background: 'var(--accent-cyan)',
+                    color: '#031726',
                     border: 'none',
                     fontWeight: 700,
                     cursor: 'pointer',

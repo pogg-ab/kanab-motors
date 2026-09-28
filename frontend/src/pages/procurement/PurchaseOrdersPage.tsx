@@ -390,7 +390,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         <div style={{ overflowX: 'auto' }}>
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>PO NUMBER</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>SUPPLIER / ORIGIN</th>
                 <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>DATE & CURRENCY</th>
@@ -723,7 +723,7 @@ export const PurchaseOrdersPage: React.FC = () => {
               <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.65rem', color: 'var(--text-primary)' }}>Contract Line Items</div>
               <table className="table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.25rem' }}>
                 <thead>
-                  <tr style={{ background: '#090D16' }}>
+                  <tr style={{ background: 'var(--bg-table-header)' }}>
                     <th style={{ padding: '0.7rem 0.9rem', textAlign: 'left', fontSize: '0.72rem' }}>ITEM</th>
                     <th style={{ padding: '0.7rem 0.9rem', textAlign: 'center', fontSize: '0.72rem' }}>QTY ORDERED</th>
                     <th style={{ padding: '0.7rem 0.9rem', textAlign: 'right', fontSize: '0.72rem' }}>UNIT PRICE</th>

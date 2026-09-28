@@ -79,12 +79,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentModuleTitle, onToggleSide
           </kbd>
         </div>
 
-        {/* Live NBE Rate Ticker */}
-        <div className="navbar-ticker rate-ticker">
-          <span>USD/ETB</span>
-          <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>125.00</span>
-        </div>
-
         {/* Theme Toggle Button (Light / Dark Mode) */}
         <button
           onClick={toggleTheme}

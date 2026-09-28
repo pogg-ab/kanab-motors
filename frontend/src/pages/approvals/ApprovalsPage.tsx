@@ -137,7 +137,7 @@ export const ApprovalsPage: React.FC = () => {
             <div>
               <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>Approval Workflow & Internal Controls</h1>
               <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.875rem' }}>
-                KMSICAMS-6 Sub-module 3: Central Approval Engine, Multi-level Chains, Role Hierarchy & Retrofit Dispatcher (AW1–AW10)
+                Central Governance Engine, Multi-Level Decision Chains & Internal Controls
               </p>
             </div>
           </div>
@@ -528,149 +528,152 @@ export const ApprovalsPage: React.FC = () => {
       {/* DECISION / AUDIT MODAL */}
       {selectedRequest && decisionModalMode && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedRequest(null);
+              setDecisionModalMode(null);
+            }
           }}
         >
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              borderRadius: '16px',
-              border: '1px solid var(--border-color)',
-              maxWidth: '560px',
-              width: '100%',
-              padding: '2rem',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <ShieldCheck
-                  color={
-                    decisionModalMode === 'APPROVE'
-                      ? '#10b981'
-                      : decisionModalMode === 'REJECT'
-                      ? '#ef4444'
-                      : 'var(--accent-cyan)'
-                  }
-                  size={24}
-                />
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
-                  {decisionModalMode === 'APPROVE'
-                    ? 'Confirm Approval Decision'
-                    : decisionModalMode === 'REJECT'
-                    ? 'Confirm Rejection Decision'
-                    : `Decision Audit Trail: #${selectedRequest.requestNumber}`}
-                </h3>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedRequest(null);
-                  setDecisionModalMode(null);
-                }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                <div>Request: <strong>{selectedRequest.requestNumber}</strong></div>
-                <div>Level: <strong>Level {selectedRequest.currentLevel}</strong></div>
-                <div>Workflow: <strong>{selectedRequest.workflowType?.workflowTypeName}</strong></div>
-                <div>Target: <strong>{selectedRequest.entityType} #{selectedRequest.entityId}</strong></div>
-              </div>
-            </div>
-
-            {decisionModalMode === 'AUDIT' ? (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                  Execution Chain History:
-                </div>
-                {selectedRequest.actions && selectedRequest.actions.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {selectedRequest.actions.map((act) => (
-                      <div
-                        key={act.approvalActionId}
-                        style={{
-                          padding: '0.75rem 1rem',
-                          background: 'var(--bg-primary)',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)',
-                          fontSize: '0.85rem',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                          <span style={{ fontWeight: 700, color: act.decision === 'APPROVED' ? '#10b981' : '#ef4444' }}>
-                            Level {act.approvalLevel}: {act.decision}
-                          </span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                            {new Date(act.decidedAt).toLocaleString()}
-                          </span>
-                        </div>
-                        <div style={{ color: 'var(--text-secondary)' }}>
-                          Reviewer: {act.decider?.fullName || `User #${act.decidedBy || 1}`}
-                        </div>
-                        {act.comments && (
-                          <div style={{ marginTop: '0.25rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            "{act.comments}"
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No historical action records.</div>
-                )}
-              </div>
-            ) : (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Decision Audit Comments & Notes
-                </label>
-                <textarea
-                  value={decisionComments}
-                  onChange={(e) => setDecisionComments(e.target.value)}
-                  placeholder="Enter verification notes, check details or compliance remarks..."
-                  rows={3}
+          <div className="modal-content" style={{ maxWidth: '580px', width: '95%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div
                   style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    outline: 'none',
-                    resize: 'none',
+                    padding: '0.6rem',
+                    background:
+                      decisionModalMode === 'APPROVE'
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'rgba(239, 68, 68, 0.12)'
+                        : 'rgba(0, 210, 211, 0.12)',
+                    border: `1px solid ${
+                      decisionModalMode === 'APPROVE'
+                        ? 'rgba(16, 185, 129, 0.3)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'rgba(239, 68, 68, 0.3)'
+                        : 'rgba(0, 210, 211, 0.3)'
+                    }`,
+                    borderRadius: 'var(--radius-md)',
+                    color:
+                      decisionModalMode === 'APPROVE'
+                        ? '#10b981'
+                        : decisionModalMode === 'REJECT'
+                        ? '#ef4444'
+                        : 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
-                />
+                >
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {decisionModalMode === 'APPROVE'
+                      ? 'Confirm Approval Decision'
+                      : decisionModalMode === 'REJECT'
+                      ? 'Confirm Rejection Decision'
+                      : `Decision Audit Trail: #${selectedRequest.requestNumber}`}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Corporate Governance & Segregation of Duties Enforcement
+                  </span>
+                </div>
               </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               <button
                 type="button"
                 onClick={() => {
                   setSelectedRequest(null);
                   setDecisionModalMode(null);
                 }}
-                style={{
-                  padding: '0.625rem 1.25rem',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.875rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div>Request: <strong>{selectedRequest.requestNumber}</strong></div>
+                  <div>Level: <strong>Level {selectedRequest.currentLevel}</strong></div>
+                  <div>Workflow: <strong>{selectedRequest.workflowType?.workflowTypeName}</strong></div>
+                  <div>Target: <strong>{selectedRequest.entityType} #{selectedRequest.entityId}</strong></div>
+                </div>
+              </div>
+
+              {decisionModalMode === 'AUDIT' ? (
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                    Execution Chain History:
+                  </div>
+                  {selectedRequest.actions && selectedRequest.actions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {selectedRequest.actions.map((act) => (
+                        <div
+                          key={act.approvalActionId}
+                          style={{
+                            padding: '0.75rem 1rem',
+                            background: 'var(--bg-card)',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color)',
+                            fontSize: '0.85rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ fontWeight: 700, color: act.decision === 'APPROVED' ? '#10b981' : '#ef4444' }}>
+                              Level {act.approvalLevel}: {act.decision}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                              {new Date(act.decidedAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Reviewer: {act.decider?.fullName || `User #${act.decidedBy || 1}`}
+                          </div>
+                          {act.comments && (
+                            <div style={{ marginTop: '0.25rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              "{act.comments}"
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No historical action records.</div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label
+                    className="form-label"
+                    style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', display: 'block' }}
+                  >
+                    Decision Audit Comments & Notes
+                  </label>
+                  <textarea
+                    value={decisionComments}
+                    onChange={(e) => setDecisionComments(e.target.value)}
+                    placeholder="Enter verification notes, check details or compliance remarks..."
+                    rows={3}
+                    className="input"
+                    style={{ width: '100%', resize: 'none' }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setDecisionModalMode(null);
                 }}
+                className="btn btn-secondary"
               >
                 Close
               </button>
@@ -680,14 +683,11 @@ export const ApprovalsPage: React.FC = () => {
                   type="button"
                   onClick={handleDecisionSubmit}
                   disabled={actionLoading}
+                  className={decisionModalMode === 'APPROVE' ? 'btn btn-emerald' : 'btn btn-rose'}
                   style={{
-                    padding: '0.625rem 1.5rem',
-                    borderRadius: '8px',
-                    border: 'none',
                     background: decisionModalMode === 'APPROVE' ? '#10b981' : '#ef4444',
                     color: '#fff',
                     fontWeight: 700,
-                    cursor: actionLoading ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {actionLoading

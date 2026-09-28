@@ -248,7 +248,7 @@ export const LivePermissionSimulatorTab: React.FC<Props> = ({ users, roles }) =>
               border: '1px solid rgba(56, 189, 248, 0.3)',
             }}
           >
-            KMSICAMS-9 Kernel
+            Enterprise RBAC Kernel
           </span>
         </div>
 
@@ -287,13 +287,13 @@ export const LivePermissionSimulatorTab: React.FC<Props> = ({ users, roles }) =>
                       borderRadius: '50%',
                       background:
                         selectedUserId === u.userId
-                          ? 'linear-gradient(135deg, #00d2d3, #6c5ce7)'
+                          ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))'
                           : 'var(--bg-tertiary)',
                       border:
                         selectedUserId === u.userId
-                          ? '2px solid #ffffff'
+                          ? '2px solid var(--accent-cyan)'
                           : '1px solid var(--border-color)',
-                      color: selectedUserId === u.userId ? '#031726' : 'var(--text-muted)',
+                      color: selectedUserId === u.userId ? '#ffffff' : 'var(--text-muted)',
                       fontSize: '0.65rem',
                       fontWeight: 800,
                       cursor: 'pointer',
@@ -691,7 +691,7 @@ export const LivePermissionSimulatorTab: React.FC<Props> = ({ users, roles }) =>
             style={{
               padding: '0.75rem 1.5rem',
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, #00d2d3, #6c5ce7)',
+              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))',
               border: 'none',
               color: '#ffffff',
               fontSize: '0.88rem',

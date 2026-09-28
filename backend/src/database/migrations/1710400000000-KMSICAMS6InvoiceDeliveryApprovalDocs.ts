@@ -35,7 +35,7 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
               RAISE EXCEPTION 'Cannot transition vehicle % to ALLOTTED from status %', p_vehicle_unit_id, v_old_status;
           END IF;
 
-          IF p_new_status = 'READY_FOR_DELIVERY' AND v_old_status NOT IN ('ALLOTTED', 'AVAILABLE_FOR_SALE') THEN
+          IF p_new_status = 'READY_FOR_DELIVERY' AND v_old_status NOT IN ('ALLOTTED', 'AVAILABLE_FOR_SALE', 'SOLD') THEN
               RAISE EXCEPTION 'Cannot transition vehicle % to READY_FOR_DELIVERY from status %', p_vehicle_unit_id, v_old_status;
           END IF;
 
@@ -53,7 +53,7 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
           WHERE vehicle_unit_id = p_vehicle_unit_id;
 
           IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log') THEN
-              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, created_at)
+              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, changed_at)
               VALUES (
                   'vehicle_unit',
                   p_vehicle_unit_id,
@@ -390,6 +390,7 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
           v_customer_id     BIGINT;
           v_gross_total     NUMERIC(18,2);
           v_balance         NUMERIC(18,2);
+          v_curr_balance    NUMERIC(18,2);
       BEGIN
           SELECT vehicle_unit_id, invoice_number, booking_id, customer_id, gross_total, outstanding_balance
           INTO v_vehicle_unit_id, v_invoice_number, v_booking_id, v_customer_id, v_gross_total, v_balance
@@ -408,19 +409,31 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
 
           -- Post to customer ledger transaction if table exists
           IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'customer_ledger_transaction') THEN
+              SELECT COALESCE(running_balance, 0) INTO v_curr_balance
+              FROM customer_ledger_transaction
+              WHERE customer_id = v_customer_id
+              ORDER BY transaction_id DESC
+              LIMIT 1;
+
+              IF v_curr_balance IS NULL THEN
+                  v_curr_balance := 0;
+              END IF;
+
               INSERT INTO customer_ledger_transaction (
                   customer_id, transaction_type, debit_amount, credit_amount,
-                  running_balance, reference_type, reference_id, description, created_by
+                  running_balance, reference_number, description,
+                  related_sales_invoice_id, related_booking_id, processed_by
               )
               VALUES (
                   v_customer_id,
                   'INVOICE_CHARGE',
                   v_gross_total,
                   0,
-                  0,
-                  'SALES_INVOICE',
+                  v_curr_balance + v_gross_total,
                   v_invoice_number,
                   'Sales Invoice Settlement: ' || v_invoice_number,
+                  p_invoice_id,
+                  v_booking_id,
                   p_approved_by
               );
           END IF;
@@ -578,22 +591,36 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
           v_payment_validated BOOLEAN;
           v_booking_id        BIGINT;
           v_allotment_number  VARCHAR(20);
+          v_current_status    VARCHAR(30);
       BEGIN
           SELECT booking_id, allotment_number INTO v_booking_id, v_allotment_number
           FROM allotment WHERE allotment_id = p_allotment_id;
 
+          IF NOT FOUND THEN
+              RETURN;
+          END IF;
+
           SELECT payment_validated INTO v_payment_validated
           FROM booking_allotment_requirement WHERE booking_id = v_booking_id;
 
-          IF NOT v_payment_validated THEN
-              RAISE EXCEPTION 'Cannot approve allotment %: booking % has not been marked payment-validated',
-                  v_allotment_number, v_booking_id;
+          IF v_payment_validated IS FALSE THEN
+              IF NOT EXISTS (
+                  SELECT 1 FROM sales_invoice WHERE booking_id = v_booking_id AND status = 'APPROVED'
+              ) THEN
+                  RAISE EXCEPTION 'Cannot approve allotment %: booking % has not been marked payment-validated',
+                      v_allotment_number, v_booking_id;
+              END IF;
           END IF;
 
           FOR r IN SELECT vehicle_unit_id FROM allotment_line WHERE allotment_id = p_allotment_id AND is_active LOOP
-              PERFORM fn_transition_vehicle_status(
-                  r.vehicle_unit_id, 'ALLOTTED', p_approved_by, 'ALLOTMENT', 'Allotment ' || v_allotment_number
-              );
+              SELECT current_status INTO v_current_status
+              FROM vehicle_unit WHERE vehicle_unit_id = r.vehicle_unit_id;
+
+              IF v_current_status IN ('AVAILABLE_FOR_SALE', 'RESERVED') THEN
+                  PERFORM fn_transition_vehicle_status(
+                      r.vehicle_unit_id, 'ALLOTTED', p_approved_by, 'ALLOTMENT', 'Allotment ' || v_allotment_number
+                  );
+              END IF;
           END LOOP;
 
           UPDATE allotment SET status = 'APPROVED', approved_by = p_approved_by, approved_at = now()
