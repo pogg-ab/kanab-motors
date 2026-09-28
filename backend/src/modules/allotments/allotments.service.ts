@@ -192,7 +192,7 @@ export class AllotmentsService {
     }
 
     // Perform creation in database transaction
-    return this.dataSource.transaction(async (manager) => {
+    const allotmentId = await this.dataSource.transaction(async (manager) => {
       const allotment = manager.create(Allotment, {
         bookingId: dto.bookingId,
         status: AllotmentStatus.REQUESTED,
@@ -224,8 +224,10 @@ export class AllotmentsService {
         },
       });
 
-      return this.findOne(savedAllotment.allotmentId);
+      return savedAllotment.allotmentId;
     });
+
+    return this.findOne(allotmentId);
   }
 
   /**
@@ -240,7 +242,7 @@ export class AllotmentsService {
       );
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       // 1. Update allotment header
       allotment.status = AllotmentStatus.APPROVED;
       allotment.approvedBy = userId;
@@ -279,9 +281,9 @@ export class AllotmentsService {
           approvedAt: allotment.approvedAt,
         },
       });
-
-      return this.findOne(id);
     });
+
+    return this.findOne(id);
   }
 
   /**
@@ -293,16 +295,17 @@ export class AllotmentsService {
       throw new BadRequestException(`Allotment is already ${allotment.status}`);
     }
 
-    return this.dataSource.transaction(async (manager) => {
-      allotment.status = AllotmentStatus.REJECTED;
-      allotment.rejectionReason = reason.trim();
-      await manager.save(allotment);
-
+    await this.dataSource.transaction(async (manager) => {
       // Deactivate all lines
+      await manager.query(
+        `UPDATE allotment_line SET is_active = false, deactivated_at = now(), deactivated_by = $1 WHERE allotment_id = $2`,
+        [userId, id],
+      );
+
       await manager.update(
-        AllotmentLine,
+        Allotment,
         { allotmentId: id },
-        { isActive: false, deactivatedAt: new Date(), deactivatedBy: userId },
+        { status: AllotmentStatus.REJECTED, rejectionReason: reason.trim() },
       );
 
       await this.auditService.log({
@@ -315,9 +318,9 @@ export class AllotmentsService {
           rejectionReason: reason,
         },
       });
-
-      return this.findOne(id);
     });
+
+    return this.findOne(id);
   }
 
   /**
@@ -332,7 +335,7 @@ export class AllotmentsService {
       );
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       // 1. Revert vehicle units to AVAILABLE_FOR_SALE
       for (const line of allotment.lines) {
         if (line.isActive) {
@@ -353,15 +356,17 @@ export class AllotmentsService {
       }
 
       // 2. Deactivate lines
-      await manager.update(
-        AllotmentLine,
-        { allotmentId: id },
-        { isActive: false, deactivatedAt: new Date(), deactivatedBy: userId },
+      await manager.query(
+        `UPDATE allotment_line SET is_active = false, deactivated_at = now(), deactivated_by = $1 WHERE allotment_id = $2`,
+        [userId, id],
       );
 
-      // 3. Mark allotment CANCELLED
-      allotment.status = AllotmentStatus.CANCELLED;
-      await manager.save(allotment);
+      // 3. Mark allotment CANCELLED without cascading
+      await manager.update(
+        Allotment,
+        { allotmentId: id },
+        { status: AllotmentStatus.CANCELLED },
+      );
 
       await this.auditService.log({
         entityType: 'allotment',
@@ -373,9 +378,9 @@ export class AllotmentsService {
           action: 'REVERSED',
         },
       });
-
-      return this.findOne(id);
     });
+
+    return this.findOne(id);
   }
 
   async findAll(query: AllotmentQueryDto) {
