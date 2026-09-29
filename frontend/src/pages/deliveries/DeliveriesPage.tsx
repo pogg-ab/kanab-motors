@@ -13,6 +13,7 @@ import {
   Calendar,
   User,
   Key,
+  X,
 } from 'lucide-react';
 import { usePermissions } from '../../authz/usePermissions';
 import {
@@ -576,42 +577,27 @@ export const DeliveriesPage: React.FC = () => {
 
       {/* RECORD PDI MODAL */}
       {showPdiModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              borderRadius: '16px',
-              border: '1px solid var(--border-color)',
-              maxWidth: '620px',
-              width: '100%',
-              padding: '2rem',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '640px' }}>
+            <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <ClipboardCheck color="var(--accent-cyan)" size={24} />
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Record Vehicle PDI Inspection</h2>
+                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <ClipboardCheck size={20} />
+                </div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Record Vehicle PDI Inspection</h2>
               </div>
-              <button onClick={() => setShowPdiModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                ✕
+              <button
+                type="button"
+                onClick={() => setShowPdiModal(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleRecordPdi}>
+              <div className="modal-body">
               <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Target Vehicle Unit *
@@ -679,33 +665,20 @@ export const DeliveriesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              </div>
+
+              <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowPdiModal(false)}
-                  style={{
-                    padding: '0.625rem 1.25rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading || !pdiVehicleId}
-                  style={{
-                    padding: '0.625rem 1.5rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--accent-cyan)',
-                    color: '#000',
-                    fontWeight: 700,
-                    cursor: actionLoading || !pdiVehicleId ? 'not-allowed' : 'pointer',
-                  }}
+                  className="btn btn-cyan"
                 >
                   {actionLoading ? 'Recording...' : 'Submit PDI Results'}
                 </button>
@@ -717,161 +690,141 @@ export const DeliveriesPage: React.FC = () => {
 
       {/* CREATE DELIVERY MODAL */}
       {showDeliveryModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
+        <div className="modal-backdrop" onClick={() => setShowDeliveryModal(false)}>
           <div
-            style={{
-              background: 'var(--bg-card)',
-              borderRadius: '16px',
-              border: '1px solid var(--border-color)',
-              maxWidth: '560px',
-              width: '100%',
-              padding: '2rem',
-            }}
+            className="modal-content"
+            style={{ maxWidth: '560px', width: '100%' }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Car color="#10b981" size={24} />
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>New Handover Order</h2>
+                <h3 className="modal-title" style={{ margin: 0 }}>New Handover Order</h3>
               </div>
-              <button onClick={() => setShowDeliveryModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                ✕
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowDeliveryModal(false)}
+              >
+                <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleCreateDelivery}>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Target Booking Order *
-                </label>
-                <select
-                  value={deliveryBookingId}
-                  onChange={(e) => setDeliveryBookingId(e.target.value)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <option value="">-- Select Customer Booking --</option>
-                  {bookings.map((b) => (
-                    <option key={b.bookingId} value={b.bookingId}>
-                      {b.bookingNumber} — {b.customer?.fullName} ({b.item?.itemName})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <div className="modal-body">
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Target Booking Order *
+                  </label>
+                  <select
+                    value={deliveryBookingId}
+                    onChange={(e) => setDeliveryBookingId(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    <option value="">-- Select Customer Booking --</option>
+                    {bookings.map((b) => (
+                      <option key={b.bookingId} value={b.bookingId}>
+                        {b.bookingNumber} — {b.customer?.fullName} ({b.item?.itemName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Vehicle Unit (VIN) *
-                </label>
-                <select
-                  value={deliveryVehicleId}
-                  onChange={(e) => setDeliveryVehicleId(e.target.value)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <option value="">-- Select Vehicle Unit --</option>
-                  {vehicles.map((v) => (
-                    <option key={v.vehicleUnitId} value={v.vehicleUnitId}>
-                      VIN: {v.chassisNumber} ({v.currentStatus})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Vehicle Unit (VIN) *
+                  </label>
+                  <select
+                    value={deliveryVehicleId}
+                    onChange={(e) => setDeliveryVehicleId(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    <option value="">-- Select Vehicle Unit --</option>
+                    {vehicles.map((v) => (
+                      <option key={v.vehicleUnitId} value={v.vehicleUnitId}>
+                        VIN: {v.chassisNumber} ({v.currentStatus})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Handover Date
-                </label>
-                <input
-                  type="date"
-                  value={deliveryDate}
-                  onChange={(e) => setDeliveryDate(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Handover Date
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={financialSettlementValidated}
-                    onChange={(e) => setFinancialSettlementValidated(e.target.checked)}
-                    style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
                   />
-                  <span style={{ fontSize: '0.875rem' }}>Financial Settlement Confirmed (DL3)</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={customerAcknowledged}
-                    onChange={(e) => setCustomerAcknowledged(e.target.checked)}
-                    style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
-                  />
-                  <span style={{ fontSize: '0.875rem' }}>Customer Acknowledgment & Inspection Received</span>
-                </label>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={financialSettlementValidated}
+                      onChange={(e) => setFinancialSettlementValidated(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                    />
+                    <span style={{ fontSize: '0.875rem' }}>Financial Settlement Confirmed (DL3)</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={customerAcknowledged}
+                      onChange={(e) => setCustomerAcknowledged(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                    />
+                    <span style={{ fontSize: '0.875rem' }}>Customer Acknowledgment & Inspection Received</span>
+                  </label>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowDeliveryModal(false)}
-                  style={{
-                    padding: '0.625rem 1.25rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading || !deliveryBookingId || !deliveryVehicleId}
+                  className="btn btn-emerald"
                   style={{
-                    padding: '0.625rem 1.5rem',
-                    borderRadius: '8px',
-                    border: 'none',
                     background: '#10b981',
                     color: '#fff',
+                    border: 'none',
                     fontWeight: 700,
-                    cursor: actionLoading || !deliveryBookingId || !deliveryVehicleId ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {actionLoading ? 'Creating...' : 'Create Handover Order'}
@@ -884,117 +837,108 @@ export const DeliveriesPage: React.FC = () => {
 
       {/* OFFICIAL GATE PASS MODAL (STORY DL5) */}
       {gatePassData && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.8)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100,
-            padding: '1rem',
-          }}
-        >
+        <div className="modal-backdrop" onClick={() => setGatePassData(null)}>
           <div
-            id="printable-gate-pass"
+            className="modal-content"
             style={{
+              maxWidth: '720px',
+              width: '100%',
               background: '#ffffff',
               color: '#0f172a',
-              borderRadius: '16px',
-              maxWidth: '680px',
-              width: '100%',
-              padding: '2.5rem',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              padding: 0,
+              overflow: 'hidden',
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Gate pass header */}
-            <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', color: '#0f172a' }}>
-                  KANAB MOTORS PLC
-                </h2>
-                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                  Integrated Sales, Inventory & Customer Account Management
+            <div id="printable-gate-pass" style={{ padding: '2.5rem' }}>
+              {/* Gate pass header */}
+              <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', color: '#0f172a' }}>
+                    KANAB MOTORS PLC
+                  </h2>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                    Integrated Sales, Inventory & Customer Account Management
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0f172a', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
+                    OFFICIAL GATE PASS
+                  </span>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem' }}>
+                    {gatePassData.gatePassNumber}
+                  </div>
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0f172a', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
-                  OFFICIAL GATE PASS
-                </span>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem' }}>
-                  {gatePassData.gatePassNumber}
-                </div>
-              </div>
-            </div>
 
-            {/* Verification status stamp */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
-                <div>
-                  <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Recipient Customer</div>
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{gatePassData.customer?.name}</div>
-                  <div style={{ color: '#475569' }}>Phone: {gatePassData.customer?.phone}</div>
-                </div>
-                <div>
-                  <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Handover Reference</div>
-                  <div style={{ fontWeight: 700 }}>Order: {gatePassData.booking?.bookingNumber}</div>
-                  <div style={{ color: '#475569' }}>Date: {gatePassData.deliveryDate}</div>
+              {/* Verification status stamp */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
+                  <div>
+                    <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Recipient Customer</div>
+                    <div style={{ fontWeight: 700, fontSize: '1rem' }}>{gatePassData.customer?.name}</div>
+                    <div style={{ color: '#475569' }}>Phone: {gatePassData.customer?.phone}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Handover Reference</div>
+                    <div style={{ fontWeight: 700 }}>Order: {gatePassData.booking?.bookingNumber}</div>
+                    <div style={{ color: '#475569' }}>Date: {gatePassData.deliveryDate}</div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Vehicle Details */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ fontWeight: 800, fontSize: '0.9rem', marginBottom: '0.5rem', color: '#0f172a' }}>
-                VEHICLE DISPATCH CREDENTIALS
+              {/* Vehicle Details */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ fontWeight: 800, fontSize: '0.9rem', marginBottom: '0.5rem', color: '#0f172a' }}>
+                  VEHICLE DISPATCH CREDENTIALS
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', fontSize: '0.85rem' }}>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Chassis / VIN:</span>
+                    <div style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.95rem' }}>{gatePassData.vehicle?.chassisNumber}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Engine Number:</span>
+                    <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{gatePassData.vehicle?.engineNumber}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b' }}>Model:</span>
+                    <div style={{ fontWeight: 700 }}>{gatePassData.vehicle?.model}</div>
+                  </div>
+                </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', fontSize: '0.85rem' }}>
-                <div>
-                  <span style={{ color: '#64748b' }}>Chassis / VIN:</span>
-                  <div style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.95rem' }}>{gatePassData.vehicle?.chassisNumber}</div>
-                </div>
-                <div>
-                  <span style={{ color: '#64748b' }}>Engine Number:</span>
-                  <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{gatePassData.vehicle?.engineNumber}</div>
-                </div>
-                <div>
-                  <span style={{ color: '#64748b' }}>Model:</span>
-                  <div style={{ fontWeight: 700 }}>{gatePassData.vehicle?.model}</div>
-                </div>
-              </div>
-            </div>
 
-            {/* Audit clearance badges */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', fontSize: '0.8rem' }}>
-              <div style={{ flex: 1, padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
-                ✓ PDI INSPECTION VERIFIED ({gatePassData.pdiSummary?.passedChecks}/{gatePassData.pdiSummary?.totalChecks || 7})
-              </div>
-              <div style={{ flex: 1, padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
-                ✓ FINANCIAL SETTLEMENT CLEARED
-              </div>
-            </div>
-
-            {/* Signatures */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', borderTop: '1px dashed #cbd5e1', paddingTop: '1.5rem', fontSize: '0.8rem' }}>
-              <div>
-                <div style={{ height: '35px' }}></div>
-                <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
-                  Security & Yard Manager Signature
+              {/* Audit clearance badges */}
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', fontSize: '0.8rem' }}>
+                <div style={{ flex: 1, padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
+                  ✓ PDI INSPECTION VERIFIED ({gatePassData.pdiSummary?.passedChecks}/{gatePassData.pdiSummary?.totalChecks || 7})
+                </div>
+                <div style={{ flex: 1, padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
+                  ✓ FINANCIAL SETTLEMENT CLEARED
                 </div>
               </div>
-              <div>
-                <div style={{ height: '35px' }}></div>
-                <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
-                  Customer Acceptance Signature
+
+              {/* Signatures */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', borderTop: '1px dashed #cbd5e1', paddingTop: '1.5rem', fontSize: '0.8rem' }}>
+                <div>
+                  <div style={{ height: '35px' }}></div>
+                  <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
+                    Security & Yard Manager Signature
+                  </div>
+                </div>
+                <div>
+                  <div style={{ height: '35px' }}></div>
+                  <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
+                    Customer Acceptance Signature
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+            <div className="modal-footer" style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', margin: 0, padding: '1rem 2.5rem' }}>
               <button
+                type="button"
                 onClick={() => setGatePassData(null)}
                 style={{
                   padding: '0.5rem 1rem',
@@ -1009,6 +953,7 @@ export const DeliveriesPage: React.FC = () => {
                 Close
               </button>
               <button
+                type="button"
                 onClick={printGatePass}
                 style={{
                   display: 'flex',

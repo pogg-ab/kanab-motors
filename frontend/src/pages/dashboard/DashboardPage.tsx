@@ -36,6 +36,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
   const [datePreset, setDatePreset] = useState<'today' | 'week' | 'month' | 'custom'>('today');
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [customStartDate, setCustomStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dateError, setDateError] = useState<string>('');
+  const [loadError, setLoadError] = useState<string>('');
 
   const [summary, setSummary] = useState<ManagementDashboardSummary | null>(null);
   const [crossTab, setCrossTab] = useState<SalesCrossTabItem[]>([]);
@@ -46,12 +50,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
 
   const applyPreset = (preset: 'today' | 'week' | 'month' | 'custom') => {
     setDatePreset(preset);
+    setDateError('');
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
     if (preset === 'today') {
       setStartDate(todayStr);
       setEndDate(todayStr);
+      setCustomStartDate(todayStr);
+      setCustomEndDate(todayStr);
       fetchData(todayStr, todayStr);
     } else if (preset === 'week') {
       const start = new Date(now);
@@ -59,6 +66,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
       const startStr = start.toISOString().split('T')[0];
       setStartDate(startStr);
       setEndDate(todayStr);
+      setCustomStartDate(startStr);
+      setCustomEndDate(todayStr);
       fetchData(startStr, todayStr);
     } else if (preset === 'month') {
       const startStr = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -66,20 +75,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
         .split('T')[0];
       setStartDate(startStr);
       setEndDate(todayStr);
+      setCustomStartDate(startStr);
+      setCustomEndDate(todayStr);
       fetchData(startStr, todayStr);
+    } else {
+      setCustomStartDate(startDate);
+      setCustomEndDate(endDate);
     }
   };
 
   const fetchData = async (sDate: string, eDate: string) => {
     setLoading(true);
+    setLoadError('');
     try {
       const [sum, ct] = await Promise.all([
-        api.getManagementDashboardSummary({ startDate: sDate, endDate: eDate }).catch(() => null),
-        api.getSalesPerformanceCrossTab({ startDate: sDate, endDate: eDate }).catch(() => []),
+        api.getManagementDashboardSummary({ startDate: sDate, endDate: eDate }),
+        api.getSalesPerformanceCrossTab({ startDate: sDate, endDate: eDate }),
       ]);
 
-      if (sum) setSummary(sum);
-      if (ct) setCrossTab(ct);
+      setSummary(sum);
+      setCrossTab(ct);
+    } catch (error) {
+      console.error('Failed to load management dashboard data', error);
+      setLoadError('Could not apply the selected filters. Please refresh and try again.');
     } finally {
       setLoading(false);
     }
@@ -87,7 +105,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
 
   const handleCustomDateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchData(startDate, endDate);
+    if (!customStartDate || !customEndDate) {
+      setDateError('Choose both start and end dates.');
+      return;
+    }
+    if (customStartDate > customEndDate) {
+      setDateError('Start date must be before or equal to end date.');
+      return;
+    }
+
+    setDateError('');
+    setStartDate(customStartDate);
+    setEndDate(customEndDate);
+    fetchData(customStartDate, customEndDate);
   };
 
   const formatETB = (val?: number | string) => {
@@ -97,6 +127,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }) + ' ETB'
+    );
+  };
+
+
+  const moneyChartRows = [
+    { label: 'Sales', value: Number(summary?.total_sales || 0), color: '#00D2D3' },
+    { label: 'Deposits', value: Number(summary?.total_customer_deposits || 0), color: '#10B981' },
+    { label: 'Outstanding', value: Number(summary?.outstanding_customer_balance || 0), color: '#EF4444' },
+    { label: 'Credit', value: Number(summary?.customer_credit_balance || 0), color: '#A855F7' },
+    { label: 'Excess', value: Number(summary?.excess_payments || 0), color: '#F59E0B' },
+  ];
+  const moneyChartMax = Math.max(...moneyChartRows.map((row) => row.value), 1);
+
+  const fleetChartRows = [
+    { label: 'Available', value: Number(summary?.vehicles_available || 0), color: '#10B981' },
+    { label: 'Reserved', value: Number(summary?.vehicles_reserved || 0), color: '#F59E0B' },
+    { label: 'Pending Allotments', value: Number(summary?.pending_allotment_requests || 0), color: '#A855F7' },
+    { label: 'Ready Delivery', value: Number(summary?.vehicles_ready_for_delivery || 0), color: '#3B82F6' },
+  ];
+  const fleetChartMax = Math.max(...fleetChartRows.map((row) => row.value), 1);
+  const matrixChartMax = Math.max(...crossTab.map((row) => Number(row.total_sales || 0)), 1);
+
+  const DashboardBar = ({ label, value, max, color, amount = false }: { label: string; value: number; max: number; color: string; amount?: boolean }) => {
+    const width = Math.max(value > 0 ? 6 : 0, (value / max) * 100);
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+          <span style={{ fontWeight: 700 }}>{label}</span>
+          <span style={{ color: 'var(--text-secondary)' }}>{amount ? formatETB(value) : value.toLocaleString('en-US')}</span>
+        </div>
+        <div style={{ height: '11px', background: 'rgba(148, 163, 184, 0.14)', borderRadius: '999px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${width}%`, background: color, borderRadius: '999px' }} />
+        </div>
+      </div>
     );
   };
 
@@ -180,15 +244,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
           </div>
 
           {datePreset === 'custom' && (
-            <form onSubmit={handleCustomDateSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <form onSubmit={handleCustomDateSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <input
                 type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
                 style={{
                   padding: '0.4rem 0.6rem',
                   borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
+                  border: `1px solid ${dateError ? '#EF4444' : 'var(--border-color)'}`,
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
                   fontSize: '0.8rem',
@@ -197,12 +261,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               <span style={{ color: 'var(--text-secondary)' }}>to</span>
               <input
                 type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
                 style={{
                   padding: '0.4rem 0.6rem',
                   borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
+                  border: `1px solid ${dateError ? '#EF4444' : 'var(--border-color)'}`,
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
                   fontSize: '0.8rem',
@@ -210,19 +274,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               />
               <button
                 type="submit"
+                disabled={loading}
                 style={{
                   padding: '0.45rem 0.85rem',
                   borderRadius: '6px',
-                  background: '#00D2D3',
+                  background: loading ? 'rgba(148, 163, 184, 0.35)' : '#00D2D3',
                   color: '#0D1117',
                   border: 'none',
                   fontWeight: 700,
                   fontSize: '0.8rem',
-                  cursor: 'pointer',
+                  cursor: loading ? 'not-allowed' : 'pointer',
                 }}
               >
-                Apply
+                {loading ? 'Applying...' : 'Apply'}
               </button>
+              {dateError && (
+                <span style={{ color: '#EF4444', fontSize: '0.75rem', fontWeight: 600 }}>
+                  {dateError}
+                </span>
+              )}
             </form>
           )}
 
@@ -246,6 +316,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div
+          style={{
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#EF4444',
+            borderRadius: '8px',
+            padding: '0.75rem 1rem',
+            marginBottom: '1rem',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+          }}
+        >
+          {loadError}
+        </div>
+      )}
 
       {/* SECTION 1: CORE BUILDABLE OPERATIONAL KPIs (6 Tiles - Stories K1-K6, F2) */}
       <div style={{ marginBottom: '1.75rem' }}>
@@ -352,9 +439,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
         </div>
       </div>
 
-      {/* SECTION 2: THE 7 LINKED FINANCIAL & BOOKING KPIs (Stories G1, G2) */}
+      {/* SECTION 2: CUSTOMER, BOOKING & FINANCIAL KPIs (Stories G1, G2) */}
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F59E0B' }} />
             <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -362,20 +449,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
             </h2>
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            Live integrated data from KMSICAMS-2 Modules
+            Live values from Booking, Payment, Ledger, Credit, and Refund modules.
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-          {/* Tile 1: Total Bookings */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(0, 210, 211, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
-              position: 'relative',
-              overflow: 'hidden',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -388,15 +472,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {summary?.total_bookings || 0}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Bookings in selected period
+              Bookings created in selected period
             </div>
           </div>
 
-          {/* Tile 2: Total Customer Deposits */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
             }}
@@ -411,15 +494,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {formatETB(summary?.total_customer_deposits)}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Bank receipts in period
+              Confirmed deposits in selected period
             </div>
           </div>
 
-          {/* Tile 3: Outstanding Customer Balance */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
             }}
@@ -434,15 +516,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {formatETB(summary?.outstanding_customer_balance)}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Net receivables uncollected
+              Ledger receivable up to end date
             </div>
           </div>
 
-          {/* Tile 4: Customer Credit Balance */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(168, 85, 247, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
             }}
@@ -457,15 +538,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {formatETB(summary?.customer_credit_balance)}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Customer unallocated credit
+              Current customer unallocated credit
             </div>
           </div>
 
-          {/* Tile 5: Excess Payments */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
             }}
@@ -480,15 +560,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {formatETB(summary?.excess_payments)}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Overpayments routed in period
+              Current excess payment balance
             </div>
           </div>
 
-          {/* Tile 6: Pending Refunds */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
             }}
@@ -503,15 +582,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {summary?.pending_refunds || 0}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Awaiting payout authorization
+              Requested, reviewed, or approved in period
             </div>
           </div>
 
-          {/* Tile 7: Processed Refunds */}
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--border-color)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
               borderRadius: '10px',
               padding: '1.15rem',
             }}
@@ -526,9 +604,64 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
               {summary?.processed_refunds || 0}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Refund settlements closed
+              Finance processed or confirmed in period
             </div>
           </div>
+        </div>
+      </div>
+      {/* VISUAL EXECUTIVE SUMMARY */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1rem',
+          marginBottom: '2rem',
+        }}
+      >
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 800 }}>
+            <TrendingUp size={18} className="text-cyan" /> Financial KPI Chart
+          </div>
+          <div style={{ display: 'grid', gap: '0.8rem' }}>
+            {moneyChartRows.map((row) => (
+              <DashboardBar key={row.label} label={row.label} value={row.value} max={moneyChartMax} color={row.color} amount />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 800 }}>
+            <CarFront size={18} className="text-cyan" /> Fleet KPI Chart
+          </div>
+          <div style={{ display: 'grid', gap: '0.8rem' }}>
+            {fleetChartRows.map((row) => (
+              <DashboardBar key={row.label} label={row.label} value={row.value} max={fleetChartMax} color={row.color} />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 800 }}>
+            <Users size={18} className="text-cyan" /> Salesperson Revenue Chart
+          </div>
+          {crossTab.length === 0 ? (
+            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              No salesperson revenue in this period.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.8rem' }}>
+              {crossTab.slice(0, 6).map((row, index) => (
+                <DashboardBar
+                  key={`${row.salesperson_name}-${row.item_name}-${index}`}
+                  label={`${row.salesperson_name} / ${row.model || 'Standard'}`}
+                  value={Number(row.total_sales || 0)}
+                  max={matrixChartMax}
+                  color={['#00D2D3', '#10B981', '#F59E0B', '#A855F7', '#3B82F6', '#EF4444'][index % 6]}
+                  amount
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -612,3 +745,4 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
     </div>
   );
 };
+

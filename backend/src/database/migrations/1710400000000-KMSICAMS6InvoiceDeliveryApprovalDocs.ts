@@ -53,7 +53,7 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
           WHERE vehicle_unit_id = p_vehicle_unit_id;
 
           IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log') THEN
-              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, created_at)
+              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, changed_at)
               VALUES (
                   'vehicle_unit',
                   p_vehicle_unit_id,
@@ -704,3 +704,4 @@ export class KMSICAMS6InvoiceDeliveryApprovalDocs1710400000000 implements Migrat
     await queryRunner.query(`DROP TABLE IF EXISTS booking_stub CASCADE;`);
   }
 }
+

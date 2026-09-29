@@ -39,7 +39,7 @@ export class KMSICAMS5VehicleAllotment1710300000000 implements MigrationInterfac
           WHERE vehicle_unit_id = p_vehicle_unit_id;
 
           IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log') THEN
-              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, created_at)
+              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, changed_at)
               VALUES (
                   'vehicle_unit',
                   p_vehicle_unit_id,
@@ -293,3 +293,4 @@ export class KMSICAMS5VehicleAllotment1710300000000 implements MigrationInterfac
     await queryRunner.query(`DROP FUNCTION IF EXISTS fn_transition_vehicle_status;`);
   }
 }
+

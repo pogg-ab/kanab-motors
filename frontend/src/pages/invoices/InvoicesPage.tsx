@@ -13,6 +13,7 @@ import {
   Building,
   Car,
   Receipt,
+  X,
 } from 'lucide-react';
 import { api, SalesInvoice, Booking } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
@@ -591,45 +592,27 @@ export const InvoicesPage: React.FC = () => {
 
       {/* CREATE INVOICE MODAL */}
       {showCreateModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              borderRadius: '16px',
-              border: '1px solid var(--border-color)',
-              maxWidth: '680px',
-              width: '100%',
-              padding: '2rem',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '680px' }}>
+            <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Receipt color="var(--accent-cyan)" size={24} />
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Generate Sales Invoice</h2>
+                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Receipt size={20} />
+                </div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Generate Sales Invoice</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateInvoice}>
+              <div className="modal-body">
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Target Booking Order *
@@ -725,33 +708,20 @@ export const InvoicesPage: React.FC = () => {
                 </label>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              </div>
+
+              <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  style={{
-                    padding: '0.625rem 1.25rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading || !selectedBookingId}
-                  style={{
-                    padding: '0.625rem 1.5rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--accent-cyan)',
-                    color: '#000',
-                    fontWeight: 700,
-                    cursor: actionLoading || !selectedBookingId ? 'not-allowed' : 'pointer',
-                  }}
+                  className="btn btn-cyan"
                 >
                   {actionLoading ? 'Generating...' : 'Confirm & Submit to Approval'}
                 </button>
@@ -763,106 +733,83 @@ export const InvoicesPage: React.FC = () => {
 
       {/* DETAIL MODAL */}
       {selectedInvoice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              borderRadius: '16px',
-              border: '1px solid var(--border-color)',
-              maxWidth: '600px',
-              width: '100%',
-              padding: '2rem',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '640px' }}>
+            <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileText color="var(--accent-cyan)" size={24} />
-                <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{selectedInvoice.invoiceNumber}</h3>
+                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <FileText size={20} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>{selectedInvoice.invoiceNumber}</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedInvoice(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
-                <div style={{ fontWeight: 600 }}>{selectedInvoice.customer?.fullName}</div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Item:</span>
-                <div style={{ fontWeight: 600 }}>{selectedInvoice.item?.itemName}</div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Chassis / VIN:</span>
-                <div style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                  {selectedInvoice.vehicleUnit?.chassisNumber || 'Direct Allotted Unit'}
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.875rem' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                  <div style={{ fontWeight: 600 }}>{selectedInvoice.customer?.fullName}</div>
                 </div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Status:</span>
-                <div><strong>{selectedInvoice.status}</strong></div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Unit Price:</span>
-                <div>ETB {Number(selectedInvoice.unitPrice).toLocaleString()}</div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>VAT (15%):</span>
-                <div style={{ color: 'var(--accent-cyan)' }}>ETB {Number(selectedInvoice.vatAmount).toLocaleString()}</div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Gross Total:</span>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                  ETB {Number(selectedInvoice.grossTotal).toLocaleString()}
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Item:</span>
+                  <div style={{ fontWeight: 600 }}>{selectedInvoice.item?.itemName}</div>
                 </div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Deposits Applied:</span>
-                <div style={{ fontWeight: 600, color: '#10b981' }}>
-                  ETB {Number(selectedInvoice.depositsApplied).toLocaleString()}
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Chassis / VIN:</span>
+                  <div style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
+                    {selectedInvoice.vehicleUnit?.chassisNumber || 'Direct Allotted Unit'}
+                  </div>
                 </div>
-              </div>
-              <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                  <span>Outstanding Balance:</span>
-                  <span style={{ color: Number(selectedInvoice.outstandingBalance) > 0 ? '#f59e0b' : '#10b981' }}>
-                    ETB {Number(selectedInvoice.outstandingBalance).toLocaleString()}
-                  </span>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Status:</span>
+                  <div><strong>{selectedInvoice.status}</strong></div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Unit Price:</span>
+                  <div>ETB {Number(selectedInvoice.unitPrice).toLocaleString()}</div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>VAT (15%):</span>
+                  <div style={{ color: 'var(--accent-cyan)' }}>ETB {Number(selectedInvoice.vatAmount).toLocaleString()}</div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Gross Total:</span>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+                    ETB {Number(selectedInvoice.grossTotal).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Deposits Applied:</span>
+                  <div style={{ fontWeight: 600, color: '#10b981' }}>
+                    ETB {Number(selectedInvoice.depositsApplied).toLocaleString()}
+                  </div>
+                </div>
+                <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <span>Outstanding Balance:</span>
+                    <span style={{ color: Number(selectedInvoice.outstandingBalance) > 0 ? '#f59e0b' : '#10b981' }}>
+                      ETB {Number(selectedInvoice.outstandingBalance).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <div className="modal-footer">
               {selectedInvoice.status === 'PENDING_APPROVAL' && (canApproveInvoice || canRejectInvoice) && (
                 <>
                   {canApproveInvoice && (
                   <button
                     onClick={() => handleApprove(selectedInvoice.invoiceId)}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '8px',
-                      background: '#10b981',
-                      border: 'none',
-                      color: '#000',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
+                    className="btn btn-emerald"
                   >
                     Approve & Settle
                   </button>
@@ -870,15 +817,7 @@ export const InvoicesPage: React.FC = () => {
                   {canRejectInvoice && (
                   <button
                     onClick={() => handleReject(selectedInvoice.invoiceId)}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '8px',
-                      background: '#ef4444',
-                      border: 'none',
-                      color: '#fff',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
+                    className="btn btn-danger"
                   >
                     Reject
                   </button>
@@ -886,15 +825,9 @@ export const InvoicesPage: React.FC = () => {
                 </>
               )}
               <button
+                type="button"
                 onClick={() => setSelectedInvoice(null)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  background: 'var(--bg-primary)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                }}
+                className="btn btn-secondary"
               >
                 Close
               </button>

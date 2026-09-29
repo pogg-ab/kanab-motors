@@ -1537,21 +1537,9 @@ export const UsersPage: React.FC = () => {
 
       {/* CREATE USER MODAL */}
       {showCreateModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
+        <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
           <div
-            className="card"
+            className="modal-content"
             style={{
               width: '100%',
               maxWidth: '680px',
@@ -1560,8 +1548,8 @@ export const UsersPage: React.FC = () => {
               flexDirection: 'column',
               padding: 0,
               overflow: 'hidden',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div

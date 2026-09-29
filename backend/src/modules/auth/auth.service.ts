@@ -61,6 +61,13 @@ export const SYSTEM_PERMISSIONS: SystemPermission[] = [
   { key: 'VEHICLES_BULK_IMPORT', label: 'Bulk Import Vehicles', category: 'Vehicle Fleet & Inventory', description: 'Batch import chassis and VIN numbers via CSV/Excel' },
   { key: 'VEHICLES_STATUS_UPDATE', label: 'Update Vehicle Status', category: 'Vehicle Fleet & Inventory', description: 'Transition vehicles between Transit, Yard, and Sold' },
   { key: 'WAREHOUSES_MANAGE', label: 'Manage Yards & Warehouses', category: 'Vehicle Fleet & Inventory', description: 'Configure bonded storage yards and warehouse hubs' },
+  { key: 'STOCK_TRANSFERS_CREATE', label: 'Request Stock Transfers', category: 'Vehicle Fleet & Inventory', description: 'Create inter-warehouse stock transfer requests' },
+  { key: 'STOCK_TRANSFERS_APPROVE', label: 'Approve Stock Transfers', category: 'Vehicle Fleet & Inventory', description: 'Approve requested inter-warehouse transfers' },
+  { key: 'STOCK_TRANSFERS_COMPLETE', label: 'Complete Stock Transfers', category: 'Vehicle Fleet & Inventory', description: 'Complete approved transfers and post inventory movements' },
+  { key: 'STOCK_RECEIPTS_CREATE', label: 'Receive Non-Serialized Stock', category: 'Vehicle Fleet & Inventory', description: 'Record opening balances and receipts for non-serialized stock items' },
+  { key: 'STOCK_ADJUSTMENTS_CREATE', label: 'Create Stock Adjustments', category: 'Vehicle Fleet & Inventory', description: 'Submit stock quantity and condition adjustment requests' },
+  { key: 'STOCK_ADJUSTMENTS_APPROVE', label: 'Approve Stock Adjustments', category: 'Vehicle Fleet & Inventory', description: 'Approve stock adjustments and post inventory balances' },
+  { key: 'PRODUCTION_RECEIPTS_CREATE', label: 'Record Assembly Intake', category: 'Vehicle Fleet & Inventory', description: 'Receive locally assembled units into inventory' },
 
   // Sales Enquiries & Quotes (KMSICAMS-2)
   { key: 'ENQUIRIES_VIEW', label: 'View Sales Enquiries', category: 'Sales Pipeline', description: 'Access customer price enquiries and vehicle quotations' },

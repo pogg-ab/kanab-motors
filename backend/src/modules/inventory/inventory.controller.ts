@@ -15,6 +15,7 @@ import { InventoryService } from './inventory.service';
 import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { CreateProductionReceiptDto } from './dto/create-production-receipt.dto';
+import { CreateStockReceiptDto } from './dto/create-stock-receipt.dto';
 import { VehicleStatus } from '../vehicles/entities/vehicle-unit.entity';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
@@ -118,10 +119,18 @@ export class InventoryController {
     return this.inventoryService.getLowStockAlerts();
   }
 
+  @RequirePermissions('STOCK_RECEIPTS_CREATE')
+  @Post('stock-receipts')
+  @ApiOperation({ summary: 'Receive or open non-serialized stock into a warehouse' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createStockReceipt(@Body() dto: CreateStockReceiptDto) {
+    return this.inventoryService.createStockReceipt(dto);
+  }
+
   // =========================================================================
   // 4. STOCK TRANSFERS (T1 - T5)
   // =========================================================================
-  @RequirePermissions('WAREHOUSES_MANAGE')
+  @RequirePermissions('STOCK_TRANSFERS_CREATE')
   @Post('transfers')
   @ApiOperation({ summary: 'Create inter-warehouse stock transfer request' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -143,14 +152,14 @@ export class InventoryController {
     return this.inventoryService.getStockTransferById(id);
   }
 
-  @RequirePermissions('WAREHOUSES_MANAGE')
+  @RequirePermissions('STOCK_TRANSFERS_APPROVE')
   @Patch('transfers/:id/approve')
   @ApiOperation({ summary: 'Approve inter-warehouse transfer request' })
   approveStockTransfer(@Param('id') id: string) {
     return this.inventoryService.approveStockTransfer(id);
   }
 
-  @RequirePermissions('WAREHOUSES_MANAGE')
+  @RequirePermissions('STOCK_TRANSFERS_COMPLETE')
   @Patch('transfers/:id/complete')
   @ApiOperation({ summary: 'Complete inter-warehouse transfer and execute inventory adjustments' })
   completeStockTransfer(@Param('id') id: string) {
@@ -160,7 +169,7 @@ export class InventoryController {
   // =========================================================================
   // 5. STOCK ADJUSTMENTS (J1 - J5)
   // =========================================================================
-  @RequirePermissions('WAREHOUSES_MANAGE')
+  @RequirePermissions('STOCK_ADJUSTMENTS_CREATE')
   @Post('adjustments')
   @ApiOperation({ summary: 'Create a stock adjustment request with mandatory reason' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -182,7 +191,7 @@ export class InventoryController {
     return this.inventoryService.getStockAdjustmentById(id);
   }
 
-  @RequirePermissions('WAREHOUSES_MANAGE')
+  @RequirePermissions('STOCK_ADJUSTMENTS_APPROVE')
   @Patch('adjustments/:id/approve')
   @ApiOperation({ summary: 'Approve stock adjustment and update balances' })
   approveStockAdjustment(@Param('id') id: string) {
@@ -192,7 +201,7 @@ export class InventoryController {
   // =========================================================================
   // 6. PRODUCTION VEHICLE INTAKE (P1 - P3)
   // =========================================================================
-  @RequirePermissions('WAREHOUSES_MANAGE')
+  @RequirePermissions('PRODUCTION_RECEIPTS_CREATE')
   @Post('production-receipts')
   @ApiOperation({ summary: 'Record local vehicle assembly intake into inventory' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -215,10 +224,18 @@ export class InventoryController {
   @ApiOperation({ summary: 'Unified double-entry stock movement history' })
   getMovementHistory(
     @Query('warehouseId') warehouseId?: string,
+    @Query('itemId') itemId?: string,
+    @Query('movementType') movementType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('limit') limit?: string,
   ) {
     return this.inventoryService.getMovementHistory({
       warehouseId: warehouseId ? parseInt(warehouseId, 10) : undefined,
+      itemId,
+      movementType,
+      startDate,
+      endDate,
       limit: limit ? parseInt(limit, 10) : 100,
     });
   }

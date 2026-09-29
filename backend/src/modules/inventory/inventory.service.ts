@@ -14,6 +14,7 @@ import { VehicleUnit, VehicleStatus } from '../vehicles/entities/vehicle-unit.en
 import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { CreateProductionReceiptDto } from './dto/create-production-receipt.dto';
+import { CreateStockReceiptDto } from './dto/create-stock-receipt.dto';
 
 @Injectable()
 export class InventoryService {
@@ -145,6 +146,101 @@ export class InventoryService {
     return this.dataSource.query(`SELECT * FROM vw_low_stock_alert`);
   }
 
+  async createStockReceipt(dto: CreateStockReceiptDto, userId = 1): Promise<any> {
+    const itemRows = await this.dataSource.query(
+      `
+      SELECT item_id, item_code, item_name, is_individually_tracked
+      FROM product_item
+      WHERE item_id = $1
+      LIMIT 1
+      `,
+      [dto.itemId],
+    );
+    const item = itemRows[0];
+    if (!item) {
+      throw new BadRequestException(`Item #${dto.itemId} not found`);
+    }
+    if (item.is_individually_tracked) {
+      throw new BadRequestException(
+        'This item is individually tracked as vehicle units. Use shipment receipt, local assembly intake, or vehicle workflows instead of stock receipts.',
+      );
+    }
+
+    const warehouseRows = await this.dataSource.query(
+      `SELECT warehouse_id FROM warehouse WHERE warehouse_id = $1 LIMIT 1`,
+      [dto.warehouseId],
+    );
+    if (!warehouseRows[0]) {
+      throw new BadRequestException(`Warehouse #${dto.warehouseId} not found`);
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const receiptRows = await queryRunner.query(
+        `
+        INSERT INTO stock_receipt (
+          warehouse_id, item_id, quantity, source_type, notes, received_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING stock_receipt_id
+        `,
+        [
+          dto.warehouseId,
+          dto.itemId,
+          dto.quantity,
+          dto.sourceType,
+          dto.notes || null,
+          userId,
+        ],
+      );
+
+      await queryRunner.query(
+        `
+        INSERT INTO stock_balance (warehouse_id, item_id, quantity_on_hand, quantity_reserved)
+        VALUES ($1, $2, $3, 0)
+        ON CONFLICT (warehouse_id, item_id)
+        DO UPDATE SET quantity_on_hand = stock_balance.quantity_on_hand + EXCLUDED.quantity_on_hand,
+                      updated_at = now()
+        `,
+        [dto.warehouseId, dto.itemId, dto.quantity],
+      );
+
+      await queryRunner.commitTransaction();
+
+      const receiptId = receiptRows[0].stock_receipt_id;
+      const receipt = await this.dataSource.query(
+        `
+        SELECT
+          sr.stock_receipt_id,
+          sr.warehouse_id,
+          w.warehouse_name,
+          sr.item_id,
+          pi.item_code,
+          pi.item_name,
+          sr.quantity,
+          sr.source_type,
+          sr.notes,
+          sr.received_by,
+          sr.received_at
+        FROM stock_receipt sr
+        JOIN warehouse w ON w.warehouse_id = sr.warehouse_id
+        JOIN product_item pi ON pi.item_id = sr.item_id
+        WHERE sr.stock_receipt_id = $1
+        `,
+        [receiptId],
+      );
+      return receipt[0];
+    } catch (err: any) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err.message || 'Failed to receive stock');
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   // =====================================================================
   // 4. STOCK TRANSFERS (Stories T1, T2, T3)
   // =====================================================================
@@ -168,11 +264,52 @@ export class InventoryService {
 
       for (const line of dto.lines) {
         if (line.vehicleUnitId) {
-          // Serialized unit line
+          // Serialized unit line. Accept either numeric vehicle_unit_id or a chassis/VIN/engine value from the UI.
+          let vehicleUnitId = String(line.vehicleUnitId).trim();
+          if (!vehicleUnitId) {
+            throw new BadRequestException('Vehicle Unit ID / VIN is required for serialized vehicle transfers');
+          }
+
+          if (!/^\d+$/.test(vehicleUnitId)) {
+            const vehicleRows = await queryRunner.query(
+              `
+              SELECT vehicle_unit_id
+              FROM vehicle_unit
+              WHERE chassis_number = $1 OR engine_number = $1
+              LIMIT 1
+              `,
+              [vehicleUnitId],
+            );
+            const vehicle = vehicleRows[0];
+            if (!vehicle) {
+              throw new BadRequestException(`Vehicle unit with VIN/chassis/engine "${vehicleUnitId}" not found`);
+            }
+            vehicleUnitId = String(vehicle.vehicle_unit_id);
+          }
+
+          const sourceRows = await queryRunner.query(
+            `
+            SELECT current_warehouse_id
+            FROM vehicle_unit
+            WHERE vehicle_unit_id = $1
+            LIMIT 1
+            `,
+            [vehicleUnitId],
+          );
+          const sourceVehicle = sourceRows[0];
+          if (!sourceVehicle) {
+            throw new BadRequestException(`Vehicle unit #${vehicleUnitId} not found`);
+          }
+          if (Number(sourceVehicle.current_warehouse_id) !== Number(dto.fromWarehouseId)) {
+            throw new BadRequestException(
+              `Vehicle unit #${vehicleUnitId} is not in source warehouse #${dto.fromWarehouseId}`,
+            );
+          }
+
           await queryRunner.query(`
             INSERT INTO stock_transfer_line (transfer_id, vehicle_unit_id)
             VALUES ($1, $2)
-          `, [transferId, line.vehicleUnitId]);
+          `, [transferId, vehicleUnitId]);
         } else if (line.itemId && line.quantity) {
           // Non-serialized item line
           await queryRunner.query(`
@@ -268,6 +405,45 @@ export class InventoryService {
   async createStockAdjustment(dto: CreateStockAdjustmentDto, userId = 1): Promise<StockAdjustment> {
     if (!dto.reasonNotes) {
       throw new BadRequestException('A reason explanation is mandatory for stock adjustments');
+    }
+
+    if (dto.itemId && dto.quantityDelta !== undefined && dto.quantityDelta !== null) {
+      const itemRows = await this.dataSource.query(
+        `
+        SELECT is_individually_tracked
+        FROM product_item
+        WHERE item_id = $1
+        LIMIT 1
+        `,
+        [dto.itemId],
+      );
+      if (!itemRows[0]) {
+        throw new BadRequestException(`Item #${dto.itemId} not found`);
+      }
+      if (itemRows[0].is_individually_tracked) {
+        throw new BadRequestException(
+          'This item is individually tracked as vehicle units. Use vehicle status/warehouse workflows instead of quantity stock adjustments.',
+        );
+      }
+
+      const balanceRows = await this.dataSource.query(
+        `
+        SELECT quantity_on_hand
+        FROM stock_balance
+        WHERE warehouse_id = $1 AND item_id = $2
+        LIMIT 1
+        `,
+        [dto.warehouseId, dto.itemId],
+      );
+      if (!balanceRows[0]) {
+        throw new BadRequestException(
+          `No existing stock balance for item ${dto.itemId} at warehouse ${dto.warehouseId} -- receive stock before adjusting it`,
+        );
+      }
+      const resultingQuantity = Number(balanceRows[0].quantity_on_hand) + Number(dto.quantityDelta);
+      if (resultingQuantity < 0) {
+        throw new BadRequestException('Stock adjustment would make quantity on hand negative');
+      }
     }
 
     const insertResult = await this.dataSource.query(`
@@ -375,17 +551,50 @@ export class InventoryService {
   // =====================================================================
   // 7. STOCK MOVEMENT HISTORY & REPORTS (Stories H1, RP1, RP2)
   // =====================================================================
-  async getMovementHistory(params?: { warehouseId?: number; limit?: number }): Promise<any[]> {
-    const limit = params?.limit || 100;
+  async getMovementHistory(params?: {
+    warehouseId?: number;
+    itemId?: string;
+    movementType?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }): Promise<any[]> {
+    const values: any[] = [];
+    const where: string[] = [];
+
     if (params?.warehouseId) {
-      return this.dataSource.query(
-        `SELECT * FROM vw_stock_movement_history WHERE warehouse_id = $1 ORDER BY movement_at DESC LIMIT $2`,
-        [params.warehouseId, limit],
-      );
+      values.push(params.warehouseId);
+      where.push(`warehouse_id = $${values.length}`);
     }
+    if (params?.itemId) {
+      values.push(params.itemId);
+      where.push(`item_id = $${values.length}`);
+    }
+    if (params?.movementType) {
+      values.push(params.movementType);
+      where.push(`movement_type = $${values.length}`);
+    }
+    if (params?.startDate) {
+      values.push(params.startDate);
+      where.push(`movement_at >= $${values.length}::date`);
+    }
+    if (params?.endDate) {
+      values.push(params.endDate);
+      where.push(`movement_at < ($${values.length}::date + INTERVAL '1 day')`);
+    }
+
+    const limit = Math.max(1, Math.min(500, params?.limit || 100));
+    values.push(limit);
+
     return this.dataSource.query(
-      `SELECT * FROM vw_stock_movement_history ORDER BY movement_at DESC LIMIT $1`,
-      [limit],
+      `
+      SELECT *
+      FROM vw_stock_movement_history
+      ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY movement_at DESC
+      LIMIT $${values.length}
+      `,
+      values,
     );
   }
 

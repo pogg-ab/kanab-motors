@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { VehicleUnit, VehicleStatus } from './entities/vehicle-unit.entity';
 import { ProductItem } from '../products/entities/product-item.entity';
 import { CreateVehicleUnitDto } from './dto/create-vehicle-unit.dto';
@@ -21,6 +21,7 @@ export class VehiclesService {
     @InjectRepository(ProductItem)
     private readonly itemRepo: Repository<ProductItem>,
     private readonly auditService: AuditService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(dto: CreateVehicleUnitDto, userId: number = 1): Promise<VehicleUnit> {
@@ -142,25 +143,38 @@ export class VehiclesService {
   ): Promise<VehicleUnit> {
     const unit = await this.findOne(id);
     const oldStatus = unit.currentStatus;
+    const oldWarehouseId = unit.currentWarehouseId;
 
-    unit.currentStatus = status;
-    if (warehouseId) {
-      unit.currentWarehouseId = warehouseId;
+    if (status !== oldStatus) {
+      try {
+        await this.dataSource.query(
+          `SELECT fn_transition_vehicle_status($1, $2, $3, $4, $5)`,
+          [id, status, userId, 'VEHICLE_REGISTRY', null],
+        );
+      } catch (err: any) {
+        throw new BadRequestException(err.message || 'Invalid vehicle status transition');
+      }
     }
-    unit.updatedBy = userId;
 
-    const updated = await this.unitRepo.save(unit);
+    if (warehouseId && warehouseId !== oldWarehouseId) {
+      await this.unitRepo.update(id, {
+        currentWarehouseId: warehouseId,
+        updatedBy: userId,
+      });
+    }
+
+    const updated = await this.findOne(id);
 
     await this.auditService.log({
       entityType: 'vehicle_unit',
       entityId: id,
       action: 'UPDATE',
       changedBy: userId,
-      oldValue: { status: oldStatus },
+      oldValue: { status: oldStatus, warehouseId: oldWarehouseId },
       newValue: { status: updated.currentStatus, warehouseId: updated.currentWarehouseId },
     });
 
-    return this.findOne(id);
+    return updated;
   }
 
   async bulkImport(dto: BulkImportVehicleDto, userId: number = 1) {

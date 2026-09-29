@@ -140,7 +140,7 @@ describe('ReportsService (KMSICAMS-7 Dashboard and Reporting)', () => {
   // =========================================================================
   // KMSICAMS-8 Management Dashboard Tests
   // =========================================================================
-  it('should query fn_management_dashboard_summary and linked 7 financial KPIs', async () => {
+  it('should query fn_management_dashboard_summary and linked financial KPIs', async () => {
     dataSource.query
       .mockResolvedValueOnce([
         {
@@ -171,10 +171,20 @@ describe('ReportsService (KMSICAMS-7 Dashboard and Reporting)', () => {
     expect(result.vehicles_ready_for_delivery).toBe(3);
     expect(result.total_bookings).toBe(8);
     expect(result.total_customer_deposits).toBe(1500000);
+    expect(result.outstanding_customer_balance).toBe(5000000);
+    expect(result.customer_credit_balance).toBe(200000);
+    expect(result.excess_payments).toBe(50000);
+    expect(result.pending_refunds).toBe(1);
+    expect(result.processed_refunds).toBe(3);
     expect(dataSource.query).toHaveBeenCalledWith(
       expect.stringContaining('fn_management_dashboard_summary'),
       ['2026-09-01', '2026-09-24'],
     );
+    expect(dataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('customer_payment'),
+      ['2026-09-01', '2026-09-24'],
+    );
+    expect(dataSource.query).toHaveBeenCalledTimes(2);
   });
 
   it('should query fn_sales_performance_by_product_and_salesperson cross-tab', async () => {

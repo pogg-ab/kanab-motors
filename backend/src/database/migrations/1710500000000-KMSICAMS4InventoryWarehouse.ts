@@ -123,7 +123,7 @@ export class KMSICAMS4InventoryWarehouse1710500000000 implements MigrationInterf
               (p_vehicle_unit_id, v_from_status, p_to_status, p_triggered_by_user, p_triggered_by_module, p_notes);
 
           IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log') THEN
-              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, created_at)
+              INSERT INTO audit_log (entity_type, entity_id, action, changed_by, old_value, new_value, changed_at)
               VALUES (
                   'vehicle_unit',
                   p_vehicle_unit_id,
@@ -505,3 +505,4 @@ export class KMSICAMS4InventoryWarehouse1710500000000 implements MigrationInterf
     await queryRunner.query(`DROP TYPE IF EXISTS warehouse_type_enum;`);
   }
 }
+

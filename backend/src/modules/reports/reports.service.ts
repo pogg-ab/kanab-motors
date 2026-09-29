@@ -45,18 +45,32 @@ export class ReportsService {
     );
     const summary = raw[0] || {};
 
-    // 7 Real-data metrics linking to Booking, Payment, Ledger, Excess, and Refunds (Stories G1, G2)
     const financialKpis = await this.dataSource.query(
       `
       SELECT
-        (SELECT COUNT(*) FROM booking WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_bookings,
-        (SELECT COALESCE(SUM(amount), 0) FROM customer_payment WHERE created_at::date BETWEEN $1::date AND $2::date) AS total_customer_deposits,
-        (SELECT COALESCE(SUM(debit_amount - credit_amount), 0) FROM customer_ledger_transaction) AS outstanding_customer_balance,
-        (SELECT COALESCE(SUM(available_credit), 0) FROM customer_account_summary) AS customer_credit_balance,
-        (SELECT COALESCE(SUM(excess_payments), 0) FROM customer_account_summary) AS excess_payments,
-        (SELECT COUNT(*) FROM customer_refund WHERE status = 'REQUESTED') AS pending_refunds,
-        (SELECT COUNT(*) FROM customer_refund WHERE status IN ('APPROVED', 'FINANCE_PROCESSED', 'CONFIRMED')) AS processed_refunds
-    `,
+        (SELECT COUNT(*)
+           FROM booking
+          WHERE booking_date::date BETWEEN $1::date AND $2::date) AS total_bookings,
+        (SELECT COALESCE(SUM(amount), 0)
+           FROM customer_payment
+          WHERE status = 'CONFIRMED'
+            AND payment_date::date BETWEEN $1::date AND $2::date) AS total_customer_deposits,
+        (SELECT COALESCE(SUM(debit_amount - credit_amount), 0)
+           FROM customer_ledger_transaction
+          WHERE transaction_date::date <= $2::date) AS outstanding_customer_balance,
+        (SELECT COALESCE(SUM(available_credit), 0)
+           FROM customer_account_summary) AS customer_credit_balance,
+        (SELECT COALESCE(SUM(excess_payments), 0)
+           FROM customer_account_summary) AS excess_payments,
+        (SELECT COUNT(*)
+           FROM customer_refund
+          WHERE status IN ('REQUESTED', 'REVIEWED', 'APPROVED')
+            AND created_at::date BETWEEN $1::date AND $2::date) AS pending_refunds,
+        (SELECT COUNT(*)
+           FROM customer_refund
+          WHERE status IN ('FINANCE_PROCESSED', 'CONFIRMED')
+            AND created_at::date BETWEEN $1::date AND $2::date) AS processed_refunds
+      `,
       [sDate, eDate],
     );
 

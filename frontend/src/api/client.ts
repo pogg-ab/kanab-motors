@@ -186,7 +186,9 @@ export interface ProductItem {
   isActive: boolean;
   createdAt: string;
   totalUnits?: number;
+  isIndividuallyTracked?: boolean;
 }
+
 
 export interface VehicleUnit {
   vehicleUnitId: string;
@@ -1034,6 +1036,13 @@ export const api = {
   getStockAdjustment: (id: string) => apiClient.get<StockAdjustment>(`/inventory/adjustments/${id}`).then((r) => r.data),
   approveStockAdjustment: (id: string) =>
     apiClient.patch<StockAdjustment>(`/inventory/adjustments/${id}/approve`).then((r) => r.data),
+  createStockReceipt: (data: {
+    warehouseId: number;
+    itemId: string;
+    quantity: number;
+    sourceType: 'OPENING_BALANCE' | 'LOCAL_PURCHASE' | 'MANUAL_RECEIPT' | 'CORRECTION';
+    notes?: string;
+  }) => apiClient.post<any>('/inventory/stock-receipts', data).then((r) => r.data),
 
   // Production Vehicle Intake
   createProductionReceipt: (data: {
@@ -1046,7 +1055,14 @@ export const api = {
   getProductionReceipts: () => apiClient.get<ProductionReceipt[]>('/inventory/production-receipts').then((r) => r.data),
 
   // Stock Movements & Reports (KMSICAMS-4)
-  getMovementHistory: (params?: { warehouseId?: number; limit?: number }) =>
+  getMovementHistory: (params?: {
+    warehouseId?: number;
+    itemId?: string;
+    movementType?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }) =>
     apiClient.get<StockMovementItem[]>('/inventory/movements', { params }).then((r) => r.data),
   getCurrentStockReport: () => apiClient.get<CurrentStockReportItem[]>('/inventory/reports/stock').then((r) => r.data),
   getVehicleInventoryByStatusReport: () =>
@@ -1119,6 +1135,7 @@ export interface StockBalance {
   item?: {
     itemId: string;
     itemCode: string;
+    itemName?: string;
     name: string;
     reorderLevel?: number;
     unitOfMeasure?: string;
@@ -1143,6 +1160,7 @@ export interface StockTransferLine {
   item?: {
     itemId: string;
     itemCode: string;
+    itemName?: string;
     name: string;
   };
   vehicleUnit?: {
@@ -1196,6 +1214,7 @@ export interface StockAdjustment {
   item?: {
     itemId: string;
     itemCode: string;
+    itemName?: string;
     name: string;
   };
   vehicleUnit?: {
@@ -1267,9 +1286,12 @@ export interface CurrentStockReportItem {
 export interface VehicleStatusReportItem {
   warehouse_id?: number;
   warehouse_name?: string;
+  item_name?: string;
+  current_status?: string;
+  unit_count?: number;
   model_name?: string;
-  status: string;
-  vehicle_count: number;
+  status?: string;
+  vehicle_count?: number;
 }
 
 // ============================================================================

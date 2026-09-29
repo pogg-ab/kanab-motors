@@ -22,6 +22,26 @@ import {
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 
+const VEHICLE_STATUS_LABELS: Record<string, string> = {
+  RECEIVED: 'RECEIVED',
+  AVAILABLE_FOR_SALE: 'AVAILABLE FOR SALE',
+  RESERVED: 'RESERVED',
+  ALLOTTED: 'ALLOTTED',
+  READY_FOR_DELIVERY: 'READY FOR DELIVERY',
+  SOLD: 'SOLD',
+  DELIVERED: 'DELIVERED',
+};
+
+const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  RECEIVED: ['AVAILABLE_FOR_SALE'],
+  AVAILABLE_FOR_SALE: ['RESERVED'],
+  RESERVED: ['AVAILABLE_FOR_SALE', 'ALLOTTED'],
+  ALLOTTED: ['AVAILABLE_FOR_SALE', 'READY_FOR_DELIVERY'],
+  READY_FOR_DELIVERY: ['SOLD'],
+  SOLD: ['DELIVERED'],
+  DELIVERED: [],
+};
+
 export const VehiclesPage: React.FC = () => {
   const { can } = usePermissions();
   const canCreateVehicle = can('VEHICLES_CREATE');
@@ -258,8 +278,9 @@ export const VehiclesPage: React.FC = () => {
 
   const handleOpenStatusModal = (unit: VehicleUnit) => {
     if (!canUpdateVehicleStatus) return;
+    const allowedNextStatuses = ALLOWED_STATUS_TRANSITIONS[unit.currentStatus] || [];
     setStatusModalUnit(unit);
-    setNewStatus(unit.currentStatus);
+    setNewStatus(allowedNextStatuses[0] || unit.currentStatus);
     setNewWarehouseId(unit.currentWarehouseId ? unit.currentWarehouseId.toString() : '');
   };
 
@@ -843,25 +864,30 @@ export const VehiclesPage: React.FC = () => {
 
                 <div className="form-group">
                   <label className="form-label">Vehicle Lifecycle Status</label>
+                  {(() => {
+                    const allowedNextStatuses = ALLOWED_STATUS_TRANSITIONS[statusModalUnit.currentStatus] || [];
+                    return (
                   <select
                     className="select-field"
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value)}
+                    disabled={allowedNextStatuses.length === 0}
                   >
-                    {[
-                      'RECEIVED',
-                      'AVAILABLE_FOR_SALE',
-                      'RESERVED',
-                      'ALLOTTED',
-                      'READY_FOR_DELIVERY',
-                      'SOLD',
-                      'DELIVERED',
-                    ].map((s) => (
+                    {allowedNextStatuses.length === 0 ? (
+                      <option value={statusModalUnit.currentStatus}>
+                        No next status available from {VEHICLE_STATUS_LABELS[statusModalUnit.currentStatus] || statusModalUnit.currentStatus}
+                      </option>
+                    ) : allowedNextStatuses.map((s) => (
                       <option key={s} value={s}>
-                        {s.replace(/_/g, ' ')}
+                        {VEHICLE_STATUS_LABELS[s] || s.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>
+                    );
+                  })()}
+                  <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Current status: {VEHICLE_STATUS_LABELS[statusModalUnit.currentStatus] || statusModalUnit.currentStatus}
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -884,7 +910,11 @@ export const VehiclesPage: React.FC = () => {
                 <button type="button" className="btn btn-secondary" onClick={() => setStatusModalUnit(null)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-cyan">
+                <button
+                  type="submit"
+                  className="btn btn-cyan"
+                  disabled={(ALLOWED_STATUS_TRANSITIONS[statusModalUnit.currentStatus] || []).length === 0}
+                >
                   Save Changes
                 </button>
               </div>

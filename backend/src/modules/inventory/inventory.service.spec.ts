@@ -252,6 +252,8 @@ describe('InventoryService (KMSICAMS-4 Inventory & Warehouse)', () => {
 
     it('should create stock adjustment and auto-submit to approval engine', async () => {
       dataSource.query
+        .mockResolvedValueOnce([{ is_individually_tracked: false }]) // product_item validation
+        .mockResolvedValueOnce([{ quantity_on_hand: 10 }]) // stock_balance validation
         .mockResolvedValueOnce([{ adjustment_id: '50' }]) // INSERT
         .mockResolvedValueOnce([]); // fn_submit_for_approval
 

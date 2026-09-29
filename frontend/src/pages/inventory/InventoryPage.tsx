@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   ArrowUpRight,
   ArrowDownLeft,
+  X,
 } from 'lucide-react';
 import {
   api,
@@ -39,7 +40,13 @@ import { usePermissions } from '../../authz/usePermissions';
 
 export const InventoryPage: React.FC = () => {
   const { can } = usePermissions();
-  const canManageWarehouses = can('WAREHOUSES_MANAGE');
+  const canCreateStockTransfer = can('STOCK_TRANSFERS_CREATE');
+  const canApproveStockTransfer = can('STOCK_TRANSFERS_APPROVE');
+  const canCompleteStockTransfer = can('STOCK_TRANSFERS_COMPLETE');
+  const canCreateStockReceipt = can('STOCK_RECEIPTS_CREATE');
+  const canCreateStockAdjustment = can('STOCK_ADJUSTMENTS_CREATE');
+  const canApproveStockAdjustment = can('STOCK_ADJUSTMENTS_APPROVE');
+  const canCreateProductionReceipt = can('PRODUCTION_RECEIPTS_CREATE');
   const [activeTab, setActiveTab] = useState<
     'balances' | 'transfers' | 'adjustments' | 'production' | 'transitions' | 'movements'
   >('balances');
@@ -59,9 +66,15 @@ export const InventoryPage: React.FC = () => {
   // Filters
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [movementWarehouseFilter, setMovementWarehouseFilter] = useState<string>('ALL');
+  const [movementItemFilter, setMovementItemFilter] = useState<string>('ALL');
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>('ALL');
+  const [movementStartDate, setMovementStartDate] = useState<string>('');
+  const [movementEndDate, setMovementEndDate] = useState<string>('');
 
   // Modals
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [showAdjustmentModal, setShowAdjustmentModal] = useState<boolean>(false);
   const [showProductionModal, setShowProductionModal] = useState<boolean>(false);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransfer | null>(null);
@@ -73,6 +86,15 @@ export const InventoryPage: React.FC = () => {
   const [transferItemId, setTransferItemId] = useState<string>('');
   const [transferQuantity, setTransferQuantity] = useState<number>(1);
   const [transferVehicleUnitId, setTransferVehicleUnitId] = useState<string>('');
+
+  // Form states - Non-serialized Stock Receipt
+  const [receiptWarehouseId, setReceiptWarehouseId] = useState<number>(1);
+  const [receiptItemId, setReceiptItemId] = useState<string>('');
+  const [receiptQuantity, setReceiptQuantity] = useState<number>(1);
+  const [receiptSourceType, setReceiptSourceType] = useState<
+    'OPENING_BALANCE' | 'LOCAL_PURCHASE' | 'MANUAL_RECEIPT' | 'CORRECTION'
+  >('OPENING_BALANCE');
+  const [receiptNotes, setReceiptNotes] = useState<string>('');
 
   // Form states - Adjustment
   const [adjWarehouseId, setAdjWarehouseId] = useState<number>(1);
@@ -90,6 +112,23 @@ export const InventoryPage: React.FC = () => {
     new Date().toISOString().split('T')[0],
   );
 
+  const adjustmentBalances = balances.filter(
+    (balance) => Number(balance.warehouseId) === Number(adjWarehouseId) && Number(balance.quantityOnHand) > 0,
+  );
+  const selectedAdjustmentBalance = adjustmentBalances.find((balance) => String(balance.itemId) === String(adjItemId));
+  const receivableProducts = products.filter((product) => !product.isIndividuallyTracked);
+  const movementTypeOptions = [
+    'OPENING_BALANCE',
+    'LOCAL_PURCHASE',
+    'MANUAL_RECEIPT',
+    'CORRECTION',
+    'RECEIPT',
+    'TRANSFER_IN',
+    'TRANSFER_OUT',
+    'ADJUSTMENT',
+    'VEHICLE_STATUS_CHANGE',
+  ];
+
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(
     null,
@@ -99,9 +138,79 @@ export const InventoryPage: React.FC = () => {
     loadAllData();
   }, []);
 
+  useEffect(() => {
+    loadMovementHistory();
+  }, [movementWarehouseFilter, movementItemFilter, movementTypeFilter, movementStartDate, movementEndDate]);
+
+  useEffect(() => {
+    if (products.length > 0 && !products.some((product) => String(product.itemId) === String(prodItemId))) {
+      setProdItemId(products[0].itemId);
+    }
+  }, [products, prodItemId]);
+
+  useEffect(() => {
+    if (warehouses.length > 0 && !warehouses.some((warehouse) => Number(warehouse.warehouseId) === Number(prodWarehouseId))) {
+      setProdWarehouseId(warehouses[0].warehouseId);
+    }
+  }, [warehouses, prodWarehouseId]);
+
+  useEffect(() => {
+    if (warehouses.length > 0 && !warehouses.some((warehouse) => Number(warehouse.warehouseId) === Number(adjWarehouseId))) {
+      setAdjWarehouseId(warehouses[0].warehouseId);
+    }
+  }, [warehouses, adjWarehouseId]);
+
+  useEffect(() => {
+    if (warehouses.length > 0 && !warehouses.some((warehouse) => Number(warehouse.warehouseId) === Number(receiptWarehouseId))) {
+      setReceiptWarehouseId(warehouses[0].warehouseId);
+    }
+  }, [warehouses, receiptWarehouseId]);
+
+  useEffect(() => {
+    if (receivableProducts.length > 0 && !receivableProducts.some((product) => String(product.itemId) === String(receiptItemId))) {
+      setReceiptItemId(receivableProducts[0].itemId);
+    }
+    if (receivableProducts.length === 0 && receiptItemId) {
+      setReceiptItemId('');
+    }
+  }, [receivableProducts, receiptItemId]);
+
+  useEffect(() => {
+    if (adjustmentBalances.length > 0 && !adjustmentBalances.some((balance) => String(balance.itemId) === String(adjItemId))) {
+      setAdjItemId(adjustmentBalances[0].itemId);
+    }
+    if (adjustmentBalances.length === 0 && adjItemId) {
+      setAdjItemId('');
+    }
+  }, [adjustmentBalances, adjItemId]);
+
   const showToast = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const loadMovementHistory = async () => {
+    try {
+      const params: {
+        warehouseId?: number;
+        itemId?: string;
+        movementType?: string;
+        startDate?: string;
+        endDate?: string;
+        limit: number;
+      } = { limit: 100 };
+
+      if (movementWarehouseFilter !== 'ALL') params.warehouseId = Number(movementWarehouseFilter);
+      if (movementItemFilter !== 'ALL') params.itemId = movementItemFilter;
+      if (movementTypeFilter !== 'ALL') params.movementType = movementTypeFilter;
+      if (movementStartDate) params.startDate = movementStartDate;
+      if (movementEndDate) params.endDate = movementEndDate;
+
+      const movementList = await api.getMovementHistory(params);
+      setMovements(movementList);
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || err.message || 'Failed to load movement history');
+    }
   };
 
   const loadAllData = async () => {
@@ -145,11 +254,15 @@ export const InventoryPage: React.FC = () => {
 
       if (prodList.length > 0) {
         setTransferItemId(prodList[0].itemId);
-        setAdjItemId(prodList[0].itemId);
         setProdItemId(prodList[0].itemId);
       }
+      const firstReceivableProduct = prodList.find((product: ProductItem) => !product.isIndividuallyTracked);
+      setReceiptItemId(firstReceivableProduct?.itemId || '');
+      const firstAdjustableBalance = balList.find((balance) => Number(balance.quantityOnHand) > 0);
+      setAdjItemId(firstAdjustableBalance?.itemId || '');
       if (whList.length > 0) {
         setTransferFromWh(whList[0].warehouseId);
+        setReceiptWarehouseId(whList[0].warehouseId);
         setAdjWarehouseId(whList[0].warehouseId);
         setProdWarehouseId(whList[0].warehouseId);
         if (whList.length > 1) {
@@ -166,7 +279,7 @@ export const InventoryPage: React.FC = () => {
   // Transfer Actions
   const handleCreateTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageWarehouses) return;
+    if (!canCreateStockTransfer) return;
     if (transferFromWh === transferToWh) {
       showToast('error', 'Source and destination warehouse cannot be the same');
       return;
@@ -197,7 +310,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleApproveTransfer = async (transferId: string) => {
-    if (!canManageWarehouses) return;
+    if (!canApproveStockTransfer) return;
     setActionLoading(true);
     try {
       await api.approveStockTransfer(transferId);
@@ -211,7 +324,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleCompleteTransfer = async (transferId: string) => {
-    if (!canManageWarehouses) return;
+    if (!canCompleteStockTransfer) return;
     setActionLoading(true);
     try {
       await api.completeStockTransfer(transferId);
@@ -224,12 +337,55 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  // Non-serialized Stock Receipt Actions
+  const handleCreateStockReceipt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canCreateStockReceipt) return;
+    if (!receiptItemId) {
+      showToast('error', 'Select a non-serialized stock item to receive');
+      return;
+    }
+    if (Number(receiptQuantity) <= 0) {
+      showToast('error', 'Quantity must be greater than zero');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await api.createStockReceipt({
+        warehouseId: receiptWarehouseId,
+        itemId: receiptItemId,
+        quantity: Number(receiptQuantity),
+        sourceType: receiptSourceType,
+        notes: receiptNotes.trim() || undefined,
+      });
+
+      showToast('success', 'Stock receipt posted and balance updated');
+      setShowReceiptModal(false);
+      setReceiptQuantity(1);
+      setReceiptNotes('');
+      loadAllData();
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || err.message || 'Failed to receive stock');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Adjustment Actions
   const handleCreateAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageWarehouses) return;
+    if (!canCreateStockAdjustment) return;
     if (!adjReasonNotes.trim()) {
       showToast('error', 'A detailed reason note is mandatory for audit compliance');
+      return;
+    }
+    if (!selectedAdjustmentBalance) {
+      showToast('error', 'Select an item with stock balance in this warehouse before creating an adjustment');
+      return;
+    }
+    if (Number(selectedAdjustmentBalance.quantityOnHand) + Number(adjQuantityDelta) < 0) {
+      showToast('error', 'Adjustment would make stock quantity negative');
       return;
     }
     setActionLoading(true);
@@ -255,7 +411,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleApproveAdjustment = async (adjustmentId: string) => {
-    if (!canManageWarehouses) return;
+    if (!canApproveStockAdjustment) return;
     setActionLoading(true);
     try {
       await api.approveStockAdjustment(adjustmentId);
@@ -271,7 +427,7 @@ export const InventoryPage: React.FC = () => {
   // Production Receipt Actions
   const handleCreateProductionReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageWarehouses) return;
+    if (!canCreateProductionReceipt) return;
     if (!prodChassis || !prodEngine) {
       showToast('error', 'Chassis and engine numbers are required');
       return;
@@ -370,42 +526,46 @@ export const InventoryPage: React.FC = () => {
           >
             <RefreshCw size={16} /> Refresh
           </button>
-          <button
-            onClick={() => setShowTransferModal(true)}
-            style={{
-              padding: '0.6rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '6px',
-              background: 'linear-gradient(135deg, #00D2D3, #00A8FF)',
-              color: '#0D1117',
-              border: 'none',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <ArrowRightLeft size={16} /> New Transfer
-          </button>
-          <button
-            onClick={() => canManageWarehouses && setShowProductionModal(true)}
-            style={{
-              padding: '0.6rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '6px',
-              background: 'linear-gradient(135deg, #10B981, #059669)',
-              color: '#FFFFFF',
-              border: 'none',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <Wrench size={16} /> Assembly Intake
-          </button>
+          {canCreateStockTransfer && (
+            <button
+              onClick={() => setShowTransferModal(true)}
+              style={{
+                padding: '0.6rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.85rem',
+                borderRadius: '6px',
+                background: 'linear-gradient(135deg, #00D2D3, #00A8FF)',
+                color: '#0D1117',
+                border: 'none',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowRightLeft size={16} /> New Transfer
+            </button>
+          )}
+          {canCreateProductionReceipt && (
+            <button
+              onClick={() => setShowProductionModal(true)}
+              style={{
+                padding: '0.6rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.85rem',
+                borderRadius: '6px',
+                background: 'linear-gradient(135deg, #10B981, #059669)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <Wrench size={16} /> Assembly Intake
+            </button>
+          )}
         </div>
       </div>
 
@@ -662,6 +822,26 @@ export const InventoryPage: React.FC = () => {
                 ))}
               </select>
             </div>
+            {canCreateStockReceipt && (
+              <button
+                onClick={() => setShowReceiptModal(true)}
+                style={{
+                  padding: '0.6rem 1rem',
+                  borderRadius: '6px',
+                  background: 'linear-gradient(135deg, #10B981, #059669)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <Plus size={16} /> Receive Stock
+              </button>
+            )}
           </div>
 
           {/* Balances Table */}
@@ -697,7 +877,7 @@ export const InventoryPage: React.FC = () => {
                     const isLow = b.item?.reorderLevel && b.quantityAvailable <= b.item.reorderLevel;
                     return (
                       <tr
-                        key={b.balanceId}
+                        key={`${b.warehouseId}-${b.itemId}`}
                         style={{ borderBottom: '1px solid var(--border-color)' }}
                       >
                         <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>
@@ -706,7 +886,7 @@ export const InventoryPage: React.FC = () => {
                         <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>
                           {b.item?.itemCode || b.itemId}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{b.item?.name || '—'}</td>
+                        <td style={{ padding: '0.85rem 1rem' }}>{b.item?.itemName || b.item?.name || '—'}</td>
                         <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>
                           {b.quantityOnHand}
                         </td>
@@ -767,7 +947,7 @@ export const InventoryPage: React.FC = () => {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ fontSize: '1rem', fontWeight: 700 }}>Inter-Warehouse Stock Transfers</div>
-            {canManageWarehouses && (
+            {canCreateStockTransfer && (
             <button
               onClick={() => setShowTransferModal(true)}
               style={{
@@ -872,7 +1052,7 @@ export const InventoryPage: React.FC = () => {
                           >
                             <Eye size={14} /> Lines
                           </button>
-                          {t.status === 'REQUESTED' && canManageWarehouses && (
+                          {t.status === 'REQUESTED' && canApproveStockTransfer && (
                             <button
                               disabled={actionLoading}
                               onClick={() => handleApproveTransfer(t.transferId)}
@@ -890,7 +1070,7 @@ export const InventoryPage: React.FC = () => {
                               Approve
                             </button>
                           )}
-                          {t.status === 'APPROVED' && canManageWarehouses && (
+                          {t.status === 'APPROVED' && canCompleteStockTransfer && (
                             <button
                               disabled={actionLoading}
                               onClick={() => handleCompleteTransfer(t.transferId)}
@@ -924,7 +1104,7 @@ export const InventoryPage: React.FC = () => {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ fontSize: '1rem', fontWeight: 700 }}>Stock Quantity & Condition Adjustments</div>
-            {canManageWarehouses && (
+            {canCreateStockAdjustment && (
             <button
               onClick={() => setShowAdjustmentModal(true)}
               style={{
@@ -984,7 +1164,7 @@ export const InventoryPage: React.FC = () => {
                         {a.warehouse?.warehouseName || `Warehouse #${a.warehouseId}`}
                       </td>
                       <td style={{ padding: '0.85rem 1rem' }}>
-                        {a.item ? `${a.item.itemCode} - ${a.item.name}` : a.vehicleUnit?.chassisNumber || '—'}
+                        {a.item ? `${a.item.itemCode} - ${a.item.itemName || a.item.name || 'Stock item'}` : a.vehicleUnit?.chassisNumber || '—'}
                       </td>
                       <td
                         style={{
@@ -1036,7 +1216,7 @@ export const InventoryPage: React.FC = () => {
                         </span>
                       </td>
                       <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                        {a.status === 'REQUESTED' && (
+                        {a.status === 'REQUESTED' && canApproveStockAdjustment && (
                           <button
                             disabled={actionLoading}
                             onClick={() => handleApproveAdjustment(a.adjustmentId)}
@@ -1074,7 +1254,7 @@ export const InventoryPage: React.FC = () => {
                 Fills SRS gap: directly receives locally assembled three-wheelers/motorcycles into warehouse inventory with auto-activation to AVAILABLE_FOR_SALE
               </div>
             </div>
-            {canManageWarehouses && (
+            {canCreateProductionReceipt && (
             <button
               onClick={() => setShowProductionModal(true)}
               style={{
@@ -1251,7 +1431,7 @@ export const InventoryPage: React.FC = () => {
                   vehicleStatusReport.map((vr, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{vr.warehouse_name || 'All Warehouses'}</td>
-                      <td style={{ padding: '0.85rem 1rem' }}>{vr.model_name || 'All Models'}</td>
+                      <td style={{ padding: '0.85rem 1rem' }}>{vr.item_name || vr.model_name || 'All Models'}</td>
                       <td style={{ padding: '0.85rem 1rem' }}>
                         <span
                           style={{
@@ -1262,11 +1442,11 @@ export const InventoryPage: React.FC = () => {
                             fontSize: '0.75rem',
                           }}
                         >
-                          {vr.status}
+                          {vr.current_status || vr.status}
                         </span>
                       </td>
                       <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>
-                        {vr.vehicle_count}
+                        {vr.unit_count ?? vr.vehicle_count}
                       </td>
                     </tr>
                   ))
@@ -1282,6 +1462,144 @@ export const InventoryPage: React.FC = () => {
         <div>
           <div style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: 700 }}>
             Unified Double-Entry Stock Movement History (Story H1)
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '0.75rem',
+              marginBottom: '1rem',
+              alignItems: 'end',
+            }}
+          >
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                From Date
+              </label>
+              <input
+                type="date"
+                value={movementStartDate}
+                onChange={(e) => setMovementStartDate(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                To Date
+              </label>
+              <input
+                type="date"
+                value={movementEndDate}
+                onChange={(e) => setMovementEndDate(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                Warehouse
+              </label>
+              <select
+                value={movementWarehouseFilter}
+                onChange={(e) => setMovementWarehouseFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="ALL">All Warehouses</option>
+                {warehouses.map((w) => (
+                  <option key={w.warehouseId} value={String(w.warehouseId)}>
+                    {w.warehouseName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                Item
+              </label>
+              <select
+                value={movementItemFilter}
+                onChange={(e) => setMovementItemFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="ALL">All Items</option>
+                {products.map((p) => (
+                  <option key={p.itemId} value={p.itemId}>
+                    {p.itemCode} - {p.itemName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                Movement Type
+              </label>
+              <select
+                value={movementTypeFilter}
+                onChange={(e) => setMovementTypeFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="ALL">All Types</option>
+                {movementTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMovementWarehouseFilter('ALL');
+                setMovementItemFilter('ALL');
+                setMovementTypeFilter('ALL');
+                setMovementStartDate('');
+                setMovementEndDate('');
+              }}
+              className="btn btn-secondary"
+              style={{ padding: '0.55rem 0.75rem' }}
+            >
+              Clear Filters
+            </button>
           </div>
 
           <div
@@ -1369,38 +1687,27 @@ export const InventoryPage: React.FC = () => {
 
       {/* MODAL 1: CREATE TRANSFER */}
       {showTransferModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999,
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              padding: '1.5rem',
-              width: '100%',
-              maxWidth: '520px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Request Inter-Warehouse Transfer</h2>
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <ArrowRightLeft size={20} />
+                </div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Request Inter-Warehouse Transfer</h2>
+              </div>
               <button
+                type="button"
                 onClick={() => setShowTransferModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.25rem' }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateTransfer}>
+              <div className="modal-body">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
@@ -1544,33 +1851,20 @@ export const InventoryPage: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              </div>
+
+              <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowTransferModal(false)}
-                  style={{
-                    padding: '0.6rem 1rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '6px',
-                    background: '#00D2D3',
-                    color: '#0D1117',
-                    border: 'none',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-cyan"
                 >
                   Submit Request
                 </button>
@@ -1580,40 +1874,199 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: CREATE ADJUSTMENT */}
-      {showAdjustmentModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999,
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              padding: '1.5rem',
-              width: '100%',
-              maxWidth: '520px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Create Stock Adjustment</h2>
+      {/* MODAL 2: RECEIVE NON-SERIALIZED STOCK */}
+      {showReceiptModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 'var(--radius-md)', color: '#10B981' }}>
+                  <Boxes size={20} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Receive Non-Serialized Stock</h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Opening balance or manual receipt for spare parts and quantity-tracked items
+                  </div>
+                </div>
+              </div>
               <button
-                onClick={() => setShowAdjustmentModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.25rem' }}
+                type="button"
+                onClick={() => setShowReceiptModal(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                ✕
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStockReceipt}>
+              <div className="modal-body">
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Warehouse
+                  </label>
+                  <select
+                    value={receiptWarehouseId}
+                    onChange={(e) => setReceiptWarehouseId(Number(e.target.value))}
+                    disabled={warehouses.length === 0}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.warehouseId} value={w.warehouseId}>
+                        {w.warehouseName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Stock Item
+                    </label>
+                    <select
+                      value={receiptItemId}
+                      onChange={(e) => setReceiptItemId(e.target.value)}
+                      disabled={receivableProducts.length === 0}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '6px',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {receivableProducts.length === 0 ? (
+                        <option value="">No non-serialized stock items available</option>
+                      ) : (
+                        receivableProducts.map((p) => (
+                          <option key={p.itemId} value={p.itemId}>
+                            {p.itemCode} - {p.itemName}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={receiptQuantity}
+                      onChange={(e) => setReceiptQuantity(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '6px',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-primary)',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Source Type
+                  </label>
+                  <select
+                    value={receiptSourceType}
+                    onChange={(e) => setReceiptSourceType(e.target.value as typeof receiptSourceType)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <option value="OPENING_BALANCE">Opening Balance</option>
+                    <option value="LOCAL_PURCHASE">Local Purchase</option>
+                    <option value="MANUAL_RECEIPT">Manual Receipt</option>
+                    <option value="CORRECTION">Correction</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Notes / Reason
+                  </label>
+                  <textarea
+                    value={receiptNotes}
+                    onChange={(e) => setReceiptNotes(e.target.value)}
+                    placeholder="e.g. Opening physical count for spare parts shelf"
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowReceiptModal(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || warehouses.length === 0 || receivableProducts.length === 0}
+                  className="btn btn-emerald"
+                >
+                  Receive Stock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CREATE ADJUSTMENT */}
+      {showAdjustmentModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.5rem', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: 'var(--radius-md)', color: '#A855F7' }}>
+                  <SlidersHorizontal size={20} />
+                </div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Create Stock Adjustment</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdjustmentModal(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateAdjustment}>
+              <div className="modal-body">
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                   Warehouse
@@ -1641,11 +2094,12 @@ export const InventoryPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                    Item
+                    Stock Balance Item
                   </label>
                   <select
                     value={adjItemId}
                     onChange={(e) => setAdjItemId(e.target.value)}
+                    disabled={adjustmentBalances.length === 0}
                     style={{
                       width: '100%',
                       padding: '0.6rem',
@@ -1655,11 +2109,15 @@ export const InventoryPage: React.FC = () => {
                       color: 'var(--text-primary)',
                     }}
                   >
-                    {products.map((p) => (
-                      <option key={p.itemId} value={p.itemId}>
-                        {p.itemCode} - {p.itemName}
-                      </option>
-                    ))}
+                    {adjustmentBalances.length === 0 ? (
+                      <option value="">No stock-balance items in this warehouse</option>
+                    ) : (
+                      adjustmentBalances.map((balance) => (
+                        <option key={balance.itemId} value={balance.itemId}>
+                          {balance.item?.itemCode || balance.itemId} - {balance.item?.name || 'Stock item'} ({Number(balance.quantityOnHand).toLocaleString()} on hand)
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>
@@ -1731,33 +2189,21 @@ export const InventoryPage: React.FC = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              </div>
+
+              <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowAdjustmentModal(false)}
-                  style={{
-                    padding: '0.6rem 1rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '6px',
-                    background: '#A855F7',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  disabled={actionLoading || adjustmentBalances.length === 0}
+                  className="btn"
+                  style={{ background: '#A855F7', color: '#FFFFFF', fontWeight: 700 }}
                 >
                   Submit for Approval
                 </button>
@@ -1769,43 +2215,32 @@ export const InventoryPage: React.FC = () => {
 
       {/* MODAL 3: PRODUCTION VEHICLE INTAKE */}
       {showProductionModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999,
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              padding: '1.5rem',
-              width: '100%',
-              maxWidth: '520px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Record Local Assembly Intake</h2>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Creates Vehicle Unit with status AVAILABLE_FOR_SALE
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 'var(--radius-md)', color: '#10B981' }}>
+                  <Wrench size={20} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Record Local Assembly Intake</h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Creates Vehicle Unit with status AVAILABLE_FOR_SALE
+                  </div>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowProductionModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.25rem' }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateProductionReceipt}>
+              <div className="modal-body">
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                   Model / Item
@@ -1813,6 +2248,7 @@ export const InventoryPage: React.FC = () => {
                 <select
                   value={prodItemId}
                   onChange={(e) => setProdItemId(e.target.value)}
+                  disabled={products.length === 0}
                   style={{
                     width: '100%',
                     padding: '0.6rem',
@@ -1822,11 +2258,15 @@ export const InventoryPage: React.FC = () => {
                     color: 'var(--text-primary)',
                   }}
                 >
-                  {products.map((p) => (
-                    <option key={p.itemId} value={p.itemId}>
-                      {p.itemCode} - {p.itemName}
-                    </option>
-                  ))}
+                  {products.length === 0 ? (
+                    <option value="">No vehicle models available</option>
+                  ) : (
+                    products.map((p) => (
+                      <option key={p.itemId} value={p.itemId}>
+                        {p.itemCode} - {p.itemName}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1879,8 +2319,9 @@ export const InventoryPage: React.FC = () => {
                     Receiving Warehouse
                   </label>
                   <select
-                    value={prodWarehouseId}
+                    value={prodWarehouseId || ''}
                     onChange={(e) => setProdWarehouseId(Number(e.target.value))}
+                    disabled={warehouses.length === 0}
                     style={{
                       width: '100%',
                       padding: '0.6rem',
@@ -1890,11 +2331,15 @@ export const InventoryPage: React.FC = () => {
                       color: 'var(--text-primary)',
                     }}
                   >
-                    {warehouses.map((w) => (
-                      <option key={w.warehouseId} value={w.warehouseId}>
-                        {w.warehouseName}
-                      </option>
-                    ))}
+                    {warehouses.length === 0 ? (
+                      <option value="">No warehouses available</option>
+                    ) : (
+                      warehouses.map((w) => (
+                        <option key={w.warehouseId} value={w.warehouseId}>
+                          {w.warehouseName}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>
@@ -1917,33 +2362,20 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              </div>
+
+              <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowProductionModal(false)}
-                  style={{
-                    padding: '0.6rem 1rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '6px',
-                    background: '#10B981',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  disabled={actionLoading || products.length === 0 || warehouses.length === 0}
+                  className="btn btn-emerald"
                 >
                   Receive into Inventory
                 </button>
@@ -1955,77 +2387,60 @@ export const InventoryPage: React.FC = () => {
 
       {/* MODAL 4: VIEW TRANSFER LINES */}
       {selectedTransfer && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999,
-          }}
-        >
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              padding: '1.5rem',
-              width: '100%',
-              maxWidth: '560px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Transfer #{selectedTransfer.transferId} Lines</h2>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  {selectedTransfer.fromWarehouse?.warehouseName} → {selectedTransfer.toWarehouse?.warehouseName}
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Eye size={20} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Transfer #{selectedTransfer.transferId} Lines</h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    {selectedTransfer.fromWarehouse?.warehouseName} → {selectedTransfer.toWarehouse?.warehouseName}
+                  </div>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedTransfer(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.25rem' }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
-            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1.25rem' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                    <th style={{ padding: '0.6rem' }}>ITEM / VEHICLE</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'right' }}>QUANTITY</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedTransfer.lines?.map((line) => (
-                    <tr key={line.lineId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.6rem' }}>
-                        {line.item ? `${line.item.itemCode} - ${line.item.name}` : line.vehicleUnit?.chassisNumber || line.vehicleUnitId}
-                      </td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: 700 }}>
-                        {line.quantity || 1}
-                      </td>
+            <div className="modal-body">
+              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.6rem' }}>ITEM / VEHICLE</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>QUANTITY</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {selectedTransfer.lines?.map((line) => (
+                      <tr key={line.lineId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.6rem' }}>
+                          {line.item ? `${line.item.itemCode} - ${line.item.name}` : line.vehicleUnit?.chassisNumber || line.vehicleUnitId}
+                        </td>
+                        <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: 700 }}>
+                          {line.quantity || 1}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
               <button
+                type="button"
                 onClick={() => setSelectedTransfer(null)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  background: 'var(--border-color)',
-                  color: 'var(--text-primary)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                }}
+                className="btn btn-secondary"
               >
                 Close
               </button>

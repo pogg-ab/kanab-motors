@@ -90,6 +90,9 @@ export async function seedDatabase(dataSource?: DataSource) {
         'PRODUCTS_VIEW', 'PRODUCTS_CREATE', 'PRODUCTS_EDIT', 'PRODUCTS_CATEGORIES_MANAGE',
         'VEHICLES_VIEW', 'VEHICLES_CREATE', 'VEHICLES_BULK_IMPORT', 'VEHICLES_STATUS_UPDATE',
         'WAREHOUSES_MANAGE', 'SHIPMENTS_VIEW', 'SHIPMENTS_RECEIVE_STOCK',
+        'STOCK_TRANSFERS_CREATE', 'STOCK_TRANSFERS_APPROVE', 'STOCK_TRANSFERS_COMPLETE',
+        'STOCK_RECEIPTS_CREATE',
+        'STOCK_ADJUSTMENTS_CREATE', 'STOCK_ADJUSTMENTS_APPROVE', 'PRODUCTION_RECEIPTS_CREATE',
       ],
     },
     {
@@ -98,6 +101,9 @@ export async function seedDatabase(dataSource?: DataSource) {
       permissions: [
         'PRODUCTS_VIEW', 'VEHICLES_VIEW', 'VEHICLES_CREATE', 'VEHICLES_STATUS_UPDATE',
         'WAREHOUSES_MANAGE', 'SHIPMENTS_VIEW', 'SHIPMENTS_RECEIVE_STOCK',
+        'STOCK_TRANSFERS_CREATE', 'STOCK_TRANSFERS_APPROVE', 'STOCK_TRANSFERS_COMPLETE',
+        'STOCK_RECEIPTS_CREATE',
+        'STOCK_ADJUSTMENTS_CREATE', 'STOCK_ADJUSTMENTS_APPROVE', 'PRODUCTION_RECEIPTS_CREATE',
       ],
     },
     {
@@ -310,6 +316,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       sellingPrice: 185000.0,
       taxConfigId: vat15?.taxConfigId,
       reorderLevel: 10,
+      isIndividuallyTracked: true,
     },
     {
       itemCode: 'KB-3W-MAXIMA-Z',
@@ -321,6 +328,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       sellingPrice: 320000.0,
       taxConfigId: vat15?.taxConfigId,
       reorderLevel: 5,
+      isIndividuallyTracked: true,
     },
     {
       itemCode: 'KB-3W-TVS-KING',
@@ -332,6 +340,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       sellingPrice: 310000.0,
       taxConfigId: vat15?.taxConfigId,
       reorderLevel: 5,
+      isIndividuallyTracked: true,
     },
   ];
 
