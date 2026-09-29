@@ -86,8 +86,9 @@ export class AddCostComponentDto {
   @IsPositive()
   amount: number;
 
-  @IsIn(['ETB', 'USD', 'EUR'])
-  currency: 'ETB' | 'USD' | 'EUR';
+  @IsString()
+  @Matches(/^[A-Z]{3,10}$/)
+  currency: string;
 
   @IsOptional()
   @Type(() => Number)

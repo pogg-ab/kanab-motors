@@ -30,6 +30,8 @@ export const ProcurementReportsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editingRate, setEditingRate] = useState<{ currency: string; rate: number } | null>(null);
+  const [newCurrencyCode, setNewCurrencyCode] = useState<string>('');
+  const [newCurrencyRate, setNewCurrencyRate] = useState<number>(0);
   const [updatingRate, setUpdatingRate] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -63,6 +65,11 @@ export const ProcurementReportsPage: React.FC = () => {
     }
   };
 
+  const refreshExchangeRates = async () => {
+    const rates = await api.getExchangeRates();
+    setExchangeRates(rates || []);
+  };
+
   const handleUpdateExchangeRate = async () => {
     if (!canManageExchangeRates || !editingRate) return;
     setUpdatingRate(true);
@@ -70,10 +77,38 @@ export const ProcurementReportsPage: React.FC = () => {
       await api.updateExchangeRate(editingRate.currency, editingRate.rate);
       showToast('success', `Updated baseline exchange rate for ${editingRate.currency} to ${editingRate.rate} ETB`);
       setEditingRate(null);
-      const rates = await api.getExchangeRates();
-      setExchangeRates(rates);
+      await refreshExchangeRates();
     } catch (err: any) {
       showToast('error', err.response?.data?.message || err.message || 'Failed to update rate');
+    } finally {
+      setUpdatingRate(false);
+    }
+  };
+
+  const handleAddCurrency = async () => {
+    if (!canManageExchangeRates) return;
+    const code = newCurrencyCode.trim().toUpperCase();
+    if (!/^[A-Z]{3,10}$/.test(code)) {
+      showToast('error', 'Currency code must be 3 to 10 uppercase letters, e.g. GBP or AED');
+      return;
+    }
+    if (exchangeRates.some((rate) => rate.currency === code)) {
+      showToast('error', `${code} already exists. Use Update Default Rate instead.`);
+      return;
+    }
+    if (Number(newCurrencyRate) <= 0) {
+      showToast('error', 'Exchange rate must be greater than zero');
+      return;
+    }
+    setUpdatingRate(true);
+    try {
+      await api.updateExchangeRate(code, Number(newCurrencyRate));
+      showToast('success', `Added ${code} at ${Number(newCurrencyRate).toFixed(4)} ETB`);
+      setNewCurrencyCode('');
+      setNewCurrencyRate(0);
+      await refreshExchangeRates();
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || err.message || 'Failed to add currency');
     } finally {
       setUpdatingRate(false);
     }
@@ -586,15 +621,45 @@ export const ProcurementReportsPage: React.FC = () => {
       {activeTab === 'exchange_rates' && (
         <div>
           <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
                   Multi-Currency Baseline Exchange Rates (ETB Conversion)
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                  Pre-configured baseline conversion rates to ETB for automated landed cost computation snapshots.
+                  Add a currency here and it becomes available in purchase orders, shipment costs, and landed-cost conversion dropdowns.
                 </p>
               </div>
+              {canManageExchangeRates && (
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    className="input"
+                    value={newCurrencyCode}
+                    onChange={(e) => setNewCurrencyCode(e.target.value.toUpperCase())}
+                    placeholder="Code e.g. GBP"
+                    maxLength={10}
+                    style={{ width: '130px' }}
+                  />
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.0001"
+                    min="0.0001"
+                    value={newCurrencyRate || ''}
+                    onChange={(e) => setNewCurrencyRate(parseFloat(e.target.value) || 0)}
+                    placeholder="Rate to ETB"
+                    style={{ width: '140px' }}
+                  />
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleAddCurrency}
+                    disabled={updatingRate}
+                    style={{ fontSize: '0.8rem' }}
+                  >
+                    Add Currency
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
@@ -658,7 +723,7 @@ export const ProcurementReportsPage: React.FC = () => {
                         Cancel
                       </button>
                     </div>
-                  ) : canManageExchangeRates ? (
+                  ) : canManageExchangeRates && rate.currency !== 'ETB' ? (
                     <button
                       onClick={() => setEditingRate({ currency: rate.currency, rate: Number(rate.rateToEtb) })}
                       className="btn btn-secondary"
@@ -666,6 +731,10 @@ export const ProcurementReportsPage: React.FC = () => {
                     >
                       Update Default Rate
                     </button>
+                  ) : rate.currency === 'ETB' ? (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center', padding: '0.45rem' }}>
+                      Base currency locked at 1.0000
+                    </div>
                   ) : null}
                 </div>
               ))}

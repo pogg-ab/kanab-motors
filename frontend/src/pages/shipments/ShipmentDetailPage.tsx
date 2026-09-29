@@ -76,7 +76,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const [newCost, setNewCost] = useState<{
     costComponentTypeId: number | '';
     amount: number;
-    currency: 'ETB' | 'USD' | 'EUR';
+    currency: string;
     exchangeRateToEtb: number;
     notes: string;
   }>({
@@ -157,7 +157,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
     }
   };
 
-  const handleCurrencyChange = (curr: 'ETB' | 'USD' | 'EUR') => {
+  const handleCurrencyChange = (curr: string) => {
     const rateObj = exchangeRates.find((r) => r.currency === curr);
     const rate = curr === 'ETB' ? 1.0 : rateObj ? Number(rateObj.rateToEtb) : 125.0;
     setNewCost({
@@ -1319,9 +1319,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     value={newCost.currency}
                     onChange={(e) => handleCurrencyChange(e.target.value as any)}
                   >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="ETB">ETB (Br)</option>
+                    {exchangeRates.map((rate) => (
+                      <option key={rate.currency} value={rate.currency}>
+                        {rate.currency} ({Number(rate.rateToEtb).toFixed(4)} ETB)
+                      </option>
+                    ))}
                   </select>
                 </div>
 

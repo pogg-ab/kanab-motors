@@ -36,8 +36,8 @@ export class PurchaseOrderLine {
   @Column({ name: 'unit_price', type: 'numeric', precision: 18, scale: 4 })
   unitPrice: number;
 
-  @Column({ type: 'enum', enum: ['ETB', 'USD', 'EUR'] })
-  currency: 'ETB' | 'USD' | 'EUR';
+  @Column({ type: 'varchar', length: 10 })
+  currency: string;
 
   @Column({
     name: 'line_total',

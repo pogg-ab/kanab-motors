@@ -46,7 +46,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   // Form State
   const [supplierId, setSupplierId] = useState<number | ''>('');
-  const [currency, setCurrency] = useState<'USD' | 'EUR' | 'ETB'>('USD');
+  const [currency, setCurrency] = useState<string>('USD');
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState<string>('');
   const [lines, setLines] = useState<
@@ -89,12 +89,12 @@ export const PurchaseOrdersPage: React.FC = () => {
     setLines([...lines, { itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
   };
 
-  const getRateToEtb = (curr: 'USD' | 'EUR' | 'ETB') => {
+  const getRateToEtb = (curr: string) => {
     if (curr === 'ETB') return 1;
     return Number(exchangeRates.find((r) => r.currency === curr)?.rateToEtb || 0);
   };
 
-  const suggestUnitPrice = (product: ProductItem, curr: 'USD' | 'EUR' | 'ETB') => {
+  const suggestUnitPrice = (product: ProductItem, curr: string) => {
     const sellingPriceEtb = Number(product.sellingPrice || 0);
     const rate = getRateToEtb(curr);
     if (curr === 'ETB') return Math.round(sellingPriceEtb * 100) / 100;
@@ -102,7 +102,7 @@ export const PurchaseOrdersPage: React.FC = () => {
     return Math.round((sellingPriceEtb / rate) * 100) / 100;
   };
 
-  const handleCurrencyChange = (nextCurrency: 'USD' | 'EUR' | 'ETB') => {
+  const handleCurrencyChange = (nextCurrency: string) => {
     setCurrency(nextCurrency);
     setLines((currentLines) =>
       currentLines.map((line) => {
@@ -567,11 +567,13 @@ export const PurchaseOrdersPage: React.FC = () => {
                     <select
                       className="input"
                       value={currency}
-                      onChange={(e) => handleCurrencyChange(e.target.value as 'USD' | 'EUR' | 'ETB')}
+                      onChange={(e) => handleCurrencyChange(e.target.value)}
                     >
-                      <option value="USD">USD ($)</option>
-                      <option value="EUR">EUR (€)</option>
-                      <option value="ETB">ETB (Br)</option>
+                      {exchangeRates.map((rate) => (
+                        <option key={rate.currency} value={rate.currency}>
+                          {rate.currency} ({Number(rate.rateToEtb).toFixed(4)} ETB)
+                        </option>
+                      ))}
                     </select>
                   </div>
 

@@ -89,13 +89,14 @@ export class ShipmentsController {
   @RequirePermissions('EXCHANGE_RATES_MANAGE')
   @ApiOperation({ summary: 'Update default exchange rate to ETB' })
   updateExchangeRate(
-    @Param('currency') currency: 'ETB' | 'USD' | 'EUR',
+    @Param('currency') currency: string,
     @Body() dto: UpdateExchangeRateDto,
   ) {
-    if (!['ETB', 'USD', 'EUR'].includes(currency)) {
-      throw new BadRequestException('Currency must be ETB, USD, or EUR');
+    const normalizedCurrency = currency.trim().toUpperCase();
+    if (!/^[A-Z]{3,10}$/.test(normalizedCurrency)) {
+      throw new BadRequestException('Currency code must be 3 to 10 uppercase letters');
     }
-    return this.shipmentsService.updateExchangeRate(currency, dto.rateToEtb);
+    return this.shipmentsService.updateExchangeRate(normalizedCurrency, dto.rateToEtb);
   }
 
   @Get(':id')

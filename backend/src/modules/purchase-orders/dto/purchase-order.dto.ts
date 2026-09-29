@@ -39,8 +39,9 @@ export class CreatePODto {
   @IsDateString()
   poDate?: string;
 
-  @IsEnum(['ETB', 'USD', 'EUR'])
-  currency: 'ETB' | 'USD' | 'EUR';
+  @IsString()
+  @Matches(/^[A-Z]{3,10}$/)
+  currency: string;
 
   @IsArray()
   @ArrayMinSize(1)
@@ -71,8 +72,9 @@ export class UpdatePODto {
   poDate?: string;
 
   @IsOptional()
-  @IsEnum(['ETB', 'USD', 'EUR'])
-  currency?: 'ETB' | 'USD' | 'EUR';
+  @IsString()
+  @Matches(/^[A-Z]{3,10}$/)
+  currency?: string;
 
   @IsOptional()
   @IsArray()
@@ -102,3 +104,4 @@ export class UpdatePOStatusDto {
   @Min(1)
   userId?: number;
 }
+

@@ -389,7 +389,7 @@ export interface PurchaseOrderLine {
   quantityOrdered: number;
   remainingQuantity?: number;
   unitPrice: number;
-  currency: 'ETB' | 'USD' | 'EUR';
+  currency: string;
   lineTotal: number;
 }
 
@@ -399,7 +399,7 @@ export interface PurchaseOrder {
   supplierId: number;
   supplier?: Supplier;
   poDate: string;
-  currency: 'ETB' | 'USD' | 'EUR';
+  currency: string;
   status: 'DRAFT' | 'SUBMITTED' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
   notes?: string;
   lines: PurchaseOrderLine[];
@@ -414,7 +414,7 @@ export interface CostComponentType {
 }
 
 export interface ExchangeRateDefault {
-  currency: 'ETB' | 'USD' | 'EUR';
+  currency: string;
   rateToEtb: number;
   updatedAt: string;
 }
@@ -425,7 +425,7 @@ export interface ShipmentCostComponent {
   costComponentTypeId: number;
   costComponentType?: CostComponentType;
   amount: number;
-  currency: 'ETB' | 'USD' | 'EUR';
+  currency: string;
   exchangeRateToEtb: number;
   amountEtb: number;
   notes?: string;

@@ -92,11 +92,14 @@ END $$;
 
 -- Editable SUGGESTED default rate only — see design note above.
 CREATE TABLE IF NOT EXISTS exchange_rate_default (
-    currency      currency_enum PRIMARY KEY,
+    currency      VARCHAR(10) PRIMARY KEY,
     rate_to_etb   NUMERIC(18,6) NOT NULL CHECK (rate_to_etb > 0),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-INSERT INTO exchange_rate_default (currency, rate_to_etb) VALUES ('ETB', 1.000000)
+INSERT INTO exchange_rate_default (currency, rate_to_etb) VALUES
+    ('ETB', 1.000000),
+    ('USD', 125.000000),
+    ('EUR', 135.000000)
 ON CONFLICT (currency) DO NOTHING;
 
 
@@ -120,7 +123,7 @@ CREATE TABLE IF NOT EXISTS purchase_order (
                 DEFAULT ('PO-' || lpad(nextval('po_number_seq')::text, 6, '0')),
     supplier_id INT NOT NULL REFERENCES supplier(supplier_id),
     po_date     DATE NOT NULL DEFAULT CURRENT_DATE,
-    currency    currency_enum NOT NULL,
+    currency    VARCHAR(10) NOT NULL,
     status      po_status_enum NOT NULL DEFAULT 'DRAFT',
     notes       TEXT,
     created_by  INT REFERENCES app_user(user_id),
@@ -142,7 +145,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_line (
     item_id          BIGINT NOT NULL REFERENCES product_item(item_id),
     quantity_ordered NUMERIC(12,2) NOT NULL CHECK (quantity_ordered > 0),
     unit_price       NUMERIC(18,4) NOT NULL CHECK (unit_price > 0),
-    currency         currency_enum NOT NULL,
+    currency         VARCHAR(10) NOT NULL,
     line_total       NUMERIC(18,2) GENERATED ALWAYS AS (quantity_ordered * unit_price) STORED
 );
 CREATE INDEX IF NOT EXISTS idx_po_line_po ON purchase_order_line(po_id);
@@ -256,7 +259,7 @@ CREATE TABLE IF NOT EXISTS shipment_cost_component (
     shipment_id            BIGINT NOT NULL REFERENCES shipment(shipment_id) ON DELETE CASCADE,
     cost_component_type_id SMALLINT NOT NULL REFERENCES cost_component_type(cost_component_type_id),
     amount                 NUMERIC(18,2) NOT NULL CHECK (amount > 0),
-    currency               currency_enum NOT NULL,
+    currency               VARCHAR(10) NOT NULL,
     -- Snapshot at time of entry — see design note at top of file.
     exchange_rate_to_etb   NUMERIC(18,6) NOT NULL CHECK (exchange_rate_to_etb > 0),
     amount_etb             NUMERIC(18,2) GENERATED ALWAYS AS (amount * exchange_rate_to_etb) STORED,

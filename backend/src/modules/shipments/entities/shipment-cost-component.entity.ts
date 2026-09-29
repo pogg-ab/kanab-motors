@@ -34,8 +34,8 @@ export class ShipmentCostComponent {
   @Column({ type: 'numeric', precision: 18, scale: 2 })
   amount: number;
 
-  @Column({ type: 'enum', enum: ['ETB', 'USD', 'EUR'] })
-  currency: 'ETB' | 'USD' | 'EUR';
+  @Column({ type: 'varchar', length: 10 })
+  currency: string;
 
   @Column({ name: 'exchange_rate_to_etb', type: 'numeric', precision: 18, scale: 6 })
   exchangeRateToEtb: number;

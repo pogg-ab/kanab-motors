@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { PurchaseOrder, POStatus } from './entities/purchase-order.entity';
 import { PurchaseOrderLine } from './entities/purchase-order-line.entity';
+import { ExchangeRateDefault } from '../shipments/entities/exchange-rate-default.entity';
 import { CreatePODto, UpdatePODto } from './dto/purchase-order.dto';
 
 @Injectable()
@@ -12,13 +13,32 @@ export class PurchaseOrdersService {
     private readonly poRepo: Repository<PurchaseOrder>,
     @InjectRepository(PurchaseOrderLine)
     private readonly poLineRepo: Repository<PurchaseOrderLine>,
+    @InjectRepository(ExchangeRateDefault)
+    private readonly exchangeRateRepo: Repository<ExchangeRateDefault>,
     private readonly dataSource: DataSource,
   ) {}
+
+  private normalizeCurrency(currency: string): string {
+    return currency.trim().toUpperCase();
+  }
+
+  private async assertConfiguredCurrency(currency: string): Promise<string> {
+    const normalizedCurrency = this.normalizeCurrency(currency);
+    if (!/^[A-Z]{3,10}$/.test(normalizedCurrency)) {
+      throw new BadRequestException('Currency code must be 3 to 10 uppercase letters');
+    }
+    const configured = await this.exchangeRateRepo.findOne({ where: { currency: normalizedCurrency } });
+    if (!configured) {
+      throw new BadRequestException(`No default exchange rate is configured for ${normalizedCurrency}`);
+    }
+    return normalizedCurrency;
+  }
 
   async create(dto: CreatePODto): Promise<PurchaseOrder> {
     if (!dto.lines || dto.lines.length === 0) {
       throw new BadRequestException('Purchase Order must have at least one line item');
     }
+    const configuredCurrency = await this.assertConfiguredCurrency(dto.currency);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -30,7 +50,7 @@ export class PurchaseOrdersService {
         poNumber,
         supplierId: dto.supplierId,
         poDate: dto.poDate || new Date().toISOString().split('T')[0],
-        currency: dto.currency,
+        currency: configuredCurrency,
         status: POStatus.DRAFT,
         notes: dto.notes,
         createdBy: dto.userId,
@@ -45,7 +65,7 @@ export class PurchaseOrdersService {
           itemId: l.itemId,
           quantityOrdered: l.quantityOrdered,
           unitPrice: l.unitPrice,
-          currency: dto.currency,
+          currency: configuredCurrency,
           lineTotal: Number(l.quantityOrdered) * Number(l.unitPrice),
         }),
       );
@@ -131,7 +151,7 @@ export class PurchaseOrdersService {
     await queryRunner.startTransaction();
 
     try {
-      const nextCurrency = dto.currency ?? po.currency;
+      const nextCurrency = dto.currency ? await this.assertConfiguredCurrency(dto.currency) : po.currency;
       Object.assign(po, {
         supplierId: dto.supplierId ?? po.supplierId,
         poDate: dto.poDate ?? po.poDate,

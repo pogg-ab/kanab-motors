@@ -42,8 +42,8 @@ export class PurchaseOrder {
   @Column({ name: 'po_date', type: 'date', default: () => 'CURRENT_DATE' })
   poDate: string;
 
-  @Column({ type: 'enum', enum: ['ETB', 'USD', 'EUR'] })
-  currency: 'ETB' | 'USD' | 'EUR';
+  @Column({ type: 'varchar', length: 10 })
+  currency: string;
 
   @Column({
     type: 'enum',

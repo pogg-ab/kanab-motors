@@ -329,22 +329,23 @@ export class ShipmentsService {
       throw new BadRequestException(`Cost component type #${dto.costComponentTypeId} does not exist`);
     }
 
+    const normalizedCurrency = dto.currency.trim().toUpperCase();
     let rate = dto.exchangeRateToEtb;
     if (!rate) {
-      if (dto.currency === 'ETB') {
+      if (normalizedCurrency === 'ETB') {
         rate = 1.0;
       } else {
         const defaultRate = await this.exchangeRateRepo.findOne({
-          where: { currency: dto.currency },
+          where: { currency: normalizedCurrency },
         });
         if (!defaultRate) {
-          throw new BadRequestException(`No default exchange rate is configured for ${dto.currency}`);
+          throw new BadRequestException(`No default exchange rate is configured for ${normalizedCurrency}`);
         }
         rate = Number(defaultRate.rateToEtb);
       }
     }
 
-    if (dto.currency === 'ETB' && rate !== 1.0) {
+    if (normalizedCurrency === 'ETB' && rate !== 1.0) {
       throw new BadRequestException('Exchange rate for ETB must always be 1.0');
     }
 
@@ -352,7 +353,7 @@ export class ShipmentsService {
       shipmentId,
       costComponentTypeId: dto.costComponentTypeId,
       amount: dto.amount,
-      currency: dto.currency,
+      currency: normalizedCurrency,
       exchangeRateToEtb: rate,
       amountEtb: Math.round(Number(dto.amount) * Number(rate) * 100) / 100,
       notes: dto.notes,
@@ -597,16 +598,44 @@ export class ShipmentsService {
     return this.costTypeRepo.find({ order: { costComponentTypeId: 'ASC' } });
   }
 
-  async getExchangeRates(): Promise<ExchangeRateDefault[]> {
-    return this.exchangeRateRepo.find();
+  private readonly defaultExchangeRates: Record<string, number> = {
+    ETB: 1.0,
+    USD: 125.0,
+    EUR: 135.0,
+  };
+
+  private async ensureDefaultExchangeRates(): Promise<void> {
+    for (const [currency, rateToEtb] of Object.entries(this.defaultExchangeRates)) {
+      const existing = await this.exchangeRateRepo.findOne({ where: { currency } });
+      if (!existing) {
+        await this.exchangeRateRepo.save(this.exchangeRateRepo.create({ currency, rateToEtb }));
+      } else if (currency === 'ETB' && Number(existing.rateToEtb) !== 1) {
+        existing.rateToEtb = 1;
+        await this.exchangeRateRepo.save(existing);
+      }
+    }
   }
 
-  async updateExchangeRate(currency: 'ETB' | 'USD' | 'EUR', rateToEtb: number): Promise<ExchangeRateDefault> {
-    let rec = await this.exchangeRateRepo.findOne({ where: { currency } });
+  async getExchangeRates(): Promise<ExchangeRateDefault[]> {
+    await this.ensureDefaultExchangeRates();
+    return this.exchangeRateRepo.find({ order: { currency: 'ASC' } });
+  }
+
+  async updateExchangeRate(currency: string, rateToEtb: number): Promise<ExchangeRateDefault> {
+    await this.ensureDefaultExchangeRates();
+    const normalizedCurrency = currency.trim().toUpperCase();
+    if (!/^[A-Z]{3,10}$/.test(normalizedCurrency)) {
+      throw new BadRequestException('Currency code must be 3 to 10 uppercase letters');
+    }
+    if (normalizedCurrency === 'ETB' && Number(rateToEtb) !== 1) {
+      throw new BadRequestException('Exchange rate for ETB must always be 1.0');
+    }
+
+    let rec = await this.exchangeRateRepo.findOne({ where: { currency: normalizedCurrency } });
     if (!rec) {
-      rec = this.exchangeRateRepo.create({ currency, rateToEtb });
+      rec = this.exchangeRateRepo.create({ currency: normalizedCurrency, rateToEtb: normalizedCurrency === 'ETB' ? 1 : rateToEtb });
     } else {
-      rec.rateToEtb = rateToEtb;
+      rec.rateToEtb = normalizedCurrency === 'ETB' ? 1 : rateToEtb;
     }
     return this.exchangeRateRepo.save(rec);
   }
