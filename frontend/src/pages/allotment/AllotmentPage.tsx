@@ -224,7 +224,7 @@ export const AllotmentPage: React.FC = () => {
           <span style={{ color: 'var(--text-muted)' }}>/</span>
           <span>Orders & Inventory</span>
           <span style={{ color: 'var(--text-muted)' }}>/</span>
-          <span style={{ color: 'var(--text-primary)' }}>Vehicle Allotment Management (KMSICAMS-5)</span>
+          <span style={{ color: 'var(--text-primary)' }}>Vehicle Allotment Management</span>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
@@ -392,7 +392,7 @@ export const AllotmentPage: React.FC = () => {
           <div style={{ overflowX: 'auto' }}>
             <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ALLOTMENT REF</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CUSTOMER & BOOKING</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL & SPEC</th>
@@ -570,7 +570,7 @@ export const AllotmentPage: React.FC = () => {
                 Bookings Awaiting Vehicle Allocation
               </h3>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Filtered by confirmed/settled advance deposit payments per KMSICAMS-2 business rules
+                Filtered by confirmed advance deposit payment verification
               </span>
             </div>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -581,7 +581,7 @@ export const AllotmentPage: React.FC = () => {
           <div style={{ overflowX: 'auto' }}>
             <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>BOOKING REF</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CUSTOMER</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL</th>

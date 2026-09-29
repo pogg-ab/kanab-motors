@@ -95,19 +95,19 @@ function MainAppContent() {
   const getModuleTitle = () => {
     switch (activeTab) {
       case 'dashboard':
-        return 'Executive Management: Real-Time Intelligence & Fleet Dashboard (KMSICAMS-7)';
+        return 'Executive Management: Real-Time Intelligence & Fleet Dashboard';
       case 'reports':
-        return 'Enterprise Intelligence: Unified Reporting & Analytics Engine (KMSICAMS-7)';
+        return 'Enterprise Intelligence: Unified Reporting & Analytics Engine';
       case 'invoices':
-        return 'Operations: Sales Invoices, VAT Calculation & Financial Settlement (KMSICAMS-6)';
+        return 'Operations: Sales Invoices, VAT Calculation & Financial Settlement';
       case 'deliveries':
-        return 'Operations: Delivery Handover, PDI Station & Official Gate Pass (KMSICAMS-6)';
+        return 'Operations: Delivery Handover, PDI Station & Official Gate Pass';
       case 'approvals':
-        return 'Internal Controls: Unified Approval Queue & Policy Engine (KMSICAMS-6)';
+        return 'Internal Controls: Unified Approval Queue & Policy Engine';
       case 'documents':
-        return 'Document Management: Unified Document Center & Registry (KMSICAMS-6)';
+        return 'Document Management: Unified Document Center & Registry';
       case 'inventory':
-        return 'Inventory & Warehouses: Stock Balances, State Machine & Transfers (KMSICAMS-4)';
+        return 'Inventory & Warehouses: Stock Balances, State Machine & Transfers';
       case 'shipments':
         return selectedShipmentId
           ? 'Import Management: Shipment Control & Landed Cost Engine'
@@ -125,7 +125,7 @@ function MainAppContent() {
       case 'bookings':
         return 'Sales Pipeline: Advance Order Bookings & Vehicle Allocations';
       case 'allotments':
-        return 'Vehicle Allotment Management: Physical VIN & Chassis Allocation (KMSICAMS-5)';
+        return 'Vehicle Allotment Management: Physical VIN & Chassis Allocation';
       case 'payments':
         return 'Financial Engine: Bank Receipt Vouchers (BRV) & Customer Deposits';
       case 'settlement':

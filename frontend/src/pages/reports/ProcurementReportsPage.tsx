@@ -353,7 +353,7 @@ export const ProcurementReportsPage: React.FC = () => {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                     <th style={{ padding: '0.85rem 1.15rem', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em' }}>SHIPMENT #</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em' }}>CURRENT FREIGHT STAGE</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em' }}>EXPECTED ARRIVAL</th>
@@ -521,7 +521,7 @@ export const ProcurementReportsPage: React.FC = () => {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                     <th style={{ padding: '0.85rem 1.15rem', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em' }}>PO #</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em' }}>SUPPLIER</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.05em' }}>DATE</th>

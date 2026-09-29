@@ -564,84 +564,6 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
         </div>
       </div>
 
-      {/* Middle Grid: Live Djibouti-Mojo Freight Stream & Landed Cost Engine Rates */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-        {/* Left: Freight Stream */}
-        <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Compass size={16} color="var(--accent-cyan)" />
-              <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Live Djibouti – Mojo Corridor Freight Stream
-              </h4>
-            </div>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Refreshed: 32s ago</span>
-          </div>
-
-          <div
-            style={{
-              height: '110px',
-              borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.08))',
-              border: '1px solid rgba(0, 210, 211, 0.2)',
-              padding: '0.85rem 1.15rem',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Primary Vessel</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>MAERSK MC-KINNEY MOLLER</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Coordinates</span>
-                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--accent-cyan)' }}>11.588° N, 43.145° E</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.5rem' }}>
-              <span className="badge badge-cyan" style={{ fontSize: '0.68rem' }}>
-                Red Sea Transit: Normal
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                Port doraleh berth: <strong style={{ color: 'var(--text-primary)' }}>Berth #4</strong>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Landed Cost Engine Rates */}
-        <div className="glass-panel" style={{ padding: '1.25rem 1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-            <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-              Landed Cost Engine Rates
-            </h4>
-            <Sliders size={14} color="var(--text-muted)" />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>NBE Customs FX Rate:</span>
-              <span style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>125.00 ETB / USD</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Total Demurrage Risk:</span>
-              <span style={{ fontWeight: 700, color: 'var(--accent-amber)', fontFamily: 'monospace' }}>$3,450.00 USD</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Avg Duty Multiplier:</span>
-              <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>1.382x CIF</span>
-            </div>
-            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>30-Day Port Cleared Trend</span>
-              <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>+18.4% velocity</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Filter Bar & Quick Stage Pills */}
       <div
         className="glass-panel"
@@ -836,16 +758,16 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                         {s.billOfLadingNumber || 'Pending B/L'}
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                        Maersk Line • 40ft HC
+                        {s.lines?.length || 0} PO Line Batch(es)
                       </div>
                     </td>
 
                     <td style={{ padding: '1rem' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
-                        Yokohama, JP ➔ Mojo, ET
+                        {s.allocationMethod ? `Alloc: ${s.allocationMethod.replace('_', ' ')}` : 'Standard Allocation'}
                       </div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                        Vessel: Maersk Mc-Kinney
+                        {s.costComponents?.length || 0} Cost Component(s)
                       </div>
                     </td>
 
@@ -940,7 +862,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                   Create Import Shipment & Consolidate PO Lines
                 </h2>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Stories S1–S2: Link confirmed PO lines into a tracked international logistics batch
+                  Consolidate confirmed purchase order lines into a tracked international logistics consignment
                 </span>
               </div>
               <button

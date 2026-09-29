@@ -61,6 +61,9 @@ export class KMSICAMS4InventoryWarehouse1710500000000 implements MigrationInterf
           ('ALLOTTED', 'READY_FOR_DELIVERY'),
           ('ALLOTTED', 'AVAILABLE_FOR_SALE'),
           ('READY_FOR_DELIVERY', 'SOLD'),
+          ('READY_FOR_DELIVERY', 'DELIVERED'),
+          ('SOLD', 'READY_FOR_DELIVERY'),
+          ('ALLOTTED', 'SOLD'),
           ('SOLD', 'DELIVERED')
       ON CONFLICT (from_status, to_status) DO NOTHING;
 

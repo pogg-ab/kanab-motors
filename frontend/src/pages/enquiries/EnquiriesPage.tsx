@@ -364,7 +364,7 @@ export const EnquiriesPage: React.FC = () => {
         <div style={{ overflowX: 'auto' }}>
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#090D16', borderBottom: '1px solid var(--border-color)' }}>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                 <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap', minWidth: '135px' }}>ENQUIRY #</th>
                 <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>CUSTOMER</th>
                 <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>VEHICLE MODEL</th>
@@ -514,7 +514,7 @@ export const EnquiriesPage: React.FC = () => {
                         <button
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '0.35rem 0.6rem' }}
-                          title="View & Print Official Quotation / Proforma Invoice (Story E13)"
+                          title="View & Print Official Quotation / Proforma Invoice"
                           onClick={() => setSelectedQuote(enq)}
                         >
                           <Printer size={13} /> Quote
