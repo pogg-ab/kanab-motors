@@ -265,14 +265,43 @@ export async function seedDatabase(dataSource?: DataSource) {
     }
   }
 
-  // 6. Brands
+  // 6. Brands (Automotive & Commercial)
   const brandRepo = ds.getRepository(Brand);
-  const brands = ['Bajaj', 'TVS', 'Lifan', 'Yamaha', 'Haojue'];
+  const brands = ['ISUZU', 'Toyota', 'Sinotruk', 'TVS', 'Lifan', 'Yamaha', 'Haojue'];
   for (const b of brands) {
     const existing = await brandRepo.findOne({ where: { brandName: b } });
     if (!existing) {
       await brandRepo.save(brandRepo.create({ brandName: b }));
     }
+  }
+
+  // Ensure legacy Bajaj and Abebe demo records are completely purged
+  try {
+    await ds.query(`
+      DELETE FROM sales_invoice WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%') OR booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
+      DELETE FROM delivery WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
+      DELETE FROM allotment_line WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_name ILIKE '%Bajaj%' OR item_code ILIKE '%BOXER%' OR item_code ILIKE '%MAXIMA%')) OR allotment_id IN (SELECT allotment_id FROM allotment WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%')));
+      DELETE FROM allotment WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
+      DELETE FROM customer_ledger_transaction WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM booking_allotment_requirement WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
+      DELETE FROM booking_stub WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
+      DELETE FROM customer_payment WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM customer_refund WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM sales_enquiry WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM customer_account_summary WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM customer_bank_account WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
+      DELETE FROM customer WHERE full_name ILIKE '%Abebe%';
+
+      DELETE FROM pdi_inspection WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_name ILIKE '%Bajaj%' OR item_code ILIKE '%BOXER%' OR item_code ILIKE '%MAXIMA%'));
+      DELETE FROM vehicle_status_history WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_name ILIKE '%Bajaj%' OR item_code ILIKE '%BOXER%' OR item_code ILIKE '%MAXIMA%'));
+      DELETE FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_name ILIKE '%Bajaj%' OR item_code ILIKE '%BOXER%' OR item_code ILIKE '%MAXIMA%');
+      DELETE FROM stock_balance WHERE item_id IN (SELECT item_id FROM product_item WHERE item_name ILIKE '%Bajaj%' OR item_code ILIKE '%BOXER%' OR item_code ILIKE '%MAXIMA%');
+      DELETE FROM product_item WHERE item_name ILIKE '%Bajaj%' OR item_code ILIKE '%BOXER%' OR item_code ILIKE '%MAXIMA%';
+      DELETE FROM brand WHERE brand_name ILIKE '%Bajaj%';
+    `);
+  } catch (ignored) {
+    // Ignore cleanup errors if tables don't exist yet on fresh init
   }
 
   // 7. Unit of Measure

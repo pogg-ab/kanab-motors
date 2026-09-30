@@ -241,3 +241,8 @@ Certbot automatically renews certificates, but you can test or manually renew wi
 ```bash
 certbot renew --dry-run
 ```
+cd /opt/kanab-motors
+docker compose pull frontend && docker compose up -d frontend
+docker compose pull backend && docker compose up -d backend
+docker exec -it kanab_backend node dist/database/seed.js
+
