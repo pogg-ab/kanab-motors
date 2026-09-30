@@ -1348,7 +1348,10 @@ export const UsersPage: React.FC = () => {
                     .toUpperCase()
                     .slice(0, 2);
                   const isCurrent = u.userId === currentUser?.userId;
-                  const perms = u.permissions || u.role?.permissions || [];
+                  const perms =
+                    u.permissions && u.permissions.length > 0
+                      ? u.permissions
+                      : u.role?.permissions || [];
 
                   return (
                     <tr
