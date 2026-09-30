@@ -12,6 +12,8 @@ import { ProductItem } from '../modules/products/entities/product-item.entity';
 import { Customer, CustomerType } from '../modules/customers/entities/customer.entity';
 import { VehicleUnit, VehicleStatus } from '../modules/vehicles/entities/vehicle-unit.entity';
 
+import { SYSTEM_PERMISSIONS } from '../modules/auth/auth.service';
+
 import * as bcrypt from 'bcrypt';
 
 export async function seedDatabase(dataSource?: DataSource) {
@@ -28,7 +30,7 @@ export async function seedDatabase(dataSource?: DataSource) {
     {
       name: 'ADMIN',
       description: 'Super Administrator with full master access',
-      permissions: ['ALL_PERMISSIONS'],
+      permissions: SYSTEM_PERMISSIONS.map((p) => p.key),
     },
     {
       name: 'SALES_MANAGER',

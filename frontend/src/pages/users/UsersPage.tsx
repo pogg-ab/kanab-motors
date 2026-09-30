@@ -125,9 +125,14 @@ export const UsersPage: React.FC = () => {
     if (!canEditUser) return;
     setEditingUser(user);
     const userRole = roles.find((r) => r.roleId === user.roleId || r.roleName === user.role?.roleName);
-    const initialPerms = user.permissions && user.permissions.length > 0
+    let initialPerms = user.permissions && user.permissions.length > 0
       ? user.permissions
       : userRole?.permissions || user.role?.permissions || [];
+
+    // If role is ADMIN or has ALL_PERMISSIONS, include all permissions by default
+    if (userRole?.roleName === 'ADMIN' || initialPerms.includes('ALL_PERMISSIONS')) {
+      initialPerms = permissions.map((p) => p.key);
+    }
 
     setEditForm({
       fullName: user.fullName,
@@ -143,19 +148,25 @@ export const UsersPage: React.FC = () => {
 
   const handleRoleChangeInEdit = (newRoleId: number) => {
     const selectedRole = roles.find((r) => r.roleId === newRoleId);
+    const isSuperAdmin = selectedRole?.roleName === 'ADMIN' || selectedRole?.permissions?.includes('ALL_PERMISSIONS');
     setEditForm((prev) => ({
       ...prev,
       roleId: newRoleId,
-      permissions: selectedRole?.permissions ? [...selectedRole.permissions] : prev.permissions,
+      permissions: isSuperAdmin
+        ? permissions.map((p) => p.key)
+        : selectedRole?.permissions ? [...selectedRole.permissions] : [],
     }));
   };
 
   const handleResetToRoleDefault = () => {
     const selectedRole = roles.find((r) => r.roleId === editForm.roleId);
-    if (selectedRole?.permissions) {
+    if (selectedRole) {
+      const isSuperAdmin = selectedRole.roleName === 'ADMIN' || selectedRole.permissions?.includes('ALL_PERMISSIONS');
       setEditForm((prev) => ({
         ...prev,
-        permissions: [...(selectedRole.permissions || [])],
+        permissions: isSuperAdmin
+          ? permissions.map((p) => p.key)
+          : [...(selectedRole.permissions || [])],
       }));
       showNotification('success', `Privileges reset to default for ${selectedRole.roleName}`);
     }
@@ -163,6 +174,13 @@ export const UsersPage: React.FC = () => {
 
   const handleTogglePermissionEdit = (key: string) => {
     setEditForm((prev) => {
+      if (key === 'ALL_PERMISSIONS') {
+        const currentlyHasAll = prev.permissions.includes('ALL_PERMISSIONS');
+        const newPerms = currentlyHasAll
+          ? prev.permissions.filter((p) => p !== 'ALL_PERMISSIONS')
+          : permissions.map((p) => p.key);
+        return { ...prev, permissions: newPerms };
+      }
       const exists = prev.permissions.includes(key);
       const newPerms = exists ? prev.permissions.filter((p) => p !== key) : [...prev.permissions, key];
       return { ...prev, permissions: newPerms };
@@ -215,15 +233,25 @@ export const UsersPage: React.FC = () => {
   // Create form handlers
   const handleRoleChangeInCreate = (newRoleId: number) => {
     const selectedRole = roles.find((r) => r.roleId === newRoleId);
+    const isSuperAdmin = selectedRole?.roleName === 'ADMIN' || selectedRole?.permissions?.includes('ALL_PERMISSIONS');
     setCreateForm((prev) => ({
       ...prev,
       roleId: newRoleId,
-      permissions: selectedRole?.permissions ? [...selectedRole.permissions] : [],
+      permissions: isSuperAdmin
+        ? permissions.map((p) => p.key)
+        : selectedRole?.permissions ? [...selectedRole.permissions] : [],
     }));
   };
 
   const handleTogglePermissionCreate = (key: string) => {
     setCreateForm((prev) => {
+      if (key === 'ALL_PERMISSIONS') {
+        const currentlyHasAll = prev.permissions.includes('ALL_PERMISSIONS');
+        const newPerms = currentlyHasAll
+          ? prev.permissions.filter((p) => p !== 'ALL_PERMISSIONS')
+          : permissions.map((p) => p.key);
+        return { ...prev, permissions: newPerms };
+      }
       const exists = prev.permissions.includes(key);
       const newPerms = exists ? prev.permissions.filter((p) => p !== key) : [...prev.permissions, key];
       return { ...prev, permissions: newPerms };
