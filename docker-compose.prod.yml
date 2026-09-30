@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kanab_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-kanab_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kanab_secure_prod_2026}
+      POSTGRES_DB: ${DB_NAME:-kanab_motors}
+    volumes:
+      - kanab_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-kanab_admin} -d ${DB_NAME:-kanab_motors}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kanab_net
+
+  backend:
+    image: ${DOCKER_IMAGE_BACKEND:-poggab/kanab-backend:latest}
+    container_name: kanab_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-kanab_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-kanab_secure_prod_2026}
+      DB_NAME: ${DB_NAME:-kanab_motors}
+      JWT_SECRET: ${JWT_SECRET:-kanab_motors_super_secret_jwt_key_2026_prod}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400s}
+    volumes:
+      - kanab_uploads:/app/uploads
+    networks:
+      - kanab_net
+
+  frontend:
+    image: ${DOCKER_IMAGE_FRONTEND:-poggab/kanab-frontend:latest}
+    container_name: kanab_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - kanab_net
+
+volumes:
+  kanab_pgdata:
+    name: kanab_pgdata
+  kanab_uploads:
+    name: kanab_uploads
+
+networks:
+  kanab_net:
+    name: kanab_net
+    driver: bridge
