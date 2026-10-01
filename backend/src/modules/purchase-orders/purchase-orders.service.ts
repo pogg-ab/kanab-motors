@@ -66,7 +66,6 @@ export class PurchaseOrdersService {
           quantityOrdered: l.quantityOrdered,
           unitPrice: l.unitPrice,
           currency: configuredCurrency,
-          lineTotal: Number(l.quantityOrdered) * Number(l.unitPrice),
         }),
       );
 
@@ -83,6 +82,7 @@ export class PurchaseOrdersService {
   }
 
   private async generatePONumber(manager: DataSource['manager']): Promise<string> {
+    await manager.query(`CREATE SEQUENCE IF NOT EXISTS po_number_seq START 1;`);
     const result = await manager.query(`SELECT nextval('po_number_seq') AS value`);
     const value = Number(result?.[0]?.value || 0);
     if (!value) {
@@ -175,7 +175,6 @@ export class PurchaseOrdersService {
             quantityOrdered: line.quantityOrdered,
             unitPrice: line.unitPrice,
             currency: nextCurrency,
-            lineTotal: Number(line.quantityOrdered) * Number(line.unitPrice),
           }),
         );
         await queryRunner.manager.save(PurchaseOrderLine, updatedLines);

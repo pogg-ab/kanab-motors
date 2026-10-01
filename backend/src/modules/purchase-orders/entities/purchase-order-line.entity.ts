@@ -44,6 +44,10 @@ export class PurchaseOrderLine {
     type: 'numeric',
     precision: 18,
     scale: 2,
+    insert: false,
+    update: false,
+    asExpression: 'quantity_ordered * unit_price',
+    generatedType: 'STORED',
   })
   lineTotal: number;
 }

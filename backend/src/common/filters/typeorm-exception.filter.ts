@@ -21,6 +21,13 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
       routine?: string;
     };
 
+    console.error('TypeORM QueryFailedError intercepted:', {
+      message: exception.message,
+      code: error.code,
+      detail: error.detail,
+      constraint: error.constraint,
+    });
+
     const mapped = this.mapError(error);
     response.status(mapped.getStatus()).json(mapped.getResponse());
   }
