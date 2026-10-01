@@ -859,7 +859,8 @@ body[data-theme="light"],
 
 /* Light Mode Modals */
 [data-theme="light"] .modal-backdrop,
-[data-theme="light"] .modal-overlay {
+[data-theme="light"] .modal-overlay,
+[data-theme="light"] div[style*="rgba(5, 10, 20"] {
   background: rgba(15, 23, 42, 0.5) !important;
 }
 [data-theme="light"] .modal-content {
@@ -890,6 +891,10 @@ body[data-theme="light"],
 [data-theme="light"] [style*="background:rgba(15, 23, 42"],
 [data-theme="light"] [style*="background: 'rgba(15, 23, 42"],
 [data-theme="light"] [style*="background: \"rgba(15, 23, 42"],
+[data-theme="light"] [style*="background: rgba(11, 15, 25"],
+[data-theme="light"] [style*="background:rgba(11, 15, 25"],
+[data-theme="light"] [style*="background: 'rgba(11, 15, 25"],
+[data-theme="light"] [style*="background: \"rgba(11, 15, 25"],
 [data-theme="light"] [style*="background: rgba(0, 0, 0"],
 [data-theme="light"] [style*="background: rgba(0,0,0"] {
   background: #f8fafc !important;

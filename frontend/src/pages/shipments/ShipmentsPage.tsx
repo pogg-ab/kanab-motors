@@ -450,7 +450,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             style={{
               padding: '0.85rem 1rem',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(15, 23, 42, 0.6)',
+              background: 'var(--bg-tertiary)',
               border: '1px solid var(--border-color)',
             }}
           >
@@ -469,7 +469,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             style={{
               padding: '0.85rem 1rem',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(15, 23, 42, 0.6)',
+              background: 'var(--bg-tertiary)',
               border: '1px solid var(--border-color)',
             }}
           >
@@ -488,7 +488,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             style={{
               padding: '0.85rem 1rem',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(15, 23, 42, 0.6)',
+              background: 'var(--bg-tertiary)',
               border: '1px solid var(--border-color)',
             }}
           >
@@ -529,7 +529,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             style={{
               padding: '0.85rem 1rem',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(15, 23, 42, 0.6)',
+              background: 'var(--bg-tertiary)',
               border: '1px solid var(--border-color)',
             }}
           >
@@ -668,7 +668,6 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             style={{
               paddingLeft: '40px',
               fontSize: '0.84rem',
-              background: 'rgba(11, 15, 25, 0.75)',
             }}
           />
         </div>
@@ -681,7 +680,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             <thead>
               <tr
                 style={{
-                  background: 'rgba(13, 19, 34, 0.95)',
+                  background: 'var(--bg-tertiary)',
                   borderBottom: '1px solid var(--border-color)',
                   color: 'var(--text-muted)',
                   fontSize: '0.72rem',
@@ -832,6 +831,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
       {/* Modal: New Shipment Creation */}
       {showCreateModal && (
         <div
+          className="modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
@@ -852,8 +852,10 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
               padding: '2rem',
               maxHeight: '92vh',
               overflowY: 'auto',
-              border: '1px solid rgba(0, 210, 211, 0.3)',
-              boxShadow: '0 25px 60px -10px rgba(0,0,0,0.9), 0 0 30px -5px rgba(0, 210, 211, 0.2)',
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-modal)',
+              borderRadius: 'var(--radius-lg)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -919,7 +921,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                   <div
                     style={{
                       padding: '1.5rem',
-                      background: 'rgba(15, 23, 42, 0.6)',
+                      background: 'var(--bg-tertiary)',
                       borderRadius: 'var(--radius-md)',
                       fontSize: '0.84rem',
                       color: 'var(--text-muted)',
@@ -936,7 +938,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                       overflowY: 'auto',
                       border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
-                      background: 'rgba(11, 15, 25, 0.6)',
+                      background: 'var(--bg-tertiary)',
                     }}
                   >
                     {openPoLines.map((line) => {
@@ -957,7 +959,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            background: isSelected ? 'rgba(0, 210, 211, 0.08)' : 'transparent',
+                            background: isSelected ? 'rgba(0, 210, 211, 0.12)' : 'transparent',
                           }}
                         >
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: shipmentQtyLimit > 0 ? 'pointer' : 'not-allowed', flex: 1 }}>
