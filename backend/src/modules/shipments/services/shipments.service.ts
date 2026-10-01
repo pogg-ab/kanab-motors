@@ -470,12 +470,15 @@ export class ShipmentsService {
 
       // 1. Record shipment_receipt (trigger enforces quantityReceived <= quantityShipped under lock)
       const receipt = queryRunner.manager.create(ShipmentReceipt, {
-        shipmentLineId: dto.shipmentLineId,
+        shipmentLineId: String(line.shipmentLineId),
+        shipmentLine: line,
         quantityReceived: dto.quantityReceived,
         warehouseId: dto.warehouseId,
         notes: dto.notes,
         receivedBy: dto.userId,
       });
+      receipt.shipmentLine = line;
+      receipt.shipmentLineId = String(line.shipmentLineId);
 
       const savedReceipt = await queryRunner.manager.save(ShipmentReceipt, receipt);
 
