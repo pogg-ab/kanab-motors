@@ -21,6 +21,8 @@ import {
   Edit3,
   Lock,
   ExternalLink,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
 import {
   api,
@@ -36,6 +38,7 @@ export const CustomersPage: React.FC = () => {
   const { can } = usePermissions();
   const canCreateCustomer = can('CUSTOMERS_CREATE');
   const canEditCustomer = can('CUSTOMERS_EDIT');
+  const canDeactivateCustomer = can('CUSTOMERS_DELETE') || can('CUSTOMERS_EDIT');
   const canManageBank = can('CUSTOMERS_BANK_MANAGE');
   const canUploadDocs = can('CUSTOMERS_DOCS_UPLOAD');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -49,6 +52,8 @@ export const CustomersPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<'profile' | 'account_summary' | 'banking' | 'documents'>('profile');
+  const [statusConfirmTarget, setStatusConfirmTarget] = useState<Customer | null>(null);
+  const [statusToggling, setStatusToggling] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -234,6 +239,25 @@ export const CustomersPage: React.FC = () => {
       setActiveDetailTab('profile');
     } catch (err) {
       console.error('Error fetching customer details:', err);
+    }
+  };
+
+  const handleConfirmToggleStatus = async () => {
+    if (!statusConfirmTarget) return;
+    const nextStatus = statusConfirmTarget.isActive === false;
+    setStatusToggling(true);
+    try {
+      await api.toggleCustomerStatus(statusConfirmTarget.customerId, nextStatus);
+      await fetchCustomers();
+      if (selectedCustomer && selectedCustomer.customerId === statusConfirmTarget.customerId) {
+        setSelectedCustomer({ ...selectedCustomer, isActive: nextStatus });
+      }
+      setStatusConfirmTarget(null);
+    } catch (err: any) {
+      console.error('Failed to update customer status:', err);
+      alert(err.response?.data?.message || 'Failed to update customer status');
+    } finally {
+      setStatusToggling(false);
     }
   };
 
@@ -542,6 +566,7 @@ export const CustomersPage: React.FC = () => {
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer ID</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer Name / Org</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</th>
+                <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mobile Number</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TIN Number</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Region</th>
@@ -551,19 +576,19 @@ export const CustomersPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                     Loading customer records...
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                     No customer records match your filter criteria.
                   </td>
                 </tr>
               ) : (
                 customers.map((c) => (
-                  <tr key={c.customerId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <tr key={c.customerId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', opacity: c.isActive === false ? 0.75 : 1 }}>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <span className="mono-code" style={{ color: 'var(--accent-cyan)' }}>
                         {c.customerCode}
@@ -588,6 +613,26 @@ export const CustomersPage: React.FC = () => {
                         {c.customerType}
                       </span>
                     </td>
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                      {c.isActive !== false ? (
+                        <span className="badge badge-emerald" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>
+                          ACTIVE
+                        </span>
+                      ) : (
+                        <span
+                          className="badge badge-rose"
+                          style={{
+                            fontSize: '0.7rem',
+                            padding: '0.2rem 0.5rem',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#f87171',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                          }}
+                        >
+                          INACTIVE
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                         <Phone size={13} color="var(--text-muted)" />
@@ -603,7 +648,7 @@ export const CustomersPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{c.region?.regionName || '—'}</td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                         {canEditCustomer && (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -621,6 +666,43 @@ export const CustomersPage: React.FC = () => {
                         >
                           <Eye size={13} /> Profile
                         </button>
+                        {canDeactivateCustomer && (
+                          c.isActive !== false ? (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setStatusConfirmTarget(c)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.75rem',
+                                padding: '0.4rem 0.65rem',
+                                color: '#f87171',
+                                borderColor: 'rgba(239, 68, 68, 0.35)',
+                              }}
+                              title="Deactivate Customer"
+                            >
+                              <UserX size={13} /> Deactivate
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setStatusConfirmTarget(c)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.75rem',
+                                padding: '0.4rem 0.65rem',
+                                color: '#10b981',
+                                borderColor: 'rgba(16, 185, 129, 0.35)',
+                              }}
+                              title="Activate Customer"
+                            >
+                              <UserCheck size={13} /> Activate
+                            </button>
+                          )
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1067,6 +1149,38 @@ export const CustomersPage: React.FC = () => {
                     onChange={(e) => setEditFormData({ ...editFormData, addressTown: e.target.value })}
                   />
                 </div>
+
+                {/* Account Status Switch */}
+                <div
+                  className="form-group"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1rem',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Account Status</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {editFormData.isActive ? 'Customer account is active and allowed to transact' : 'Customer account is deactivated'}
+                    </div>
+                  </div>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={editFormData.isActive}
+                      onChange={(e) => setEditFormData({ ...editFormData, isActive: e.target.checked })}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--accent-blue)' }}
+                    />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: editFormData.isActive ? '#10b981' : '#f87171' }}>
+                      {editFormData.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <div className="modal-footer">
@@ -1106,7 +1220,7 @@ export const CustomersPage: React.FC = () => {
                   {selectedCustomer.fullName.charAt(0)}
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
                       {selectedCustomer.fullName}
                     </h3>
@@ -1116,18 +1230,72 @@ export const CustomersPage: React.FC = () => {
                     <span className="badge badge-indigo">
                       {selectedCustomer.customerType}
                     </span>
+                    {selectedCustomer.isActive !== false ? (
+                      <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                        ACTIVE
+                      </span>
+                    ) : (
+                      <span
+                        className="badge badge-rose"
+                        style={{
+                          fontSize: '0.7rem',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                        }}
+                      >
+                        INACTIVE
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                     {selectedCustomer.mobileNumber} · {selectedCustomer.region?.regionName || 'No Region'}
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {canDeactivateCustomer && (
+                  selectedCustomer.isActive !== false ? (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setStatusConfirmTarget(selectedCustomer)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.8rem',
+                        color: '#f87171',
+                        borderColor: 'rgba(239, 68, 68, 0.4)',
+                      }}
+                      title="Deactivate Customer Account"
+                    >
+                      <UserX size={14} /> Deactivate
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setStatusConfirmTarget(selectedCustomer)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.8rem',
+                        color: '#10b981',
+                        borderColor: 'rgba(16, 185, 129, 0.4)',
+                      }}
+                      title="Activate Customer Account"
+                    >
+                      <UserCheck size={14} /> Activate
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => setSelectedCustomer(null)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Sub-tabs */}
@@ -1621,6 +1789,103 @@ export const CustomersPage: React.FC = () => {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setPreviewDoc(null)}>
                 Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS CONFIRMATION MODAL (DEACTIVATE / ACTIVATE) */}
+      {statusConfirmTarget && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '460px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                {statusConfirmTarget.isActive !== false ? (
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#f87171',
+                    }}
+                  >
+                    <UserX size={18} />
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#10b981',
+                    }}
+                  >
+                    <UserCheck size={18} />
+                  </div>
+                )}
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>
+                  {statusConfirmTarget.isActive !== false ? 'Deactivate Customer Account' : 'Activate Customer Account'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setStatusConfirmTarget(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
+                {statusConfirmTarget.isActive !== false ? (
+                  <>
+                    Are you sure you want to deactivate <strong>{statusConfirmTarget.fullName}</strong> (<span className="mono-code">{statusConfirmTarget.customerCode}</span>)?
+                    <br /><br />
+                    Deactivating this customer profile prevents creating new sales quotations, advance vehicle bookings, and invoices under their account.
+                  </>
+                ) : (
+                  <>
+                    Restore active status for <strong>{statusConfirmTarget.fullName}</strong> (<span className="mono-code">{statusConfirmTarget.customerCode}</span>)?
+                    <br /><br />
+                    This account will immediately be permitted to transact and proceed through the vehicle sales pipeline.
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setStatusConfirmTarget(null)}
+                disabled={statusToggling}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={statusConfirmTarget.isActive !== false ? 'btn btn-danger' : 'btn btn-emerald'}
+                onClick={handleConfirmToggleStatus}
+                disabled={statusToggling}
+                style={{
+                  background: statusConfirmTarget.isActive !== false ? '#dc2626' : '#059669',
+                  borderColor: statusConfirmTarget.isActive !== false ? '#dc2626' : '#059669',
+                  color: '#fff',
+                  fontWeight: 600,
+                }}
+              >
+                {statusToggling
+                  ? 'Processing...'
+                  : statusConfirmTarget.isActive !== false
+                  ? 'Deactivate Customer'
+                  : 'Activate Customer'}
               </button>
             </div>
           </div>
