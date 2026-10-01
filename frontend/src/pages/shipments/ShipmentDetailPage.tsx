@@ -558,7 +558,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(15, 23, 42, 0.6)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>TRANSITION TIMESTAMP</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>FROM STAGE</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>TO STAGE</th>
@@ -633,7 +633,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
           <div className="glass-panel" style={{ overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(15, 23, 42, 0.7)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '0.85rem 1.25rem' }}>COST COMPONENT</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>AMOUNT (ORIGINAL)</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>CURRENCY</th>
@@ -717,7 +717,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   style={{
                     padding: '0.85rem',
                     borderRadius: 'var(--radius-md)',
-                    background: selectedMethod === 'BY_VALUE' ? 'rgba(0, 210, 211, 0.08)' : 'rgba(15, 23, 42, 0.5)',
+                    background: selectedMethod === 'BY_VALUE' ? 'rgba(0, 210, 211, 0.08)' : 'var(--bg-tertiary)',
                     border: selectedMethod === 'BY_VALUE' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -752,7 +752,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   style={{
                     padding: '0.85rem',
                     borderRadius: 'var(--radius-md)',
-                    background: selectedMethod === 'BY_WEIGHT' ? 'rgba(0, 210, 211, 0.08)' : 'rgba(15, 23, 42, 0.5)',
+                    background: selectedMethod === 'BY_WEIGHT' ? 'rgba(0, 210, 211, 0.08)' : 'var(--bg-tertiary)',
                     border: selectedMethod === 'BY_WEIGHT' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -779,7 +779,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   style={{
                     padding: '0.85rem',
                     borderRadius: 'var(--radius-md)',
-                    background: selectedMethod === 'BY_QUANTITY' ? 'rgba(0, 210, 211, 0.08)' : 'rgba(15, 23, 42, 0.5)',
+                    background: selectedMethod === 'BY_QUANTITY' ? 'rgba(0, 210, 211, 0.08)' : 'var(--bg-tertiary)',
                     border: selectedMethod === 'BY_QUANTITY' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -933,7 +933,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                         style={{
                           padding: '1.15rem 1.25rem',
                           borderRadius: 'var(--radius-md)',
-                          background: 'rgba(15, 23, 42, 0.6)',
+                          background: 'var(--bg-tertiary)',
                           border: '1px solid var(--border-color)',
                           display: 'flex',
                           flexDirection: 'column',
@@ -981,7 +981,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                             gap: '0.75rem',
                             padding: '0.75rem 1rem',
                             borderRadius: 'var(--radius-sm)',
-                            background: 'rgba(11, 15, 25, 0.6)',
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-color)',
                           }}
                         >
                           <div>
@@ -1013,8 +1014,9 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     padding: '3rem',
                     textAlign: 'center',
                     color: 'var(--text-muted)',
-                    background: 'rgba(15, 23, 42, 0.4)',
+                    background: 'var(--bg-tertiary)',
                     borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
                   }}
                 >
                   <Calculator size={32} color="rgba(255,255,255,0.15)" />
@@ -1122,7 +1124,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                         marginTop: '0.65rem',
                         padding: '0.65rem',
                         borderRadius: 'var(--radius-sm)',
-                        background: 'rgba(11, 15, 25, 0.45)',
+                        background: 'var(--bg-tertiary)',
                         border: '1px solid rgba(16, 185, 129, 0.18)',
                         fontSize: '0.72rem',
                         color: 'var(--text-secondary)',
@@ -1273,6 +1275,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       {/* Modal: Add Cost Component */}
       {showCostModal && (
         <div
+          className="modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1287,7 +1290,14 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         >
           <div
             className="glass-panel"
-            style={{ width: '100%', maxWidth: '540px', padding: '1.75rem' }}
+            style={{
+              width: '100%',
+              maxWidth: '540px',
+              padding: '1.75rem',
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-modal)',
+            }}
           >
             <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '1.25rem', color: 'var(--text-primary)' }}>
               Add Landed Cost Component
@@ -1383,6 +1393,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       {/* Modal: Physical Receipt */}
       {showReceiptModal && selectedLineForReceipt && (
         <div
+          className="modal-overlay"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1397,7 +1408,16 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         >
           <div
             className="glass-panel"
-            style={{ width: '100%', maxWidth: '640px', padding: '1.75rem', maxHeight: '90vh', overflowY: 'auto' }}
+            style={{
+              width: '100%',
+              maxWidth: '640px',
+              padding: '1.75rem',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-modal)',
+            }}
           >
             <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
               Receive Physical Vehicle Units into Stock
