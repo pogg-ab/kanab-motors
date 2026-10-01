@@ -21,7 +21,7 @@ export class ShipmentReceipt {
   shipmentLineId: string;
 
   @ManyToOne(() => ShipmentLine, (line) => line.receipts)
-  @JoinColumn({ name: 'shipment_line_id' })
+  @JoinColumn({ name: 'shipment_line_id', referencedColumnName: 'shipmentLineId' })
   shipmentLine: ShipmentLine;
 
   @Column({ name: 'quantity_received', type: 'numeric', precision: 12, scale: 2 })
@@ -34,14 +34,14 @@ export class ShipmentReceipt {
   receivedBy?: number;
 
   @ManyToOne(() => AppUser, { nullable: true })
-  @JoinColumn({ name: 'received_by' })
+  @JoinColumn({ name: 'received_by', referencedColumnName: 'userId' })
   receiver?: AppUser;
 
   @Column({ name: 'warehouse_id', type: 'int', nullable: true })
   warehouseId?: number;
 
   @ManyToOne(() => Warehouse, { nullable: true })
-  @JoinColumn({ name: 'warehouse_id' })
+  @JoinColumn({ name: 'warehouse_id', referencedColumnName: 'warehouseId' })
   warehouse?: Warehouse;
 
   @Column({ type: 'text', nullable: true })

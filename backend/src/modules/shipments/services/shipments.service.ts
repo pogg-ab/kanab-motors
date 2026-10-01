@@ -469,18 +469,30 @@ export class ShipmentsService {
       }
 
       // 1. Record shipment_receipt (trigger enforces quantityReceived <= quantityShipped under lock)
-      const receipt = queryRunner.manager.create(ShipmentReceipt, {
-        shipmentLineId: String(line.shipmentLineId),
-        shipmentLine: line,
-        quantityReceived: dto.quantityReceived,
-        warehouseId: dto.warehouseId,
-        notes: dto.notes,
-        receivedBy: dto.userId,
-      });
-      receipt.shipmentLine = line;
-      receipt.shipmentLineId = String(line.shipmentLineId);
+      const insertResult = await queryRunner.manager
+        .createQueryBuilder()
+        .insert()
+        .into(ShipmentReceipt)
+        .values({
+          shipmentLineId: String(line.shipmentLineId),
+          quantityReceived: Number(dto.quantityReceived),
+          warehouseId: dto.warehouseId ? Number(dto.warehouseId) : null,
+          notes: dto.notes || null,
+          receivedBy: dto.userId ? Number(dto.userId) : null,
+        })
+        .returning('*')
+        .execute();
 
-      const savedReceipt = await queryRunner.manager.save(ShipmentReceipt, receipt);
+      const rawReceipt = insertResult.raw[0];
+      const savedReceipt = queryRunner.manager.create(ShipmentReceipt, {
+        receiptId: String(rawReceipt.receipt_id),
+        shipmentLineId: String(rawReceipt.shipment_line_id),
+        quantityReceived: Number(rawReceipt.quantity_received),
+        warehouseId: rawReceipt.warehouse_id,
+        notes: rawReceipt.notes,
+        receivedBy: rawReceipt.received_by,
+        receivedAt: rawReceipt.received_at,
+      });
 
       await queryRunner.manager.update(ShipmentLine, dto.shipmentLineId, {
         quantityReceived: totalReceivedAfterThisReceipt,
