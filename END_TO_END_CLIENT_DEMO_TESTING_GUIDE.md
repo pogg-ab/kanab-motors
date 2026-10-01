@@ -76,12 +76,12 @@ Log in using these seeded user accounts to demonstrate segregation of duties:
   1. Navigate to **Core Masters $\rightarrow$ Customers** (`/customers`).
   2. Click **+ Add Customer**.
   3. Enter customer details:
-     * **Full Name**: `Oromia Logistics & Transport Enterprise`
+     * **Full Name / Organization Name**: `Oromia Logistics & Transport Enterprise`
      * **Customer Type**: `CORPORATE`
-     * **Mobile**: `+251911889900`
+     * **Mobile Number**: `+251911889900`
      * **TIN Number**: `0058291048` (demonstrate 10-digit validation check)
      * **Email**: `procurement@oromialogistics.et`
-  4. Click **Save Customer**.
+  4. Click **Register Customer**.
   5. Select the customer in the table:
      * Highlight the **6 Financial Summary KPI Cards**:
        `Total Deposits: 0.00` · `Allocated: 0.00` · `Outstanding: 0.00` · `Customer Credit: 0.00` · `Excess: 0.00` · `Refundable: 0.00`.
