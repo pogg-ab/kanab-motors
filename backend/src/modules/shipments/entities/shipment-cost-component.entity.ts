@@ -45,6 +45,10 @@ export class ShipmentCostComponent {
     type: 'numeric',
     precision: 18,
     scale: 2,
+    insert: false,
+    update: false,
+    asExpression: 'amount * exchange_rate_to_etb',
+    generatedType: 'STORED',
   })
   amountEtb: number;
 

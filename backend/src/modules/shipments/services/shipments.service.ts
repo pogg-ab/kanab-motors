@@ -317,7 +317,13 @@ export class ShipmentsService {
   }
 
   async addCostComponent(shipmentId: string, dto: AddCostComponentDto): Promise<ShipmentCostComponent> {
-    const shipment = await this.findOne(shipmentId);
+    const shipment = await this.shipmentRepo.findOne({
+      where: { shipmentId },
+      select: ['shipmentId', 'currentStage'],
+    });
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${shipmentId} not found`);
+    }
     if (shipment.currentStage === ShipmentStage.RECEIVED) {
       throw new BadRequestException('Cannot add cost components after a shipment is received');
     }
@@ -355,7 +361,6 @@ export class ShipmentsService {
       amount: dto.amount,
       currency: normalizedCurrency,
       exchangeRateToEtb: rate,
-      amountEtb: Math.round(Number(dto.amount) * Number(rate) * 100) / 100,
       notes: dto.notes,
       createdBy: dto.userId,
     });
@@ -366,7 +371,13 @@ export class ShipmentsService {
   }
 
   async removeCostComponent(shipmentId: string, costComponentId: string): Promise<void> {
-    const shipment = await this.findOne(shipmentId);
+    const shipment = await this.shipmentRepo.findOne({
+      where: { shipmentId },
+      select: ['shipmentId', 'currentStage'],
+    });
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${shipmentId} not found`);
+    }
     if (shipment.currentStage === ShipmentStage.RECEIVED) {
       throw new BadRequestException('Cannot remove cost components after a shipment is received');
     }
@@ -596,6 +607,30 @@ export class ShipmentsService {
   // Reference lookups
   async getCostComponentTypes(): Promise<CostComponentType[]> {
     return this.costTypeRepo.find({ order: { costComponentTypeId: 'ASC' } });
+  }
+
+  async createCostComponentType(typeName?: string): Promise<CostComponentType> {
+    if (!typeName || !typeName.trim()) {
+      throw new BadRequestException('Cost component type name is required');
+    }
+    const cleanName = typeName.trim();
+    let typeCode = cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_').slice(0, 40);
+    if (!typeCode || typeCode === '_') {
+      typeCode = `TYPE_${Date.now()}`;
+    }
+
+    const existing = await this.costTypeRepo.findOne({
+      where: [{ typeName: cleanName }, { typeCode }],
+    });
+    if (existing) {
+      return existing;
+    }
+
+    const newType = this.costTypeRepo.create({
+      typeName: cleanName,
+      typeCode,
+    });
+    return this.costTypeRepo.save(newType);
   }
 
   private readonly defaultExchangeRates: Record<string, number> = {

@@ -82,6 +82,14 @@ export class ShipmentsController {
     return this.shipmentsService.getCostComponentTypes();
   }
 
+  @Post('lookups/cost-component-types')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('LANDED_COST_ADD_EXPENSE')
+  @ApiOperation({ summary: 'Create new cost component type dynamically' })
+  createCostType(@Body() dto: { typeName: string }) {
+    return this.shipmentsService.createCostComponentType(dto?.typeName);
+  }
+
   @Get('lookups/exchange-rates')
   @ApiOperation({ summary: 'Get default currency exchange rates (Story F3)' })
   getExchangeRates() {

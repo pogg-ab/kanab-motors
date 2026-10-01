@@ -97,6 +97,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   // Allocation Method
   const [selectedMethod, setSelectedMethod] = useState<'BY_VALUE' | 'BY_QUANTITY' | 'BY_WEIGHT'>('BY_VALUE');
 
+  // Dynamic Cost Component Type State
+  const [showAddTypeModal, setShowAddTypeModal] = useState<boolean>(false);
+  const [newTypeName, setNewTypeName] = useState<string>('');
+  const [creatingType, setCreatingType] = useState<boolean>(false);
+
   const [saving, setSaving] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -107,6 +112,24 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const showToast = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 4500);
+  };
+
+  const handleCreateType = async () => {
+    if (!newTypeName.trim()) return;
+    setCreatingType(true);
+    try {
+      const created = await api.createCostComponentType(newTypeName.trim());
+      showToast('success', `Created component type: ${created.typeName}`);
+      const updatedTypes = await api.getCostComponentTypes();
+      setCostTypes(updatedTypes);
+      setNewCost((prev) => ({ ...prev, costComponentTypeId: created.costComponentTypeId }));
+      setNewTypeName('');
+      setShowAddTypeModal(false);
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || err.message || 'Failed to create type');
+    } finally {
+      setCreatingType(false);
+    }
   };
 
   const loadShipmentData = async () => {
@@ -1305,7 +1328,68 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
             <form onSubmit={handleAddCost}>
               <div className="form-group">
-                <label className="form-label">Cost Component Type *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Cost Component Type *</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTypeModal(!showAddTypeModal)}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', height: 'auto' }}
+                  >
+                    + New Type
+                  </button>
+                </div>
+
+                {showAddTypeModal && (
+                  <div
+                    style={{
+                      padding: '0.75rem',
+                      marginBottom: '0.75rem',
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      gap: '0.5rem',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. Demurrage, Storage, Security..."
+                      value={newTypeName}
+                      onChange={(e) => setNewTypeName(e.target.value)}
+                      style={{ fontSize: '0.8rem', flex: 1 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateType();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={creatingType || !newTypeName.trim()}
+                      onClick={handleCreateType}
+                      className="btn btn-cyan"
+                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
+                    >
+                      {creatingType ? 'Saving...' : 'Add Type'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddTypeModal(false);
+                        setNewTypeName('');
+                      }}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
                 <select
                   className="select-field"
                   value={newCost.costComponentTypeId}
