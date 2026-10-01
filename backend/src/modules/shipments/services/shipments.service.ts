@@ -468,22 +468,26 @@ export class ShipmentsService {
         );
       }
 
-      // 1. Record shipment_receipt (trigger enforces quantityReceived <= quantityShipped under lock)
-      const insertResult = await queryRunner.manager
-        .createQueryBuilder()
-        .insert()
-        .into(ShipmentReceipt)
-        .values({
-          shipmentLineId: String(line.shipmentLineId),
-          quantityReceived: Number(dto.quantityReceived),
-          warehouseId: dto.warehouseId ? Number(dto.warehouseId) : null,
-          notes: dto.notes || null,
-          receivedBy: dto.userId ? Number(dto.userId) : null,
-        })
-        .returning('*')
-        .execute();
+      const actualLineId = String(line.shipmentLineId || (line as any).shipment_line_id || dto.shipmentLineId);
+      if (!actualLineId || actualLineId === 'undefined' || actualLineId === 'null') {
+        throw new BadRequestException('Invalid or missing shipment line ID');
+      }
 
-      const rawReceipt = insertResult.raw[0];
+      // 1. Record shipment_receipt directly via SQL to guarantee column values are passed
+      const receiptRows = await queryRunner.query(
+        `INSERT INTO shipment_receipt (shipment_line_id, quantity_received, warehouse_id, notes, received_by)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [
+          actualLineId,
+          Number(dto.quantityReceived),
+          dto.warehouseId ? Number(dto.warehouseId) : null,
+          dto.notes || null,
+          dto.userId ? Number(dto.userId) : null,
+        ],
+      );
+
+      const rawReceipt = receiptRows[0];
       const savedReceipt = queryRunner.manager.create(ShipmentReceipt, {
         receiptId: String(rawReceipt.receipt_id),
         shipmentLineId: String(rawReceipt.shipment_line_id),
@@ -494,7 +498,7 @@ export class ShipmentsService {
         receivedAt: rawReceipt.received_at,
       });
 
-      await queryRunner.manager.update(ShipmentLine, dto.shipmentLineId, {
+      await queryRunner.manager.update(ShipmentLine, actualLineId, {
         quantityReceived: totalReceivedAfterThisReceipt,
       });
 
@@ -515,7 +519,7 @@ export class ShipmentsService {
             currentStatus: VehicleStatus.RECEIVED,
             holdForInspection: false,
             createdBy: dto.userId,
-            shipmentLineId: dto.shipmentLineId,
+            shipmentLineId: actualLineId,
             productionImportInfo: `Imported via ${shipment.shipmentNumber} (Bill of Lading: ${shipment.billOfLadingNumber || 'N/A'})`,
           });
           vehicleUnits.push(unit);
@@ -534,7 +538,7 @@ export class ShipmentsService {
         const receivedUnitCount = await queryRunner.manager
           .getRepository(VehicleUnit)
           .createQueryBuilder('vu')
-          .where('vu.shipmentLineId = :shipmentLineId', { shipmentLineId: dto.shipmentLineId })
+          .where('vu.shipmentLineId = :shipmentLineId', { shipmentLineId: actualLineId })
           .getCount();
 
         const allocatedCost = currentLineCost ? Number(currentLineCost.allocatedCostEtb) : 0;
@@ -542,7 +546,7 @@ export class ShipmentsService {
         const unitCostRows = savedUnits.map((unit) =>
           queryRunner.manager.create(VehicleUnitLandedCost, {
             vehicleUnitId: unit.vehicleUnitId,
-            shipmentLineId: dto.shipmentLineId,
+            shipmentLineId: actualLineId,
             landedCostEtb: unitCost,
             isCurrent: true,
             calculatedBy: dto.userId,
