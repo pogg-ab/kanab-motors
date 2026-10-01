@@ -38,13 +38,15 @@ export const SuppliersPage: React.FC = () => {
     phone: string;
     email: string;
     address: string;
+    isActive: boolean;
   }>({
     supplierName: '',
-    country: 'China',
+    country: '',
     contactPerson: '',
     phone: '',
     email: '',
     address: '',
+    isActive: true,
   });
 
   const [saving, setSaving] = useState<boolean>(false);
@@ -90,11 +92,12 @@ export const SuppliersPage: React.FC = () => {
       setEditingSupplier(null);
       setFormData({
         supplierName: '',
-        country: 'China',
+        country: '',
         contactPerson: '',
         phone: '',
         email: '',
         address: '',
+        isActive: true,
       });
       loadSuppliers();
     } catch (err: any) {
@@ -113,6 +116,17 @@ export const SuppliersPage: React.FC = () => {
       showToast('error', err.message || 'Failed to update status');
     }
   };
+
+  const activeSuppliers = suppliers.filter((s) => s.isActive);
+  const inactiveSuppliers = suppliers.filter((s) => !s.isActive);
+  const originHubs = Array.from(
+    new Set(
+      suppliers
+        .map((s) => s.country?.trim())
+        .filter((country): country is string => Boolean(country)),
+    ),
+  );
+  const procurementReadiness = suppliers.length > 0 ? Math.round((activeSuppliers.length / suppliers.length) * 100) : 0;
 
   const filteredSuppliers = suppliers.filter((s) => {
     const matchesSearch =
@@ -159,7 +173,7 @@ export const SuppliersPage: React.FC = () => {
             <button
               onClick={() => {
                 setEditingSupplier(null);
-                setFormData({ supplierName: '', country: 'China', contactPerson: '', phone: '', email: '', address: '' });
+                setFormData({ supplierName: '', country: '', contactPerson: '', phone: '', email: '', address: '', isActive: true });
                 setShowCreateModal(true);
               }}
               className="btn btn-cyan"
@@ -206,7 +220,7 @@ export const SuppliersPage: React.FC = () => {
           <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>{suppliers.length}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.65rem' }}>
             <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
-              {suppliers.filter((s) => s.isActive).length} Active Partners
+              {activeSuppliers.length} Active Partners
             </span>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Verified manufacturers</span>
           </div>
@@ -222,9 +236,11 @@ export const SuppliersPage: React.FC = () => {
             </div>
           </div>
           <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent-indigo)', letterSpacing: '-0.01em', marginTop: '0.25rem' }}>
-            China · UAE · Turkey · Japan
+            {originHubs.length > 0 ? originHubs.slice(0, 4).join(' · ') : 'No origins yet'}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Automotive & machinery export corridors</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+            {originHubs.length > 4 ? `+${originHubs.length - 4} more registered origin hubs` : `${originHubs.length} registered supplier origin${originHubs.length === 1 ? '' : 's'}`}
+          </div>
         </div>
 
         <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
@@ -237,9 +253,11 @@ export const SuppliersPage: React.FC = () => {
             </div>
           </div>
           <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-            100%
+            {procurementReadiness}%
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Ready for Purchase Order linkage</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+            {activeSuppliers.length} of {suppliers.length} suppliers active for Purchase Order linkage
+          </div>
         </div>
       </div>
 
@@ -248,8 +266,8 @@ export const SuppliersPage: React.FC = () => {
         <div style={{ display: 'flex', gap: '0.45rem' }}>
           {[
             { id: '', label: `All Suppliers (${suppliers.length})` },
-            { id: 'ACTIVE', label: `Active (${suppliers.filter(s => s.isActive).length})` },
-            { id: 'INACTIVE', label: `Inactive (${suppliers.filter(s => !s.isActive).length})` },
+            { id: 'ACTIVE', label: `Active (${activeSuppliers.length})` },
+            { id: 'INACTIVE', label: `Inactive (${inactiveSuppliers.length})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -364,6 +382,7 @@ export const SuppliersPage: React.FC = () => {
                                   phone: s.phone || '',
                                   email: s.email || '',
                                   address: s.address || '',
+                                  isActive: s.isActive,
                                 });
                                 setShowCreateModal(true);
                               }}
@@ -470,7 +489,7 @@ export const SuppliersPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
+                <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label">Factory / Corporate Address</label>
                   <textarea
                     className="input"
@@ -479,6 +498,22 @@ export const SuppliersPage: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     placeholder="Industrial Park, City, Province, Port of Export..."
                   />
+                </div>
+
+                <div>
+                  <label className="form-label">Supplier Status *</label>
+                  <select
+                    className="input"
+                    value={formData.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'ACTIVE' })}
+                    required
+                  >
+                    <option value="ACTIVE">Active - available for purchase orders</option>
+                    <option value="INACTIVE">Inactive - hidden from active supplier workflow</option>
+                  </select>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                    Inactive suppliers stay in history, but should not be used for new procurement work.
+                  </div>
                 </div>
               </div>
 

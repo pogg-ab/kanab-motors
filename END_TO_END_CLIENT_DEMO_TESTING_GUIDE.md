@@ -229,11 +229,12 @@ Use this if the target demo product does not already exist.
 - Phone: `+919900001001`
 - Email: `supplier20261001@example.com`
 - Address: `Industrial Zone, Mumbai`
-- Active status: enabled
+- Supplier Status: `Active` for suppliers that can be used on new purchase orders; use `Inactive` when the supplier must remain in history but should not be selected for new procurement
 
 ### Expected result
 
-- Supplier appears in supplier dropdown for Purchase Orders.
+- Active supplier appears in the Purchase Order supplier dropdown.
+- If changed to Inactive, supplier remains in the master list/history but is removed from new active procurement selection.
 
 ---
 
@@ -904,3 +905,5 @@ Use this for spare parts / stock items that are not individually VIN tracked.
 - ETB exchange rate is locked at `1.0000`.
 - New currencies are configured in `Import Pipeline & Reports → Baseline Exchange Rates (NBE)`.
 - Temporary test currencies should be removed or kept only if approved as real business configuration.
+
+

@@ -25,6 +25,19 @@ import {
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
+type PurchaseOrderFormLine = {
+  itemId: string;
+  quantityOrdered: number | string;
+  unitPrice: number | string;
+};
+
+const normalizeWholeNumberInput = (value: string) => value.replace(/[^0-9]/g, '');
+const normalizeDecimalInput = (value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, '');
+  const [whole, ...decimalParts] = cleaned.split('.');
+  return decimalParts.length > 0 ? `${whole}.${decimalParts.join('').slice(0, 2)}` : whole;
+};
+
 export const PurchaseOrdersPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const canCreatePO = hasPermission('PURCHASE_ORDERS_CREATE');
@@ -49,9 +62,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [currency, setCurrency] = useState<string>('USD');
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState<string>('');
-  const [lines, setLines] = useState<
-    { itemId: string; quantityOrdered: number; unitPrice: number }[]
-  >([{ itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
+  const [lines, setLines] = useState<PurchaseOrderFormLine[]>([{ itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
 
   const [saving, setSaving] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -170,7 +181,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       return;
     }
     const validLines = lines
-      .filter((l) => l.itemId && l.quantityOrdered > 0 && l.unitPrice > 0)
+      .filter((l) => l.itemId && Number(l.quantityOrdered) > 0 && Number(l.unitPrice) > 0)
       .map((line) => ({
         itemId: String(line.itemId),
         quantityOrdered: Number(line.quantityOrdered),
@@ -622,11 +633,13 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <div>
                         <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Quantity</label>
                         <input
-                          type="number"
-                          min="1"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           className="input"
                           value={l.quantityOrdered}
-                          onChange={(e) => handleLineChange(idx, 'quantityOrdered', parseInt(e.target.value) || 1)}
+                          onChange={(e) => handleLineChange(idx, 'quantityOrdered', normalizeWholeNumberInput(e.target.value))}
+                          placeholder="Enter quantity"
                           required
                         />
                       </div>
@@ -634,12 +647,12 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <div>
                         <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Unit Price ({currency})</label>
                         <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
+                          type="text"
+                          inputMode="decimal"
                           className="input"
                           value={l.unitPrice}
-                          onChange={(e) => handleLineChange(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleLineChange(idx, 'unitPrice', normalizeDecimalInput(e.target.value))}
+                          placeholder="Enter unit price"
                           required
                         />
                       </div>
@@ -647,7 +660,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <div>
                         <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Line Total</label>
                         <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--accent-cyan)', marginTop: '0.4rem' }}>
-                          {(l.quantityOrdered * l.unitPrice).toLocaleString()}
+                          {(Number(l.quantityOrdered || 0) * Number(l.unitPrice || 0)).toLocaleString()}
                         </div>
                       </div>
 
@@ -670,7 +683,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <div style={{ background: 'rgba(0, 210, 211, 0.08)', border: '1px solid rgba(0, 210, 211, 0.2)', padding: '1rem 1.25rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>Total Purchase Order Contract Value:</span>
                   <span style={{ fontWeight: 800, color: 'var(--accent-cyan)', fontSize: '1.35rem' }}>
-                    {currency} {lines.reduce((sum, l) => sum + (l.quantityOrdered * l.unitPrice), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {currency} {lines.reduce((sum, l) => sum + (Number(l.quantityOrdered || 0) * Number(l.unitPrice || 0)), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
 
