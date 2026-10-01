@@ -28,6 +28,9 @@ ENV NODE_ENV=production
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
