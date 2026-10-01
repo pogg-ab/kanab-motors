@@ -46,6 +46,13 @@ async function ensureSequences() {
         name VARCHAR,
         value TEXT
       );
+      ALTER TABLE shipment_receipt ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS hold_for_inspection BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS shipment_line_id BIGINT;
+      ALTER TABLE audit_log ALTER COLUMN action TYPE VARCHAR(100);
+      INSERT INTO vehicle_status_transition_rule (from_status, to_status)
+      VALUES ('RECEIVED', 'AVAILABLE_FOR_SALE')
+      ON CONFLICT DO NOTHING;
     `);
   } catch (err) {
     console.warn('⚠️ Sequence initialization note:', (err as any)?.message || err);

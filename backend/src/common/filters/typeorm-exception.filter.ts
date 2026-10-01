@@ -29,17 +29,29 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
     });
 
     const mapped = this.mapError(error);
-    response.status(mapped.getStatus()).json(mapped.getResponse());
+    const resp = mapped.getResponse();
+    const formatted: any = typeof resp === 'string' ? { message: resp } : { ...(resp as object) };
+    if (error.detail) {
+      formatted.detail = error.detail;
+    }
+    if ((exception as any)?.message && !formatted.dbError) {
+      formatted.dbError = (exception as any).message;
+    }
+    response.status(mapped.getStatus()).json(formatted);
   }
 
-  private mapError(error: QueryFailedError & { code?: string; detail?: string }): HttpException {
+  private mapError(error: QueryFailedError & { code?: string; detail?: string; message?: string }): HttpException {
     switch (error.code) {
       case '23505':
         return new ConflictException('A record with the same unique value already exists');
       case '23503':
         return new BadRequestException('Referenced record does not exist');
+      case '23502':
+        return new BadRequestException(error.detail || error.message || 'Required field missing (not-null constraint violation)');
       case '23514':
         return new BadRequestException('One or more values violate database validation rules');
+      case '22001':
+        return new BadRequestException('One or more text fields exceed the maximum allowed length');
       case '22P02':
       case '22003':
       case '22007':
@@ -48,9 +60,9 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
         return new BadRequestException(error.message || 'Business rule validation failed');
       case '42703':
       case '42P01':
-        return new InternalServerErrorException('Database schema is not aligned with the application');
+        return new InternalServerErrorException(error.message || 'Database schema is not aligned with the application');
       default:
-        return new InternalServerErrorException('Database operation failed');
+        return new InternalServerErrorException(error.detail || error.message || 'Database operation failed');
     }
   }
 }

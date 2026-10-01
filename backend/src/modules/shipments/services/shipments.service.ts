@@ -494,10 +494,12 @@ export class ShipmentsService {
         for (const v of vehicles) {
           const unit = queryRunner.manager.create(VehicleUnit, {
             itemId,
-            chassisNumber: v.chassisNumber,
-            engineNumber: v.engineNumber,
+            chassisNumber: v.chassisNumber.trim(),
+            engineNumber: v.engineNumber.trim(),
             currentWarehouseId: dto.warehouseId || 1,
             currentStatus: VehicleStatus.RECEIVED,
+            holdForInspection: false,
+            createdBy: dto.userId,
             shipmentLineId: dto.shipmentLineId,
             productionImportInfo: `Imported via ${shipment.shipmentNumber} (Bill of Lading: ${shipment.billOfLadingNumber || 'N/A'})`,
           });

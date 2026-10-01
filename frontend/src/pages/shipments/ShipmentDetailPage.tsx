@@ -306,7 +306,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setReceiptError(null);
       loadShipmentData();
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Receipt recording failed';
+      const data = err.response?.data;
+      const msg = [data?.message, data?.detail, data?.dbError].filter(Boolean).join(' - ') || err.message || 'Receipt recording failed';
       setReceiptError(msg);
       showToast('error', msg);
     } finally {
