@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -51,7 +52,10 @@ export class ShipmentsController {
   @UseGuards(PermissionGuard)
   @RequirePermissions('SHIPMENTS_CREATE')
   @ApiOperation({ summary: 'Create new import shipment consolidating PO lines (Story S1/S2)' })
-  create(@Body() dto: CreateShipmentDto) {
+  create(@Body() dto: CreateShipmentDto, @Req() req: any) {
+    if (!dto.userId && req.user?.userId) {
+      dto.userId = req.user.userId;
+    }
     return this.shipmentsService.create(dto);
   }
 
@@ -76,6 +80,14 @@ export class ShipmentsController {
   @ApiOperation({ summary: 'Get cost component types reference data (Story F2)' })
   getCostTypes() {
     return this.shipmentsService.getCostComponentTypes();
+  }
+
+  @Post('lookups/cost-component-types')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('LANDED_COST_ADD_EXPENSE')
+  @ApiOperation({ summary: 'Create new cost component type dynamically' })
+  createCostType(@Body() dto: { typeName: string }) {
+    return this.shipmentsService.createCostComponentType(dto?.typeName);
   }
 
   @Get('lookups/exchange-rates')
@@ -114,8 +126,10 @@ export class ShipmentsController {
   updateStage(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: UpdateShipmentStageDto,
+    @Req() req: any,
   ) {
-    return this.shipmentsService.updateStage(id, dto.stage, dto.notes, dto.userId);
+    const userId = dto.userId || req.user?.userId;
+    return this.shipmentsService.updateStage(id, dto.stage, dto.notes, userId);
   }
 
   @Post(':id/costs')
@@ -125,7 +139,11 @@ export class ShipmentsController {
   addCostComponent(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: AddCostComponentDto,
+    @Req() req: any,
   ) {
+    if (!dto.userId && req.user?.userId) {
+      dto.userId = req.user.userId;
+    }
     return this.shipmentsService.addCostComponent(id, dto);
   }
 
@@ -149,11 +167,13 @@ export class ShipmentsController {
   allocateLandedCost(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: AllocateLandedCostDto,
+    @Req() req: any,
   ) {
+    const userId = dto.userId || req.user?.userId;
     return this.landedCostService.calculateAndPersistAllocation(
       id,
       dto.allocationMethod,
-      dto.userId,
+      userId,
     );
   }
 
@@ -224,7 +244,11 @@ export class ShipmentsController {
   receiveLine(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: ReceiveShipmentLineDto,
+    @Req() req: any,
   ) {
+    if (!dto.userId && req.user?.userId) {
+      dto.userId = req.user.userId;
+    }
     return this.shipmentsService.receiveLine(id, dto);
   }
 }
