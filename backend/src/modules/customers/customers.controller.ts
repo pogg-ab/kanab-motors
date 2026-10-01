@@ -65,6 +65,16 @@ export class CustomersController {
     return this.customersService.update(id, dto);
   }
 
+  @RequirePermissions('CUSTOMERS_EDIT', 'CUSTOMERS_DELETE')
+  @Put(':id/status')
+  @ApiOperation({ summary: 'Activate or deactivate a customer profile' })
+  toggleStatus(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body('isActive') isActive: boolean,
+  ) {
+    return this.customersService.toggleStatus(id, Boolean(isActive));
+  }
+
   @RequirePermissions('CUSTOMERS_VIEW')
   @Get(':id/account-summary')
   @ApiOperation({ summary: 'Get Customer Account Summary shell (SRS 1.9 & 1.10 zero-state)' })

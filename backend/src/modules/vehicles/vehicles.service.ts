@@ -9,6 +9,7 @@ import { DataSource, Repository } from 'typeorm';
 import { VehicleUnit, VehicleStatus } from './entities/vehicle-unit.entity';
 import { ProductItem } from '../products/entities/product-item.entity';
 import { CreateVehicleUnitDto } from './dto/create-vehicle-unit.dto';
+import { UpdateVehicleUnitDto } from './dto/update-vehicle-unit.dto';
 import { BulkImportVehicleDto } from './dto/bulk-import-vehicle.dto';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
 import { AuditService } from '../audit/audit.service';
@@ -264,5 +265,72 @@ export class VehiclesService {
       errors,
       importedUnits: savedUnits,
     };
+  }
+
+  async update(id: string, dto: UpdateVehicleUnitDto, userId: number = 1): Promise<VehicleUnit> {
+    const unit = await this.findOne(id);
+    const oldValues = {
+      chassisNumber: unit.chassisNumber,
+      engineNumber: unit.engineNumber,
+      currentStatus: unit.currentStatus,
+      itemId: unit.itemId,
+      currentWarehouseId: unit.currentWarehouseId,
+    };
+
+    if (dto.itemId && dto.itemId !== unit.itemId) {
+      const item = await this.itemRepo.findOne({ where: { itemId: dto.itemId } });
+      if (!item) throw new NotFoundException(`Product model with ID ${dto.itemId} not found`);
+      unit.itemId = dto.itemId;
+    }
+
+    if (dto.chassisNumber && dto.chassisNumber.trim().toUpperCase() !== unit.chassisNumber) {
+      const chassis = dto.chassisNumber.trim().toUpperCase();
+      const existingChassis = await this.unitRepo.findOne({ where: { chassisNumber: chassis } });
+      if (existingChassis && existingChassis.vehicleUnitId !== id) {
+        throw new ConflictException(`Vehicle with chassis number '${chassis}' already exists`);
+      }
+      unit.chassisNumber = chassis;
+    }
+
+    if (dto.engineNumber && dto.engineNumber.trim().toUpperCase() !== unit.engineNumber) {
+      const engine = dto.engineNumber.trim().toUpperCase();
+      const existingEngine = await this.unitRepo.findOne({ where: { engineNumber: engine } });
+      if (existingEngine && existingEngine.vehicleUnitId !== id) {
+        throw new ConflictException(`Vehicle with engine number '${engine}' already exists`);
+      }
+      unit.engineNumber = engine;
+    }
+
+    if (dto.productionImportInfo !== undefined) {
+      unit.productionImportInfo = dto.productionImportInfo?.trim() || null as any;
+    }
+
+    if (dto.currentWarehouseId !== undefined) {
+      unit.currentWarehouseId = dto.currentWarehouseId;
+    }
+
+    if (dto.currentStatus !== undefined) {
+      unit.currentStatus = dto.currentStatus;
+    }
+
+    unit.updatedBy = userId;
+    const saved = await this.unitRepo.save(unit);
+
+    await this.auditService.log({
+      entityType: 'vehicle_unit',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue: oldValues,
+      newValue: {
+        chassisNumber: saved.chassisNumber,
+        engineNumber: saved.engineNumber,
+        status: saved.currentStatus,
+        itemId: saved.itemId,
+        currentWarehouseId: saved.currentWarehouseId,
+      },
+    });
+
+    return this.findOne(id);
   }
 }

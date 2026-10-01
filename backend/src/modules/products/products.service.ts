@@ -16,6 +16,8 @@ import { UpdateProductItemDto } from './dto/update-product-item.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { AuditService } from '../audit/audit.service';
 
+import { UpdateTaxConfigDto } from './dto/update-tax-config.dto';
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -179,6 +181,31 @@ export class ProductsService {
     return this.categoryRepo.save(this.categoryRepo.create({ categoryName: name.trim() }));
   }
 
+  async updateCategory(id: number, name: string): Promise<ProductCategory> {
+    const category = await this.categoryRepo.findOne({ where: { categoryId: id } });
+    if (!category) throw new NotFoundException(`Category with ID ${id} not found`);
+    const cleanName = name.trim();
+    const existing = await this.categoryRepo.findOne({ where: { categoryName: cleanName } });
+    if (existing && existing.categoryId !== id) {
+      throw new ConflictException(`Category "${cleanName}" already exists`);
+    }
+    category.categoryName = cleanName;
+    return this.categoryRepo.save(category);
+  }
+
+  async deleteCategory(id: number): Promise<{ success: boolean; message: string }> {
+    const category = await this.categoryRepo.findOne({ where: { categoryId: id } });
+    if (!category) throw new NotFoundException(`Category with ID ${id} not found`);
+    const count = await this.itemRepo.count({ where: { categoryId: id } });
+    if (count > 0) {
+      throw new BadRequestException(
+        `Cannot delete category "${category.categoryName}": it is currently assigned to ${count} product model(s). Reassign or remove those products first.`,
+      );
+    }
+    await this.categoryRepo.delete(id);
+    return { success: true, message: `Category "${category.categoryName}" deleted successfully` };
+  }
+
   async getBrands(): Promise<Brand[]> {
     return this.brandRepo.find({ order: { brandName: 'ASC' } });
   }
@@ -187,6 +214,31 @@ export class ProductsService {
     const existing = await this.brandRepo.findOne({ where: { brandName: name.trim() } });
     if (existing) throw new ConflictException('Brand already exists');
     return this.brandRepo.save(this.brandRepo.create({ brandName: name.trim() }));
+  }
+
+  async updateBrand(id: number, name: string): Promise<Brand> {
+    const brand = await this.brandRepo.findOne({ where: { brandId: id } });
+    if (!brand) throw new NotFoundException(`Brand with ID ${id} not found`);
+    const cleanName = name.trim();
+    const existing = await this.brandRepo.findOne({ where: { brandName: cleanName } });
+    if (existing && existing.brandId !== id) {
+      throw new ConflictException(`Brand "${cleanName}" already exists`);
+    }
+    brand.brandName = cleanName;
+    return this.brandRepo.save(brand);
+  }
+
+  async deleteBrand(id: number): Promise<{ success: boolean; message: string }> {
+    const brand = await this.brandRepo.findOne({ where: { brandId: id } });
+    if (!brand) throw new NotFoundException(`Brand with ID ${id} not found`);
+    const count = await this.itemRepo.count({ where: { brandId: id } });
+    if (count > 0) {
+      throw new BadRequestException(
+        `Cannot delete brand "${brand.brandName}": it is currently assigned to ${count} product model(s). Reassign or remove those products first.`,
+      );
+    }
+    await this.brandRepo.delete(id);
+    return { success: true, message: `Brand "${brand.brandName}" deleted successfully` };
   }
 
   async getUoms(): Promise<UnitOfMeasure[]> {
@@ -200,10 +252,31 @@ export class ProductsService {
   async createTaxConfig(name: string, ratePct: number): Promise<TaxConfiguration> {
     return this.taxRepo.save(
       this.taxRepo.create({
-        taxName: name,
+        taxName: name.trim(),
         taxRatePct: ratePct,
         isActive: true,
       }),
     );
+  }
+
+  async updateTaxConfig(id: number, dto: UpdateTaxConfigDto): Promise<TaxConfiguration> {
+    const tax = await this.taxRepo.findOne({ where: { taxConfigId: id } });
+    if (!tax) throw new NotFoundException(`Tax configuration with ID ${id} not found`);
+    if (dto.name !== undefined) tax.taxName = dto.name.trim();
+    if (dto.ratePct !== undefined) tax.taxRatePct = dto.ratePct;
+    return this.taxRepo.save(tax);
+  }
+
+  async deleteTaxConfig(id: number): Promise<{ success: boolean; message: string }> {
+    const tax = await this.taxRepo.findOne({ where: { taxConfigId: id } });
+    if (!tax) throw new NotFoundException(`Tax configuration with ID ${id} not found`);
+    const count = await this.itemRepo.count({ where: { taxConfigId: id } });
+    if (count > 0) {
+      throw new BadRequestException(
+        `Cannot delete tax configuration "${tax.taxName}": it is currently assigned to ${count} product model(s). Reassign or remove those products first.`,
+      );
+    }
+    await this.taxRepo.delete(id);
+    return { success: true, message: `Tax configuration "${tax.taxName}" deleted successfully` };
   }
 }

@@ -3,11 +3,13 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
   UsePipes,
   ValidationPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
@@ -15,8 +17,11 @@ import { CreateProductItemDto } from './dto/create-product-item.dto';
 import { UpdateProductItemDto } from './dto/update-product-item.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { CreateTaxConfigDto } from './dto/create-tax-config.dto';
+import { UpdateTaxConfigDto } from './dto/update-tax-config.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateBrandDto } from './dto/create-brand.dto';
+import { UpdateBrandDto } from './dto/update-brand.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
@@ -71,6 +76,24 @@ export class ProductsController {
     return this.productsService.createCategory(dto.name);
   }
 
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Put('categories/:id')
+  @ApiOperation({ summary: 'Update product category' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  updateCategory(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.productsService.updateCategory(id, dto.name);
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Delete('categories/:id')
+  @ApiOperation({ summary: 'Delete product category' })
+  deleteCategory(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.deleteCategory(id);
+  }
+
   @RequirePermissions('PRODUCTS_VIEW')
   @Get('brands')
   @ApiOperation({ summary: 'Get brands' })
@@ -84,6 +107,24 @@ export class ProductsController {
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createBrand(@Body() dto: CreateBrandDto) {
     return this.productsService.createBrand(dto.name);
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Put('brands/:id')
+  @ApiOperation({ summary: 'Update brand' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  updateBrand(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateBrandDto,
+  ) {
+    return this.productsService.updateBrand(id, dto.name);
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Delete('brands/:id')
+  @ApiOperation({ summary: 'Delete brand' })
+  deleteBrand(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.deleteBrand(id);
   }
 
   @RequirePermissions('PRODUCTS_VIEW')
@@ -106,6 +147,24 @@ export class ProductsController {
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createTaxConfig(@Body() dto: CreateTaxConfigDto) {
     return this.productsService.createTaxConfig(dto.name, dto.ratePct);
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Put('tax-configs/:id')
+  @ApiOperation({ summary: 'Update tax configuration' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  updateTaxConfig(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTaxConfigDto,
+  ) {
+    return this.productsService.updateTaxConfig(id, dto);
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Delete('tax-configs/:id')
+  @ApiOperation({ summary: 'Delete tax configuration' })
+  deleteTaxConfig(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.deleteTaxConfig(id);
   }
 }
 

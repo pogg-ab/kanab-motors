@@ -185,6 +185,7 @@ export interface ProductItem {
   taxConfigId?: number;
   taxConfig?: TaxConfiguration;
   reorderLevel: number;
+  weightKg?: number;
   isActive: boolean;
   createdAt: string;
   totalUnits?: number;
@@ -645,6 +646,10 @@ export const api = {
   getWarehouses: () => apiClient.get<Warehouse[]>('/lookups/warehouses').then((r) => r.data),
   createWarehouse: (name: string, location?: string) =>
     apiClient.post<Warehouse>('/lookups/warehouses', { name, location }).then((r) => r.data),
+  updateWarehouse: (id: number, name: string, location?: string) =>
+    apiClient.put<Warehouse>(`/lookups/warehouses/${id}`, { name, location }).then((r) => r.data),
+  deleteWarehouse: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/lookups/warehouses/${id}`).then((r) => r.data),
 
   // Audit Logs
   getAuditLogs: (params?: { entityType?: string; limit?: number }) =>
@@ -662,6 +667,8 @@ export const api = {
   createCustomer: (data: any) => apiClient.post<Customer>('/customers', data).then((r) => r.data),
   updateCustomer: (id: string, data: any) =>
     apiClient.put<Customer>(`/customers/${id}`, data).then((r) => r.data),
+  toggleCustomerStatus: (id: string, isActive: boolean) =>
+    apiClient.put<Customer>(`/customers/${id}/status`, { isActive }).then((r) => r.data),
   uploadCustomerDoc: (id: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -693,14 +700,26 @@ export const api = {
   getCategories: () => apiClient.get<ProductCategory[]>('/products/categories').then((r) => r.data),
   createCategory: (name: string) =>
     apiClient.post<ProductCategory>('/products/categories', { name }).then((r) => r.data),
+  updateCategory: (id: number, name: string) =>
+    apiClient.put<ProductCategory>(`/products/categories/${id}`, { name }).then((r) => r.data),
+  deleteCategory: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/products/categories/${id}`).then((r) => r.data),
   getBrands: () => apiClient.get<Brand[]>('/products/brands').then((r) => r.data),
   createBrand: (name: string) =>
     apiClient.post<Brand>('/products/brands', { name }).then((r) => r.data),
+  updateBrand: (id: number, name: string) =>
+    apiClient.put<Brand>(`/products/brands/${id}`, { name }).then((r) => r.data),
+  deleteBrand: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/products/brands/${id}`).then((r) => r.data),
   getUoms: () => apiClient.get<UnitOfMeasure[]>('/products/uoms').then((r) => r.data),
   getTaxConfigs: () =>
     apiClient.get<TaxConfiguration[]>('/products/tax-configs').then((r) => r.data),
   createTaxConfig: (name: string, ratePct: number) =>
     apiClient.post<TaxConfiguration>('/products/tax-configs', { name, ratePct }).then((r) => r.data),
+  updateTaxConfig: (id: number, data: { name?: string; ratePct?: number }) =>
+    apiClient.put<TaxConfiguration>(`/products/tax-configs/${id}`, data).then((r) => r.data),
+  deleteTaxConfig: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/products/tax-configs/${id}`).then((r) => r.data),
 
   // Vehicles
   getVehicles: (params?: any) =>
@@ -711,6 +730,8 @@ export const api = {
       .then((r) => r.data),
   createVehicle: (data: any) =>
     apiClient.post<VehicleUnit>('/vehicles', data).then((r) => r.data),
+  updateVehicle: (id: string, data: any) =>
+    apiClient.put<VehicleUnit>(`/vehicles/${id}`, data).then((r) => r.data),
   updateVehicleStatus: (id: string, status: string, warehouseId?: number) =>
     apiClient.patch<VehicleUnit>(`/vehicles/${id}/status`, { status, warehouseId }).then((r) => r.data),
   bulkImportVehicles: (data: any) =>

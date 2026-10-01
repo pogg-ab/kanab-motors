@@ -253,6 +253,7 @@ export class CustomersService {
         mobileNumber: oldValue.mobileNumber,
         tinNumber: oldValue.tinNumber,
         addressTown: oldValue.addressTown,
+        isActive: oldValue.isActive,
       },
       newValue: {
         customerType: updated.customerType,
@@ -260,7 +261,27 @@ export class CustomersService {
         mobileNumber: updated.mobileNumber,
         tinNumber: updated.tinNumber,
         addressTown: updated.addressTown,
+        isActive: updated.isActive,
       },
+    });
+
+    return this.findOne(id);
+  }
+
+  async toggleStatus(id: string, isActive: boolean, userId: number = 1): Promise<Customer> {
+    const customer = await this.findOne(id);
+    const oldStatus = customer.isActive;
+    customer.isActive = isActive;
+    customer.updatedBy = userId;
+    const updated = await this.customerRepo.save(customer);
+
+    await this.auditService.log({
+      entityType: 'customer',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue: { isActive: oldStatus },
+      newValue: { isActive, statusChange: isActive ? 'REACTIVATE' : 'DEACTIVATE' },
     });
 
     return this.findOne(id);
