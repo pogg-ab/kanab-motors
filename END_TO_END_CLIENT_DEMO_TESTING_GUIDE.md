@@ -79,7 +79,26 @@ Use the seeded accounts currently available in the system.
 
 ## Screen 2: Audit Trail Logs
 
+
 **Navigation:** `Audit Trail Logs`
+
+### Screen 3: Customer Directory & KYC Master (`/customers`)
+* **Goal**: Show corporate/individual customer onboarding, TIN validation, and zero-state ledger summary cards.
+* **Demonstration Steps**:
+  1. Navigate to **Core Masters $\rightarrow$ Customers** (`/customers`).
+  2. Click **+ Add Customer**.
+  3. Enter customer details:
+     * **Full Name / Organization Name**: `Oromia Logistics & Transport Enterprise`
+     * **Customer Type**: `CORPORATE`
+     * **Mobile Number**: `+251911889900`
+     * **TIN Number**: `0058291048` (demonstrate 10-digit validation check)
+     * **Email**: `procurement@oromialogistics.et`
+  4. Click **Register Customer**.
+  5. Select the customer in the table:
+     * Highlight the **6 Financial Summary KPI Cards**:
+       `Total Deposits: 0.00` · `Allocated: 0.00` · `Outstanding: 0.00` · `Customer Credit: 0.00` · `Excess: 0.00` · `Refundable: 0.00`.
+  6. **Negative Test**: Attempt creating a customer with the exact same TIN or Mobile $\rightarrow$ show that system rejects duplicates with a clear error banner.
+
 
 ### Test inputs and filters
 
