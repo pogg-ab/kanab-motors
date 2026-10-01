@@ -32,6 +32,7 @@ import {
   LandedCostReport,
   ExchangeRateDefault,
   Attachment,
+  Warehouse,
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
@@ -91,6 +92,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   // Receipt Form State
   const [receiptQty, setReceiptQty] = useState<number>(1);
   const [warehouseId, setWarehouseId] = useState<number>(1);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   const [receiptVehicles, setReceiptVehicles] = useState<{ chassisNumber: string; engineNumber: string }[]>([
     { chassisNumber: '', engineNumber: '' },
   ]);
@@ -136,14 +139,19 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const loadShipmentData = async () => {
     setLoading(true);
     try {
-      const [shipData, types, rates] = await Promise.all([
+      const [shipData, types, rates, whs] = await Promise.all([
         api.getShipment(shipmentId),
         api.getCostComponentTypes(),
         api.getExchangeRates(),
+        api.getWarehouses().catch(() => [] as Warehouse[]),
       ]);
       setShipment(shipData);
       setCostTypes(types);
       setExchangeRates(rates);
+      setWarehouses(whs || []);
+      if (whs && whs.length > 0) {
+        setWarehouseId((prev) => (prev ? prev : whs[0].warehouseId));
+      }
       setSelectedMethod(shipData.allocationMethod || 'BY_VALUE');
 
       api.getShipmentDocs(shipmentId)
@@ -278,6 +286,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
     }
     if (!selectedLineForReceipt) return;
     setSaving(true);
+    setReceiptError(null);
     try {
       await api.receiveShipmentLine(shipmentId, {
         shipmentLineId: selectedLineForReceipt.shipmentLineId,
@@ -288,9 +297,12 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', `Receipt of ${receiptQty} unit(s) recorded! Vehicle units created in inventory.`);
       setShowReceiptModal(false);
       setSelectedLineForReceipt(null);
+      setReceiptError(null);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Receipt recording failed');
+      const msg = err.response?.data?.message || err.message || 'Receipt recording failed';
+      setReceiptError(msg);
+      showToast('error', msg);
     } finally {
       setSaving(false);
     }
@@ -1553,21 +1565,59 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </p>
 
             <form onSubmit={handleReceiveCargo}>
-              <div className="form-group">
-                <label className="form-label">Quantity to Receive *</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={Number(selectedLineForReceipt.quantityShipped) - Number(selectedLineForReceipt.quantityReceived)}
-                  className="input-field"
-                  value={receiptQty}
-                  onChange={(e) => {
-                    const q = parseInt(e.target.value) || 1;
-                    setReceiptQty(q);
-                    setReceiptVehicles(Array.from({ length: q }, (_, i) => receiptVehicles[i] || { chassisNumber: '', engineNumber: '' }));
+              {receiptError && (
+                <div
+                  style={{
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#f87171',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
                   }}
-                  required
-                />
+                >
+                  <AlertTriangle size={16} />
+                  <span>{receiptError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Quantity to Receive *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={Number(selectedLineForReceipt.quantityShipped) - Number(selectedLineForReceipt.quantityReceived)}
+                    className="input-field"
+                    value={receiptQty}
+                    onChange={(e) => {
+                      const q = parseInt(e.target.value) || 1;
+                      setReceiptQty(q);
+                      setReceiptVehicles(Array.from({ length: q }, (_, i) => receiptVehicles[i] || { chassisNumber: '', engineNumber: '' }));
+                    }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Destination Warehouse *</label>
+                  <select
+                    className="select-field"
+                    value={warehouseId}
+                    onChange={(e) => setWarehouseId(Number(e.target.value))}
+                    required
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.warehouseId} value={w.warehouseId}>
+                        {w.warehouseName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
