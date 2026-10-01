@@ -32,6 +32,7 @@ import {
   LandedCostReport,
   ExchangeRateDefault,
   Attachment,
+  Warehouse,
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
@@ -64,6 +65,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
   const [landedReport, setLandedReport] = useState<LandedCostReport | null>(null);
   const [shipmentDocuments, setShipmentDocuments] = useState<Attachment[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [activeTab, setActiveTab] = useState<'tracking' | 'costs' | 'allocation' | 'docs' | 'receipt'>('allocation');
   const [loading, setLoading] = useState<boolean>(true);
   const [documentUploadProgress, setDocumentUploadProgress] = useState<Record<string, number>>({});
@@ -90,7 +92,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   // Receipt Form State
   const [receiptQty, setReceiptQty] = useState<number>(1);
-  const [warehouseId, setWarehouseId] = useState<number>(1);
+  const [warehouseId, setWarehouseId] = useState<number | ''>('');
+  const [receiptNotes, setReceiptNotes] = useState<string>('');
   const [receiptVehicles, setReceiptVehicles] = useState<{ chassisNumber: string; engineNumber: string }[]>([
     { chassisNumber: '', engineNumber: '' },
   ]);
@@ -136,14 +139,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const loadShipmentData = async () => {
     setLoading(true);
     try {
-      const [shipData, types, rates] = await Promise.all([
+      const [shipData, types, rates, warehouseData] = await Promise.all([
         api.getShipment(shipmentId),
         api.getCostComponentTypes(),
         api.getExchangeRates(),
+        api.getWarehouses(),
       ]);
       setShipment(shipData);
       setCostTypes(types);
       setExchangeRates(rates);
+      setWarehouses(warehouseData || []);
+      setWarehouseId((current) => current || warehouseData?.find((w) => w.isActive)?.warehouseId || warehouseData?.[0]?.warehouseId || '');
       setSelectedMethod(shipData.allocationMethod || 'BY_VALUE');
 
       api.getShipmentDocs(shipmentId)
@@ -277,17 +283,23 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       return;
     }
     if (!selectedLineForReceipt) return;
+    if (!warehouseId) {
+      showToast('error', 'Select receiving warehouse');
+      return;
+    }
     setSaving(true);
     try {
       await api.receiveShipmentLine(shipmentId, {
         shipmentLineId: selectedLineForReceipt.shipmentLineId,
         quantityReceived: receiptQty,
-        warehouseId,
+        warehouseId: Number(warehouseId),
+        notes: receiptNotes,
         vehicles: receiptVehicles.filter((v) => v.chassisNumber.trim()),
       });
       showToast('success', `Receipt of ${receiptQty} unit(s) recorded! Vehicle units created in inventory.`);
       setShowReceiptModal(false);
       setSelectedLineForReceipt(null);
+      setReceiptNotes('');
       loadShipmentData();
     } catch (err: any) {
       showToast('error', err.response?.data?.message || err.message || 'Receipt recording failed');
@@ -1312,6 +1324,9 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                           onClick={() => {
                             setSelectedLineForReceipt(line);
                             setReceiptQty(remaining);
+                            setReceiptVehicles(Array.from({ length: remaining }, () => ({ chassisNumber: '', engineNumber: '' })));
+                            setReceiptNotes('');
+                            setWarehouseId((current) => current || warehouses.find((w) => w.isActive)?.warehouseId || warehouses[0]?.warehouseId || '');
                             setShowReceiptModal(true);
                           }}
                           className="btn btn-primary"
@@ -1570,6 +1585,23 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                 />
               </div>
 
+              <div className="form-group">
+                <label className="form-label">Receiving Warehouse *</label>
+                <select
+                  className="select-field"
+                  value={warehouseId}
+                  onChange={(e) => setWarehouseId(Number(e.target.value))}
+                  required
+                >
+                  <option value="">Select receiving warehouse...</option>
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.warehouseId} value={warehouse.warehouseId}>
+                      {warehouse.warehouseName}{warehouse.location ? ` - ${warehouse.location}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Physical Chassis (VIN) & Engine Numbers</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -1601,6 +1633,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Receipt Notes</label>
+                <textarea
+                  className="textarea-field"
+                  rows={2}
+                  value={receiptNotes}
+                  onChange={(e) => setReceiptNotes(e.target.value)}
+                  placeholder="e.g. Received at Kality yard after customs clearance; seals verified."
+                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
