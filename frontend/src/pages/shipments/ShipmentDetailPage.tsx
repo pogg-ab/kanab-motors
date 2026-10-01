@@ -94,6 +94,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const [receiptQty, setReceiptQty] = useState<number>(1);
   const [warehouseId, setWarehouseId] = useState<number | ''>('');
   const [receiptNotes, setReceiptNotes] = useState<string>('');
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   const [receiptVehicles, setReceiptVehicles] = useState<{ chassisNumber: string; engineNumber: string }[]>([
     { chassisNumber: '', engineNumber: '' },
   ]);
@@ -176,6 +177,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       return;
     }
     setSaving(true);
+    setReceiptError(null);
     try {
       await api.updateShipmentStage(shipmentId, targetStage);
       showToast('success', `Shipment stage successfully advanced to ${targetStage.replace(/_/g, ' ')}!`);
@@ -288,6 +290,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       return;
     }
     setSaving(true);
+    setReceiptError(null);
     try {
       await api.receiveShipmentLine(shipmentId, {
         shipmentLineId: selectedLineForReceipt.shipmentLineId,
@@ -300,9 +303,12 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setShowReceiptModal(false);
       setSelectedLineForReceipt(null);
       setReceiptNotes('');
+      setReceiptError(null);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Receipt recording failed');
+      const msg = err.response?.data?.message || err.message || 'Receipt recording failed';
+      setReceiptError(msg);
+      showToast('error', msg);
     } finally {
       setSaving(false);
     }
@@ -1326,6 +1332,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                             setReceiptQty(remaining);
                             setReceiptVehicles(Array.from({ length: remaining }, () => ({ chassisNumber: '', engineNumber: '' })));
                             setReceiptNotes('');
+                            setReceiptError(null);
                             setWarehouseId((current) => current || warehouses.find((w) => w.isActive)?.warehouseId || warehouses[0]?.warehouseId || '');
                             setShowReceiptModal(true);
                           }}
@@ -1568,6 +1575,26 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </p>
 
             <form onSubmit={handleReceiveCargo}>
+              {receiptError && (
+                <div
+                  style={{
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#f87171',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <AlertTriangle size={16} />
+                  <span>{receiptError}</span>
+                </div>
+              )}
+
               <div className="form-group">
                 <label className="form-label">Quantity to Receive *</label>
                 <input

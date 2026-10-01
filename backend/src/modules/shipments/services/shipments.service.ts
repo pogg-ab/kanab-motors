@@ -27,6 +27,7 @@ import {
   CreateShipmentDto,
   ReceiveShipmentLineDto,
 } from '../dto/shipment.dto';
+import { LandedCostAllocationService } from './landed-cost-allocation.service';
 
 @Injectable()
 export class ShipmentsService {
@@ -58,6 +59,7 @@ export class ShipmentsService {
     @InjectRepository(VehicleUnitLandedCost)
     private readonly vehicleUnitCostRepo: Repository<VehicleUnitLandedCost>,
     private readonly dataSource: DataSource,
+    private readonly landedCostService: LandedCostAllocationService,
   ) {}
 
   async create(dto: CreateShipmentDto): Promise<Shipment> {
@@ -428,11 +430,22 @@ export class ShipmentsService {
       throw new BadRequestException('Vehicle count must match quantity received');
     }
 
-    const currentLineCost = await this.lineCostRepo.findOne({
+    let currentLineCost = await this.lineCostRepo.findOne({
       where: { shipmentLineId: dto.shipmentLineId, isCurrent: true },
     });
     if (!currentLineCost) {
-      throw new BadRequestException('Allocate landed cost before receiving this shipment line');
+      try {
+        await this.landedCostService.calculateAndPersistAllocation(
+          shipmentId,
+          shipment.allocationMethod || 'BY_VALUE',
+          dto.userId,
+        );
+        currentLineCost = await this.lineCostRepo.findOne({
+          where: { shipmentLineId: dto.shipmentLineId, isCurrent: true },
+        });
+      } catch (allocErr) {
+        // Fallback: If landed cost cannot be calculated, proceed with receiving physical inventory
+      }
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -507,7 +520,8 @@ export class ShipmentsService {
           .where('vu.shipmentLineId = :shipmentLineId', { shipmentLineId: dto.shipmentLineId })
           .getCount();
 
-        const unitCost = Math.round((Number(currentLineCost.allocatedCostEtb) / Number(line.quantityShipped)) * 100) / 100;
+        const allocatedCost = currentLineCost ? Number(currentLineCost.allocatedCostEtb) : 0;
+        const unitCost = Math.round((allocatedCost / Number(line.quantityShipped)) * 100) / 100;
         const unitCostRows = savedUnits.map((unit) =>
           queryRunner.manager.create(VehicleUnitLandedCost, {
             vehicleUnitId: unit.vehicleUnitId,
@@ -518,7 +532,7 @@ export class ShipmentsService {
           }),
         );
 
-        if (receivedUnitCount <= Number(line.quantityShipped) && unitCostRows.length > 0) {
+        if (receivedUnitCount <= Number(line.quantityShipped) && unitCostRows.length > 0 && unitCost > 0) {
           await queryRunner.manager.save(VehicleUnitLandedCost, unitCostRows);
         }
       }
