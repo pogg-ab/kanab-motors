@@ -102,7 +102,11 @@ export const CustomersPage: React.FC = () => {
   const getDocUrl = (filePath?: string) => {
     if (!filePath) return '';
     if (filePath.startsWith('http')) return filePath;
-    return `http://localhost:3000${filePath}`;
+    const cleanPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+    if (import.meta.env.DEV) {
+      return `http://localhost:3000${cleanPath}`;
+    }
+    return cleanPath;
   };
 
   const fetchCustomers = async () => {
