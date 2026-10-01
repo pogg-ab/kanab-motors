@@ -11,9 +11,13 @@ import {
   CheckCircle2,
   X,
   Edit2,
+  Trash2,
+  Download,
+  Check,
   Layers,
   ArrowRight,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   api,
   VehicleUnit,
@@ -45,6 +49,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
 export const VehiclesPage: React.FC = () => {
   const { can } = usePermissions();
   const canCreateVehicle = can('VEHICLES_CREATE');
+  const canEditVehicle = can('VEHICLES_EDIT') || can('VEHICLES_CREATE') || can('VEHICLES_STATUS_UPDATE');
   const canBulkImportVehicles = can('VEHICLES_BULK_IMPORT');
   const canUpdateVehicleStatus = can('VEHICLES_STATUS_UPDATE');
   const canManageWarehouses = can('WAREHOUSES_MANAGE');
@@ -66,7 +71,41 @@ export const VehiclesPage: React.FC = () => {
   const [newWarehouseName, setNewWarehouseName] = useState('');
   const [newWarehouseLocation, setNewWarehouseLocation] = useState('');
   const [creatingWarehouse, setCreatingWarehouse] = useState(false);
+  const [editingWarehouseId, setEditingWarehouseId] = useState<number | null>(null);
+  const [editingWarehouseName, setEditingWarehouseName] = useState('');
+  const [editingWarehouseLocation, setEditingWarehouseLocation] = useState('');
+  const [savingWarehouse, setSavingWarehouse] = useState(false);
+  const [warehouseActionError, setWarehouseActionError] = useState<string | null>(null);
   const [statusModalUnit, setStatusModalUnit] = useState<VehicleUnit | null>(null);
+
+  // Excel Import State
+  const [isExcelOpen, setIsExcelOpen] = useState(false);
+  const [excelItemId, setExcelItemId] = useState('');
+  const [excelWarehouseId, setExcelWarehouseId] = useState('');
+  const [excelFileName, setExcelFileName] = useState('');
+  const [excelParsedUnits, setExcelParsedUnits] = useState<
+    Array<{ chassisNumber: string; engineNumber: string; productionImportInfo?: string }>
+  >([]);
+  const [excelError, setExcelError] = useState<string | null>(null);
+  const [excelReport, setExcelReport] = useState<{
+    success: boolean;
+    importedCount: number;
+    failedCount: number;
+    errors: string[];
+  } | null>(null);
+  const [submittingExcel, setSubmittingExcel] = useState(false);
+
+  // Edit Vehicle Unit State
+  const [editingVehicle, setEditingVehicle] = useState<VehicleUnit | null>(null);
+  const [editVehicleForm, setEditVehicleForm] = useState({
+    itemId: '',
+    chassisNumber: '',
+    engineNumber: '',
+    currentWarehouseId: '',
+    productionImportInfo: '',
+  });
+  const [editVehicleError, setEditVehicleError] = useState<string | null>(null);
+  const [submittingEditVehicle, setSubmittingEditVehicle] = useState(false);
 
   // Single Form State
   const [singleForm, setSingleForm] = useState({
@@ -165,6 +204,7 @@ export const VehiclesPage: React.FC = () => {
     if (!canManageWarehouses) return;
     if (!newWarehouseName.trim()) return;
     setCreatingWarehouse(true);
+    setWarehouseActionError(null);
     try {
       const created = await api.createWarehouse(
         newWarehouseName.trim(),
@@ -172,7 +212,6 @@ export const VehiclesPage: React.FC = () => {
       );
       setNewWarehouseName('');
       setNewWarehouseLocation('');
-      setIsWarehouseModalOpen(false);
       const whs = await api.getWarehouses();
       setWarehouses(whs);
       if (created?.warehouseId) {
@@ -182,9 +221,247 @@ export const VehiclesPage: React.FC = () => {
         }));
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to create warehouse');
+      setWarehouseActionError(err.response?.data?.message || 'Failed to create warehouse');
     } finally {
       setCreatingWarehouse(false);
+    }
+  };
+
+  const handleStartEditWarehouse = (w: Warehouse) => {
+    setEditingWarehouseId(w.warehouseId);
+    setEditingWarehouseName(w.warehouseName);
+    setEditingWarehouseLocation(w.location || '');
+    setWarehouseActionError(null);
+  };
+
+  const handleCancelEditWarehouse = () => {
+    setEditingWarehouseId(null);
+    setEditingWarehouseName('');
+    setEditingWarehouseLocation('');
+    setWarehouseActionError(null);
+  };
+
+  const handleSaveEditWarehouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWarehouseId || !editingWarehouseName.trim()) return;
+    setSavingWarehouse(true);
+    setWarehouseActionError(null);
+    try {
+      await api.updateWarehouse(
+        editingWarehouseId,
+        editingWarehouseName.trim(),
+        editingWarehouseLocation.trim() || undefined,
+      );
+      setEditingWarehouseId(null);
+      const whs = await api.getWarehouses();
+      setWarehouses(whs);
+      fetchVehicles();
+    } catch (err: any) {
+      setWarehouseActionError(err.response?.data?.message || 'Failed to update warehouse');
+    } finally {
+      setSavingWarehouse(false);
+    }
+  };
+
+  const handleDeleteWarehouse = async (w: Warehouse) => {
+    if (!window.confirm(`Are you sure you want to delete warehouse "${w.warehouseName}"?`)) {
+      return;
+    }
+    setWarehouseActionError(null);
+    try {
+      await api.deleteWarehouse(w.warehouseId);
+      const whs = await api.getWarehouses();
+      setWarehouses(whs);
+      fetchVehicles();
+    } catch (err: any) {
+      setWarehouseActionError(err.response?.data?.message || 'Failed to delete warehouse');
+    }
+  };
+
+  // Excel Import Handlers
+  const handleOpenExcelImport = async () => {
+    if (!canBulkImportVehicles) return;
+    try {
+      const [itms, whs] = await Promise.all([
+        api.getItems({ limit: 100 }),
+        api.getWarehouses(),
+      ]);
+      setItems(itms.items);
+      setWarehouses(whs);
+      setExcelItemId(itms.items[0]?.itemId || '');
+      setExcelWarehouseId(whs[0]?.warehouseId?.toString() || '');
+    } catch (e) {
+      console.error(e);
+    }
+    setExcelFileName('');
+    setExcelParsedUnits([]);
+    setExcelError(null);
+    setExcelReport(null);
+    setIsExcelOpen(true);
+  };
+
+  const handleDownloadExcelTemplate = () => {
+    const wb = XLSX.utils.book_new();
+    const wsData = [
+      ['Chassis Number', 'Engine Number', 'Production / Import Info'],
+      ['KB-CHS-2026-0001', 'KB-ENG-2026-0001', 'Batch 1 - Red / Djibouti Port'],
+      ['KB-CHS-2026-0002', 'KB-ENG-2026-0002', 'Batch 1 - Black / Djibouti Port'],
+      ['KB-CHS-2026-0003', 'KB-ENG-2026-0003', 'Batch 1 - Blue / Djibouti Port'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 35 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Vehicle_Units_Template');
+    XLSX.writeFile(wb, 'Kanab_Vehicle_Units_Template.xlsx');
+  };
+
+  const handleExcelFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelFileName(file.name);
+    setExcelError(null);
+    setExcelReport(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) {
+          setExcelError('The uploaded Excel file contains no worksheets.');
+          return;
+        }
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+        if (!rows || rows.length < 2) {
+          setExcelError('Excel sheet must contain a header row and at least one data row.');
+          return;
+        }
+
+        // Determine header indices
+        const headerRow = rows[0].map((h: any) => String(h || '').trim().toLowerCase());
+        let chassisIdx = headerRow.findIndex((h: string) => h.includes('chassis') || h.includes('vin'));
+        let engineIdx = headerRow.findIndex((h: string) => h.includes('engine') || h.includes('motor'));
+        let infoIdx = headerRow.findIndex((h: string) => h.includes('info') || h.includes('batch') || h.includes('production') || h.includes('import'));
+
+        // Fallbacks if header labels don't match exactly
+        if (chassisIdx === -1) chassisIdx = 0;
+        if (engineIdx === -1) engineIdx = 1;
+        if (infoIdx === -1) infoIdx = 2;
+
+        const parsed: Array<{ chassisNumber: string; engineNumber: string; productionImportInfo?: string }> = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const chassis = String(row[chassisIdx] || '').trim().toUpperCase();
+          const engine = String(row[engineIdx] || '').trim().toUpperCase();
+          const info = row[infoIdx] !== undefined ? String(row[infoIdx]).trim() : undefined;
+
+          if (chassis && engine) {
+            parsed.push({
+              chassisNumber: chassis,
+              engineNumber: engine,
+              productionImportInfo: info || undefined,
+            });
+          }
+        }
+
+        if (parsed.length === 0) {
+          setExcelError('No valid vehicle unit rows found. Ensure Chassis Number and Engine Number columns are filled.');
+          setExcelParsedUnits([]);
+          return;
+        }
+
+        setExcelParsedUnits(parsed);
+      } catch (err: any) {
+        setExcelError(`Failed to parse Excel file: ${err.message || 'Invalid format'}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleExecuteExcelImport = async () => {
+    if (!excelItemId) {
+      setExcelError('Please select a target Product Model');
+      return;
+    }
+    if (!excelWarehouseId) {
+      setExcelError('Please select an intake Warehouse');
+      return;
+    }
+    if (excelParsedUnits.length === 0) {
+      setExcelError('Please select and upload a valid Excel file with vehicle units');
+      return;
+    }
+
+    setSubmittingExcel(true);
+    setExcelError(null);
+    try {
+      const res = await api.bulkImportVehicles({
+        itemId: excelItemId,
+        warehouseId: Number(excelWarehouseId),
+        units: excelParsedUnits,
+      });
+
+      setExcelReport({
+        success: res.failedCount === 0,
+        importedCount: res.importedCount,
+        failedCount: res.failedCount,
+        errors: res.errors || [],
+      });
+
+      if (res.importedCount > 0) {
+        fetchVehicles();
+        fetchDependencies();
+      }
+    } catch (err: any) {
+      setExcelError(err.response?.data?.message || 'Failed to execute Excel import');
+    } finally {
+      setSubmittingExcel(false);
+    }
+  };
+
+  // Edit Vehicle Unit Handlers
+  const handleOpenEditVehicle = (v: VehicleUnit) => {
+    setEditingVehicle(v);
+    setEditVehicleForm({
+      itemId: v.itemId,
+      chassisNumber: v.chassisNumber,
+      engineNumber: v.engineNumber,
+      currentWarehouseId: v.currentWarehouseId ? v.currentWarehouseId.toString() : '',
+      productionImportInfo: v.productionImportInfo || '',
+    });
+    setEditVehicleError(null);
+  };
+
+  const handleUpdateVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVehicle) return;
+    if (!editVehicleForm.chassisNumber.trim()) {
+      setEditVehicleError('Chassis Number is required');
+      return;
+    }
+    if (!editVehicleForm.engineNumber.trim()) {
+      setEditVehicleError('Engine Number is required');
+      return;
+    }
+
+    setSubmittingEditVehicle(true);
+    setEditVehicleError(null);
+    try {
+      await api.updateVehicle(editingVehicle.vehicleUnitId, {
+        itemId: editVehicleForm.itemId,
+        chassisNumber: editVehicleForm.chassisNumber.trim().toUpperCase(),
+        engineNumber: editVehicleForm.engineNumber.trim().toUpperCase(),
+        currentWarehouseId: editVehicleForm.currentWarehouseId ? Number(editVehicleForm.currentWarehouseId) : undefined,
+        productionImportInfo: editVehicleForm.productionImportInfo.trim() || undefined,
+      });
+      setEditingVehicle(null);
+      fetchVehicles();
+    } catch (err: any) {
+      setEditVehicleError(err.response?.data?.message || 'Failed to update vehicle unit');
+    } finally {
+      setSubmittingEditVehicle(false);
     }
   };
 
@@ -345,13 +622,28 @@ export const VehiclesPage: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
             {canManageWarehouses && (
-            <button className="btn btn-secondary" onClick={() => setIsWarehouseModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button className="btn btn-secondary" onClick={() => { setWarehouseActionError(null); setIsWarehouseModalOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <WarehouseIcon size={16} color="var(--accent-cyan)" /> + Warehouse
             </button>
             )}
             {canBulkImportVehicles && (
             <button className="btn btn-secondary" onClick={handleOpenBulk} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <FileSpreadsheet size={16} color="var(--accent-emerald)" /> Bulk Import CSV
+            </button>
+            )}
+            {canBulkImportVehicles && (
+            <button
+              className="btn btn-secondary"
+              onClick={handleOpenExcelImport}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                borderColor: 'rgba(16, 185, 129, 0.4)',
+                color: 'var(--accent-emerald)',
+              }}
+            >
+              <FileSpreadsheet size={16} /> Excel Import
             </button>
             )}
             {canCreateVehicle && (
@@ -567,15 +859,28 @@ export const VehiclesPage: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                      {canUpdateVehicleStatus && (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleOpenStatusModal(v)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.4rem 0.75rem' }}
-                      >
-                        <Edit2 size={13} /> Update Status
-                      </button>
-                      )}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}>
+                        {canEditVehicle && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleOpenEditVehicle(v)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                            title="Edit Vehicle Details"
+                          >
+                            <Edit2 size={12} /> Edit
+                          </button>
+                        )}
+                        {canUpdateVehicleStatus && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleOpenStatusModal(v)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                            title="Update Lifecycle Status"
+                          >
+                            <Layers size={12} /> Status
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -923,53 +1228,561 @@ export const VehiclesPage: React.FC = () => {
         </div>
       )}
 
-      {/* QUICK ADD WAREHOUSE MODAL */}
-
+      {/* WAREHOUSE MANAGER MODAL */}
       {isWarehouseModalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '440px' }}>
+          <div className="modal-content" style={{ maxWidth: '620px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <WarehouseIcon size={20} color="var(--accent-cyan)" />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>+ Add Warehouse</h3>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <WarehouseIcon size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Manage Warehouses & Storage Hubs</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Add new storage hubs or modify and remove existing depots
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => setIsWarehouseModalOpen(false)}
+                onClick={() => {
+                  setIsWarehouseModalOpen(false);
+                  setEditingWarehouseId(null);
+                  setWarehouseActionError(null);
+                }}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleCreateWarehouse}>
-              <div className="modal-body">
-                <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label className="form-label">Warehouse Name *</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="e.g. Hawassa Distribution Hub"
-                    required
-                    value={newWarehouseName}
-                    onChange={(e) => setNewWarehouseName(e.target.value)}
-                  />
+
+            <div className="modal-body">
+              {warehouseActionError && (
+                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.85rem' }}>{warehouseActionError}</span>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Location / Address</label>
+              )}
+
+              {/* Add New Warehouse Box */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1.25rem',
+                marginBottom: '1.5rem',
+              }}>
+                <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.75rem' }}>
+                  + Add New Warehouse
+                </h4>
+                <form onSubmit={handleCreateWarehouse}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.75rem' }}>Warehouse Name *</label>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="e.g. Hawassa Distribution Hub"
+                        required
+                        value={newWarehouseName}
+                        onChange={(e) => setNewWarehouseName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.75rem' }}>Location / Address</label>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="e.g. Hawassa Industrial Park, Sidama"
+                        value={newWarehouseLocation}
+                        onChange={(e) => setNewWarehouseLocation(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="submit" className="btn btn-cyan btn-sm" disabled={creatingWarehouse}>
+                      {creatingWarehouse ? 'Saving...' : 'Save Warehouse'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Existing Warehouses List */}
+              <div>
+                <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+                  Existing Warehouses ({warehouses.length})
+                </h4>
+
+                <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: 'var(--radius-md)' }}>
+                  <table style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255, 255, 255, 0.04)', textAlign: 'left', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                        <th style={{ padding: '0.65rem 0.85rem', color: 'var(--text-secondary)' }}>Warehouse</th>
+                        <th style={{ padding: '0.65rem 0.85rem', color: 'var(--text-secondary)' }}>Location</th>
+                        <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-secondary)', width: '130px' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {warehouses.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            No warehouses configured yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        warehouses.map((w) => {
+                          const isEditing = editingWarehouseId === w.warehouseId;
+                          return (
+                            <tr key={w.warehouseId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                              {isEditing ? (
+                                <>
+                                  <td style={{ padding: '0.5rem 0.85rem' }}>
+                                    <input
+                                      type="text"
+                                      className="input-field"
+                                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
+                                      value={editingWarehouseName}
+                                      onChange={(e) => setEditingWarehouseName(e.target.value)}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '0.5rem 0.85rem' }}>
+                                    <input
+                                      type="text"
+                                      className="input-field"
+                                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
+                                      value={editingWarehouseLocation}
+                                      onChange={(e) => setEditingWarehouseLocation(e.target.value)}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '0.5rem 0.85rem', textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                                      <button
+                                        type="button"
+                                        className="btn btn-indigo btn-sm"
+                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem' }}
+                                        onClick={handleSaveEditWarehouse}
+                                        disabled={savingWarehouse}
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem' }}
+                                        onClick={handleCancelEditWarehouse}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td style={{ padding: '0.65rem 0.85rem' }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{w.warehouseName}</div>
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.85rem', color: 'var(--text-secondary)' }}>
+                                    {w.location || '—'}
+                                  </td>
+                                  <td style={{ padding: '0.65rem 0.85rem', textAlign: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '0.25rem 0.45rem', fontSize: '0.72rem' }}
+                                        onClick={() => handleStartEditWarehouse(w)}
+                                        title="Edit Warehouse"
+                                      >
+                                        <Edit2 size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '0.25rem 0.45rem', fontSize: '0.72rem', color: 'var(--accent-rose)' }}
+                                        onClick={() => handleDeleteWarehouse(w)}
+                                        title="Delete Warehouse"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setIsWarehouseModalOpen(false);
+                  setEditingWarehouseId(null);
+                  setWarehouseActionError(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXCEL IMPORT MODAL */}
+      {isExcelOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '800px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <FileSpreadsheet size={22} color="var(--accent-emerald)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Excel Import Vehicle Units (.xlsx)</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Download official spreadsheet template, fill unit details, and upload for intake
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExcelOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {excelError && (
+                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.85rem' }}>{excelError}</span>
+                </div>
+              )}
+
+              {/* Step 1 & Configuration */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1rem',
+                marginBottom: '1.25rem',
+              }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.75rem' }}>
+                  Step 1: Target Model & Intake Location
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Target Product Model *</label>
+                    <select
+                      className="select-field"
+                      value={excelItemId}
+                      onChange={(e) => setExcelItemId(e.target.value)}
+                    >
+                      {items.map((i) => (
+                        <option key={i.itemId} value={i.itemId}>
+                          {i.itemCode} — {i.itemName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Intake Warehouse *</label>
+                    <select
+                      className="select-field"
+                      value={excelWarehouseId}
+                      onChange={(e) => setExcelWarehouseId(e.target.value)}
+                    >
+                      {warehouses.map((w) => (
+                        <option key={w.warehouseId} value={w.warehouseId}>
+                          {w.warehouseName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Download Template & Upload */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1rem',
+                marginBottom: '1.25rem',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                    Step 2: Template & File Upload
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleDownloadExcelTemplate}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontSize: '0.75rem',
+                      borderColor: 'rgba(16, 185, 129, 0.4)',
+                      color: 'var(--accent-emerald)',
+                    }}
+                  >
+                    <Download size={13} /> Download Template (.xlsx)
+                  </button>
+                </div>
+
+                <div style={{
+                  border: '2px dashed rgba(255, 255, 255, 0.15)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1.5rem',
+                  textAlign: 'center',
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  cursor: 'pointer',
+                  position: 'relative',
+                }}>
                   <input
-                    type="text"
-                    className="input-field"
-                    placeholder="e.g. Hawassa Industrial Park, Sidama"
-                    value={newWarehouseLocation}
-                    onChange={(e) => setNewWarehouseLocation(e.target.value)}
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleExcelFileChange}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      opacity: 0,
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <Upload size={28} color="var(--accent-cyan)" style={{ marginBottom: '0.5rem' }} />
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {excelFileName ? excelFileName : 'Click to select or drag and drop Excel spreadsheet'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Supported formats: .xlsx, .xls (columns: Chassis Number, Engine Number, Production / Import Info)
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Parsed Data Preview */}
+              {excelParsedUnits.length > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Parsed Preview: <span style={{ color: 'var(--accent-emerald)' }}>{excelParsedUnits.length} Units Ready</span>
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Showing first {Math.min(excelParsedUnits.length, 5)} units
+                    </span>
+                  </div>
+                  <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)' }}>
+                    <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255, 255, 255, 0.05)', textAlign: 'left' }}>
+                          <th style={{ padding: '0.5rem 0.75rem' }}>#</th>
+                          <th style={{ padding: '0.5rem 0.75rem' }}>Chassis Number</th>
+                          <th style={{ padding: '0.5rem 0.75rem' }}>Engine Number</th>
+                          <th style={{ padding: '0.5rem 0.75rem' }}>Import / Batch Info</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {excelParsedUnits.slice(0, 5).map((u, idx) => (
+                          <tr key={idx} style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <td style={{ padding: '0.45rem 0.75rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                            <td style={{ padding: '0.45rem 0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>{u.chassisNumber}</td>
+                            <td style={{ padding: '0.45rem 0.75rem', color: 'var(--accent-amber)', fontWeight: 600 }}>{u.engineNumber}</td>
+                            <td style={{ padding: '0.45rem 0.75rem', color: 'var(--text-secondary)' }}>{u.productionImportInfo || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Import Report */}
+              {excelReport && (
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: excelReport.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                  border: `1px solid ${excelReport.success ? 'var(--accent-emerald)' : 'var(--accent-amber)'}`,
+                  marginTop: '1rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: excelReport.success ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>
+                    {excelReport.success ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                    <span>{excelReport.success ? 'Excel Import Complete!' : 'Import Partially Completed'}</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', marginTop: '0.4rem', color: 'var(--text-secondary)' }}>
+                    Successfully imported <strong>{excelReport.importedCount}</strong> units.
+                    {excelReport.failedCount > 0 && ` Failed / Skipped: ${excelReport.failedCount}`}
+                  </div>
+                  {excelReport.errors && excelReport.errors.length > 0 && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--accent-rose)', maxHeight: '100px', overflowY: 'auto' }}>
+                      {excelReport.errors.map((err, i) => (
+                        <div key={i}>• {err}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setIsExcelOpen(false)}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-cyan"
+                onClick={handleExecuteExcelImport}
+                disabled={submittingExcel || excelParsedUnits.length === 0}
+              >
+                {submittingExcel ? 'Importing Excel...' : `Import ${excelParsedUnits.length} Units from Excel`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT VEHICLE UNIT MODAL */}
+      {editingVehicle && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Edit2 size={20} color="var(--accent-indigo)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Edit Vehicle Unit</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Update chassis, engine, warehouse depot, or shipment batch information
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingVehicle(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateVehicle}>
+              <div className="modal-body">
+                {editVehicleError && (
+                  <div className="alert-banner-danger" style={{ marginBottom: '1.25rem' }}>
+                    {editVehicleError}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Product Model *</label>
+                  <select
+                    className="select-field"
+                    required
+                    value={editVehicleForm.itemId}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, itemId: e.target.value })}
+                  >
+                    {items.map((i) => (
+                      <option key={i.itemId} value={i.itemId}>
+                        {i.itemCode} — {i.itemName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Chassis Number (VIN) *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      required
+                      value={editVehicleForm.chassisNumber}
+                      onChange={(e) => setEditVehicleForm({ ...editVehicleForm, chassisNumber: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Engine Number *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      required
+                      value={editVehicleForm.engineNumber}
+                      onChange={(e) => setEditVehicleForm({ ...editVehicleForm, engineNumber: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Warehouse Depot Location</label>
+                  <select
+                    className="select-field"
+                    value={editVehicleForm.currentWarehouseId}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, currentWarehouseId: e.target.value })}
+                  >
+                    <option value="">Unassigned</option>
+                    {warehouses.map((w) => (
+                      <option key={w.warehouseId} value={w.warehouseId}>
+                        {w.warehouseName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Import / Production Information</label>
+                  <textarea
+                    className="textarea-field"
+                    rows={2}
+                    value={editVehicleForm.productionImportInfo}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, productionImportInfo: e.target.value })}
                   />
                 </div>
               </div>
+
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsWarehouseModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingVehicle(null)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-cyan" disabled={creatingWarehouse}>
-                  {creatingWarehouse ? 'Saving...' : 'Save Warehouse'}
+                <button type="submit" className="btn btn-indigo" disabled={submittingEditVehicle}>
+                  {submittingEditVehicle ? 'Saving Changes...' : 'Save Unit Changes'}
                 </button>
               </div>
             </form>

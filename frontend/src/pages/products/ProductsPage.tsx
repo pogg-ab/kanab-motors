@@ -29,6 +29,7 @@ import { usePermissions } from '../../authz/usePermissions';
 export const ProductsPage: React.FC = () => {
   const { can } = usePermissions();
   const canCreateProduct = can('PRODUCTS_CREATE');
+  const canEditProduct = can('PRODUCTS_EDIT') || can('PRODUCTS_CREATE');
   const canManageCategories = can('PRODUCTS_CATEGORIES_MANAGE');
   const [items, setItems] = useState<ProductItem[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -44,6 +45,21 @@ export const ProductsPage: React.FC = () => {
 
   // Modals & Reference Data Management
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    itemCode: '',
+    itemName: '',
+    categoryId: '' as string | number,
+    brandId: '' as string | number,
+    model: '',
+    uomId: '' as string | number,
+    sellingPrice: '',
+    taxConfigId: '' as string | number,
+    reorderLevel: '5',
+    weightKg: '',
+  });
+  const [editProductError, setEditProductError] = useState<string | null>(null);
+  const [editProductSubmitting, setEditProductSubmitting] = useState(false);
 
   // Category Management State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -203,6 +219,57 @@ export const ProductsPage: React.FC = () => {
       setFormError(err.response?.data?.message || 'Failed to create product item');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleOpenEditProduct = (item: ProductItem) => {
+    setEditingProduct(item);
+    setEditFormData({
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      categoryId: item.categoryId || (item.category?.categoryId ?? ''),
+      brandId: item.brandId || (item.brand?.brandId ?? ''),
+      model: item.model || '',
+      uomId: item.uomId || (item.uom?.uomId ?? ''),
+      sellingPrice: String(item.sellingPrice ?? ''),
+      taxConfigId: item.taxConfigId || (item.taxConfig?.taxConfigId ?? ''),
+      reorderLevel: String(item.reorderLevel ?? '5'),
+      weightKg: item.weightKg !== undefined && item.weightKg !== null ? String(item.weightKg) : '',
+    });
+    setEditProductError(null);
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    setEditProductError(null);
+
+    const price = parseFloat(editFormData.sellingPrice);
+    if (isNaN(price) || price <= 0) {
+      setEditProductError('Selling price must be a valid positive number');
+      return;
+    }
+
+    setEditProductSubmitting(true);
+    try {
+      await api.updateItem(editingProduct.itemId, {
+        itemCode: editFormData.itemCode.trim().toUpperCase(),
+        itemName: editFormData.itemName.trim(),
+        categoryId: Number(editFormData.categoryId),
+        brandId: editFormData.brandId ? Number(editFormData.brandId) : undefined,
+        model: editFormData.model.trim() || undefined,
+        uomId: Number(editFormData.uomId),
+        sellingPrice: price,
+        taxConfigId: editFormData.taxConfigId ? Number(editFormData.taxConfigId) : undefined,
+        reorderLevel: Number(editFormData.reorderLevel) || 0,
+        weightKg: editFormData.weightKg ? Number(editFormData.weightKg) : undefined,
+      });
+      setEditingProduct(null);
+      await fetchItems();
+    } catch (err: any) {
+      setEditProductError(err.response?.data?.message || 'Failed to update product item');
+    } finally {
+      setEditProductSubmitting(false);
     }
   };
 
@@ -592,18 +659,19 @@ export const ProductsPage: React.FC = () => {
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tax Config</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Physical Stock</th>
                 <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reorder Alert</th>
+                <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                     Loading product catalog...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                     No product models found. Click "+ New Product Item" to register your first model.
                   </td>
                 </tr>
@@ -660,6 +728,24 @@ export const ProductsPage: React.FC = () => {
                         <span className="badge badge-emerald">
                           <CheckCircle2 size={12} /> Adequate
                         </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                      {canEditProduct && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenEditProduct(item)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.75rem',
+                            padding: '0.35rem 0.65rem',
+                          }}
+                          title="Edit Product Model"
+                        >
+                          <Edit2 size={12} /> Edit
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -866,6 +952,203 @@ export const ProductsPage: React.FC = () => {
                 </button>
                 <button type="submit" className="btn btn-cyan" disabled={submitting}>
                   {submitting ? 'Saving...' : 'Register Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PRODUCT MODAL */}
+      {editingProduct && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Edit2 size={20} color="var(--accent-indigo)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Edit Product Item (Model)</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Update specifications and pricing for {editingProduct.itemName} ({editingProduct.itemCode})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingProduct(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProduct}>
+              <div className="modal-body">
+                {editProductError && (
+                  <div className="alert-banner-danger">
+                    {editProductError}
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Item Code (SKU / Model Code) *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      required
+                      value={editFormData.itemCode}
+                      onChange={(e) => setEditFormData({ ...editFormData, itemCode: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Item Name *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      required
+                      value={editFormData.itemName}
+                      onChange={(e) => setEditFormData({ ...editFormData, itemName: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Vehicle Category *</label>
+                    <select
+                      className="select-field"
+                      required
+                      value={editFormData.categoryId}
+                      onChange={(e) => setEditFormData({ ...editFormData, categoryId: e.target.value })}
+                    >
+                      {categories.map((c) => (
+                        <option key={c.categoryId} value={c.categoryId}>
+                          {c.categoryName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Brand</label>
+                    <select
+                      className="select-field"
+                      value={editFormData.brandId}
+                      onChange={(e) => setEditFormData({ ...editFormData, brandId: e.target.value })}
+                    >
+                      <option value="">Select Brand</option>
+                      {brands.map((b) => (
+                        <option key={b.brandId} value={b.brandId}>
+                          {b.brandName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Model Specifics</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={editFormData.model}
+                      onChange={(e) => setEditFormData({ ...editFormData, model: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Unit of Measure (UoM) *</label>
+                    <select
+                      className="select-field"
+                      required
+                      value={editFormData.uomId}
+                      onChange={(e) => setEditFormData({ ...editFormData, uomId: e.target.value })}
+                    >
+                      {uoms.map((u) => (
+                        <option key={u.uomId} value={u.uomId}>
+                          {u.uomName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Selling Price (ETB) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input-field"
+                      required
+                      value={editFormData.sellingPrice}
+                      onChange={(e) => setEditFormData({ ...editFormData, sellingPrice: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">VAT / Tax Configuration</label>
+                    <select
+                      className="select-field"
+                      value={editFormData.taxConfigId}
+                      onChange={(e) => setEditFormData({ ...editFormData, taxConfigId: e.target.value })}
+                    >
+                      {taxConfigs.map((t) => (
+                        <option key={t.taxConfigId} value={t.taxConfigId}>
+                          {t.taxName} ({t.taxRatePct}%)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Reorder Level (Alert Threshold)</label>
+                    <input
+                      type="number"
+                      className="input-field"
+                      value={editFormData.reorderLevel}
+                      onChange={(e) => setEditFormData({ ...editFormData, reorderLevel: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Weight per Unit (KG)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      className="input-field"
+                      value={editFormData.weightKg}
+                      onChange={(e) => setEditFormData({ ...editFormData, weightKg: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingProduct(null)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-indigo" disabled={editProductSubmitting}>
+                  {editProductSubmitting ? 'Saving Changes...' : 'Save Changes'}
                 </button>
               </div>
             </form>

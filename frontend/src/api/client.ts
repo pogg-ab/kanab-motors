@@ -185,6 +185,7 @@ export interface ProductItem {
   taxConfigId?: number;
   taxConfig?: TaxConfiguration;
   reorderLevel: number;
+  weightKg?: number;
   isActive: boolean;
   createdAt: string;
   totalUnits?: number;
@@ -645,6 +646,10 @@ export const api = {
   getWarehouses: () => apiClient.get<Warehouse[]>('/lookups/warehouses').then((r) => r.data),
   createWarehouse: (name: string, location?: string) =>
     apiClient.post<Warehouse>('/lookups/warehouses', { name, location }).then((r) => r.data),
+  updateWarehouse: (id: number, name: string, location?: string) =>
+    apiClient.put<Warehouse>(`/lookups/warehouses/${id}`, { name, location }).then((r) => r.data),
+  deleteWarehouse: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/lookups/warehouses/${id}`).then((r) => r.data),
 
   // Audit Logs
   getAuditLogs: (params?: { entityType?: string; limit?: number }) =>
@@ -725,6 +730,8 @@ export const api = {
       .then((r) => r.data),
   createVehicle: (data: any) =>
     apiClient.post<VehicleUnit>('/vehicles', data).then((r) => r.data),
+  updateVehicle: (id: string, data: any) =>
+    apiClient.put<VehicleUnit>(`/vehicles/${id}`, data).then((r) => r.data),
   updateVehicleStatus: (id: string, status: string, warehouseId?: number) =>
     apiClient.patch<VehicleUnit>(`/vehicles/${id}/status`, { status, warehouseId }).then((r) => r.data),
   bulkImportVehicles: (data: any) =>

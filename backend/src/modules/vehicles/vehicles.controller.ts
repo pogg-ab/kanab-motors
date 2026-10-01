@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Body,
   Param,
@@ -12,6 +13,7 @@ import {
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { VehiclesService } from './vehicles.service';
 import { CreateVehicleUnitDto } from './dto/create-vehicle-unit.dto';
+import { UpdateVehicleUnitDto } from './dto/update-vehicle-unit.dto';
 import { BulkImportVehicleDto } from './dto/bulk-import-vehicle.dto';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
@@ -43,6 +45,17 @@ export class VehiclesController {
   @ApiOperation({ summary: 'Get single vehicle unit details' })
   findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.vehiclesService.findOne(id);
+  }
+
+  @RequirePermissions('VEHICLES_CREATE', 'VEHICLES_STATUS_UPDATE')
+  @Put(':id')
+  @ApiOperation({ summary: 'Update vehicle unit details (chassis, engine, warehouse, info)' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  update(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdateVehicleUnitDto,
+  ) {
+    return this.vehiclesService.update(id, dto);
   }
 
   @RequirePermissions('VEHICLES_STATUS_UPDATE')
