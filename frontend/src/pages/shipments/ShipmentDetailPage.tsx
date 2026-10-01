@@ -1631,32 +1631,43 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
               <div style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Physical Chassis (VIN) & Engine Numbers</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {receiptVehicles.map((v, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                      <input
-                        type="text"
-                        placeholder={`Chassis #${i + 1} (VIN)`}
-                        className="input-field"
-                        value={v.chassisNumber}
-                        onChange={(e) => {
-                          const updated = [...receiptVehicles];
-                          updated[i].chassisNumber = e.target.value.toUpperCase();
-                          setReceiptVehicles(updated);
-                        }}
-                        required
-                      />
-                      <input
-                        type="text"
-                        placeholder={`Engine #${i + 1}`}
-                        className="input-field"
-                        value={v.engineNumber}
-                        onChange={(e) => {
-                          const updated = [...receiptVehicles];
-                          updated[i].engineNumber = e.target.value.toUpperCase();
-                          setReceiptVehicles(updated);
-                        }}
-                      />
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.25rem' }}>
+                          Chassis / VIN #{i + 1} *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`Enter chassis / VIN #${i + 1}`}
+                          className="input-field"
+                          value={v.chassisNumber}
+                          onChange={(e) => {
+                            const updated = [...receiptVehicles];
+                            updated[i].chassisNumber = e.target.value.toUpperCase();
+                            setReceiptVehicles(updated);
+                          }}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.25rem' }}>
+                          Engine Number #{i + 1} *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`Enter engine number #${i + 1}`}
+                          className="input-field"
+                          value={v.engineNumber}
+                          onChange={(e) => {
+                            const updated = [...receiptVehicles];
+                            updated[i].engineNumber = e.target.value.toUpperCase();
+                            setReceiptVehicles(updated);
+                          }}
+                          required
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
