@@ -886,13 +886,26 @@ export const api = {
     apiClient.get<any>('/shipments/reports/pipeline').then((r) => r.data),
   getShipmentDocs: (shipmentId: string) =>
     apiClient.get<Attachment[]>(`/shipments/${shipmentId}/documents`).then((r) => r.data),
-  uploadShipmentDoc: (shipmentId: string, file: File, documentType: string) => {
+  uploadShipmentDoc: (
+    shipmentId: string,
+    file: File,
+    documentType: string,
+    onUploadProgress?: (progressPercent: number) => void,
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('documentType', documentType);
     return apiClient
       .post<Attachment>(`/shipments/${shipmentId}/documents`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (!onUploadProgress) return;
+          if (!progressEvent.total) {
+            onUploadProgress(1);
+            return;
+          }
+          onUploadProgress(Math.min(99, Math.round((progressEvent.loaded * 100) / progressEvent.total)));
+        },
       })
       .then((r) => r.data);
   },

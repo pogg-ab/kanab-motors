@@ -66,6 +66,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const [shipmentDocuments, setShipmentDocuments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<'tracking' | 'costs' | 'allocation' | 'docs' | 'receipt'>('allocation');
   const [loading, setLoading] = useState<boolean>(true);
+  const [documentUploadProgress, setDocumentUploadProgress] = useState<Record<string, number>>({});
 
   // Modals
   const [showCostModal, setShowCostModal] = useState<boolean>(false);
@@ -1097,6 +1098,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               { type: 'CUSTOMS_DECLARATION', label: 'Customs Declaration (MANDATORY)' },
             ].map((doc) => {
               const uploadedDoc = shipmentDocuments.find((d) => d.documentType === doc.type);
+              const uploadProgress = documentUploadProgress[doc.type];
+              const isUploadingDoc = uploadProgress !== undefined;
               return (
                 <div
                   key={doc.type}
@@ -1159,6 +1162,34 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     </div>
                   )}
 
+                  {isUploadingDoc && (
+                    <div
+                      style={{
+                        marginTop: '0.75rem',
+                        padding: '0.7rem',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(0, 210, 211, 0.08)',
+                        border: '1px solid rgba(0, 210, 211, 0.22)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.45rem' }}>
+                        <span>{uploadProgress >= 100 ? 'Finalizing upload...' : 'Uploading document...'}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{uploadProgress}%</span>
+                      </div>
+                      <div style={{ height: '7px', borderRadius: '999px', background: 'rgba(148, 163, 184, 0.22)', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            width: `${uploadProgress}%`,
+                            height: '100%',
+                            borderRadius: '999px',
+                            background: 'linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald))',
+                            transition: 'width 160ms ease-out',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <input
                     type="file"
                     id={`file-${doc.type}`}
@@ -1171,7 +1202,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       }
                       if (e.target.files && e.target.files[0]) {
                         try {
-                          const uploaded = await api.uploadShipmentDoc(shipmentId, e.target.files[0], doc.type);
+                          setDocumentUploadProgress((current) => ({ ...current, [doc.type]: 0 }));
+                          const uploaded = await api.uploadShipmentDoc(shipmentId, e.target.files[0], doc.type, (progress) => {
+                            setDocumentUploadProgress((current) => ({ ...current, [doc.type]: progress }));
+                          });
+                          setDocumentUploadProgress((current) => ({ ...current, [doc.type]: 100 }));
                           setShipmentDocuments((current) => [
                             uploaded,
                             ...current.filter((existing) => existing.documentType !== doc.type),
@@ -1180,6 +1215,12 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                         } catch (err: any) {
                           showToast('error', err.response?.data?.message || err.message || 'Upload failed');
                         } finally {
+                          setTimeout(() => {
+                            setDocumentUploadProgress((current) => {
+                              const { [doc.type]: _finished, ...remaining } = current;
+                              return remaining;
+                            });
+                          }, 650);
                           e.target.value = '';
                         }
                       }
@@ -1189,10 +1230,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                     <button
                       type="button"
                       onClick={() => document.getElementById(`file-${doc.type}`)?.click()}
+                      disabled={isUploadingDoc}
                       className="btn btn-secondary"
                       style={{ width: '100%', fontSize: '0.76rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                     >
-                      <Upload size={13} /> {uploadedDoc ? `Replace ${doc.label}` : `Upload ${doc.label}`}
+                      <Upload size={13} /> {isUploadingDoc ? `Uploading ${doc.label}...` : uploadedDoc ? `Replace ${doc.label}` : `Upload ${doc.label}`}
                     </button>
                   )}
                 </div>
