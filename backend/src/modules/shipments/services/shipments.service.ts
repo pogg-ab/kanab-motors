@@ -567,12 +567,16 @@ export class ShipmentsService {
       const anyReceived = freshLines.some((shipmentLine) => Number(shipmentLine.quantityReceived) > 0);
       if (allReceived || anyReceived) {
         const previousStage = shipment.currentStage;
-        shipment.currentStage = allReceived ? ShipmentStage.RECEIVED : shipment.currentStage;
-        if (allReceived && !shipment.actualArrivalDate) {
-          shipment.actualArrivalDate = new Date().toISOString().split('T')[0];
-        }
-        shipment.updatedBy = dto.userId;
-        await queryRunner.manager.save(Shipment, shipment);
+        const nextStage = allReceived ? ShipmentStage.RECEIVED : shipment.currentStage;
+        const actualArrivalDate = allReceived && !shipment.actualArrivalDate
+          ? new Date().toISOString().split('T')[0]
+          : shipment.actualArrivalDate;
+
+        await queryRunner.manager.update(Shipment, shipmentId, {
+          currentStage: nextStage,
+          actualArrivalDate,
+          updatedBy: dto.userId,
+        });
 
         if (allReceived && previousStage !== ShipmentStage.RECEIVED) {
           const history = queryRunner.manager.create(ShipmentStageHistory, {
@@ -794,3 +798,4 @@ export class ShipmentsService {
     };
   }
 }
+
