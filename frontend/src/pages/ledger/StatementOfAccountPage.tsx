@@ -21,6 +21,8 @@ import {
   LedgerTransaction,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const StatementOfAccountPage: React.FC = () => {
   const { can } = usePermissions();
@@ -115,7 +117,7 @@ export const StatementOfAccountPage: React.FC = () => {
       setAdjForm({ type: 'CREDIT', amount: '', reason: '', referenceNumber: '' });
       fetchStatement();
     } catch (err: any) {
-      setAdjError(err.response?.data?.message || 'Failed to post adjustment');
+      setAdjError(formatApiError(err, 'Failed to post ledger adjustment'));
     } finally {
       setSubmittingAdj(false);
     }
@@ -579,11 +581,7 @@ export const StatementOfAccountPage: React.FC = () => {
 
             <form onSubmit={handlePostAdjustment}>
               <div className="modal-body">
-                {adjError && (
-                  <div className="alert-banner-danger">
-                    {adjError}
-                  </div>
-                )}
+                <ModalErrorAlert error={adjError} onDismiss={() => setAdjError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Adjustment Direction *</label>

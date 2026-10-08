@@ -19,6 +19,8 @@ import {
   ProductItem,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const BookingsPage: React.FC = () => {
   const { can } = usePermissions();
@@ -77,6 +79,11 @@ export const BookingsPage: React.FC = () => {
     routeTo: 'REFUNDABLE',
   });
 
+  // Modal Error States
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
   const [saving, setSaving] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
 
@@ -101,7 +108,7 @@ export const BookingsPage: React.FC = () => {
       setCustomers(custRes.items || []);
       setProducts(prodRes.items || []);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to fetch bookings');
+      showToast('error', formatApiError(err, 'Failed to fetch bookings'));
     } finally {
       setLoading(false);
     }
@@ -140,8 +147,9 @@ export const BookingsPage: React.FC = () => {
   const handleCreateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateBooking) return;
+    setCreateError(null);
     if (!newBooking.customerId || !newBooking.itemId) {
-      showToast('error', 'Customer and Vehicle Item are required');
+      setCreateError('Customer and Vehicle Item are required');
       return;
     }
     setSaving(true);
@@ -157,6 +165,7 @@ export const BookingsPage: React.FC = () => {
       });
       showToast('success', 'Advance Booking created successfully!');
       setShowCreateModal(false);
+      setCreateError(null);
       setNewBooking({
         customerId: '',
         itemId: '',
@@ -168,7 +177,7 @@ export const BookingsPage: React.FC = () => {
       });
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to create booking');
+      setCreateError(formatApiError(err, 'Failed to create booking'));
     } finally {
       setSaving(false);
     }
@@ -178,8 +187,9 @@ export const BookingsPage: React.FC = () => {
     e.preventDefault();
     if (!canTransferFunds) return;
     if (!selectedBooking) return;
+    setTransferError(null);
     if (!transferData.destinationBookingId || transferData.amount <= 0) {
-      showToast('error', 'Please specify a destination booking and valid transfer amount');
+      setTransferError('Please specify a destination booking and valid transfer amount');
       return;
     }
     setSaving(true);
@@ -192,10 +202,11 @@ export const BookingsPage: React.FC = () => {
       });
       showToast('success', `ETB ${transferData.amount.toLocaleString()} transferred successfully`);
       setShowTransferModal(false);
+      setTransferError(null);
       setSelectedBooking(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Transfer failed');
+      setTransferError(formatApiError(err, 'Transfer failed'));
     } finally {
       setSaving(false);
     }
@@ -205,15 +216,17 @@ export const BookingsPage: React.FC = () => {
     e.preventDefault();
     if (!canCancelBooking) return;
     if (!selectedBooking) return;
+    setCancelError(null);
     setSaving(true);
     try {
       await api.cancelBooking(selectedBooking.bookingId, cancelData.reason, cancelData.routeTo);
       showToast('success', `Booking ${selectedBooking.bookingNumber} cancelled and deposits re-routed`);
       setShowCancelModal(false);
+      setCancelError(null);
       setSelectedBooking(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Cancellation failed');
+      setCancelError(formatApiError(err, 'Cancellation failed'));
     } finally {
       setSaving(false);
     }
@@ -600,6 +613,7 @@ export const BookingsPage: React.FC = () => {
 
             <form onSubmit={handleCreateBooking}>
               <div className="modal-body">
+                <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label className="form-label">Customer *</label>
@@ -758,6 +772,7 @@ export const BookingsPage: React.FC = () => {
 
             <form onSubmit={handleTransfer}>
               <div className="modal-body">
+                <ModalErrorAlert error={transferError} onDismiss={() => setTransferError(null)} />
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
                   Transfer funds from <strong style={{ color: 'var(--accent-cyan)' }}>{selectedBooking.bookingNumber}</strong> (Deposited balance:{' '}
                   <span style={{ color: 'var(--accent-emerald)', fontWeight: 700 }}>
@@ -855,6 +870,7 @@ export const BookingsPage: React.FC = () => {
 
             <form onSubmit={handleCancel}>
               <div className="modal-body">
+                <ModalErrorAlert error={cancelError} onDismiss={() => setCancelError(null)} />
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
                   Are you sure you want to cancel booking <strong style={{ color: 'var(--text-primary)' }}>{selectedBooking.bookingNumber}</strong>?
                 </p>

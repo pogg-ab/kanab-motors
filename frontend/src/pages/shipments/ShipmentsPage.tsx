@@ -28,6 +28,8 @@ import {
   PurchaseOrderLine,
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 interface ShipmentsPageProps {
   onSelectShipment?: (shipmentId: string) => void;
@@ -44,6 +46,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [shipmentError, setShipmentError] = useState<string | null>(null);
 
   // Form state
   const [newShipment, setNewShipment] = useState<{
@@ -82,7 +85,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
       setShipments(shipRes.items || []);
       setOpenPoLines(poLines);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load shipments');
+      showToast('error', formatApiError(err, 'Failed to load shipments'));
     } finally {
       setLoading(false);
     }
@@ -115,8 +118,9 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
 
   const handleCreateShipment = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShipmentError(null);
     if (newShipment.selectedLines.length === 0) {
-      showToast('error', 'Select at least one PO line for this shipment');
+      setShipmentError('Select at least one PO line for this shipment');
       return;
     }
     setSaving(true);
@@ -130,6 +134,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
       });
       showToast('success', `Shipment ${created.shipmentNumber} initialized successfully!`);
       setShowCreateModal(false);
+      setShipmentError(null);
       setNewShipment({
         billOfLadingNumber: '',
         expectedArrivalDate: '',
@@ -142,7 +147,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
         onSelectShipment(created.shipmentId);
       }
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to create shipment');
+      setShipmentError(formatApiError(err, 'Failed to create shipment'));
     } finally {
       setSaving(false);
     }
@@ -237,7 +242,10 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
           </button>
           {canCreateShipment && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                setShipmentError(null);
+                setShowCreateModal(true);
+              }}
               className="btn btn-cyan"
               style={{ fontSize: '0.85rem', padding: '0.55rem 1.15rem' }}
             >
@@ -877,6 +885,7 @@ export const ShipmentsPage: React.FC<ShipmentsPageProps> = ({ onSelectShipment }
             </div>
 
             <form onSubmit={handleCreateShipment}>
+              <ModalErrorAlert error={shipmentError} onDismiss={() => setShipmentError(null)} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div className="form-group">
                   <label className="form-label">Bill of Lading Number *</label>

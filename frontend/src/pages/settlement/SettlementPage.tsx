@@ -20,6 +20,8 @@ import {
   Customer,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const SettlementPage: React.FC = () => {
   const { can } = usePermissions();
@@ -42,6 +44,11 @@ export const SettlementPage: React.FC = () => {
   const [rejectingRefund, setRejectingRefund] = useState<CustomerRefund | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // In-modal error states
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   // Refund Form State
   const [newRefund, setNewRefund] = useState<{
@@ -84,7 +91,7 @@ export const SettlementPage: React.FC = () => {
       setRefunds(refRes.items || []);
       setCustomers(custRes.items || []);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load settlement data');
+      showToast('error', formatApiError(err, 'Failed to load settlement data'));
     } finally {
       setLoading(false);
     }
@@ -93,8 +100,9 @@ export const SettlementPage: React.FC = () => {
   const handleCreateRefund = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateRefund) return;
+    setRefundError(null);
     if (!newRefund.customerId || newRefund.refundAmount <= 0) {
-      showToast('error', 'Customer and positive refund amount are required');
+      setRefundError('Customer and positive refund amount are required');
       return;
     }
     setSaving(true);
@@ -102,6 +110,7 @@ export const SettlementPage: React.FC = () => {
       const created = await api.createRefund(newRefund);
       showToast('success', `Refund request ${created.refundNumber} submitted! Subject to available balance validation.`);
       setShowNewRefundModal(false);
+      setRefundError(null);
       setNewRefund({
         customerId: '',
         refundAmount: 0,
@@ -110,7 +119,7 @@ export const SettlementPage: React.FC = () => {
       });
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Refund submission failed');
+      setRefundError(formatApiError(err, 'Refund submission failed'));
     } finally {
       setSaving(false);
     }
@@ -135,7 +144,7 @@ export const SettlementPage: React.FC = () => {
       }
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Workflow action failed');
+      showToast('error', formatApiError(err, 'Workflow action failed'));
     } finally {
       setActioningId(null);
     }
@@ -144,7 +153,11 @@ export const SettlementPage: React.FC = () => {
   const handleRejectRefund = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRejectRefund) return;
-    if (!rejectingRefund || !rejectionReason.trim()) return;
+    setRejectError(null);
+    if (!rejectingRefund || !rejectionReason.trim()) {
+      setRejectError('Mandatory rejection explanation is required');
+      return;
+    }
     setSaving(true);
     try {
       await api.rejectRefund(rejectingRefund.refundId, rejectionReason.trim());
@@ -152,9 +165,10 @@ export const SettlementPage: React.FC = () => {
       setShowRejectModal(false);
       setRejectingRefund(null);
       setRejectionReason('');
+      setRejectError(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Refund rejection failed');
+      setRejectError(formatApiError(err, 'Refund rejection failed'));
     } finally {
       setSaving(false);
     }
@@ -163,14 +177,15 @@ export const SettlementPage: React.FC = () => {
   const handleRouteExcess = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRouteExcess) return;
+    setRouteError(null);
     if (!selectedCustomer) return;
     const available = Number(selectedCustomer.accountSummary?.excessPayments || 0);
     if (excessAmount <= 0) {
-      showToast('error', 'Please enter a valid amount greater than 0.');
+      setRouteError('Please enter a valid amount greater than 0.');
       return;
     }
     if (excessAmount > available) {
-      showToast('error', `Amount cannot exceed available unallocated excess of ETB ${available.toLocaleString()}.`);
+      setRouteError(`Amount cannot exceed available unallocated excess of ETB ${available.toLocaleString()}.`);
       return;
     }
 
@@ -187,9 +202,10 @@ export const SettlementPage: React.FC = () => {
       setShowExcessRouteModal(false);
       setSelectedCustomer(null);
       setExcessNotes('');
+      setRouteError(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Excess routing failed');
+      setRouteError(formatApiError(err, 'Excess routing failed'));
     } finally {
       setSaving(false);
     }
@@ -248,7 +264,14 @@ export const SettlementPage: React.FC = () => {
               Refresh
             </button>
             {canCreateRefund && (
-              <button onClick={() => setShowNewRefundModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                onClick={() => {
+                  setRefundError(null);
+                  setShowNewRefundModal(true);
+                }}
+                className="btn btn-cyan"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
                 <Plus size={16} />
                 Request Refund
               </button>
@@ -490,6 +513,7 @@ export const SettlementPage: React.FC = () => {
                             {r.status !== 'CONFIRMED' && r.status !== 'REJECTED' && canRejectRefund && (
                               <button
                                 onClick={() => {
+                                  setRejectError(null);
                                   setRejectingRefund(r);
                                   setRejectionReason('');
                                   setShowRejectModal(true);
@@ -580,6 +604,7 @@ export const SettlementPage: React.FC = () => {
                         {canRouteExcess && (
                         <button
                           onClick={() => {
+                            setRouteError(null);
                             setSelectedCustomer(c);
                             setExcessAmount(excess > 0 ? excess : 0);
                             setExcessNotes('');
@@ -623,6 +648,7 @@ export const SettlementPage: React.FC = () => {
 
             <form onSubmit={handleCreateRefund}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                <ModalErrorAlert error={refundError} onDismiss={() => setRefundError(null)} />
                 {(() => {
                   const selCust = customers.find((c) => c.customerId === newRefund.customerId);
                   const availRefundable = Number(selCust?.accountSummary?.refundableBalance || 0);
@@ -758,6 +784,7 @@ export const SettlementPage: React.FC = () => {
 
             <form onSubmit={handleRejectRefund}>
               <div className="modal-body">
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Mandatory Rejection Explanation *
@@ -847,6 +874,7 @@ export const SettlementPage: React.FC = () => {
 
             <form onSubmit={handleRouteExcess}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <ModalErrorAlert error={routeError} onDismiss={() => setRouteError(null)} />
                 {(() => {
                   const availableExcess = Number(selectedCustomer.accountSummary?.excessPayments || 0);
                   const currentCredit = Number(selectedCustomer.accountSummary?.availableCredit || 0);

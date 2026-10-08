@@ -21,6 +21,8 @@ import {
   WorkflowType,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const ApprovalsPage: React.FC = () => {
   const { any } = usePermissions();
@@ -38,6 +40,7 @@ export const ApprovalsPage: React.FC = () => {
   const [decisionModalMode, setDecisionModalMode] = useState<'APPROVE' | 'REJECT' | 'AUDIT' | null>(null);
   const [decisionComments, setDecisionComments] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -58,7 +61,7 @@ export const ApprovalsPage: React.FC = () => {
       setPolicies(policiesRes || []);
       setWorkflowTypes(typesRes || []);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load approval workflow data');
+      setErrorMsg(formatApiError(err, 'Failed to load approval workflow data'));
     } finally {
       setLoading(false);
     }
@@ -70,7 +73,7 @@ export const ApprovalsPage: React.FC = () => {
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setDecisionError(null);
       const decision = decisionModalMode === 'APPROVE' ? 'APPROVED' : 'REJECTED';
       const res = await api.recordApprovalDecision(selectedRequest.approvalRequestId, {
         decision,
@@ -81,9 +84,10 @@ export const ApprovalsPage: React.FC = () => {
       setSelectedRequest(null);
       setDecisionModalMode(null);
       setDecisionComments('');
+      setDecisionError(null);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to record approval decision');
+      setDecisionError(formatApiError(err, 'Failed to record approval decision'));
     } finally {
       setActionLoading(false);
     }
@@ -435,6 +439,7 @@ export const ApprovalsPage: React.FC = () => {
                           <>
                             <button
                               onClick={() => {
+                                setDecisionError(null);
                                 setSelectedRequest(req);
                                 setDecisionModalMode('APPROVE');
                               }}
@@ -450,6 +455,7 @@ export const ApprovalsPage: React.FC = () => {
                             </button>
                             <button
                               onClick={() => {
+                                setDecisionError(null);
                                 setSelectedRequest(req);
                                 setDecisionModalMode('REJECT');
                               }}
@@ -469,6 +475,7 @@ export const ApprovalsPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => {
+                              setDecisionError(null);
                               setSelectedRequest(req);
                               setDecisionModalMode('AUDIT');
                             }}
@@ -570,6 +577,7 @@ export const ApprovalsPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
+              <ModalErrorAlert error={decisionError} onDismiss={() => setDecisionError(null)} />
               <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                   <div>Request: <strong>{selectedRequest.requestNumber}</strong></div>

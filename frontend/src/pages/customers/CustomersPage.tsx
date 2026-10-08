@@ -34,6 +34,8 @@ import {
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const CustomersPage: React.FC = () => {
   const { showConfirm, showAlert } = useModal();
@@ -98,10 +100,12 @@ export const CustomersPage: React.FC = () => {
     accountHolderName: '',
     branch: '',
   });
+  const [bankError, setBankError] = useState<string | null>(null);
 
   // Selected file for document upload
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
 
   // Document Preview Modal State
   const [previewDoc, setPreviewDoc] = useState<Attachment | null>(null);
@@ -226,9 +230,7 @@ export const CustomersPage: React.FC = () => {
       setIsCreateOpen(false);
       fetchCustomers();
     } catch (err: any) {
-      setFormError(
-        err.response?.data?.message || 'Failed to create customer. Please check inputs.',
-      );
+      setFormError(formatApiError(err, 'Failed to create customer. Please check inputs.'));
     } finally {
       setSubmitting(false);
     }
@@ -236,6 +238,8 @@ export const CustomersPage: React.FC = () => {
 
   const handleViewCustomer = async (cust: Customer) => {
     try {
+      setBankError(null);
+      setDocError(null);
       const full = await api.getCustomer(cust.customerId);
       setSelectedCustomer(full);
       setActiveDetailTab('profile');
@@ -322,9 +326,7 @@ export const CustomersPage: React.FC = () => {
         setSelectedCustomer(updated);
       }
     } catch (err: any) {
-      setEditError(
-        err.response?.data?.message || err.message || 'Failed to update customer profile',
-      );
+      setEditError(formatApiError(err, 'Failed to update customer profile'));
     } finally {
       setEditSubmitting(false);
     }
@@ -334,17 +336,14 @@ export const CustomersPage: React.FC = () => {
     e.preventDefault();
     if (!canManageBank) return;
     if (!selectedCustomer) return;
+    setBankError(null);
     try {
       await api.addBankAccount(selectedCustomer.customerId, newBankForm);
       setNewBankForm({ bankName: '', accountNumber: '', accountHolderName: '', branch: '' });
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      showAlert({
-        title: 'Bank Account Error',
-        message: err.response?.data?.message || 'Failed to add bank account. Please review account details.',
-        variant: 'danger',
-      });
+      setBankError(formatApiError(err, 'Failed to add bank account. Please review account details.'));
     }
   };
 
@@ -363,11 +362,7 @@ export const CustomersPage: React.FC = () => {
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      showAlert({
-        title: 'Delete Failed',
-        message: 'Failed to delete bank account.',
-        variant: 'danger',
-      });
+      setBankError(formatApiError(err, 'Failed to delete bank account.'));
     }
   };
 
@@ -375,17 +370,14 @@ export const CustomersPage: React.FC = () => {
     if (!canUploadDocs) return;
     if (!selectedCustomer || !uploadFile) return;
     setUploading(true);
+    setDocError(null);
     try {
       await api.uploadCustomerDoc(selectedCustomer.customerId, uploadFile);
       setUploadFile(null);
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      showAlert({
-        title: 'Document Upload Failed',
-        message: err.response?.data?.message || 'Failed to upload document file.',
-        variant: 'danger',
-      });
+      setDocError(formatApiError(err, 'Failed to upload document file.'));
     } finally {
       setUploading(false);
     }
@@ -784,12 +776,7 @@ export const CustomersPage: React.FC = () => {
 
             <form onSubmit={handleCreateCustomer}>
               <div className="modal-body">
-                {formError && (
-                  <div className="alert-banner-danger">
-                    <AlertCircle size={18} />
-                    <span style={{ fontWeight: 600 }}>{formError}</span>
-                  </div>
-                )}
+                <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
                 {/* Customer Type Selector */}
                 <div className="form-group">
@@ -1043,12 +1030,7 @@ export const CustomersPage: React.FC = () => {
 
             <form onSubmit={handleUpdateCustomer}>
               <div className="modal-body">
-                {editError && (
-                  <div className="alert-banner-danger">
-                    <AlertCircle size={18} />
-                    <span style={{ fontWeight: 600 }}>{editError}</span>
-                  </div>
-                )}
+                <ModalErrorAlert error={editError} onDismiss={() => setEditError(null)} />
 
                 {/* Immutable System Identifier banner */}
                 <div style={{
@@ -1498,6 +1480,7 @@ export const CustomersPage: React.FC = () => {
               {/* TAB 3: BANKING DETAILS */}
               {activeDetailTab === 'banking' && (
                 <div>
+                  <ModalErrorAlert error={bankError} onDismiss={() => setBankError(null)} />
                   <div style={{ marginBottom: '1.25rem' }}>
                     <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                       Registered Bank Accounts
@@ -1593,6 +1576,7 @@ export const CustomersPage: React.FC = () => {
               {/* TAB 4: DOCUMENTS */}
               {activeDetailTab === 'documents' && (
                 <div>
+                  <ModalErrorAlert error={docError} onDismiss={() => setDocError(null)} />
                   {canUploadDocs && <div style={{
                     padding: '1.5rem',
                     border: '2px dashed var(--border-color)',

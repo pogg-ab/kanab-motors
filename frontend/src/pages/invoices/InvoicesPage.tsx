@@ -18,6 +18,8 @@ import {
 import { api, SalesInvoice, Booking } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const InvoicesPage: React.FC = () => {
   const { showConfirm, showAlert } = useModal();
@@ -37,6 +39,12 @@ export const InvoicesPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Modal Error States
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [rejectInvoiceId, setRejectInvoiceId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   // Form states for Invoice generation
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
@@ -58,7 +66,7 @@ export const InvoicesPage: React.FC = () => {
       setInvoices(invRes || []);
       setBookings(Array.isArray(bkgRes) ? bkgRes : (bkgRes as any)?.items || []);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load sales invoices and bookings');
+      setErrorMsg(formatApiError(err, 'Failed to load sales invoices and bookings'));
     } finally {
       setLoading(false);
     }
@@ -67,14 +75,15 @@ export const InvoicesPage: React.FC = () => {
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateInvoice) return;
+    setCreateError(null);
     if (!selectedBookingId) {
-      setErrorMsg('Please select a booking to invoice');
+      setCreateError('Please select a booking to invoice');
       return;
     }
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setCreateError(null);
       await api.createInvoice({
         bookingId: selectedBookingId,
         taxRate,
@@ -82,10 +91,11 @@ export const InvoicesPage: React.FC = () => {
       });
       setSuccessMsg('Sales invoice generated and submitted to approval workflow successfully!');
       setShowCreateModal(false);
+      setCreateError(null);
       setSelectedBookingId('');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to generate sales invoice');
+      setCreateError(formatApiError(err, 'Failed to generate sales invoice'));
     } finally {
       setActionLoading(false);
     }
@@ -112,27 +122,47 @@ export const InvoicesPage: React.FC = () => {
         setSelectedInvoice(null);
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to approve sales invoice');
+      const errText = formatApiError(err, 'Failed to approve sales invoice');
+      setErrorMsg(errText);
+      await showAlert({
+        title: 'Invoice Approval Failed',
+        message: errText,
+        variant: 'danger',
+      });
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleReject = async (invoiceId: string) => {
+  const handleOpenReject = (invoiceId: string) => {
     if (!canRejectInvoice) return;
-    const reason = window.prompt('Enter rejection reason:');
-    if (reason === null) return;
+    setRejectInvoiceId(invoiceId);
+    setRejectReason('');
+    setRejectError(null);
+  };
+
+  const handleRejectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canRejectInvoice || !rejectInvoiceId) return;
+    setRejectError(null);
+    if (!rejectReason.trim()) {
+      setRejectError('Please specify a mandatory audit reason for rejection');
+      return;
+    }
+
     try {
       setActionLoading(true);
-      setErrorMsg(null);
-      await api.rejectInvoice(invoiceId, reason || 'Invoice rejected');
+      await api.rejectInvoice(rejectInvoiceId, rejectReason.trim());
       setSuccessMsg('Sales invoice rejected.');
+      setRejectInvoiceId(null);
+      setRejectReason('');
+      setRejectError(null);
       await loadData();
-      if (selectedInvoice && selectedInvoice.invoiceId === invoiceId) {
+      if (selectedInvoice && selectedInvoice.invoiceId === rejectInvoiceId) {
         setSelectedInvoice(null);
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to reject sales invoice');
+      setRejectError(formatApiError(err, 'Failed to reject sales invoice'));
     } finally {
       setActionLoading(false);
     }
@@ -523,7 +553,7 @@ export const InvoicesPage: React.FC = () => {
                             )}
                             {canRejectInvoice && (
                             <button
-                              onClick={() => handleReject(inv.invoiceId)}
+                              onClick={() => handleOpenReject(inv.invoiceId)}
                               title="Reject Invoice"
                               style={{
                                 padding: '0.4rem',
@@ -579,6 +609,7 @@ export const InvoicesPage: React.FC = () => {
 
             <form onSubmit={handleCreateInvoice}>
               <div className="modal-body">
+                <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Target Booking Order *
@@ -789,7 +820,7 @@ export const InvoicesPage: React.FC = () => {
                   )}
                   {canRejectInvoice && (
                   <button
-                    onClick={() => handleReject(selectedInvoice.invoiceId)}
+                    onClick={() => handleOpenReject(selectedInvoice.invoiceId)}
                     className="btn btn-danger"
                   >
                     Reject
@@ -805,6 +836,83 @@ export const InvoicesPage: React.FC = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECT INVOICE MODAL */}
+      {rejectInvoiceId && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(244, 63, 94, 0.12)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-rose)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--accent-rose)' }}>
+                    Reject Sales Invoice
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Provide mandatory audit justification for invoice rejection
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectInvoiceId(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectSubmit}>
+              <div className="modal-body">
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Audit Rejection Reason *</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Enter reason for rejecting sales invoice..."
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setRejectInvoiceId(null)}
+                  className="btn btn-secondary"
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

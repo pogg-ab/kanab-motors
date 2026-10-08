@@ -37,6 +37,8 @@ import {
   ProductItem,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const InventoryPage: React.FC = () => {
   const { can } = usePermissions();
@@ -78,6 +80,10 @@ export const InventoryPage: React.FC = () => {
   const [showAdjustmentModal, setShowAdjustmentModal] = useState<boolean>(false);
   const [showProductionModal, setShowProductionModal] = useState<boolean>(false);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransfer | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
+  const [productionError, setProductionError] = useState<string | null>(null);
 
   // Form states - Transfer
   const [transferFromWh, setTransferFromWh] = useState<number>(1);
@@ -280,8 +286,9 @@ export const InventoryPage: React.FC = () => {
   const handleCreateTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateStockTransfer) return;
+    setTransferError(null);
     if (transferFromWh === transferToWh) {
-      showToast('error', 'Source and destination warehouse cannot be the same');
+      setTransferError('Source and destination warehouse cannot be the same');
       return;
     }
     setActionLoading(true);
@@ -298,12 +305,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', 'Inter-warehouse stock transfer requested successfully');
+      setTransferError(null);
       setShowTransferModal(false);
       setTransferVehicleUnitId('');
       setTransferQuantity(1);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to request transfer');
+      setTransferError(formatApiError(err, 'Failed to request transfer'));
     } finally {
       setActionLoading(false);
     }
@@ -317,7 +325,7 @@ export const InventoryPage: React.FC = () => {
       showToast('success', `Transfer #${transferId} approved`);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to approve transfer');
+      showToast('error', formatApiError(err, 'Failed to approve transfer'));
     } finally {
       setActionLoading(false);
     }
@@ -331,7 +339,7 @@ export const InventoryPage: React.FC = () => {
       showToast('success', `Transfer #${transferId} completed. Stock balances updated!`);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to complete transfer');
+      showToast('error', formatApiError(err, 'Failed to complete transfer'));
     } finally {
       setActionLoading(false);
     }
@@ -341,12 +349,13 @@ export const InventoryPage: React.FC = () => {
   const handleCreateStockReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateStockReceipt) return;
+    setReceiptError(null);
     if (!receiptItemId) {
-      showToast('error', 'Select a non-serialized stock item to receive');
+      setReceiptError('Select a non-serialized stock item to receive');
       return;
     }
     if (Number(receiptQuantity) <= 0) {
-      showToast('error', 'Quantity must be greater than zero');
+      setReceiptError('Quantity must be greater than zero');
       return;
     }
 
@@ -361,12 +370,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', 'Stock receipt posted and balance updated');
+      setReceiptError(null);
       setShowReceiptModal(false);
       setReceiptQuantity(1);
       setReceiptNotes('');
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to receive stock');
+      setReceiptError(formatApiError(err, 'Failed to receive stock'));
     } finally {
       setActionLoading(false);
     }
@@ -376,16 +386,17 @@ export const InventoryPage: React.FC = () => {
   const handleCreateAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateStockAdjustment) return;
+    setAdjustmentError(null);
     if (!adjReasonNotes.trim()) {
-      showToast('error', 'A detailed reason note is mandatory for audit compliance');
+      setAdjustmentError('A detailed reason note is mandatory for audit compliance');
       return;
     }
     if (!selectedAdjustmentBalance) {
-      showToast('error', 'Select an item with stock balance in this warehouse before creating an adjustment');
+      setAdjustmentError('Select an item with stock balance in this warehouse before creating an adjustment');
       return;
     }
     if (Number(selectedAdjustmentBalance.quantityOnHand) + Number(adjQuantityDelta) < 0) {
-      showToast('error', 'Adjustment would make stock quantity negative');
+      setAdjustmentError('Adjustment would make stock quantity negative');
       return;
     }
     setActionLoading(true);
@@ -399,12 +410,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', 'Stock adjustment request created and sent for approval');
+      setAdjustmentError(null);
       setShowAdjustmentModal(false);
       setAdjReasonNotes('');
       setAdjQuantityDelta(0);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to create adjustment');
+      setAdjustmentError(formatApiError(err, 'Failed to create adjustment'));
     } finally {
       setActionLoading(false);
     }
@@ -418,7 +430,7 @@ export const InventoryPage: React.FC = () => {
       showToast('success', `Adjustment #${adjustmentId} approved and posted to inventory`);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to approve adjustment');
+      showToast('error', formatApiError(err, 'Failed to approve adjustment'));
     } finally {
       setActionLoading(false);
     }
@@ -428,8 +440,9 @@ export const InventoryPage: React.FC = () => {
   const handleCreateProductionReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateProductionReceipt) return;
+    setProductionError(null);
     if (!prodChassis || !prodEngine) {
-      showToast('error', 'Chassis and engine numbers are required');
+      setProductionError('Chassis and engine numbers are required');
       return;
     }
     setActionLoading(true);
@@ -443,12 +456,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', `Locally assembled vehicle (${prodChassis}) received into inventory!`);
+      setProductionError(null);
       setShowProductionModal(false);
       setProdChassis('');
       setProdEngine('');
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to record production intake');
+      setProductionError(formatApiError(err, 'Failed to record production intake'));
     } finally {
       setActionLoading(false);
     }
@@ -1614,7 +1628,8 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateTransfer}>
               <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <ModalErrorAlert error={transferError} onDismiss={() => setTransferError(null)} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     From Warehouse
@@ -1810,6 +1825,7 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateStockReceipt}>
               <div className="modal-body">
+                <ModalErrorAlert error={receiptError} onDismiss={() => setReceiptError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     Warehouse
@@ -1982,7 +1998,8 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateAdjustment}>
               <div className="modal-body">
-              <div style={{ marginBottom: '1rem' }}>
+                <ModalErrorAlert error={adjustmentError} onDismiss={() => setAdjustmentError(null)} />
+                <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                   Warehouse
                 </label>
@@ -2158,7 +2175,8 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateProductionReceipt}>
               <div className="modal-body">
-              <div style={{ marginBottom: '1rem' }}>
+                <ModalErrorAlert error={productionError} onDismiss={() => setProductionError(null)} />
+                <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                   Model / Item
                 </label>

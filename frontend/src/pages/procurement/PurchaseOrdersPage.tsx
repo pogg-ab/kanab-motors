@@ -24,6 +24,8 @@ import {
   ExchangeRateDefault,
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 type PurchaseOrderFormLine = {
   itemId: string;
@@ -56,6 +58,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
+  const [poError, setPoError] = useState<string | null>(null);
 
   // Form State
   const [supplierId, setSupplierId] = useState<number | ''>('');
@@ -90,7 +93,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       setProducts(prodsRes.items || []);
       setExchangeRates(rates || []);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load purchase orders');
+      showToast('error', formatApiError(err, 'Failed to load purchase orders'));
     } finally {
       setLoading(false);
     }
@@ -135,6 +138,7 @@ export const PurchaseOrdersPage: React.FC = () => {
     setNotes('');
     setLines([{ itemId: '', quantityOrdered: 1, unitPrice: 0 }]);
     setEditingOrder(null);
+    setPoError(null);
   };
 
   const openCreateModal = () => {
@@ -143,6 +147,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   };
 
   const openEditModal = (order: PurchaseOrder) => {
+    setPoError(null);
     setEditingOrder(order);
     setSupplierId(order.supplierId);
     setCurrency(order.currency);
@@ -176,8 +181,9 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   const handleSavePO = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPoError(null);
     if (!supplierId) {
-      showToast('error', 'Supplier is required');
+      setPoError('Supplier partner is required');
       return;
     }
     const validLines = lines
@@ -188,7 +194,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         unitPrice: Number(line.unitPrice),
       }));
     if (validLines.length === 0) {
-      showToast('error', 'Please enter at least one valid line item');
+      setPoError('Please enter at least one valid line item with quantity and unit price greater than 0');
       return;
     }
 
@@ -213,7 +219,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       resetForm();
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to save PO');
+      setPoError(formatApiError(err, 'Failed to save purchase order'));
     } finally {
       setSaving(false);
     }
@@ -229,7 +235,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         setSelectedOrder(refreshed);
       }
     } catch (err: any) {
-      showToast('error', err.message || 'Status transition failed');
+      showToast('error', formatApiError(err, 'Status transition failed'));
     }
   };
 
@@ -571,6 +577,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
             <form onSubmit={handleSavePO}>
               <div className="modal-body">
+                <ModalErrorAlert error={poError} onDismiss={() => setPoError(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                   <div>
                     <label className="form-label">Supplier Partner *</label>

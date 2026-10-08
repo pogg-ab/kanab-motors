@@ -21,6 +21,8 @@ import {
   VehicleUnit,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const AllotmentPage: React.FC = () => {
   const { can } = usePermissions();
@@ -38,6 +40,11 @@ export const AllotmentPage: React.FC = () => {
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [showReverseModal, setShowReverseModal] = useState<boolean>(false);
   const [targetAllotment, setTargetAllotment] = useState<Allotment | null>(null);
+
+  // In-modal error states
+  const [allotmentError, setAllotmentError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const [reverseError, setReverseError] = useState<string | null>(null);
 
   // Form states
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
@@ -68,7 +75,7 @@ export const AllotmentPage: React.FC = () => {
       setAllotments(allotRes.items || []);
       setEligibleBookings(eligRes || []);
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to load allotment data');
+      showToast('error', formatApiError(err, 'Failed to load allotment data'));
     } finally {
       setLoading(false);
     }
@@ -90,13 +97,14 @@ export const AllotmentPage: React.FC = () => {
           setSelectedUnitIds([]);
         })
         .catch((err) => {
-          showToast('error', 'Failed to load matching available vehicles');
+          showToast('error', formatApiError(err, 'Failed to load matching available vehicles'));
         });
     }
   }, [selectedBookingId, eligibleBookings]);
 
   const handleOpenCreateModal = (presetBookingId?: string) => {
     if (!canAllocateBookings) return;
+    setAllotmentError(null);
     setSelectedBookingId(presetBookingId || (eligibleBookings.length > 0 ? eligibleBookings[0].bookingId : ''));
     setSelectedUnitIds([]);
     setAllotmentNotes('');
@@ -118,8 +126,9 @@ export const AllotmentPage: React.FC = () => {
   const handleCreateAllotment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canAllocateBookings) return;
+    setAllotmentError(null);
     if (!selectedBookingId || selectedUnitIds.length === 0) {
-      showToast('error', 'Please select a booking and at least one vehicle unit to allot');
+      setAllotmentError('Please select a booking and at least one vehicle unit to allot');
       return;
     }
 
@@ -135,9 +144,10 @@ export const AllotmentPage: React.FC = () => {
       setSelectedBookingId('');
       setSelectedUnitIds([]);
       setAllotmentNotes('');
+      setAllotmentError(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Allotment request creation failed');
+      setAllotmentError(formatApiError(err, 'Allotment request creation failed'));
     } finally {
       setSaving(false);
     }
@@ -151,7 +161,7 @@ export const AllotmentPage: React.FC = () => {
       showToast('success', `Allotment ${updated.allotmentNumber} approved! Physical vehicles are now marked ALLOTTED.`);
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Allotment approval failed');
+      showToast('error', formatApiError(err, 'Allotment approval failed'));
     } finally {
       setActioningId(null);
     }
@@ -160,7 +170,11 @@ export const AllotmentPage: React.FC = () => {
   const handleRejectAllotment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canAllocateBookings) return;
-    if (!targetAllotment || !rejectionReason.trim()) return;
+    setRejectError(null);
+    if (!targetAllotment || !rejectionReason.trim()) {
+      setRejectError('Mandatory rejection explanation is required');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -169,9 +183,10 @@ export const AllotmentPage: React.FC = () => {
       setShowRejectModal(false);
       setTargetAllotment(null);
       setRejectionReason('');
+      setRejectError(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Rejection failed');
+      setRejectError(formatApiError(err, 'Rejection failed'));
     } finally {
       setSaving(false);
     }
@@ -180,6 +195,7 @@ export const AllotmentPage: React.FC = () => {
   const handleReverseAllotment = async () => {
     if (!canAllocateBookings) return;
     if (!targetAllotment) return;
+    setReverseError(null);
 
     setSaving(true);
     try {
@@ -187,9 +203,10 @@ export const AllotmentPage: React.FC = () => {
       showToast('success', `Allotment ${targetAllotment.allotmentNumber} reversed! Physical vehicles returned to AVAILABLE_FOR_SALE.`);
       setShowReverseModal(false);
       setTargetAllotment(null);
+      setReverseError(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Allotment reversal failed');
+      setReverseError(formatApiError(err, 'Allotment reversal failed'));
     } finally {
       setSaving(false);
     }
@@ -514,6 +531,7 @@ export const AllotmentPage: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => {
+                                    setRejectError(null);
                                     setTargetAllotment(a);
                                     setRejectionReason('');
                                     setShowRejectModal(true);
@@ -529,6 +547,7 @@ export const AllotmentPage: React.FC = () => {
                             {a.status === 'APPROVED' && (
                               <button
                                 onClick={() => {
+                                  setReverseError(null);
                                   setTargetAllotment(a);
                                   setShowReverseModal(true);
                                 }}
@@ -696,6 +715,7 @@ export const AllotmentPage: React.FC = () => {
 
             <form onSubmit={handleCreateAllotment}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <ModalErrorAlert error={allotmentError} onDismiss={() => setAllotmentError(null)} />
                 {/* Booking Selection */}
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -875,6 +895,7 @@ export const AllotmentPage: React.FC = () => {
 
             <form onSubmit={handleRejectAllotment}>
               <div className="modal-body">
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Mandatory Rejection Explanation *
@@ -925,6 +946,7 @@ export const AllotmentPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
+              <ModalErrorAlert error={reverseError} onDismiss={() => setReverseError(null)} />
               <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
                 <div style={{ padding: '0.6rem', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)' }}>
                   <RotateCcw size={22} />

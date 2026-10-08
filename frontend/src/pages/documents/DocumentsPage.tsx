@@ -18,6 +18,7 @@ import {
   UnifiedDocumentItem,
   DocumentTypeRef,
 } from '../../api/client';
+import { formatApiError } from '../../utils/error';
 
 export const DocumentsPage: React.FC = () => {
   const [documents, setDocuments] = useState<UnifiedDocumentItem[]>([]);
@@ -43,7 +44,7 @@ export const DocumentsPage: React.FC = () => {
       setDocuments(docsRes || []);
       setDocTypes(typesRes || []);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load document center');
+      setErrorMsg(formatApiError(err, 'Failed to load document center'));
     } finally {
       setLoading(false);
     }
@@ -108,12 +109,31 @@ export const DocumentsPage: React.FC = () => {
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '0.75rem',
             boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <AlertCircle size={18} />
-          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{errorMsg}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{errorMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              padding: '0.2rem',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Dismiss"
+          >
+            ✕
+          </button>
         </div>
       )}
 

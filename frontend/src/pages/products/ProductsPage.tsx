@@ -26,6 +26,8 @@ import {
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const ProductsPage: React.FC = () => {
   const { showConfirm, showAlert } = useModal();
@@ -218,7 +220,7 @@ export const ProductsPage: React.FC = () => {
       setIsCreateOpen(false);
       fetchItems();
     } catch (err: any) {
-      setFormError(err.response?.data?.message || 'Failed to create product item');
+      setFormError(formatApiError(err, 'Failed to create product item'));
     } finally {
       setSubmitting(false);
     }
@@ -269,7 +271,7 @@ export const ProductsPage: React.FC = () => {
       setEditingProduct(null);
       await fetchItems();
     } catch (err: any) {
-      setEditProductError(err.response?.data?.message || 'Failed to update product item');
+      setEditProductError(formatApiError(err, 'Failed to update product item'));
     } finally {
       setEditProductSubmitting(false);
     }
@@ -288,7 +290,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setCatActionError(err.response?.data?.message || 'Failed to create category');
+      setCatActionError(formatApiError(err, 'Failed to create category'));
     } finally {
       setCatSaving(false);
     }
@@ -317,7 +319,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setCatActionError(err.response?.data?.message || 'Failed to update category');
+      setCatActionError(formatApiError(err, 'Failed to update category'));
     } finally {
       setCatSaving(false);
     }
@@ -337,7 +339,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setCatActionError(err.response?.data?.message || 'Failed to delete category');
+      setCatActionError(formatApiError(err, 'Failed to delete category'));
     }
   };
 
@@ -354,7 +356,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setBrandActionError(err.response?.data?.message || 'Failed to create brand');
+      setBrandActionError(formatApiError(err, 'Failed to create brand'));
     } finally {
       setBrandSaving(false);
     }
@@ -383,7 +385,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setBrandActionError(err.response?.data?.message || 'Failed to update brand');
+      setBrandActionError(formatApiError(err, 'Failed to update brand'));
     } finally {
       setBrandSaving(false);
     }
@@ -403,7 +405,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setBrandActionError(err.response?.data?.message || 'Failed to delete brand');
+      setBrandActionError(formatApiError(err, 'Failed to delete brand'));
     }
   };
 
@@ -421,7 +423,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setTaxActionError(err.response?.data?.message || 'Failed to create tax configuration');
+      setTaxActionError(formatApiError(err, 'Failed to create tax configuration'));
     } finally {
       setTaxSaving(false);
     }
@@ -455,7 +457,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setTaxActionError(err.response?.data?.message || 'Failed to update tax configuration');
+      setTaxActionError(formatApiError(err, 'Failed to update tax configuration'));
     } finally {
       setTaxSaving(false);
     }
@@ -475,7 +477,7 @@ export const ProductsPage: React.FC = () => {
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
-      setTaxActionError(err.response?.data?.message || 'Failed to delete tax configuration');
+      setTaxActionError(formatApiError(err, 'Failed to delete tax configuration'));
     }
   };
 
@@ -811,11 +813,7 @@ export const ProductsPage: React.FC = () => {
 
             <form onSubmit={handleCreateItem}>
               <div className="modal-body">
-                {formError && (
-                  <div className="alert-banner-danger">
-                    {formError}
-                  </div>
-                )}
+                <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
@@ -1015,11 +1013,7 @@ export const ProductsPage: React.FC = () => {
 
             <form onSubmit={handleUpdateProduct}>
               <div className="modal-body">
-                {editProductError && (
-                  <div className="alert-banner-danger">
-                    {editProductError}
-                  </div>
-                )}
+                <ModalErrorAlert error={editProductError} onDismiss={() => setEditProductError(null)} />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
@@ -1219,32 +1213,7 @@ export const ProductsPage: React.FC = () => {
             </div>
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {catActionError && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.75rem 1rem',
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: 'var(--radius-md)',
-                    color: '#f87171',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <AlertTriangle size={16} />
-                    <span>{catActionError}</span>
-                  </div>
-                  <button
-                    onClick={() => setCatActionError(null)}
-                    style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
+              <ModalErrorAlert error={catActionError} onDismiss={() => setCatActionError(null)} />
 
               {/* Add New Category Card */}
               <div
@@ -1438,32 +1407,7 @@ export const ProductsPage: React.FC = () => {
             </div>
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {brandActionError && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.75rem 1rem',
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: 'var(--radius-md)',
-                    color: '#f87171',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <AlertTriangle size={16} />
-                    <span>{brandActionError}</span>
-                  </div>
-                  <button
-                    onClick={() => setBrandActionError(null)}
-                    style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
+              <ModalErrorAlert error={brandActionError} onDismiss={() => setBrandActionError(null)} />
 
               {/* Add New Brand Card */}
               <div
@@ -1657,32 +1601,7 @@ export const ProductsPage: React.FC = () => {
             </div>
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {taxActionError && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.75rem 1rem',
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: 'var(--radius-md)',
-                    color: '#f87171',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <AlertTriangle size={16} />
-                    <span>{taxActionError}</span>
-                  </div>
-                  <button
-                    onClick={() => setTaxActionError(null)}
-                    style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
+              <ModalErrorAlert error={taxActionError} onDismiss={() => setTaxActionError(null)} />
 
               {/* Add New Tax Config Card */}
               <div

@@ -26,6 +26,8 @@ import {
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 const VEHICLE_STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'RECEIVED',
@@ -79,6 +81,7 @@ export const VehiclesPage: React.FC = () => {
   const [savingWarehouse, setSavingWarehouse] = useState(false);
   const [warehouseActionError, setWarehouseActionError] = useState<string | null>(null);
   const [statusModalUnit, setStatusModalUnit] = useState<VehicleUnit | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   // Excel Import State
   const [isExcelOpen, setIsExcelOpen] = useState(false);
@@ -223,7 +226,7 @@ export const VehiclesPage: React.FC = () => {
         }));
       }
     } catch (err: any) {
-      setWarehouseActionError(err.response?.data?.message || 'Failed to create warehouse');
+      setWarehouseActionError(formatApiError(err, 'Failed to create warehouse'));
     } finally {
       setCreatingWarehouse(false);
     }
@@ -259,7 +262,7 @@ export const VehiclesPage: React.FC = () => {
       setWarehouses(whs);
       fetchVehicles();
     } catch (err: any) {
-      setWarehouseActionError(err.response?.data?.message || 'Failed to update warehouse');
+      setWarehouseActionError(formatApiError(err, 'Failed to update warehouse'));
     } finally {
       setSavingWarehouse(false);
     }
@@ -282,7 +285,7 @@ export const VehiclesPage: React.FC = () => {
       setWarehouses(whs);
       fetchVehicles();
     } catch (err: any) {
-      setWarehouseActionError(err.response?.data?.message || 'Failed to delete warehouse');
+      setWarehouseActionError(formatApiError(err, 'Failed to delete warehouse'));
     }
   };
 
@@ -423,7 +426,7 @@ export const VehiclesPage: React.FC = () => {
         fetchDependencies();
       }
     } catch (err: any) {
-      setExcelError(err.response?.data?.message || 'Failed to execute Excel import');
+      setExcelError(formatApiError(err, 'Failed to execute Excel import'));
     } finally {
       setSubmittingExcel(false);
     }
@@ -467,7 +470,7 @@ export const VehiclesPage: React.FC = () => {
       setEditingVehicle(null);
       fetchVehicles();
     } catch (err: any) {
-      setEditVehicleError(err.response?.data?.message || 'Failed to update vehicle unit');
+      setEditVehicleError(formatApiError(err, 'Failed to update vehicle unit'));
     } finally {
       setSubmittingEditVehicle(false);
     }
@@ -490,7 +493,7 @@ export const VehiclesPage: React.FC = () => {
       setIsSingleOpen(false);
       fetchVehicles();
     } catch (err: any) {
-      setSingleError(err.response?.data?.message || 'Failed to register vehicle unit');
+      setSingleError(formatApiError(err, 'Failed to register vehicle unit'));
     } finally {
       setSubmittingSingle(false);
     }
@@ -553,9 +556,7 @@ export const VehiclesPage: React.FC = () => {
       setBulkReport(res);
       fetchVehicles();
     } catch (err: any) {
-      const msg = err.response?.data?.message;
-      const errMsg = Array.isArray(msg) ? msg.join('; ') : msg || 'Bulk import failed. Please verify your data.';
-      setBulkError(errMsg);
+      setBulkError(formatApiError(err, 'Bulk import failed. Please verify your data.'));
     } finally {
       setSubmittingBulk(false);
     }
@@ -565,6 +566,7 @@ export const VehiclesPage: React.FC = () => {
     if (!canUpdateVehicleStatus) return;
     const allowedNextStatuses = ALLOWED_STATUS_TRANSITIONS[unit.currentStatus] || [];
     setStatusModalUnit(unit);
+    setStatusError(null);
     setNewStatus(allowedNextStatuses[0] || unit.currentStatus);
     setNewWarehouseId(unit.currentWarehouseId ? unit.currentWarehouseId.toString() : '');
   };
@@ -573,6 +575,7 @@ export const VehiclesPage: React.FC = () => {
     e.preventDefault();
     if (!canUpdateVehicleStatus) return;
     if (!statusModalUnit) return;
+    setStatusError(null);
     try {
       await api.updateVehicleStatus(
         statusModalUnit.vehicleUnitId,
@@ -582,11 +585,7 @@ export const VehiclesPage: React.FC = () => {
       setStatusModalUnit(null);
       fetchVehicles();
     } catch (err: any) {
-      showAlert({
-        title: 'Status Transition Error',
-        message: err.response?.data?.message || 'Failed to update vehicle status. Direct unauthorized status jumps are strictly blocked.',
-        variant: 'danger',
-      });
+      setStatusError(formatApiError(err, 'Failed to update vehicle status. Direct unauthorized status jumps are strictly blocked.'));
     }
   };
 
@@ -940,11 +939,7 @@ export const VehiclesPage: React.FC = () => {
 
             <form onSubmit={handleCreateSingle}>
               <div className="modal-body">
-                {singleError && (
-                  <div className="alert-banner-danger">
-                    {singleError}
-                  </div>
-                )}
+                <ModalErrorAlert error={singleError} onDismiss={() => setSingleError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Product Model *</label>
@@ -1074,12 +1069,7 @@ export const VehiclesPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
-              {bulkError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem' }}>{bulkError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={bulkError} onDismiss={() => setBulkError(null)} />
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group">
@@ -1222,6 +1212,7 @@ export const VehiclesPage: React.FC = () => {
 
             <form onSubmit={handleUpdateStatus}>
               <div className="modal-body">
+                <ModalErrorAlert error={statusError} onDismiss={() => setStatusError(null)} />
                 <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Chassis Number:</div>
                   <div className="mono-code" style={{ color: 'var(--accent-blue)', display: 'inline-block', marginTop: '0.2rem' }}>
@@ -1328,12 +1319,7 @@ export const VehiclesPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
-              {warehouseActionError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem' }}>{warehouseActionError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={warehouseActionError} onDismiss={() => setWarehouseActionError(null)} />
 
               {/* Add New Warehouse Box */}
               <div style={{
@@ -1540,12 +1526,7 @@ export const VehiclesPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
-              {excelError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem' }}>{excelError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={excelError} onDismiss={() => setExcelError(null)} />
 
               {/* Step 1 & Configuration */}
               <div style={{
@@ -1769,11 +1750,7 @@ export const VehiclesPage: React.FC = () => {
 
             <form onSubmit={handleUpdateVehicle}>
               <div className="modal-body">
-                {editVehicleError && (
-                  <div className="alert-banner-danger" style={{ marginBottom: '1.25rem' }}>
-                    {editVehicleError}
-                  </div>
-                )}
+                <ModalErrorAlert error={editVehicleError} onDismiss={() => setEditVehicleError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Product Model *</label>

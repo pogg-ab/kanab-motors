@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { api, Supplier } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const SuppliersPage: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -29,6 +31,7 @@ export const SuppliersPage: React.FC = () => {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<{
@@ -67,7 +70,7 @@ export const SuppliersPage: React.FC = () => {
       const data = await api.getSuppliers();
       setSuppliers(data);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load suppliers');
+      showToast('error', formatApiError(err, 'Failed to load suppliers'));
     } finally {
       setLoading(false);
     }
@@ -75,8 +78,9 @@ export const SuppliersPage: React.FC = () => {
 
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSupplierError(null);
     if (!formData.supplierName.trim()) {
-      showToast('error', 'Supplier name is required');
+      setSupplierError('Supplier name is required');
       return;
     }
     setSaving(true);
@@ -90,6 +94,7 @@ export const SuppliersPage: React.FC = () => {
       }
       setShowCreateModal(false);
       setEditingSupplier(null);
+      setSupplierError(null);
       setFormData({
         supplierName: '',
         country: '',
@@ -101,7 +106,7 @@ export const SuppliersPage: React.FC = () => {
       });
       loadSuppliers();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to save supplier');
+      setSupplierError(formatApiError(err, 'Failed to save supplier'));
     } finally {
       setSaving(false);
     }
@@ -113,7 +118,7 @@ export const SuppliersPage: React.FC = () => {
       showToast('success', `Supplier status updated to ${!supplier.isActive ? 'Active' : 'Inactive'}`);
       loadSuppliers();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to update status');
+      showToast('error', formatApiError(err, 'Failed to update status'));
     }
   };
 
@@ -172,6 +177,7 @@ export const SuppliersPage: React.FC = () => {
           {canCreateSupplier && (
             <button
               onClick={() => {
+                setSupplierError(null);
                 setEditingSupplier(null);
                 setFormData({ supplierName: '', country: '', contactPerson: '', phone: '', email: '', address: '', isActive: true });
                 setShowCreateModal(true);
@@ -374,6 +380,7 @@ export const SuppliersPage: React.FC = () => {
                           <>
                             <button
                               onClick={() => {
+                                setSupplierError(null);
                                 setEditingSupplier(s);
                                 setFormData({
                                   supplierName: s.supplierName,
@@ -444,6 +451,7 @@ export const SuppliersPage: React.FC = () => {
 
             <form onSubmit={handleSaveSupplier}>
               <div className="modal-body">
+                <ModalErrorAlert error={supplierError} onDismiss={() => setSupplierError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label">Supplier / Manufacturer Name *</label>
                   <input

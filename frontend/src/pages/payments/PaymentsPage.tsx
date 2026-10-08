@@ -22,6 +22,8 @@ import {
   Booking,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const PaymentsPage: React.FC = () => {
   const { can } = usePermissions();
@@ -43,6 +45,8 @@ export const PaymentsPage: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState<string>('Cheque returned due to insufficient drawer funds');
   const [rejecting, setRejecting] = useState<boolean>(false);
   const [customBankName, setCustomBankName] = useState<string>('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   const ETHIOPIAN_BANKS = [
     'Commercial Bank of Ethiopia (CBE)',
@@ -119,7 +123,7 @@ export const PaymentsPage: React.FC = () => {
       setCustomers(custRes.items || []);
       setBookings(bkgRes.items || []);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load payments data');
+      showToast('error', formatApiError(err, 'Failed to load payments data'));
     } finally {
       setLoading(false);
     }
@@ -128,15 +132,16 @@ export const PaymentsPage: React.FC = () => {
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRecordPayment) return;
-    if (!newPayment.customerId || !newPayment.amount || newPayment.amount <= 0) {
-      showToast('error', 'Customer and positive amount are required');
+    setCreateError(null);
+    if (!newPayment.customerId || !newPayment.amount || Number(newPayment.amount) <= 0) {
+      setCreateError('Customer and positive deposit amount are required');
       return;
     }
 
     const resolvedBank =
       newPayment.bankName === 'OTHER' ? customBankName.trim() : (newPayment.bankName || customBankName.trim());
     if (!resolvedBank) {
-      showToast('error', 'Please select or enter a valid bank name');
+      setCreateError('Please select or enter a valid bank name');
       return;
     }
 
@@ -160,6 +165,7 @@ export const PaymentsPage: React.FC = () => {
       const created = await api.createPayment(payload);
       showToast('success', `BRV ${created.receiptNumber} recorded! Pending Finance confirmation.`);
       setShowCreateModal(false);
+      setCreateError(null);
       setCustomBankName('');
       setNewPayment({
         customerId: '',
@@ -173,7 +179,7 @@ export const PaymentsPage: React.FC = () => {
       });
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Payment recording failed');
+      setCreateError(formatApiError(err, 'Payment recording failed'));
     } finally {
       setSaving(false);
     }
@@ -187,7 +193,7 @@ export const PaymentsPage: React.FC = () => {
       showToast('success', `Payment ${result.receiptNumber} confirmed! Ledger updated.`);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Confirmation failed');
+      showToast('error', formatApiError(err, 'Confirmation failed'));
     } finally {
       setConfirmingId(null);
     }
@@ -197,8 +203,9 @@ export const PaymentsPage: React.FC = () => {
     e.preventDefault();
     if (!canRejectPayment) return;
     if (!rejectingPayment) return;
+    setRejectError(null);
     if (!rejectionReason.trim()) {
-      showToast('error', 'Rejection reason is mandatory');
+      setRejectError('Rejection reason is mandatory for audit trail compliance');
       return;
     }
     setRejecting(true);
@@ -206,10 +213,11 @@ export const PaymentsPage: React.FC = () => {
       const result = await api.rejectPayment(rejectingPayment.paymentId, rejectionReason.trim());
       showToast('success', `Payment ${result.receiptNumber} rejected`);
       setShowRejectModal(false);
+      setRejectError(null);
       setRejectingPayment(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Rejection failed');
+      setRejectError(formatApiError(err, 'Rejection failed'));
     } finally {
       setRejecting(false);
     }
@@ -537,6 +545,7 @@ export const PaymentsPage: React.FC = () => {
 
             <form onSubmit={handleCreatePayment}>
               <div className="modal-body">
+                <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label className="form-label">Customer *</label>
@@ -815,6 +824,7 @@ export const PaymentsPage: React.FC = () => {
 
             <form onSubmit={handleRejectPayment}>
               <div className="modal-body">
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label">Mandatory Audit Rejection Reason *</label>
                   <textarea

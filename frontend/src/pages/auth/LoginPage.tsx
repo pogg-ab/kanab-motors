@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { formatApiError } from '../../utils/error';
 
 interface DemoAccount {
   roleName: string;
@@ -86,9 +87,7 @@ export const LoginPage: React.FC = () => {
     try {
       await login({ email, password });
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || err.message || 'Invalid email/username or password',
-      );
+      setError(formatApiError(err, 'Invalid email/username or password'));
     } finally {
       setLoading(false);
     }
@@ -104,7 +103,7 @@ export const LoginPage: React.FC = () => {
       try {
         await login({ email: demo.email, password: demo.pass });
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to authenticate demo user');
+        setError(formatApiError(err, 'Failed to authenticate demo user'));
       } finally {
         setLoading(false);
       }
@@ -201,9 +200,27 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {error && (
-            <div className="alert-banner-danger">
-              <AlertCircle size={18} />
-              <span style={{ fontWeight: 600 }}>{error}</span>
+            <div className="alert-banner-danger" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span style={{ fontWeight: 600 }}>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  padding: '0.2rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                title="Dismiss"
+              >
+                ✕
+              </button>
             </div>
           )}
 

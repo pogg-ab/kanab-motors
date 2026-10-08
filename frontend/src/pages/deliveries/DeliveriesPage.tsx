@@ -24,6 +24,8 @@ import {
   VehicleUnit,
   Booking,
 } from '../../api/client';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const DeliveriesPage: React.FC = () => {
   const { showConfirm, showAlert } = useModal();
@@ -44,6 +46,8 @@ export const DeliveriesPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [pdiError, setPdiError] = useState<string | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
 
   // PDI inspection form state
   const [pdiVehicleId, setPdiVehicleId] = useState<string>('');
@@ -83,7 +87,7 @@ export const DeliveriesPage: React.FC = () => {
       });
       setPdiResults(initialResults);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load delivery data');
+      setErrorMsg(formatApiError(err, 'Failed to load delivery data'));
     } finally {
       setLoading(false);
     }
@@ -93,13 +97,13 @@ export const DeliveriesPage: React.FC = () => {
     e.preventDefault();
     if (!canUpdateVehicleStatus) return;
     if (!pdiVehicleId) {
-      setErrorMsg('Please select a vehicle for PDI inspection');
+      setPdiError('Please select a vehicle for PDI inspection');
       return;
     }
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setPdiError(null);
       const payload = {
         vehicleUnitId: pdiVehicleId,
         results: checklistItems.map((item) => ({
@@ -115,7 +119,7 @@ export const DeliveriesPage: React.FC = () => {
       setPdiVehicleId('');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to record PDI inspection');
+      setPdiError(formatApiError(err, 'Failed to record PDI inspection'));
     } finally {
       setActionLoading(false);
     }
@@ -125,13 +129,13 @@ export const DeliveriesPage: React.FC = () => {
     e.preventDefault();
     if (!canUpdateVehicleStatus) return;
     if (!deliveryBookingId || !deliveryVehicleId) {
-      setErrorMsg('Please select both a booking and a vehicle unit');
+      setDeliveryError('Please select both a booking and a vehicle unit');
       return;
     }
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setDeliveryError(null);
       await api.createDelivery({
         bookingId: deliveryBookingId,
         vehicleUnitId: deliveryVehicleId,
@@ -145,7 +149,7 @@ export const DeliveriesPage: React.FC = () => {
       setDeliveryVehicleId('');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to create delivery order');
+      setDeliveryError(formatApiError(err, 'Failed to create delivery order'));
     } finally {
       setActionLoading(false);
     }
@@ -170,7 +174,7 @@ export const DeliveriesPage: React.FC = () => {
       setSuccessMsg('Delivery authorized successfully! Vehicle transitioned to DELIVERED.');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Authorization failed. Verify PDI inspection and settlement.');
+      setErrorMsg(formatApiError(err, 'Authorization failed. Verify PDI inspection and settlement.'));
     } finally {
       setActionLoading(false);
     }
@@ -182,7 +186,7 @@ export const DeliveriesPage: React.FC = () => {
       const data = await api.getGatePass(deliveryId);
       setGatePassData(data);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to generate gate pass');
+      setErrorMsg(formatApiError(err, 'Failed to generate gate pass'));
     } finally {
       setActionLoading(false);
     }
@@ -240,7 +244,10 @@ export const DeliveriesPage: React.FC = () => {
             </button>
             {canUpdateVehicleStatus && (
               <button
-                onClick={() => setShowPdiModal(true)}
+                onClick={() => {
+                  setPdiError(null);
+                  setShowPdiModal(true);
+                }}
                 className="btn btn-secondary"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
@@ -250,7 +257,10 @@ export const DeliveriesPage: React.FC = () => {
             )}
             {canUpdateVehicleStatus && (
               <button
-                onClick={() => setShowDeliveryModal(true)}
+                onClick={() => {
+                  setDeliveryError(null);
+                  setShowDeliveryModal(true);
+                }}
                 className="btn btn-cyan"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
@@ -532,7 +542,10 @@ export const DeliveriesPage: React.FC = () => {
             </div>
             {canUpdateVehicleStatus && (
             <button
-              onClick={() => setShowPdiModal(true)}
+              onClick={() => {
+                setPdiError(null);
+                setShowPdiModal(true);
+              }}
               className="btn btn-cyan"
             >
               <ClipboardCheck size={16} />
@@ -608,7 +621,8 @@ export const DeliveriesPage: React.FC = () => {
 
             <form onSubmit={handleRecordPdi}>
               <div className="modal-body">
-              <div style={{ marginBottom: '1.5rem' }}>
+                <ModalErrorAlert error={pdiError} onDismiss={() => setPdiError(null)} />
+                <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Target Vehicle Unit *
                 </label>
@@ -732,6 +746,7 @@ export const DeliveriesPage: React.FC = () => {
 
             <form onSubmit={handleCreateDelivery}>
               <div className="modal-body">
+                <ModalErrorAlert error={deliveryError} onDismiss={() => setDeliveryError(null)} />
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                     Target Booking Order *

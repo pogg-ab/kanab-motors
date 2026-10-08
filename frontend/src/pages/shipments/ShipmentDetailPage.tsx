@@ -35,6 +35,8 @@ import {
   Warehouse,
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 interface ShipmentDetailPageProps {
   shipmentId: string;
@@ -72,6 +74,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   // Modals
   const [showCostModal, setShowCostModal] = useState<boolean>(false);
+  const [costError, setCostError] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [selectedLineForReceipt, setSelectedLineForReceipt] = useState<any>(null);
 
@@ -104,6 +107,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   // Dynamic Cost Component Type State
   const [showAddTypeModal, setShowAddTypeModal] = useState<boolean>(false);
+  const [typeError, setTypeError] = useState<string | null>(null);
   const [newTypeName, setNewTypeName] = useState<string>('');
   const [creatingType, setCreatingType] = useState<boolean>(false);
 
@@ -120,7 +124,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   };
 
   const handleCreateType = async () => {
-    if (!newTypeName.trim()) return;
+    if (!newTypeName.trim()) {
+      setTypeError('Enter a valid cost component type name');
+      return;
+    }
+    setTypeError(null);
     setCreatingType(true);
     try {
       const created = await api.createCostComponentType(newTypeName.trim());
@@ -130,8 +138,9 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setNewCost((prev) => ({ ...prev, costComponentTypeId: created.costComponentTypeId }));
       setNewTypeName('');
       setShowAddTypeModal(false);
+      setTypeError(null);
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to create type');
+      setTypeError(formatApiError(err, 'Failed to create type'));
     } finally {
       setCreatingType(false);
     }
@@ -165,7 +174,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         // Not yet allocated
       }
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load shipment details');
+      showToast('error', formatApiError(err, 'Failed to load shipment details'));
     } finally {
       setLoading(false);
     }
@@ -183,7 +192,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', `Shipment stage successfully advanced to ${targetStage.replace(/_/g, ' ')}!`);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to advance stage');
+      showToast('error', formatApiError(err, 'Failed to advance stage'));
     } finally {
       setSaving(false);
     }
@@ -201,18 +210,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleAddCost = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCostError(null);
     if (!canAddCost) {
-      showToast('error', 'You do not have permission to add landed cost expenses');
-      setShowCostModal(false);
+      setCostError('You do not have permission to add landed cost expenses');
       return;
     }
     if (shipment?.currentStage === 'RECEIVED') {
-      showToast('error', 'Cannot add cost components after a shipment is received');
-      setShowCostModal(false);
+      setCostError('Cannot add cost components after a shipment is received');
       return;
     }
     if (!newCost.costComponentTypeId || newCost.amount <= 0) {
-      showToast('error', 'Select cost type and enter valid amount');
+      setCostError('Select cost type and enter valid amount');
       return;
     }
     setSaving(true);
@@ -226,6 +234,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       });
       showToast('success', 'Cost component added successfully!');
       setShowCostModal(false);
+      setCostError(null);
       setNewCost({
         costComponentTypeId: '',
         amount: 0,
@@ -235,7 +244,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       });
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to add cost');
+      setCostError(formatApiError(err, 'Failed to add cost'));
     } finally {
       setSaving(false);
     }
@@ -255,7 +264,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', 'Cost component removed');
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to remove cost');
+      showToast('error', formatApiError(err, 'Failed to remove cost'));
     }
   };
 
@@ -271,7 +280,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', `Landed Cost allocated using ${selectedMethod} with ZERO rounding drift!`);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Allocation failed');
+      showToast('error', formatApiError(err, 'Allocation failed'));
     } finally {
       setSaving(false);
     }
@@ -279,18 +288,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleReceiveCargo = async (e: React.FormEvent) => {
     e.preventDefault();
+    setReceiptError(null);
     if (!canReceiveStock) {
-      showToast('error', 'You do not have permission to receive shipment stock');
-      setShowReceiptModal(false);
+      setReceiptError('You do not have permission to receive shipment stock');
       return;
     }
     if (!selectedLineForReceipt) return;
     if (!warehouseId) {
-      showToast('error', 'Select receiving warehouse');
+      setReceiptError('Select receiving warehouse');
       return;
     }
     setSaving(true);
-    setReceiptError(null);
     try {
       await api.receiveShipmentLine(shipmentId, {
         shipmentLineId: selectedLineForReceipt.shipmentLineId,
@@ -306,10 +314,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setReceiptError(null);
       loadShipmentData();
     } catch (err: any) {
-      const data = err.response?.data;
-      const msg = [data?.message, data?.detail, data?.dbError].filter(Boolean).join(' - ') || err.message || 'Receipt recording failed';
-      setReceiptError(msg);
-      showToast('error', msg);
+      setReceiptError(formatApiError(err, 'Receipt recording failed'));
     } finally {
       setSaving(false);
     }
@@ -659,7 +664,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               </span>
             ) : canAddCost ? (
               <button
-                onClick={() => setShowCostModal(true)}
+                onClick={() => {
+                  setCostError(null);
+                  setShowCostModal(true);
+                }}
                 className="btn btn-cyan"
                 style={{ fontSize: '0.82rem', padding: '0.45rem 0.95rem' }}
               >
@@ -1255,7 +1263,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                           ]);
                           showToast('success', `${doc.label} uploaded successfully!`);
                         } catch (err: any) {
-                          showToast('error', err.response?.data?.message || err.message || 'Upload failed');
+                          showToast('error', formatApiError(err, 'Upload failed'));
                         } finally {
                           setTimeout(() => {
                             setDocumentUploadProgress((current) => {
@@ -1392,12 +1400,16 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </h2>
 
             <form onSubmit={handleAddCost}>
+              <ModalErrorAlert error={costError} onDismiss={() => setCostError(null)} />
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
                   <label className="form-label" style={{ marginBottom: 0 }}>Cost Component Type *</label>
                   <button
                     type="button"
-                    onClick={() => setShowAddTypeModal(!showAddTypeModal)}
+                    onClick={() => {
+                      setTypeError(null);
+                      setShowAddTypeModal(!showAddTypeModal);
+                    }}
                     className="btn btn-secondary"
                     style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', height: 'auto' }}
                   >
@@ -1414,44 +1426,48 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
                       display: 'flex',
+                      flexDirection: 'column',
                       gap: '0.5rem',
-                      alignItems: 'center',
                     }}
                   >
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="e.g. Demurrage, Storage, Security..."
-                      value={newTypeName}
-                      onChange={(e) => setNewTypeName(e.target.value)}
-                      style={{ fontSize: '0.8rem', flex: 1 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleCreateType();
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      disabled={creatingType || !newTypeName.trim()}
-                      onClick={handleCreateType}
-                      className="btn btn-cyan"
-                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
-                    >
-                      {creatingType ? 'Saving...' : 'Add Type'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddTypeModal(false);
-                        setNewTypeName('');
-                      }}
-                      className="btn btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
-                    >
-                      ✕
-                    </button>
+                    <ModalErrorAlert error={typeError} onDismiss={() => setTypeError(null)} />
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="e.g. Demurrage, Storage, Security..."
+                        value={newTypeName}
+                        onChange={(e) => setNewTypeName(e.target.value)}
+                        style={{ fontSize: '0.8rem', flex: 1 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateType();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={creatingType || !newTypeName.trim()}
+                        onClick={handleCreateType}
+                        className="btn btn-cyan"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
+                      >
+                        {creatingType ? 'Saving...' : 'Add Type'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddTypeModal(false);
+                          setNewTypeName('');
+                          setTypeError(null);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1576,25 +1592,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </p>
 
             <form onSubmit={handleReceiveCargo}>
-              {receiptError && (
-                <div
-                  style={{
-                    padding: '0.75rem 1rem',
-                    marginBottom: '1rem',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'rgba(239, 68, 68, 0.12)',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    color: '#f87171',
-                    fontSize: '0.82rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <AlertTriangle size={16} />
-                  <span>{receiptError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={receiptError} onDismiss={() => setReceiptError(null)} />
 
               <div className="form-group">
                 <label className="form-label">Quantity to Receive *</label>

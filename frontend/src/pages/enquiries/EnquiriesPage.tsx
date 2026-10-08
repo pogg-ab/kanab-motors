@@ -22,6 +22,8 @@ import {
   ProductItem,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const EnquiriesPage: React.FC = () => {
   const { can } = usePermissions();
@@ -173,7 +175,7 @@ export const EnquiriesPage: React.FC = () => {
       setIsCreateOpen(false);
       fetchEnquiries();
     } catch (err: any) {
-      setFormError(err.response?.data?.message || 'Failed to create enquiry');
+      setFormError(formatApiError(err, 'Failed to create enquiry'));
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +205,7 @@ export const EnquiriesPage: React.FC = () => {
       setConvertTarget(null);
       fetchEnquiries();
     } catch (err: any) {
-      setConvertError(err.response?.data?.message || 'Failed to convert enquiry to booking');
+      setConvertError(formatApiError(err, 'Failed to convert enquiry to booking'));
     } finally {
       setConverting(false);
     }
@@ -225,7 +227,7 @@ export const EnquiriesPage: React.FC = () => {
       setRejectReason('');
       fetchEnquiries();
     } catch (err: any) {
-      setRejectError(err.response?.data?.message || 'Failed to reject enquiry');
+      setRejectError(formatApiError(err, 'Failed to reject enquiry'));
     } finally {
       setRejecting(false);
     }
@@ -568,11 +570,7 @@ export const EnquiriesPage: React.FC = () => {
 
             <form onSubmit={handleCreateEnquiry}>
               <div className="modal-body">
-                {formError && (
-                  <div className="alert-banner-danger">
-                    {formError}
-                  </div>
-                )}
+                <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Customer *</label>
@@ -726,11 +724,7 @@ export const EnquiriesPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
-              {convertError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1rem' }}>
-                  {convertError}
-                </div>
-              )}
+              <ModalErrorAlert error={convertError} onDismiss={() => setConvertError(null)} />
 
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: 'var(--radius-md)', padding: '1.15rem', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
@@ -845,11 +839,7 @@ export const EnquiriesPage: React.FC = () => {
 
             <form onSubmit={handleConfirmReject}>
               <div className="modal-body">
-                {rejectError && (
-                  <div className="alert-banner-danger" style={{ marginBottom: '1rem' }}>
-                    {rejectError}
-                  </div>
-                )}
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
 
                 <div style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', border: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.82rem' }}>
                   <div>Customer: <strong style={{ color: 'var(--text-primary)' }}>{rejectTarget.customer?.fullName}</strong></div>

@@ -26,6 +26,7 @@ import {
   ManagementDashboardSummary,
   SalesCrossTabItem,
 } from '../../api/client';
+import { formatApiError } from '../../utils/error';
 
 interface DashboardPageProps {
   onNavigateTab?: (tab: string) => void;
@@ -97,7 +98,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
       setCrossTab(ct);
     } catch (error) {
       console.error('Failed to load management dashboard data', error);
-      setLoadError('Could not apply the selected filters. Please refresh and try again.');
+      setLoadError(formatApiError(error, 'Could not apply the selected filters. Please refresh and try again.'));
     } finally {
       setLoading(false);
     }
