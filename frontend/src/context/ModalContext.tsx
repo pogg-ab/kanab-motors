@@ -195,7 +195,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                           marginTop: '1rem',
                           padding: '0.75rem 1rem',
                           borderRadius: 'var(--radius-md)',
-                          background: 'rgba(255, 255, 255, 0.02)',
+                          background: 'var(--bg-tertiary)',
                           border: '1px solid var(--border-color)',
                           fontSize: '0.8rem',
                           color: 'var(--text-muted)',
