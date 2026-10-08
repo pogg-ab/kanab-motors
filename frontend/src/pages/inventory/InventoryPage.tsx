@@ -544,7 +544,7 @@ export const InventoryPage: React.FC = () => {
             {canCreateProductionReceipt && (
               <button
                 onClick={() => setShowProductionModal(true)}
-                className="btn btn-emerald"
+                className="btn btn-secondary"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <Wrench size={16} />
@@ -792,7 +792,7 @@ export const InventoryPage: React.FC = () => {
               {canCreateStockReceipt && (
                 <button
                   onClick={() => setShowReceiptModal(true)}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1010,7 +1010,7 @@ export const InventoryPage: React.FC = () => {
                             <button
                               disabled={actionLoading}
                               onClick={() => handleCompleteTransfer(t.transferId)}
-                              className="btn btn-emerald"
+                              className="btn btn-cyan"
                               style={{
                                 padding: '0.3rem 0.6rem',
                                 fontSize: '0.75rem',
@@ -1175,7 +1175,7 @@ export const InventoryPage: React.FC = () => {
             {canCreateProductionReceipt && (
             <button
               onClick={() => setShowProductionModal(true)}
-              className="btn btn-emerald"
+              className="btn btn-cyan"
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> Record Assembly Receipt
@@ -1933,7 +1933,7 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={actionLoading || warehouses.length === 0 || receivableProducts.length === 0}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                 >
                   Receive Stock
                 </button>
@@ -2274,7 +2274,7 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={actionLoading || products.length === 0 || warehouses.length === 0}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                 >
                   Receive into Inventory
                 </button>

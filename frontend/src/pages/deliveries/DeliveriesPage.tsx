@@ -243,7 +243,7 @@ export const DeliveriesPage: React.FC = () => {
             {canUpdateVehicleStatus && (
               <button
                 onClick={() => setShowDeliveryModal(true)}
-                className="btn btn-emerald"
+                className="btn btn-cyan"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <Plus size={16} />
@@ -814,11 +814,8 @@ export const DeliveriesPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={actionLoading || !deliveryBookingId || !deliveryVehicleId}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                   style={{
-                    background: '#10b981',
-                    color: '#fff',
-                    border: 'none',
                     fontWeight: 700,
                   }}
                 >
