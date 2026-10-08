@@ -216,7 +216,7 @@ export const DeliveriesPage: React.FC = () => {
                 Delivery & Vehicle Handover
               </h1>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                KMSICAMS-6 Sub-module 2: PDI Inspection, Settlement Validation, Gate Pass & Dispatch to DELIVERED (DL1–DL10)
+                PDI pre-delivery inspection, settlement verification, gate pass generation & dispatch fulfillment
               </div>
             </div>
           </div>
@@ -519,7 +519,7 @@ export const DeliveriesPage: React.FC = () => {
             <div>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Mandatory Pre-Delivery Inspection (PDI) Standards</h3>
               <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                SRS Precondition: All 7 checks must pass before a vehicle can be authorized for exit (Stories DL4, DL7).
+                Pre-Delivery Requirement: All 7 inspection checks must pass before a vehicle can be authorized for gate exit.
               </p>
             </div>
             {canUpdateVehicleStatus && (
@@ -789,7 +789,7 @@ export const DeliveriesPage: React.FC = () => {
                       onChange={(e) => setFinancialSettlementValidated(e.target.checked)}
                       style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
                     />
-                    <span style={{ fontSize: '0.875rem' }}>Financial Settlement Confirmed (DL3)</span>
+                    <span style={{ fontSize: '0.875rem' }}>Financial Settlement Confirmed</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input

@@ -181,7 +181,7 @@ export const InvoicesPage: React.FC = () => {
                 Sales Invoices & Settlement
               </h1>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                KMSICAMS-6 Sub-module 1: Automated 15% VAT, Booking Deposit Allocation & Vehicle Status Transition (IV1–IV13)
+                Automated 15% VAT calculation, booking deposit allocation & vehicle sales settlement
               </div>
             </div>
           </div>
@@ -602,7 +602,7 @@ export const InvoicesPage: React.FC = () => {
                   }}
                 >
                   <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--accent-cyan)' }}>
-                    Live Settlement Engine Breakdown (Stories IV2, IV4, IV5, IV6)
+                    Live Settlement Breakdown & Calculation Summary
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
                     <div>Customer: <strong>{selectedBooking.customer?.fullName}</strong></div>
@@ -655,7 +655,7 @@ export const InvoicesPage: React.FC = () => {
                   style={{ width: '18px', height: '18px', accentColor: 'var(--accent-cyan)' }}
                 />
                 <label htmlFor="applyDep" style={{ fontSize: '0.875rem', cursor: 'pointer' }}>
-                  Automatically apply booking deposits to invoice settlement (IV4)
+                  Automatically apply booking deposits to invoice settlement
                 </label>
               </div>
 

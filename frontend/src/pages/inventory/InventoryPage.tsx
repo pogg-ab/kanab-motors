@@ -517,7 +517,7 @@ export const InventoryPage: React.FC = () => {
                 Inventory & Warehouse Management
               </h1>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                KMSICAMS-4 • Multi-Warehouse Stock Balances, State Transitions, Transfers, & Local Assembly Intake
+                Multi-warehouse stock balances, lifecycle transitions, stock transfers & local assembly intake
               </div>
             </div>
           </div>
@@ -1169,7 +1169,7 @@ export const InventoryPage: React.FC = () => {
             <div>
               <div style={{ fontSize: '1rem', fontWeight: 700 }}>Local Vehicle Assembly Intake</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Fills SRS gap: directly receives locally assembled three-wheelers/motorcycles into warehouse inventory with auto-activation to AVAILABLE_FOR_SALE
+                Directly receive locally assembled vehicles into warehouse inventory with automatic availability status
               </div>
             </div>
             {canCreateProductionReceipt && (
@@ -1362,7 +1362,7 @@ export const InventoryPage: React.FC = () => {
       {activeTab === 'movements' && (
         <div>
           <div style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: 700 }}>
-            Unified Double-Entry Stock Movement History (Story H1)
+            Unified Double-Entry Stock Movement History & Audit Trail
           </div>
 
           <div

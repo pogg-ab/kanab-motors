@@ -126,7 +126,7 @@ export const ApprovalsPage: React.FC = () => {
                 Approval Workflow & Internal Controls
               </h1>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                KMSICAMS-6 Sub-module 3: Central Approval Engine, Multi-level Chains, Role Hierarchy & Retrofit Dispatcher (AW1–AW10)
+                Central approval workflow engine, multi-level authorization chains & governance controls
               </div>
             </div>
           </div>

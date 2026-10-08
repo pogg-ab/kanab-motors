@@ -417,7 +417,7 @@ export const ReportsHubPage: React.FC = () => {
             Reports & Analytics Hub
           </h1>
           <p style={{ margin: '0.35rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            KMSICAMS-7 • Enterprise Sales, Operations, Inventory & Financial Ledgers Reporting Engine
+            Enterprise sales, operations, inventory & financial ledgers reporting engine
           </p>
         </div>
         <button
@@ -574,7 +574,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'daily' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Daily Approved Sales (Story SR2)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Daily Approved Sales</div>
                 <button
                   onClick={() => exportToCSV('daily_sales_report', dailySales)}
                   style={{
@@ -633,7 +633,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'monthly' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Monthly Sales Performance (Story SR2)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Monthly Sales Performance</div>
                 <button
                   onClick={() => exportToCSV('monthly_sales_report', monthlySales)}
                   style={{
@@ -684,7 +684,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'model' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Vehicle Model (Story SR3)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Vehicle Model</div>
                 <button
                   onClick={() => exportToCSV('sales_by_model', salesByModel)}
                   style={{
@@ -735,7 +735,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'category' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Category (Story SR3)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Category</div>
                 <button
                   onClick={() => exportToCSV('sales_by_category', salesByCategory)}
                   style={{
@@ -784,7 +784,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'customer' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Customer Account (Story SR4)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Customer Account</div>
                 <button
                   onClick={() => exportToCSV('sales_by_customer', salesByCustomer)}
                   style={{
@@ -833,7 +833,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'region' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Regional Sales Performance (Story SR4)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Regional Sales Performance</div>
                 <button
                   onClick={() => exportToCSV('sales_by_region', salesByRegion)}
                   style={{
@@ -880,7 +880,7 @@ export const ReportsHubPage: React.FC = () => {
           {salesSubTab === 'salesperson' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Salesperson Performance (Story SR5)</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Salesperson Performance</div>
                 <button
                   onClick={() => exportToCSV('sales_by_salesperson', salesBySalesperson)}
                   style={{
@@ -1256,7 +1256,7 @@ export const ReportsHubPage: React.FC = () => {
             <div>
               <div style={{ fontSize: '1rem', fontWeight: 700 }}>Customer Financial Ledger & Receivables Summary</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Aggregates customer ledger entries (Stories CF1 - CF5)
+                Aggregates customer ledger entries & transaction balances
               </div>
             </div>
             <button

@@ -130,35 +130,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
     );
   };
 
-
   const moneyChartRows = [
-    { label: 'Sales', value: Number(summary?.total_sales || 0), color: '#00D2D3' },
-    { label: 'Deposits', value: Number(summary?.total_customer_deposits || 0), color: '#10B981' },
-    { label: 'Outstanding', value: Number(summary?.outstanding_customer_balance || 0), color: '#EF4444' },
-    { label: 'Credit', value: Number(summary?.customer_credit_balance || 0), color: '#A855F7' },
-    { label: 'Excess', value: Number(summary?.excess_payments || 0), color: '#F59E0B' },
+    { label: 'Sales Revenue', value: Number(summary?.total_sales || 0), color: 'var(--accent-cyan)' },
+    { label: 'Customer Deposits', value: Number(summary?.total_customer_deposits || 0), color: 'var(--accent-emerald)' },
+    { label: 'Outstanding Receivables', value: Number(summary?.outstanding_customer_balance || 0), color: 'var(--accent-rose)' },
+    { label: 'Customer Credit', value: Number(summary?.customer_credit_balance || 0), color: 'var(--accent-purple)' },
+    { label: 'Excess Overpayments', value: Number(summary?.excess_payments || 0), color: 'var(--accent-amber)' },
   ];
   const moneyChartMax = Math.max(...moneyChartRows.map((row) => row.value), 1);
 
   const fleetChartRows = [
-    { label: 'Available', value: Number(summary?.vehicles_available || 0), color: '#10B981' },
-    { label: 'Reserved', value: Number(summary?.vehicles_reserved || 0), color: '#F59E0B' },
-    { label: 'Pending Allotments', value: Number(summary?.pending_allotment_requests || 0), color: '#A855F7' },
-    { label: 'Ready Delivery', value: Number(summary?.vehicles_ready_for_delivery || 0), color: '#3B82F6' },
+    { label: 'Available Stock', value: Number(summary?.vehicles_available || 0), color: 'var(--accent-emerald)' },
+    { label: 'Reserved for Bookings', value: Number(summary?.vehicles_reserved || 0), color: 'var(--accent-amber)' },
+    { label: 'Pending Allotments', value: Number(summary?.pending_allotment_requests || 0), color: 'var(--accent-purple)' },
+    { label: 'Ready for Delivery', value: Number(summary?.vehicles_ready_for_delivery || 0), color: 'var(--accent-cyan)' },
   ];
   const fleetChartMax = Math.max(...fleetChartRows.map((row) => row.value), 1);
   const matrixChartMax = Math.max(...crossTab.map((row) => Number(row.total_sales || 0)), 1);
 
   const DashboardBar = ({ label, value, max, color, amount = false }: { label: string; value: number; max: number; color: string; amount?: boolean }) => {
-    const width = Math.max(value > 0 ? 6 : 0, (value / max) * 100);
+    const width = Math.max(value > 0 ? 5 : 0, Math.min(100, (value / max) * 100));
     return (
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
-          <span style={{ fontWeight: 700 }}>{label}</span>
-          <span style={{ color: 'var(--text-secondary)' }}>{amount ? formatETB(value) : value.toLocaleString('en-US')}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: color }}>
+            {amount ? formatETB(value) : `${value.toLocaleString('en-US')} units`}
+          </span>
         </div>
-        <div style={{ height: '11px', background: 'rgba(148, 163, 184, 0.14)', borderRadius: '999px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${width}%`, background: color, borderRadius: '999px' }} />
+        <div style={{ height: '8px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '999px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${width}%`, background: color, borderRadius: '999px', transition: 'width 0.4s ease' }} />
         </div>
       </div>
     );
@@ -184,148 +185,140 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
   };
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: '1440px', margin: '0 auto', color: 'var(--text-primary)' }}>
-      {/* Header with Date-Range Controls (Story F1) */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <LayoutDashboard className="text-cyan" size={28} />
-            Management Dashboard
-          </h1>
-          <p style={{ margin: '0.35rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            KMSICAMS-8 (SRS §8.18) • Real-time Executive Overview with 13 Cross-Module KPIs & Sales Matrix
-          </p>
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto', color: 'var(--text-primary)' }}>
+      {/* Breadcrumbs & Header */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>★ Executive Intelligence</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span>Analytics & Performance</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span style={{ color: 'var(--text-primary)' }}>Executive Management Dashboard</span>
         </div>
 
-        {/* Date Filter Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <div
-            style={{
-              display: 'flex',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '0.2rem',
-            }}
-          >
-            {[
-              { id: 'today', label: 'Today' },
-              { id: 'week', label: 'This Week' },
-              { id: 'month', label: 'This Month' },
-              { id: 'custom', label: 'Custom' },
-            ].map((p) => (
-              <button
-                key={p.id}
-                onClick={() => applyPreset(p.id as any)}
-                style={{
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: datePreset === p.id ? '#00D2D3' : 'transparent',
-                  color: datePreset === p.id ? '#0D1117' : 'var(--text-secondary)',
-                  fontWeight: datePreset === p.id ? 700 : 500,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LayoutDashboard size={24} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                Executive Management Dashboard
+              </h1>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Real-time executive oversight, cross-module financial intelligence & sales performance analytics
+              </div>
+            </div>
           </div>
 
-          {datePreset === 'custom' && (
-            <form onSubmit={handleCustomDateSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                style={{
-                  padding: '0.4rem 0.6rem',
-                  borderRadius: '6px',
-                  border: `1px solid ${dateError ? '#EF4444' : 'var(--border-color)'}`,
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.8rem',
-                }}
-              />
-              <span style={{ color: 'var(--text-secondary)' }}>to</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                style={{
-                  padding: '0.4rem 0.6rem',
-                  borderRadius: '6px',
-                  border: `1px solid ${dateError ? '#EF4444' : 'var(--border-color)'}`,
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.8rem',
-                }}
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  padding: '0.45rem 0.85rem',
-                  borderRadius: '6px',
-                  background: loading ? 'rgba(148, 163, 184, 0.35)' : '#00D2D3',
-                  color: '#0D1117',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.8rem',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {loading ? 'Applying...' : 'Apply'}
-              </button>
-              {dateError && (
-                <span style={{ color: '#EF4444', fontSize: '0.75rem', fontWeight: 600 }}>
-                  {dateError}
-                </span>
-              )}
-            </form>
-          )}
+          {/* Date Filter Bar & Refresh */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.25rem',
+                gap: '0.25rem',
+              }}
+            >
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'This Week' },
+                { id: 'month', label: 'This Month' },
+                { id: 'custom', label: 'Custom' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => applyPreset(p.id as any)}
+                  className={datePreset === p.id ? 'btn btn-cyan' : 'btn btn-secondary'}
+                  style={{
+                    padding: '0.35rem 0.8rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderRadius: 'var(--radius-sm)',
+                    border: datePreset === p.id ? 'none' : 'transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
 
-          <button
-            onClick={() => fetchData(startDate, endDate)}
-            disabled={loading}
-            style={{
-              padding: '0.45rem 0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              fontSize: '0.8rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
-          </button>
+            {datePreset === 'custom' && (
+              <form onSubmit={handleCustomDateSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  style={{
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${dateError ? 'var(--accent-rose)' : 'var(--border-color)'}`,
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8rem',
+                  }}
+                />
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  style={{
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${dateError ? 'var(--accent-rose)' : 'var(--border-color)'}`,
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8rem',
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-cyan"
+                  style={{
+                    padding: '0.4rem 0.85rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {loading ? 'Applying...' : 'Apply'}
+                </button>
+                {dateError && (
+                  <span style={{ color: 'var(--accent-rose)', fontSize: '0.75rem', fontWeight: 600 }}>
+                    {dateError}
+                  </span>
+                )}
+              </form>
+            )}
+
+            <button
+              onClick={() => fetchData(startDate, endDate)}
+              disabled={loading}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
       {loadError && (
         <div
           style={{
-            background: 'rgba(239, 68, 68, 0.08)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            color: '#EF4444',
-            borderRadius: '8px',
-            padding: '0.75rem 1rem',
-            marginBottom: '1rem',
+            background: 'rgba(244, 63, 94, 0.1)',
+            border: '1px solid rgba(244, 63, 94, 0.35)',
+            color: 'var(--accent-rose)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.85rem 1.25rem',
+            marginBottom: '1.5rem',
             fontSize: '0.85rem',
             fontWeight: 600,
           }}
@@ -334,329 +327,316 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
         </div>
       )}
 
-      {/* SECTION 1: CORE BUILDABLE OPERATIONAL KPIs (6 Tiles - Stories K1-K6, F2) */}
-      <div style={{ marginBottom: '1.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00D2D3' }} />
-          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Period Sales & Physical Fleet Inventory (K1–K6)
-          </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            ({startDate} to {endDate})
+      {/* SECTION 1: Period Sales & Physical Fleet Inventory */}
+      <div style={{ marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cyan)', boxShadow: '0 0 10px var(--accent-cyan)' }} />
+            <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Period Sales & Physical Fleet Inventory
+            </h2>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(15, 23, 42, 0.6)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+            Active Filter: <strong style={{ color: 'var(--accent-cyan)' }}>{startDate}</strong> to <strong style={{ color: 'var(--accent-cyan)' }}>{endDate}</strong>
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
           {/* Tile 1: Total Sales */}
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(0, 210, 211, 0.4)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>TOTAL PERIOD SALES</div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#00D2D3' }}>
-              {formatETB(summary?.total_sales)}
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Period Sales
+                </div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.4rem', fontFamily: 'monospace' }}>
+                  {formatETB(summary?.total_sales)}
+                </div>
+              </div>
+              <div style={{ padding: '0.5rem', background: 'rgba(6, 182, 212, 0.12)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                <TrendingUp size={20} />
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Invoices approved: <strong>{summary?.invoice_count || 0}</strong>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              Approved invoices: <strong style={{ color: 'var(--text-primary)' }}>{summary?.invoice_count || 0}</strong>
             </div>
           </div>
 
           {/* Tile 2: Available Inventory */}
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>AVAILABLE INVENTORY</div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#10B981' }}>
-              {summary?.vehicles_available || 0} Units
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Available Fleet Stock
+                </div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.4rem', fontFamily: 'monospace' }}>
+                  {(summary?.vehicles_available || 0).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Units</span>
+                </div>
+              </div>
+              <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.12)', borderRadius: 'var(--radius-md)', color: 'var(--accent-emerald)' }}>
+                <CarFront size={20} />
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Status: AVAILABLE_FOR_SALE
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              Immediate delivery available
             </div>
           </div>
 
           {/* Tile 3: Reserved Inventory */}
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>RESERVED INVENTORY</div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#F59E0B' }}>
-              {summary?.vehicles_reserved || 0} Units
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Reserved Inventory
+                </div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--accent-amber)', marginTop: '0.4rem', fontFamily: 'monospace' }}>
+                  {(summary?.vehicles_reserved || 0).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Units</span>
+                </div>
+              </div>
+              <div style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.12)', borderRadius: 'var(--radius-md)', color: 'var(--accent-amber)' }}>
+                <Clock size={20} />
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Status: RESERVED for Bookings
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              Locked for verified bookings
             </div>
           </div>
 
           {/* Tile 4: Vehicles Awaiting Allotment */}
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(168, 85, 247, 0.3)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>PENDING ALLOTMENTS</div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#A855F7' }}>
-              {summary?.pending_allotment_requests || 0}
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-purple)' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Pending Allotments
+                </div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--accent-purple)', marginTop: '0.4rem', fontFamily: 'monospace' }}>
+                  {(summary?.pending_allotment_requests || 0).toLocaleString()}
+                </div>
+              </div>
+              <div style={{ padding: '0.5rem', background: 'rgba(168, 85, 247, 0.12)', borderRadius: 'var(--radius-md)', color: 'var(--accent-purple)' }}>
+                <Layers size={20} />
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
               Requests awaiting approval
             </div>
           </div>
 
-          {/* Tile 5: Vehicles Ready for Delivery (Story F2) */}
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>READY FOR DELIVERY</div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#3B82F6' }}>
-              {summary?.vehicles_ready_for_delivery || 0} Units
+          {/* Tile 5: Vehicles Ready for Delivery */}
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Ready for Delivery
+                </div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.4rem', fontFamily: 'monospace' }}>
+                  {(summary?.vehicles_ready_for_delivery || 0).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Units</span>
+                </div>
+              </div>
+              <div style={{ padding: '0.5rem', background: 'rgba(6, 182, 212, 0.12)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                <CheckCircle2 size={20} />
+              </div>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              PDI completed & cleared
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              PDI completed & gate pass ready
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION 2: CUSTOMER, BOOKING & FINANCIAL KPIs (Stories G1, G2) */}
+      {/* SECTION 2: Customer Accounts, Bookings & Financial Ledgers */}
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F59E0B' }} />
-            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Customer Accounts, Bookings & Financial Ledger KPIs (7 Tiles)
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-amber)', boxShadow: '0 0 10px var(--accent-amber)' }} />
+            <h2 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Customer Accounts, Bookings & Financial Ledgers
             </h2>
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            Live values from Booking, Payment, Ledger, Credit, and Refund modules.
+            Live figures consolidated from Customer Ledgers, Booking Orders & Settlements
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(0, 210, 211, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+          {/* Total Bookings */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>TOTAL BOOKINGS</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(0, 210, 211, 0.1)', color: '#00D2D3', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                BOOKINGS
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Bookings</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--accent-cyan)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>ORDERS</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#FFF' }}>
-              {summary?.total_bookings || 0}
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+              {(summary?.total_bookings || 0).toLocaleString()}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Bookings created in selected period
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Created in selected period
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+          {/* Customer Deposits */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>CUSTOMER DEPOSITS</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                PAYMENTS
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer Deposits</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>PAYMENTS</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#10B981' }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--accent-emerald)' }}>
               {formatETB(summary?.total_customer_deposits)}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Confirmed deposits in selected period
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Confirmed period deposits
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+          {/* Outstanding Balance */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-rose)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>OUTSTANDING BALANCE</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                LEDGER
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Balance</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(244, 63, 94, 0.1)', color: 'var(--accent-rose)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>RECEIVABLES</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#EF4444' }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--accent-rose)' }}>
               {formatETB(summary?.outstanding_customer_balance)}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Ledger receivable up to end date
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Unsettled invoice balance
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(168, 85, 247, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+          {/* Available Credit */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-purple)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>AVAILABLE CREDIT</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(168, 85, 247, 0.1)', color: '#A855F7', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                CREDIT
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer Credit</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(168, 85, 247, 0.1)', color: 'var(--accent-purple)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>CREDIT</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#A855F7' }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--accent-purple)' }}>
               {formatETB(summary?.customer_credit_balance)}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Current customer unallocated credit
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Unallocated client credits
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(245, 158, 11, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+          {/* Excess Payments */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>EXCESS PAYMENTS</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                EXCESS
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Excess Overpayments</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-amber)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>OVERPAID</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#F59E0B' }}>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--accent-amber)' }}>
               {formatETB(summary?.excess_payments)}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Current excess payment balance
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Awaiting credit/refund routing
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+          {/* Pending Refunds */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-rose)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>PENDING REFUNDS</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                REFUNDS
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Refunds</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(244, 63, 94, 0.1)', color: 'var(--accent-rose)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>QUEUE</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#EF4444' }}>
-              {summary?.pending_refunds || 0}
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--accent-rose)' }}>
+              {(summary?.pending_refunds || 0).toLocaleString()}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Requested, reviewed, or approved in period
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Awaiting finance authorization
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              borderRadius: '10px',
-              padding: '1.15rem',
-            }}
-          >
+          {/* Processed Refunds */}
+          <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>PROCESSED REFUNDS</span>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                REFUNDS
-              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Processed Refunds</span>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>FINALIZED</span>
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.35rem', color: '#10B981' }}>
-              {summary?.processed_refunds || 0}
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, marginTop: '0.4rem', fontFamily: 'monospace', color: 'var(--accent-emerald)' }}>
+              {(summary?.processed_refunds || 0).toLocaleString()}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-              Finance processed or confirmed in period
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              Disbursed in selected period
             </div>
           </div>
         </div>
       </div>
+
       {/* VISUAL EXECUTIVE SUMMARY */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '1rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1.25rem',
           marginBottom: '2rem',
         }}
       >
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 800 }}>
-            <TrendingUp size={18} className="text-cyan" /> Financial KPI Chart
+        <div className="card" style={{ padding: '1.35rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ padding: '0.45rem', background: 'rgba(6, 182, 212, 0.12)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-cyan)' }}>
+                <TrendingUp size={18} />
+              </div>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Financial KPI Distribution</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Period Total</span>
           </div>
-          <div style={{ display: 'grid', gap: '0.8rem' }}>
+          <div style={{ display: 'grid', gap: '1rem' }}>
             {moneyChartRows.map((row) => (
               <DashboardBar key={row.label} label={row.label} value={row.value} max={moneyChartMax} color={row.color} amount />
             ))}
           </div>
         </div>
 
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 800 }}>
-            <CarFront size={18} className="text-cyan" /> Fleet KPI Chart
+        <div className="card" style={{ padding: '1.35rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ padding: '0.45rem', background: 'rgba(16, 185, 129, 0.12)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-emerald)' }}>
+                <CarFront size={18} />
+              </div>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Fleet & Inventory Capacity</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unit Count</span>
           </div>
-          <div style={{ display: 'grid', gap: '0.8rem' }}>
+          <div style={{ display: 'grid', gap: '1rem' }}>
             {fleetChartRows.map((row) => (
               <DashboardBar key={row.label} label={row.label} value={row.value} max={fleetChartMax} color={row.color} />
             ))}
           </div>
         </div>
 
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 800 }}>
-            <Users size={18} className="text-cyan" /> Salesperson Revenue Chart
+        <div className="card" style={{ padding: '1.35rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ padding: '0.45rem', background: 'rgba(168, 85, 247, 0.12)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-purple)' }}>
+                <Users size={18} />
+              </div>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Sales Performance by Rep</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue (ETB)</span>
           </div>
           {crossTab.length === 0 ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
               No salesperson revenue in this period.
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: '0.8rem' }}>
+            <div style={{ display: 'grid', gap: '1rem' }}>
               {crossTab.slice(0, 6).map((row, index) => (
                 <DashboardBar
                   key={`${row.salesperson_name}-${row.item_name}-${index}`}
-                  label={`${row.salesperson_name} / ${row.model || 'Standard'}`}
+                  label={`${row.salesperson_name} (${row.model || 'Standard'})`}
                   value={Number(row.total_sales || 0)}
                   max={matrixChartMax}
-                  color={['#00D2D3', '#10B981', '#F59E0B', '#A855F7', '#3B82F6', '#EF4444'][index % 6]}
+                  color={['var(--accent-cyan)', 'var(--accent-emerald)', 'var(--accent-amber)', 'var(--accent-purple)', '#38bdf8', 'var(--accent-rose)'][index % 6]}
                   amount
                 />
               ))}
@@ -665,74 +645,72 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
         </div>
       </div>
 
-      {/* SECTION 3: SALES PERFORMANCE CROSS-TAB (PRODUCT × SALESPERSON) (Story F3) */}
-      <div
-        style={{
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: '12px',
-          padding: '1.25rem',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Users size={18} className="text-cyan" />
-              Sales Performance Matrix: Product × Salesperson (Story F3)
+      {/* SECTION 3: Sales Performance Cross-Tab Matrix */}
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1.25rem 1.5rem',
+            borderBottom: '1px solid var(--border-color)',
+            background: 'rgba(15, 23, 42, 0.4)',
+            flexWrap: 'wrap',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ padding: '0.5rem', background: 'rgba(6, 182, 212, 0.12)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-cyan)' }}>
+              <Users size={18} />
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Cross-dimensional sales analysis computed live by <code style={{ color: '#00D2D3' }}>fn_sales_performance_by_product_and_salesperson()</code>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Sales Performance Matrix: Product × Salesperson
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Live cross-dimensional sales distribution by vehicle model and account representative
+              </div>
             </div>
           </div>
 
           <button
             onClick={exportCrossTabCSV}
             disabled={!crossTab.length}
-            style={{
-              padding: '0.45rem 0.85rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}
           >
             <Download size={14} /> Export Matrix CSV
           </button>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+          <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.85rem 1rem' }}>SALESPERSON</th>
-                <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                <th style={{ padding: '0.85rem 1rem' }}>PRODUCT ITEM</th>
-                <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICES</th>
-                <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
-                <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES REVENUE</th>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>SALESPERSON</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PRODUCT ITEM</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>INVOICES</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>UNITS SOLD</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>TOTAL SALES REVENUE</th>
               </tr>
             </thead>
             <tbody>
               {crossTab.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     No product × salesperson sales recorded for this date period ({startDate} to {endDate}).
                   </td>
                 </tr>
               ) : (
                 crossTab.map((row, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{row.salesperson_name}</td>
-                    <td style={{ padding: '0.85rem 1rem', color: '#00D2D3', fontWeight: 700 }}>{row.model || 'Standard'}</td>
-                    <td style={{ padding: '0.85rem 1rem' }}>{row.item_name}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{row.invoice_count}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{row.units_sold}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>
+                    <td style={{ padding: '0.9rem 1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>{row.salesperson_name}</td>
+                    <td style={{ padding: '0.9rem 1.25rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>{row.model || 'Standard'}</td>
+                    <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-secondary)' }}>{row.item_name}</td>
+                    <td style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontFamily: 'monospace' }}>{row.invoice_count}</td>
+                    <td style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>{row.units_sold}</td>
+                    <td style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
                       {formatETB(row.total_sales)}
                     </td>
                   </tr>
@@ -745,4 +723,3 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
     </div>
   );
 };
-
