@@ -374,7 +374,7 @@ export const ReportsHubPage: React.FC = () => {
     </div>
   );
 
-  // CSV Export utility (Story F2)
+  // CSV Export utility
   const exportToCSV = (filename: string, rows: object[]) => {
     if (!rows || rows.length === 0) return;
     const separator = ',';

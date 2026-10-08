@@ -17,8 +17,10 @@ import {
 } from 'lucide-react';
 import { api, SalesInvoice, Booking } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
 
 export const InvoicesPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateInvoice = can('PAYMENTS_RECORD');
   const canApproveInvoice = can('PAYMENTS_CONFIRM');
@@ -91,7 +93,13 @@ export const InvoicesPage: React.FC = () => {
 
   const handleApprove = async (invoiceId: string) => {
     if (!canApproveInvoice) return;
-    if (!window.confirm('Approve this sales invoice? This will finalize financial settlement and mark vehicle as SOLD.')) {
+    const confirmed = await showConfirm({
+      title: 'Approve Sales Invoice & Settle',
+      message: 'Approve this sales invoice? This will finalize financial settlement and automatically mark the assigned vehicle as SOLD.',
+      confirmText: 'Approve & Settle',
+      variant: 'success',
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -546,16 +554,23 @@ export const InvoicesPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '680px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <Receipt size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Receipt size={22} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Generate Sales Invoice</h2>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Generate Sales Invoice
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Calculate automated 15% VAT, apply booking deposit & route to approval
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -687,16 +702,23 @@ export const InvoicesPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '640px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <FileText size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <FileText size={22} />
                 </div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>{selectedInvoice.invoiceNumber}</h3>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Invoice Ref: {selectedInvoice.invoiceNumber}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Customer settlement breakdown, VAT audit & approval status
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedInvoice(null)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />

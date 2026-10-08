@@ -1619,9 +1619,10 @@ export const UsersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 

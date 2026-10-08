@@ -417,13 +417,29 @@ export const SuppliersPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '620px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  {editingSupplier ? 'Edit Supplier Partner' : 'Register International Supplier'}
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Foreign manufacturing & OEM partner master profile</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {editingSupplier ? 'Edit Supplier Partner' : 'Register International Supplier'}
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Foreign manufacturing & OEM partner master profile</span>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleSaveSupplier}>

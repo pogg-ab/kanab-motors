@@ -544,13 +544,29 @@ export const PurchaseOrdersPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '820px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  {editingOrder ? `Edit Purchase Order ${editingOrder.poNumber}` : 'Create International Purchase Order'}
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Multi-currency procurement contract & line items</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {editingOrder ? `Edit Purchase Order ${editingOrder.poNumber}` : 'Create International Purchase Order'}
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Multi-currency procurement contract & line items</span>
+                </div>
               </div>
-              <button onClick={() => { setShowCreateModal(false); resetForm(); }} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => { setShowCreateModal(false); resetForm(); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleSavePO}>
@@ -717,20 +733,39 @@ export const PurchaseOrdersPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '780px' }}>
             <div className="modal-header">
-              <div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>PURCHASE ORDER SPECIFICATION</div>
-                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-cyan)', margin: '0.2rem 0', fontFamily: 'monospace' }}>
-                  {selectedOrder.poNumber}
-                </h2>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Supplier: <strong style={{ color: 'var(--text-primary)' }}>{selectedOrder.supplier?.supplierName}</strong> ({selectedOrder.supplier?.country})
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Package size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>PURCHASE ORDER SPECIFICATION</div>
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent-cyan)', margin: '0.1rem 0', fontFamily: 'monospace' }}>
+                    {selectedOrder.poNumber}
+                  </h2>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Supplier: <strong style={{ color: 'var(--text-primary)' }}>{selectedOrder.supplier?.supplierName}</strong> ({selectedOrder.supplier?.country})
+                  </div>
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <span className="badge badge-emerald">{selectedOrder.status}</span>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                  Date: {new Date(selectedOrder.poDate).toLocaleDateString()}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <span className="badge badge-emerald">{selectedOrder.status}</span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    {new Date(selectedOrder.poDate).toLocaleDateString()}
+                  </div>
                 </div>
+                <button onClick={() => setSelectedOrder(null)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
               </div>
             </div>
 

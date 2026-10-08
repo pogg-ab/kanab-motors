@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
 import {
   api,
   Delivery,
@@ -25,6 +26,7 @@ import {
 } from '../../api/client';
 
 export const DeliveriesPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canUpdateVehicleStatus = can('VEHICLES_STATUS_UPDATE');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -151,7 +153,13 @@ export const DeliveriesPage: React.FC = () => {
 
   const handleAuthorize = async (deliveryId: string) => {
     if (!canUpdateVehicleStatus) return;
-    if (!window.confirm('Authorize vehicle release? This will verify PDI and financial settlement, and set vehicle to DELIVERED.')) {
+    const confirmed = await showConfirm({
+      title: 'Authorize Vehicle Handover & Gate Release',
+      message: 'Authorize vehicle release? This verifies mandatory PDI inspection standards and financial settlement before transitioning the vehicle to DELIVERED status.',
+      confirmText: 'Authorize Release',
+      variant: 'cyan',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -575,16 +583,23 @@ export const DeliveriesPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '640px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <ClipboardCheck size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <ClipboardCheck size={22} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Record Vehicle PDI Inspection</h2>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Record Vehicle PDI Inspection
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Perform 7-point mandatory pre-delivery safety verification
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPdiModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -692,16 +707,26 @@ export const DeliveriesPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Car color="#10b981" size={24} />
-                <h3 className="modal-title" style={{ margin: 0 }}>New Handover Order</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Car size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    New Handover Order
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Create customer delivery dispatch & authorize vehicle release
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
-                className="modal-close"
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 onClick={() => setShowDeliveryModal(false)}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -827,7 +852,7 @@ export const DeliveriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* OFFICIAL GATE PASS MODAL (STORY DL5) */}
+      {/* OFFICIAL GATE PASS MODAL */}
       {gatePassData && (
         <div className="modal-backdrop" onClick={() => setGatePassData(null)}>
           <div

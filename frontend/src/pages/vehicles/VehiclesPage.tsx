@@ -25,6 +25,7 @@ import {
   Warehouse,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
 
 const VEHICLE_STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'RECEIVED',
@@ -47,6 +48,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 export const VehiclesPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateVehicle = can('VEHICLES_CREATE');
   const canEditVehicle = can('VEHICLES_EDIT') || can('VEHICLES_CREATE') || can('VEHICLES_STATUS_UPDATE');
@@ -264,7 +266,13 @@ export const VehiclesPage: React.FC = () => {
   };
 
   const handleDeleteWarehouse = async (w: Warehouse) => {
-    if (!window.confirm(`Are you sure you want to delete warehouse "${w.warehouseName}"?`)) {
+    const confirmed = await showConfirm({
+      title: 'Delete Storage Depot / Warehouse',
+      message: `Are you sure you want to delete warehouse "${w.warehouseName}"? This action cannot be reversed.`,
+      confirmText: 'Delete Warehouse',
+      variant: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
     setWarehouseActionError(null);
@@ -574,7 +582,11 @@ export const VehiclesPage: React.FC = () => {
       setStatusModalUnit(null);
       fetchVehicles();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update vehicle status');
+      showAlert({
+        title: 'Status Transition Error',
+        message: err.response?.data?.message || 'Failed to update vehicle status. Direct unauthorized status jumps are strictly blocked.',
+        variant: 'danger',
+      });
     }
   };
 
@@ -896,19 +908,33 @@ export const VehiclesPage: React.FC = () => {
           <div className="modal-content">
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <CarFront size={22} color="var(--accent-indigo)" />
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CarFront size={20} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Register Physical Vehicle Unit</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Register Physical Vehicle Unit</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Capture unique chassis and engine numbers (enforces zero duplicates)
-                  </p>
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsSingleOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1011,25 +1037,39 @@ export const VehiclesPage: React.FC = () => {
         </div>
       )}
 
-      {/* BULK CSV IMPORT MODAL (Story 2.9) */}
+      {/* BULK CSV IMPORT MODAL */}
       {isBulkOpen && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '750px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileSpreadsheet size={22} color="var(--accent-emerald)" />
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-emerald)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileSpreadsheet size={20} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Bulk Import Vehicle Units (CSV)</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Bulk Import Vehicle Units (CSV)</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     High-speed intake for shipment batches with duplicate chassis validation
-                  </p>
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsBulkOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1144,17 +1184,39 @@ export const VehiclesPage: React.FC = () => {
         </div>
       )}
 
-      {/* UPDATE STATUS MODAL (Story 2.8) */}
+      {/* UPDATE STATUS MODAL */}
       {statusModalUnit && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Update Vehicle Lifecycle Status</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Layers size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Update Vehicle Lifecycle Status</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Transition vehicle status and track warehouse depot location
+                  </span>
+                </div>
+              </div>
               <button
                 onClick={() => setStatusModalUnit(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1258,9 +1320,10 @@ export const VehiclesPage: React.FC = () => {
                   setEditingWarehouseId(null);
                   setWarehouseActionError(null);
                 }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1469,9 +1532,10 @@ export const VehiclesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsExcelOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1696,9 +1760,10 @@ export const VehiclesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setEditingVehicle(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 

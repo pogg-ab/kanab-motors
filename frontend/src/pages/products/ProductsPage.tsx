@@ -25,8 +25,10 @@ import {
   TaxConfiguration,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
 
 export const ProductsPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateProduct = can('PRODUCTS_CREATE');
   const canEditProduct = can('PRODUCTS_EDIT') || can('PRODUCTS_CREATE');
@@ -322,7 +324,13 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleDeleteCategory = async (cat: ProductCategory) => {
-    if (!window.confirm(`Are you sure you want to delete category "${cat.categoryName}"?`)) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Product Category',
+      message: `Are you sure you want to delete category "${cat.categoryName}"? Existing product associations must be cleared first.`,
+      confirmText: 'Delete Category',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setCatActionError(null);
     try {
       await api.deleteCategory(cat.categoryId);
@@ -382,7 +390,13 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleDeleteBrand = async (brand: Brand) => {
-    if (!window.confirm(`Are you sure you want to delete brand "${brand.brandName}"?`)) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Brand',
+      message: `Are you sure you want to delete brand "${brand.brandName}"?`,
+      confirmText: 'Delete Brand',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setBrandActionError(null);
     try {
       await api.deleteBrand(brand.brandId);
@@ -448,7 +462,13 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleDeleteTax = async (tax: TaxConfiguration) => {
-    if (!window.confirm(`Are you sure you want to delete tax rate "${tax.taxName}"?`)) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Tax Rate Configuration',
+      message: `Are you sure you want to delete tax rate "${tax.taxName}" (${tax.taxRatePct}%)?`,
+      confirmText: 'Delete Tax Rate',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     setTaxActionError(null);
     try {
       await api.deleteTaxConfig(tax.taxConfigId);
@@ -782,9 +802,10 @@ export const ProductsPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -985,9 +1006,10 @@ export const ProductsPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setEditingProduct(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1189,9 +1211,10 @@ export const ProductsPage: React.FC = () => {
                   setEditingCatId(null);
                   setCatActionError(null);
                 }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1407,9 +1430,10 @@ export const ProductsPage: React.FC = () => {
                   setEditingBrandId(null);
                   setBrandActionError(null);
                 }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1625,9 +1649,10 @@ export const ProductsPage: React.FC = () => {
                   setEditingTaxId(null);
                   setTaxActionError(null);
                 }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 

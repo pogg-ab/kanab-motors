@@ -60,13 +60,13 @@ export const EnquiriesPage: React.FC = () => {
     enquiryNumber: string;
   } | null>(null);
 
-  // Rejection Modal State (Story E9)
+  // Rejection Modal State
   const [rejectTarget, setRejectTarget] = useState<SalesEnquiry | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
 
-  // Printable Proforma Quotation Modal (Story E13)
+  // Printable Proforma Quotation Modal
   const [selectedQuote, setSelectedQuote] = useState<SalesEnquiry | null>(null);
 
   // Proforma Print Isolation Effect
@@ -536,19 +536,33 @@ export const EnquiriesPage: React.FC = () => {
           <div className="modal-content">
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileText size={20} color="var(--accent-indigo)" />
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileText size={20} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Create Sales Enquiry</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Create Sales Enquiry</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Capture customer vehicle interest with real-time VAT calculation
-                  </p>
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -704,9 +718,10 @@ export const EnquiriesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setConvertTarget(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -803,7 +818,7 @@ export const EnquiriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* BEAUTIFUL REJECTION MODAL (Story E9) */}
+      {/* REJECTION MODAL */}
       {rejectTarget && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
@@ -821,9 +836,10 @@ export const EnquiriesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setRejectTarget(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -879,7 +895,7 @@ export const EnquiriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* PRINTABLE PROFORMA INVOICE / QUOTATION MODAL (Story E13) */}
+      {/* PRINTABLE PROFORMA INVOICE / QUOTATION MODAL */}
       {selectedQuote && (
         <div className="modal-backdrop proforma-modal-backdrop">
           <div className="modal-content proforma-modal-content" style={{ maxWidth: '720px', padding: '0', background: '#0b1120', overflow: 'hidden', border: '1px solid #1e293b', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>

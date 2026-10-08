@@ -33,8 +33,10 @@ import {
   Attachment,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
 
 export const CustomersPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateCustomer = can('CUSTOMERS_CREATE');
   const canEditCustomer = can('CUSTOMERS_EDIT');
@@ -255,7 +257,11 @@ export const CustomersPage: React.FC = () => {
       setStatusConfirmTarget(null);
     } catch (err: any) {
       console.error('Failed to update customer status:', err);
-      alert(err.response?.data?.message || 'Failed to update customer status');
+      showAlert({
+        title: 'Customer Status Update Error',
+        message: err.response?.data?.message || 'Failed to update customer status.',
+        variant: 'danger',
+      });
     } finally {
       setStatusToggling(false);
     }
@@ -334,19 +340,34 @@ export const CustomersPage: React.FC = () => {
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to add bank account');
+      showAlert({
+        title: 'Bank Account Error',
+        message: err.response?.data?.message || 'Failed to add bank account. Please review account details.',
+        variant: 'danger',
+      });
     }
   };
 
   const handleDeleteBankAccount = async (bankAccountId: string) => {
     if (!canManageBank) return;
-    if (!selectedCustomer || !window.confirm('Delete this bank account?')) return;
+    if (!selectedCustomer) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Bank Account',
+      message: 'Are you sure you want to delete this bank account from the customer profile?',
+      confirmText: 'Delete Account',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await api.deleteBankAccount(selectedCustomer.customerId, bankAccountId);
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      alert('Failed to delete bank account');
+      showAlert({
+        title: 'Delete Failed',
+        message: 'Failed to delete bank account.',
+        variant: 'danger',
+      });
     }
   };
 
@@ -360,7 +381,11 @@ export const CustomersPage: React.FC = () => {
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to upload document');
+      showAlert({
+        title: 'Document Upload Failed',
+        message: err.response?.data?.message || 'Failed to upload document file.',
+        variant: 'danger',
+      });
     } finally {
       setUploading(false);
     }
@@ -368,13 +393,24 @@ export const CustomersPage: React.FC = () => {
 
   const handleDeleteDocument = async (docId: string) => {
     if (!canUploadDocs) return;
-    if (!selectedCustomer || !window.confirm('Delete this document?')) return;
+    if (!selectedCustomer) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Attachment Document',
+      message: 'Are you sure you want to permanently delete this customer document?',
+      confirmText: 'Delete Document',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await api.deleteCustomerDoc(selectedCustomer.customerId, docId);
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err) {
-      alert('Failed to delete document');
+      showAlert({
+        title: 'Delete Failed',
+        message: 'Failed to delete document.',
+        variant: 'danger',
+      });
     }
   };
 
@@ -739,9 +775,10 @@ export const CustomersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -869,7 +906,7 @@ export const CustomersPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Bank Accounts Repeater (Story 1.7) */}
+                {/* Bank Accounts Repeater */}
                 <div style={{
                   marginTop: '1.25rem',
                   paddingTop: '1rem',
@@ -997,9 +1034,10 @@ export const CustomersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setEditingCustomer(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1291,9 +1329,10 @@ export const CustomersPage: React.FC = () => {
                 )}
                 <button
                   onClick={() => setSelectedCustomer(null)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 >
-                  <X size={20} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -1456,7 +1495,7 @@ export const CustomersPage: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 3: BANKING DETAILS (Story 1.7) */}
+              {/* TAB 3: BANKING DETAILS */}
               {activeDetailTab === 'banking' && (
                 <div>
                   <div style={{ marginBottom: '1.25rem' }}>
@@ -1551,7 +1590,7 @@ export const CustomersPage: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 4: DOCUMENTS (Story 1.8) */}
+              {/* TAB 4: DOCUMENTS */}
               {activeDetailTab === 'documents' && (
                 <div>
                   {canUploadDocs && <div style={{
@@ -1730,9 +1769,10 @@ export const CustomersPage: React.FC = () => {
                 </a>
                 <button
                   onClick={() => setPreviewDoc(null)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 >
-                  <X size={20} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -1838,9 +1878,10 @@ export const CustomersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setStatusConfirmTarget(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
             <div className="modal-body">

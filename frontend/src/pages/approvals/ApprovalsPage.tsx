@@ -515,34 +515,57 @@ export const ApprovalsPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <ShieldCheck
-                  color={
-                    decisionModalMode === 'APPROVE'
-                      ? '#10b981'
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    borderRadius: 'var(--radius-md)',
+                    background:
+                      decisionModalMode === 'APPROVE'
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'rgba(244, 63, 94, 0.12)'
+                        : 'rgba(6, 182, 212, 0.12)',
+                    border: `1px solid ${
+                      decisionModalMode === 'APPROVE'
+                        ? 'rgba(16, 185, 129, 0.3)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'rgba(244, 63, 94, 0.3)'
+                        : 'rgba(6, 182, 212, 0.3)'
+                    }`,
+                    color:
+                      decisionModalMode === 'APPROVE'
+                        ? 'var(--accent-emerald)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'var(--accent-rose)'
+                        : 'var(--accent-cyan)',
+                  }}
+                >
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {decisionModalMode === 'APPROVE'
+                      ? 'Confirm Approval Authorization'
                       : decisionModalMode === 'REJECT'
-                      ? '#ef4444'
-                      : 'var(--accent-cyan)'
-                  }
-                  size={24}
-                />
-                <h3 className="modal-title" style={{ margin: 0 }}>
-                  {decisionModalMode === 'APPROVE'
-                    ? 'Confirm Approval Decision'
-                    : decisionModalMode === 'REJECT'
-                    ? 'Confirm Rejection Decision'
-                    : `Decision Audit Trail: #${selectedRequest.requestNumber}`}
-                </h3>
+                      ? 'Confirm Rejection Decision'
+                      : `Approval Trail: #${selectedRequest.requestNumber}`}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Entity: {selectedRequest.entityType} · Request #{selectedRequest.requestNumber}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
-                className="modal-close"
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 onClick={() => {
                   setSelectedRequest(null);
                   setDecisionModalMode(null);
                 }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 

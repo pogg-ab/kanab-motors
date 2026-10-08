@@ -812,9 +812,7 @@ export const api = {
   rejectRefund: (id: string, reason: string) =>
     apiClient.patch<CustomerRefund>(`/refunds/${id}/reject`, { reason }).then((r) => r.data),
 
-  // --- KMSICAMS-3 Endpoints ---
-
-  // Suppliers (Story F1)
+  // --- Suppliers Endpoints ---
   getSuppliers: (search?: string, isActive?: boolean) =>
     apiClient
       .get<Supplier[]>('/suppliers', { params: { search, isActive } })

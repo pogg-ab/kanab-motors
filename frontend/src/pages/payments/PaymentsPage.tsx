@@ -510,13 +510,29 @@ export const PaymentsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '660px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Record Bank Receipt Voucher (BRV)
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Official Deposit Recording & Bank Slip Reconciliation</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Record Bank Receipt Voucher (BRV)
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Official Deposit Recording & Bank Slip Reconciliation</span>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleCreatePayment}>
@@ -666,11 +682,27 @@ export const PaymentsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '700px' }}>
             <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>KANAB MOTORS PRIVATE LIMITED COMPANY</h3>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Automotive Assembly & Import Logistics Division</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-emerald)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileCheck size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>KANAB MOTORS PRIVATE LIMITED COMPANY</h3>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Automotive Assembly & Import Logistics Division</div>
+                </div>
               </div>
-              <button onClick={() => setSelectedReceipt(null)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setSelectedReceipt(null)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <div className="modal-body">
@@ -754,15 +786,31 @@ export const PaymentsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
-                  Reject Bank Receipt Voucher
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Voucher: {rejectingPayment.receiptNumber} (ETB {Number(rejectingPayment.amount).toLocaleString()})
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(244, 63, 94, 0.12)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-rose)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
+                    Reject Bank Receipt Voucher
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Voucher: {rejectingPayment.receiptNumber} (ETB {Number(rejectingPayment.amount).toLocaleString()})
+                  </span>
+                </div>
               </div>
-              <button onClick={() => setShowRejectModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowRejectModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleRejectPayment}>

@@ -573,13 +573,29 @@ export const BookingsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '680px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Create Advance Order Booking
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Customer allocation & required deposit stamping</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Bookmark size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Create Advance Order Booking
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Customer allocation & required deposit stamping</span>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleCreateBooking}>
@@ -715,13 +731,29 @@ export const BookingsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '560px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Transfer Advance Deposit Funds
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Transfer collected deposits to another active order</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ArrowRightLeft size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Transfer Advance Deposit Funds
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Transfer collected deposits to another active order</span>
+                </div>
               </div>
-              <button onClick={() => setShowTransferModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowTransferModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleTransfer}>
@@ -796,13 +828,29 @@ export const BookingsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '540px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
-                  Cancel Order Booking
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Terminate reservation and re-route deposits</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(244, 63, 94, 0.12)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-rose)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
+                    Cancel Order Booking
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Terminate reservation and re-route deposits</span>
+                </div>
               </div>
-              <button onClick={() => setShowCancelModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowCancelModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleCancel}>

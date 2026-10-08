@@ -31,13 +31,13 @@ export const StatementOfAccountPage: React.FC = () => {
   const [statement, setStatement] = useState<StatementOfAccount | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Filters (Story L6)
+  // Filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('');
   const [bookingFilter, setBookingFilter] = useState('');
 
-  // Manual Adjustment Modal (Story L9)
+  // Manual Adjustment Modal
   const [isAdjOpen, setIsAdjOpen] = useState(false);
   const [adjForm, setAdjForm] = useState({
     type: 'CREDIT' as 'CREDIT' | 'DEBIT',
@@ -373,7 +373,7 @@ export const StatementOfAccountPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Customer Financial Summary Cards (Story L4) */}
+      {/* Customer Financial Summary Cards */}
       {statement?.summary && (
         <div style={{
           display: 'grid',
@@ -539,17 +539,41 @@ export const StatementOfAccountPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MANUAL ADJUSTMENT MODAL (Story L9) */}
+      {/* MANUAL ADJUSTMENT MODAL */}
       {isAdjOpen && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Post Manual Ledger Adjustment</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Post Manual Ledger Adjustment
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Double-entry balancing credit or debit adjustment
+                  </span>
+                </div>
+              </div>
               <button
                 onClick={() => setIsAdjOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
