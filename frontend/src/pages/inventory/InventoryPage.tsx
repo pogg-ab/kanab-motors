@@ -470,7 +470,7 @@ export const InventoryPage: React.FC = () => {
   });
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: '1440px', margin: '0 auto', color: 'var(--text-primary)' }}>
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto', color: 'var(--text-primary)' }}>
       {/* Toast Notification */}
       {notification && (
         <div
@@ -479,11 +479,12 @@ export const InventoryPage: React.FC = () => {
             bottom: '2rem',
             right: '2rem',
             zIndex: 9999,
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            background: notification.type === 'success' ? '#10B981' : '#EF4444',
-            color: '#FFFFFF',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: notification.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+            border: `1px solid ${notification.type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+            color: notification.type === 'success' ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
@@ -491,164 +492,131 @@ export const InventoryPage: React.FC = () => {
             animation: 'slideUp 0.3s ease-out',
           }}
         >
-          {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
-          {notification.msg}
+          {notification.type === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+          <span>{notification.msg}</span>
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Boxes className="text-cyan" size={28} />
-            Inventory & Warehouse Management
-          </h1>
-          <p style={{ margin: '0.35rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            KMSICAMS-4 • Multi-Warehouse Stock Balances, State Transitions, Transfers, & Local Assembly Intake
-          </p>
+      {/* Breadcrumbs & Header */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>★ Operations & Fulfillment</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span>Inventory & Warehouses</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span style={{ color: 'var(--text-primary)' }}>Stock Balances & Tracking</span>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            onClick={() => loadAllData()}
-            className="btn-outline"
-            style={{
-              padding: '0.6rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={16} /> Refresh
-          </button>
-          {canCreateStockTransfer && (
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Boxes size={24} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                Inventory & Warehouse Management
+              </h1>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                KMSICAMS-4 • Multi-Warehouse Stock Balances, State Transitions, Transfers, & Local Assembly Intake
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
-              onClick={() => setShowTransferModal(true)}
-              style={{
-                padding: '0.6rem 1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.85rem',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #00D2D3, #00A8FF)',
-                color: '#0D1117',
-                border: 'none',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+              onClick={() => loadAllData()}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <ArrowRightLeft size={16} /> New Transfer
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              Refresh
             </button>
-          )}
-          {canCreateProductionReceipt && (
-            <button
-              onClick={() => setShowProductionModal(true)}
-              style={{
-                padding: '0.6rem 1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.85rem',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #10B981, #059669)',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              <Wrench size={16} /> Assembly Intake
-            </button>
-          )}
+            {canCreateStockTransfer && (
+              <button
+                onClick={() => setShowTransferModal(true)}
+                className="btn btn-cyan"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <ArrowRightLeft size={16} />
+                New Transfer
+              </button>
+            )}
+            {canCreateProductionReceipt && (
+              <button
+                onClick={() => setShowProductionModal(true)}
+                className="btn btn-emerald"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Wrench size={16} />
+                Assembly Intake
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* KPI Stats Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>ACTIVE WAREHOUSES</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#00D2D3' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Warehouses</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-cyan)' }}>
+              <Building size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>
             {warehouses.length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             Total Depots & Assembly plants
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: lowStockAlerts.length > 0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>REORDER ALERTS</div>
-          <div
-            style={{
-              fontSize: '1.75rem',
-              fontWeight: 800,
-              marginTop: '0.25rem',
-              color: lowStockAlerts.length > 0 ? '#EF4444' : '#10B981',
-            }}
-          >
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: lowStockAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reorder Alerts</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: lowStockAlerts.length > 0 ? 'rgba(244, 63, 94, 0.12)' : 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: lowStockAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>
+              <ShieldAlert size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: lowStockAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)', fontFamily: 'monospace' }}>
             {lowStockAlerts.length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             {lowStockAlerts.length > 0 ? 'Items below reorder point' : 'All stock levels healthy'}
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>PENDING TRANSFERS</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#F59E0B' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending Transfers</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-amber)' }}>
+              <ArrowRightLeft size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace' }}>
             {transfers.filter((t) => t.status === 'REQUESTED' || t.status === 'APPROVED').length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             Inter-warehouse movements in progress
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>PENDING ADJUSTMENTS</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#A855F7' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-purple)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending Adjustments</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-purple)' }}>
+              <SlidersHorizontal size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-purple)', fontFamily: 'monospace' }}>
             {adjustments.filter((a) => a.status === 'REQUESTED').length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             Awaiting manager approval
           </div>
         </div>
@@ -658,8 +626,9 @@ export const InventoryPage: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          gap: '0.5rem',
+          gap: '0.75rem',
           borderBottom: '1px solid var(--border-color)',
+          paddingBottom: '0.75rem',
           marginBottom: '1.5rem',
           overflowX: 'auto',
         }}
@@ -678,28 +647,21 @@ export const InventoryPage: React.FC = () => {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
+              className={`filter-pill ${isActive ? 'active' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                padding: '0.75rem 1.25rem',
-                border: 'none',
-                background: 'transparent',
-                color: isActive ? '#00D2D3' : 'var(--text-secondary)',
-                fontWeight: isActive ? 700 : 500,
-                fontSize: '0.9rem',
-                borderBottom: isActive ? '2px solid #00D2D3' : '2px solid transparent',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
                 whiteSpace: 'nowrap',
               }}
             >
-              <Icon size={18} />
-              {tab.label}
+              <Icon size={15} />
+              <span>{tab.label}</span>
               {tab.key === 'balances' && lowStockAlerts.length > 0 && (
                 <span
                   style={{
-                    background: '#EF4444',
+                    background: 'var(--accent-rose)',
                     color: '#FFF',
                     fontSize: '0.7rem',
                     padding: '0.1rem 0.4rem',
@@ -717,25 +679,25 @@ export const InventoryPage: React.FC = () => {
 
       {/* TAB 1: STOCK BALANCES */}
       {activeTab === 'balances' && (
-        <div>
+        <div className="card" style={{ overflow: 'hidden' }}>
           {/* Low Stock Warning Banner */}
           {lowStockAlerts.length > 0 && (
             <div
               style={{
                 background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '8px',
-                padding: '1rem',
-                marginBottom: '1.5rem',
+                borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+                padding: '1rem 1.25rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <ShieldAlert className="text-red" size={24} />
                 <div>
-                  <div style={{ fontWeight: 700, color: '#EF4444' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-rose)' }}>
                     Reorder Alert: {lowStockAlerts.length} product(s) below reorder threshold
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -743,7 +705,7 @@ export const InventoryPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {lowStockAlerts.slice(0, 3).map((a) => (
                   <span
                     key={a.item_id}
@@ -752,7 +714,7 @@ export const InventoryPage: React.FC = () => {
                       padding: '0.2rem 0.6rem',
                       borderRadius: '4px',
                       fontSize: '0.75rem',
-                      color: '#EF4444',
+                      color: 'var(--accent-rose)',
                     }}
                   >
                     {a.item_code} (Shortfall: {a.shortfall})
@@ -765,23 +727,26 @@ export const InventoryPage: React.FC = () => {
           {/* Filters Bar */}
           <div
             style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid var(--border-color)',
+              background: 'rgba(15, 23, 42, 0.4)',
               display: 'flex',
-              gap: '1rem',
-              marginBottom: '1rem',
+              justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
+              gap: '0.75rem',
             }}
           >
             <div
               style={{
                 position: 'relative',
-                flex: 1,
-                minWidth: '240px',
+                width: '380px',
+                maxWidth: '100%',
               }}
             >
               <Search
                 size={16}
-                style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}
+                style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
               />
               <input
                 type="text"
@@ -790,8 +755,8 @@ export const InventoryPage: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.6rem 0.75rem 0.6rem 2.25rem',
-                  borderRadius: '6px',
+                  padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                  borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border-color)',
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
@@ -800,62 +765,55 @@ export const InventoryPage: React.FC = () => {
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Building size={16} style={{ color: 'var(--text-secondary)' }} />
-              <select
-                value={selectedWarehouseFilter}
-                onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
-                style={{
-                  padding: '0.6rem 1rem',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
-                }}
-              >
-                <option value="ALL">All Warehouses</option>
-                {warehouses.map((w) => (
-                  <option key={w.warehouseId} value={String(w.warehouseId)}>
-                    {w.warehouseName} ({w.warehouseType || 'Depot'})
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building size={16} style={{ color: 'var(--text-muted)' }} />
+                <select
+                  value={selectedWarehouseFilter}
+                  onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <option value="ALL">All Warehouses</option>
+                  {warehouses.map((w) => (
+                    <option key={w.warehouseId} value={String(w.warehouseId)}>
+                      {w.warehouseName} ({w.warehouseType || 'Depot'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {canCreateStockReceipt && (
+                <button
+                  onClick={() => setShowReceiptModal(true)}
+                  className="btn btn-emerald"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <Plus size={16} /> Receive Stock
+                </button>
+              )}
             </div>
-            {canCreateStockReceipt && (
-              <button
-                onClick={() => setShowReceiptModal(true)}
-                style={{
-                  padding: '0.6rem 1rem',
-                  borderRadius: '6px',
-                  background: 'linear-gradient(135deg, #10B981, #059669)',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-              >
-                <Plus size={16} /> Receive Stock
-              </button>
-            )}
           </div>
 
           {/* Balances Table */}
           <div
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              overflow: 'hidden',
+              overflowX: 'auto',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
                   <th style={{ padding: '0.85rem 1rem' }}>ITEM CODE</th>
                   <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
@@ -950,19 +908,8 @@ export const InventoryPage: React.FC = () => {
             {canCreateStockTransfer && (
             <button
               onClick={() => setShowTransferModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#00D2D3',
-                color: '#0D1117',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> Request Transfer
             </button>
@@ -970,23 +917,21 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>TRANSFER #</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>FROM WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>TO WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>REQUESTED BY</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>REQUESTED DATE</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ACTIONS</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TRANSFER #</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FROM WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TO WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REQUESTED BY</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>STATUS</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REQUESTED DATE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -1024,10 +969,10 @@ export const InventoryPage: React.FC = () => {
                                 : 'rgba(245, 158, 11, 0.15)',
                             color:
                               t.status === 'COMPLETED'
-                                ? '#10B981'
+                                ? 'var(--accent-emerald)'
                                 : t.status === 'APPROVED'
-                                ? '#00D2D3'
-                                : '#F59E0B',
+                                ? 'var(--accent-cyan)'
+                                : 'var(--accent-amber)',
                           }}
                         >
                           {t.status}
@@ -1040,13 +985,9 @@ export const InventoryPage: React.FC = () => {
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                           <button
                             onClick={() => setSelectedTransfer(t)}
+                            className="btn btn-secondary"
                             style={{
-                              background: 'transparent',
-                              border: '1px solid var(--border-color)',
                               padding: '0.3rem 0.6rem',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              color: 'var(--text-primary)',
                               fontSize: '0.75rem',
                             }}
                           >
@@ -1056,14 +997,9 @@ export const InventoryPage: React.FC = () => {
                             <button
                               disabled={actionLoading}
                               onClick={() => handleApproveTransfer(t.transferId)}
+                              className="btn btn-cyan"
                               style={{
-                                background: '#00D2D3',
-                                border: 'none',
-                                color: '#0D1117',
                                 padding: '0.3rem 0.6rem',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 700,
                                 fontSize: '0.75rem',
                               }}
                             >
@@ -1074,14 +1010,9 @@ export const InventoryPage: React.FC = () => {
                             <button
                               disabled={actionLoading}
                               onClick={() => handleCompleteTransfer(t.transferId)}
+                              className="btn btn-emerald"
                               style={{
-                                background: '#10B981',
-                                border: 'none',
-                                color: '#FFFFFF',
                                 padding: '0.3rem 0.6rem',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 700,
                                 fontSize: '0.75rem',
                               }}
                             >
@@ -1107,19 +1038,8 @@ export const InventoryPage: React.FC = () => {
             {canCreateStockAdjustment && (
             <button
               onClick={() => setShowAdjustmentModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#A855F7',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> New Adjustment
             </button>
@@ -1127,16 +1047,14 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.85rem 1rem' }}>ADJUSTMENT #</th>
                   <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
                   <th style={{ padding: '0.85rem 1rem' }}>ITEM / VEHICLE</th>
@@ -1257,19 +1175,8 @@ export const InventoryPage: React.FC = () => {
             {canCreateProductionReceipt && (
             <button
               onClick={() => setShowProductionModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#10B981',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-emerald"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> Record Assembly Receipt
             </button>
@@ -1277,23 +1184,21 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>RECEIPT #</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>CHASSIS / VIN</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ENGINE NUMBER</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ASSEMBLED DATE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>INSPECTION STATUS</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>RECEIPT #</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CHASSIS / VIN</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ENGINE NUMBER</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ASSEMBLED DATE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>INSPECTION STATUS</th>
                 </tr>
               </thead>
               <tbody>
@@ -1309,7 +1214,7 @@ export const InventoryPage: React.FC = () => {
                       <td style={{ padding: '0.85rem 1rem', fontWeight: 700, fontFamily: 'monospace' }}>
                         #{p.productionReceiptId}
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3', fontWeight: 700 }}>
+                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: 'var(--accent-cyan)', fontWeight: 700 }}>
                         {p.chassisNumber}
                       </td>
                       <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace' }}>{p.engineNumber}</td>
@@ -1320,7 +1225,7 @@ export const InventoryPage: React.FC = () => {
                         <span
                           style={{
                             background: 'rgba(16, 185, 129, 0.15)',
-                            color: '#10B981',
+                            color: 'var(--accent-emerald)',
                             padding: '0.2rem 0.5rem',
                             borderRadius: '4px',
                             fontSize: '0.75rem',
@@ -1347,7 +1252,7 @@ export const InventoryPage: React.FC = () => {
               Vehicle Lifecycle State Machine Rules
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Enforced by database function <code style={{ color: '#00D2D3' }}>fn_transition_vehicle_status()</code>.
+              Enforced by database function <code style={{ color: 'var(--accent-cyan)' }}>fn_transition_vehicle_status()</code>.
               Direct unauthorized status jumps (e.g. RECEIVED → SOLD) are strictly blocked.
             </div>
           </div>
@@ -1363,10 +1268,8 @@ export const InventoryPage: React.FC = () => {
             {transitionRules.map((r, i) => (
               <div
                 key={i}
+                className="card"
                 style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
                   padding: '1rem',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1375,14 +1278,14 @@ export const InventoryPage: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem' }}>
-                    <span style={{ color: '#F59E0B' }}>{r.fromStatus}</span>
+                    <span style={{ color: 'var(--accent-amber)' }}>{r.fromStatus}</span>
                     <ChevronRight size={16} />
-                    <span style={{ color: '#10B981' }}>{r.toStatus}</span>
+                    <span style={{ color: 'var(--accent-emerald)' }}>{r.toStatus}</span>
                   </div>
                   <span
                     style={{
                       background: 'rgba(0, 210, 211, 0.1)',
-                      color: '#00D2D3',
+                      color: 'var(--accent-cyan)',
                       fontSize: '0.7rem',
                       padding: '0.15rem 0.5rem',
                       borderRadius: '4px',
@@ -1404,20 +1307,18 @@ export const InventoryPage: React.FC = () => {
             Current Fleet Distribution by Status
           </div>
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS COUNT</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>STATUS</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>UNITS COUNT</th>
                 </tr>
               </thead>
               <tbody>
@@ -1445,7 +1346,7 @@ export const InventoryPage: React.FC = () => {
                           {vr.current_status || vr.status}
                         </span>
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-cyan)' }}>
                         {vr.unit_count ?? vr.vehicle_count}
                       </td>
                     </tr>
@@ -1603,23 +1504,21 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>TIMESTAMP</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>TYPE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ITEM / VEHICLE</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>QUANTITY</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>REFERENCE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>PERFORMED BY</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TIMESTAMP</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TYPE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ITEM / VEHICLE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>QUANTITY</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REFERENCE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PERFORMED BY</th>
                 </tr>
               </thead>
               <tbody>
