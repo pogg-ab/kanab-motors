@@ -17,6 +17,7 @@ import {
   FileText,
   CarFront,
   Clock,
+  ChevronLeft,
   ChevronRight,
   ShieldAlert,
   ArrowUpRight,
@@ -71,6 +72,8 @@ export const InventoryPage: React.FC = () => {
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>('ALL');
   const [movementStartDate, setMovementStartDate] = useState<string>('');
   const [movementEndDate, setMovementEndDate] = useState<string>('');
+  const [movementPage, setMovementPage] = useState<number>(1);
+  const [movementPageSize, setMovementPageSize] = useState<number>(10);
 
   // Modals
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -208,6 +211,7 @@ export const InventoryPage: React.FC = () => {
 
       const movementList = await api.getMovementHistory(params);
       setMovements(movementList);
+      setMovementPage(1);
     } catch (err: any) {
       showToast('error', err.response?.data?.message || err.message || 'Failed to load movement history');
     }
@@ -468,6 +472,12 @@ export const InventoryPage: React.FC = () => {
     }
     return true;
   });
+
+  const totalMovementPages = Math.max(1, Math.ceil(movements.length / movementPageSize));
+  const currentMovementPage = Math.min(Math.max(1, movementPage), totalMovementPages);
+  const movementStartIndex = movements.length === 0 ? 0 : (currentMovementPage - 1) * movementPageSize;
+  const movementEndIndex = Math.min(movementStartIndex + movementPageSize, movements.length);
+  const paginatedMovements = movements.slice(movementStartIndex, movementEndIndex);
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: '1440px', margin: '0 auto', color: 'var(--text-primary)' }}>
@@ -1594,6 +1604,7 @@ export const InventoryPage: React.FC = () => {
                 setMovementTypeFilter('ALL');
                 setMovementStartDate('');
                 setMovementEndDate('');
+                setMovementPage(1);
               }}
               className="btn btn-secondary"
               style={{ padding: '0.55rem 0.75rem' }}
@@ -1630,7 +1641,7 @@ export const InventoryPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  movements.map((m) => {
+                  paginatedMovements.map((m) => {
                     const isPositive = m.quantity > 0;
                     return (
                       <tr key={m.movement_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -1681,6 +1692,100 @@ export const InventoryPage: React.FC = () => {
                 )}
               </tbody>
             </table>
+
+            {movements.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem 1rem',
+                  borderTop: '1px solid var(--border-color)',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <span>
+                    Showing <strong style={{ color: 'var(--text-primary)' }}>{movements.length === 0 ? 0 : movementStartIndex + 1}</strong> to{' '}
+                    <strong style={{ color: 'var(--text-primary)' }}>{movementEndIndex}</strong> of{' '}
+                    <strong style={{ color: 'var(--text-primary)' }}>{movements.length}</strong> records
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <label htmlFor="movement-page-size" style={{ fontSize: '0.8rem' }}>Per page:</label>
+                    <select
+                      id="movement-page-size"
+                      value={movementPageSize}
+                      onChange={(e) => {
+                        setMovementPageSize(Number(e.target.value));
+                        setMovementPage(1);
+                      }}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    disabled={currentMovementPage <= 1}
+                    onClick={() => setMovementPage((p) => Math.max(1, p - 1))}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.35rem 0.65rem',
+                      fontSize: '0.8rem',
+                      opacity: currentMovementPage <= 1 ? 0.5 : 1,
+                      cursor: currentMovementPage <= 1 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <ChevronLeft size={14} />
+                    Prev
+                  </button>
+
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', padding: '0 0.25rem' }}>
+                    Page {currentMovementPage} of {totalMovementPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={currentMovementPage >= totalMovementPages}
+                    onClick={() => setMovementPage((p) => Math.min(totalMovementPages, p + 1))}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.35rem 0.65rem',
+                      fontSize: '0.8rem',
+                      opacity: currentMovementPage >= totalMovementPages ? 0.5 : 1,
+                      cursor: currentMovementPage >= totalMovementPages ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Next
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
