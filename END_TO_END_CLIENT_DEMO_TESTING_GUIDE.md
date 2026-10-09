@@ -990,6 +990,34 @@ Demonstrate compliance with **Client Specification: Module 14 — Vehicle Allotm
     - Columns: `Date | Allotment Ref | Booking | Customer | Chassis Number | Engine Number | Warehouse | Status | User / Actor`.
 12. **Printable / PDF Allotment Document (★)**:
     - Formal advice slip with KANAB Motors header, booking and customer metadata, breakdown table, serial master roster, signatures (`Prepared By`, `Approved By`), and official corporate stamp.
+13. **Critical Business Rules (BR-01 to BR-12)**:
+    | Rule Code | Rule Title | Operational Enforcement |
+    |---|---|---|
+    | **BR-01** | **Approved Booking Only** | Only eligible/approved bookings can normally be allotted. Draft, cancelled, or closed bookings are strictly blocked. |
+    | **BR-02** | **Payment Eligibility** | The applicable payment requirement (e.g. Option A: 30% deposit) must be satisfied before allotment. |
+    | **BR-03** | **Inventory Availability** | Vehicle must be strictly available (`AVAILABLE_FOR_SALE`) at the time of transaction posting. |
+    | **BR-04** | **Product Matching** | Vehicle product and model must match the booking item specification exactly. |
+    | **BR-05** | **Quantity Control** | Current Allotment $\le$ Booking Quantity - Previously Allotted Quantity. Over-allocation blocked. |
+    | **BR-06** | **No Duplicate Vehicle** | One active physical vehicle cannot have multiple active allotments across the system. |
+    | **BR-07** | **Chassis Uniqueness** | Chassis number (VIN) must uniquely identify a vehicle across all warehouses. |
+    | **BR-08** | **Engine Uniqueness** | Engine serial number must be globally unique according to vehicle master rules. |
+    | **BR-09** | **Atomic Posting** | All inventory and booking updates must occur within one controlled database transaction. |
+    | **BR-10** | **No Deletion** | Posted allotments can NEVER be deleted. Complete audit permanence required. |
+    | **BR-11** | **Reversal Workflow** | Corrections must use formal cancellation/reversal workflows that record both original and reversal vouchers. |
+    | **BR-12** | **Audit Trail** | Every status, warehouse, user, and allocation change must be recorded with actor and timestamp. |
+14. **4 Important Exception Scenarios**:
+    - **Scenario 1 — Payment Insufficient**:
+      - *Input:* Booking Qty = 10, Deposit Status = NOT ELIGIBLE (<30% advance).
+      - *Result:* Allotment blocked. Modal error alert displayed with reason. Protects working capital from un-collateralized vehicle locking.
+    - **Scenario 2 — Insufficient Inventory**:
+      - *Input:* Booking Remaining = 10, Available in Warehouse = 6.
+      - *Result:* Maximum allotment: 6. System allows partial allotment if payment eligibility is satisfied, updating booking status to `PARTIALLY_ALLOTTED` with 4 remaining.
+    - **Scenario 3 — Vehicle Selected by Another User (Concurrency Collision)**:
+      - *Input:* User A selects CH-00125. User B commits it first. User A submits.
+      - *Result:* Allotment fails with: *"Vehicle CH-00125 is no longer available. Please refresh inventory."* Zero partial posting occurs.
+    - **Scenario 4 — Booking Cancelled with Active Allotment**:
+      - *Pipeline:* $\text{Booking Cancelled} \longrightarrow \text{Active Allotment Found} \longrightarrow \text{Authorized Reversal Required} \longrightarrow \text{Vehicle Available}$.
+      - *Rule:* The system does **not** silently release the vehicle. An explicit authorized reversal workflow is required to safeguard financial and inventory integrity.
 
 ---
 
@@ -1031,6 +1059,10 @@ Demonstrate compliance with **Client Specification: Module 14 — Vehicle Allotm
 2. Confirm the reversal warning.
 3. Verify vehicle units return to `AVAILABLE_FOR_SALE` in Module 13.
 4. Open the **Allotment History & Audit Ledger** tab and confirm both the original allotment and reversal records remain visible for audit compliance.
+
+#### Step 6: Verify Business Rules & Exception Scenarios Tab
+1. Click the **BR-01–BR-12 & Exception Scenarios ★** tab.
+2. Review the live invariant matrix for all 12 business rules and the 4 interactive exception scenario simulation cards (Payment Insufficient, Partial Allotment, Concurrency Race Condition, and Cancelled Booking Non-Silent Reversal).
 
 ---
 

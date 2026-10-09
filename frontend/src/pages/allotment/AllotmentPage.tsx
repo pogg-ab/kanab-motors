@@ -35,7 +35,7 @@ import { formatApiError } from '../../utils/error';
 export const AllotmentPage: React.FC = () => {
   const { can } = usePermissions();
   const canAllocateBookings = can('BOOKINGS_ALLOCATE');
-  const [activeTab, setActiveTab] = useState<'allotments' | 'queue' | 'history' | 'policies' | 'pipeline'>('allotments');
+  const [activeTab, setActiveTab] = useState<'allotments' | 'queue' | 'history' | 'policies' | 'pipeline' | 'rules'>('allotments');
   const [allotments, setAllotments] = useState<Allotment[]>([]);
   const [eligibleBookings, setEligibleBookings] = useState<EligibleBooking[]>([]);
   const [availableVehicles, setAvailableVehicles] = useState<VehicleUnit[]>([]);
@@ -480,6 +480,14 @@ export const AllotmentPage: React.FC = () => {
         >
           <Lock size={15} />
           <span>12-Step Transaction Pipeline ★</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('rules')}
+          className={`filter-pill ${activeTab === 'rules' ? 'active' : ''}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+        >
+          <ShieldAlert size={15} />
+          <span>BR-01–BR-12 & Exception Scenarios ★</span>
         </button>
       </div>
 
@@ -1179,6 +1187,156 @@ export const AllotmentPage: React.FC = () => {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: BUSINESS RULES BR-01 TO BR-12 & 4 EXCEPTION SCENARIOS (★ CLIENT SPECIFICATION) */}
+      {activeTab === 'rules' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+          {/* Section 1: Business Rules Grid */}
+          <div className="card" style={{ padding: '1.75rem' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>SECTION 26</span>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Module 14 Critical Business Rules (BR-01 to BR-12)
+                </h3>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Strict operational invariants enforced across UI, service orchestration, database constraints, and audit ledgers:
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1rem' }}>
+              {[
+                { code: 'BR-01', title: 'Approved Booking Only', rule: 'Only eligible/approved bookings can normally be allotted. Draft, cancelled, or closed bookings are strictly blocked.' },
+                { code: 'BR-02', title: 'Payment Eligibility', rule: 'The applicable payment requirement (e.g. Option A: 30% deposit) must be satisfied prior to allotment submission and posting.' },
+                { code: 'BR-03', title: 'Inventory Availability', rule: 'Vehicle must be strictly in AVAILABLE_FOR_SALE status at the exact moment of transaction execution.' },
+                { code: 'BR-04', title: 'Product Matching', rule: 'Vehicle product and model must match the booking item specification exactly.' },
+                { code: 'BR-05', title: 'Quantity Control', rule: 'Current Allotment Quantity ≤ Booking Quantity - Previously Allotted Quantity. Over-allocation is prevented at database level.' },
+                { code: 'BR-06', title: 'No Duplicate Vehicle', rule: 'One active physical vehicle cannot have multiple active allotments across the entire system.' },
+                { code: 'BR-07', title: 'Chassis Uniqueness', rule: 'Chassis number (VIN) must uniquely identify a vehicle across all warehouses and import shipments.' },
+                { code: 'BR-08', title: 'Engine Uniqueness', rule: 'Engine serial number must be globally unique according to the vehicle master data rules.' },
+                { code: 'BR-09', title: 'Atomic Posting', rule: 'All inventory allocations, vehicle status transitions, and booking updates must occur within one controlled database transaction.' },
+                { code: 'BR-10', title: 'No Deletion', rule: 'Posted allotments can NEVER be deleted. Data integrity requires complete audit permanence.' },
+                { code: 'BR-11', title: 'Reversal Workflow', rule: 'Corrections must use formal cancellation/reversal workflows that record both original and reversal audit vouchers.' },
+                { code: 'BR-12', title: 'Audit Trail', rule: 'Every status, warehouse, user, and allocation change must be logged with datetime, actor ID, and mandatory explanation.' },
+              ].map((br) => (
+                <div
+                  key={br.code}
+                  style={{
+                    padding: '1rem 1.15rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                    <span className="mono-code" style={{ color: 'var(--accent-cyan)', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', fontWeight: 800, fontSize: '0.75rem' }}>
+                      {br.code}
+                    </span>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{br.title}</strong>
+                  </div>
+                  <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                    {br.rule}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: 4 Important Exception Scenarios */}
+          <div className="card" style={{ padding: '1.75rem' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                <span className="badge badge-amber" style={{ fontSize: '0.72rem' }}>SECTION 27</span>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Important Exception Scenarios (Client Specification)
+                </h3>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Test and verify system behavior under exceptional, edge-case, and concurrent operational conditions:
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+              {/* Scenario 1 */}
+              <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-rose)', textTransform: 'uppercase' }}>
+                    Scenario 1: Payment Insufficient
+                  </span>
+                  <span className="badge badge-rose" style={{ fontSize: '0.65rem' }}>BLOCKED</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '0.65rem' }}>
+                  <strong>Input:</strong> Booking Qty = 10, Deposit Status = <em>NOT ELIGIBLE</em> (&lt;30% Advance).
+                </div>
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', fontSize: '0.74rem', color: 'var(--accent-rose)', marginBottom: '0.65rem' }}>
+                  <strong>Result:</strong> Allotment blocked. Specific reason displayed in modal error alert: <em>&quot;Booking has not met the mandatory advance deposit threshold.&quot;</em>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Protects company working capital from un-collateralized vehicle locking.
+                </div>
+              </div>
+
+              {/* Scenario 2 */}
+              <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-cyan)', textTransform: 'uppercase' }}>
+                    Scenario 2: Insufficient Inventory
+                  </span>
+                  <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>PARTIAL OK</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '0.65rem' }}>
+                  <strong>Input:</strong> Booking Remaining = 10, Available in Warehouse = 6.
+                </div>
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.25)', fontSize: '0.74rem', color: 'var(--accent-cyan)', marginBottom: '0.65rem' }}>
+                  <strong>Result:</strong> Maximum allotment: 6. System allows partial allotment if payment eligibility is satisfied, updating booking status to <em>PARTIALLY_ALLOTTED</em> with 4 remaining.
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Enables rapid customer deliveries of available batches without waiting for full shipment.
+                </div>
+              </div>
+
+              {/* Scenario 3 */}
+              <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-amber)', textTransform: 'uppercase' }}>
+                    Scenario 3: Concurrency Collision
+                  </span>
+                  <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>CONCURRENCY LOCK</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '0.65rem' }}>
+                  <strong>Input:</strong> User A and User B select vehicle CH-00125 at the same time. User B commits first.
+                </div>
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.25)', fontSize: '0.74rem', color: 'var(--accent-amber)', marginBottom: '0.65rem' }}>
+                  <strong>Result:</strong> User A transaction fails with: <em>"Vehicle CH-00125 is no longer available. Please refresh inventory."</em> Zero partial posting occurs.
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Enforces BR-06 and BR-09 across high-volume sales concurrency.
+                </div>
+              </div>
+
+              {/* Scenario 4 */}
+              <div style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'rgba(168, 85, 247, 0.05)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>
+                    Scenario 4: Booking Cancelled
+                  </span>
+                  <span className="badge badge-indigo" style={{ fontSize: '0.65rem' }}>CONTROLLED REVERSAL</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', marginBottom: '0.65rem' }}>
+                  <strong>Pipeline:</strong> Booking Cancelled → Active Allotment Found → Authorized Reversal Required → Vehicle Released to AVAILABLE_FOR_SALE.
+                </div>
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.25)', fontSize: '0.74rem', color: 'var(--accent-purple)', marginBottom: '0.65rem' }}>
+                  <strong>Rule:</strong> The system does <em>NOT</em> silently release the vehicle. An explicit authorized reversal workflow is required to safeguard financial and inventory integrity.
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Ensures full audit traceability between sales cancellation and warehouse inventory status.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
