@@ -31,7 +31,7 @@ Use the seeded accounts currently available in the system.
 6. Payment receipt and confirmation.
 7. Vehicle allotment.
 8. Customer ledger and statement of account.
-9. Excess payment and refund settlement.
+9. Section 10 excess funds credit routing and Section 11 refund management lifecycle.
 10. Invoice, PDI, delivery, and gate pass.
 11. Dashboard and reporting validation.
 
@@ -79,78 +79,60 @@ Use the seeded accounts currently available in the system.
 
 ## Screen 2: Audit Trail Logs
 
-
 **Navigation:** `Audit Trail Logs`
 
-### Screen 3: Customer Directory & KYC Master (`/customers`)
-* **Goal**: Show corporate/individual customer onboarding, TIN validation, and zero-state ledger summary cards.
-* **Demonstration Steps**:
-  1. Navigate to **Core Masters $\rightarrow$ Customers** (`/customers`).
-  2. Click **+ Add Customer**.
-  3. Enter customer details:
-     * **Full Name / Organization Name**: `Oromia Logistics & Transport Enterprise`
-     * **Customer Type**: `CORPORATE`
-     * **Mobile Number**: `+251911889900`
-     * **TIN Number**: `0058291048` (demonstrate 10-digit validation check)
-     * **Email**: `procurement@oromialogistics.et`
-  4. Click **Register Customer**.
-  5. Select the customer in the table:
-     * Highlight the **6 Financial Summary KPI Cards**:
-       `Total Deposits: 0.00` · `Allocated: 0.00` · `Outstanding: 0.00` · `Customer Credit: 0.00` · `Excess: 0.00` · `Refundable: 0.00`.
-  6. **Negative Test**: Attempt creating a customer with the exact same TIN or Mobile $\rightarrow$ show that system rejects duplicates with a clear error banner.
-
-
-### Test inputs and filters
-
-- Search / filter by entity type: `customer`, `booking`, `payment`, `delivery`, `stock_adjustment`, `stock_transfer`
+### Test actions & filters
+- Search / filter by entity type: `customer`, `booking`, `payment`, `refund`, `excess`, `delivery`, `stock_adjustment`, `stock_transfer`
 - Filter by action type if available: `INSERT`, `UPDATE`, `DELETE`
 - Review timestamp, actor, entity, before/after values, and metadata.
+- Verify immutability: audit logs cannot be edited or deleted by any user persona.
 
 ### Expected result
-
-- System activity is visible and traceable after creating/updating records.
+- All system activity (including customer onboarding, excess routing, refund state transitions, and payout confirmation) is visible and traceable.
 
 ---
 
 # PHASE 2 — Master Data
 
-## Screen 3: Customers & Dealers
+## Screen 3: Customer Directory & KYC Master
 
-**Navigation:** `Customers & Dealers`
+**Navigation:** `Core Masters → Customers & Dealers` (`/customers`)
 
-### Add Customer input checklist
-
-- Customer Category: choose one:
-  - `DIRECT_POS`
-  - `DEALER`
-  - `GOVERNMENT`
-  - `CORPORATE` if available in the current dropdown
-- Full Name / Organization Name: `KANAB E2E Customer 20261001 01`
-- Mobile Number: `+251911010101` or any unique valid mobile
-- TIN Number:
-  - Required for Dealer/Government-type accounts
-  - Example: `0101010101`
-  - Optional for direct POS if UI allows
-- Region: `Addis Ababa` or available region
-- Address / Town: `Bole Subcity, Addis Ababa`
-
-### Optional bank account inputs
-
-- Bank Name: `CBE`
-- Account Number: `1000101010101`
-- Holder Name: `KANAB E2E Customer 20261001 01`
-- Branch: `Bole Branch`
+### Demonstration Steps
+1. Navigate to **Core Masters → Customers** (`/customers`).
+2. Click **+ Add Customer**.
+3. **Input Checklist**:
+   - Customer Category: choose `DIRECT_POS`, `DEALER`, `GOVERNMENT`, or `CORPORATE`
+   - Full Name / Organization Name: `Oromia Logistics & Transport Enterprise` (or `KANAB E2E Customer 20261001 01`)
+   - Mobile Number: `+251911889900`
+   - TIN Number: `0058291048` (demonstrate 10-digit validation check; required for Dealer/Government/Corporate)
+   - Email: `procurement@oromialogistics.et`
+   - Region: `Addis Ababa` or available region
+   - Address / Town: `Bole Subcity, Addis Ababa`
+4. **Bank Account Registration (KYC & Wire Refunds)**:
+   - Bank Name: `Commercial Bank of Ethiopia (CBE)`
+   - Account Number: `1000101010101`
+   - Account Holder Name: `Oromia Logistics & Transport Enterprise`
+   - Branch: `Bole Airport Branch`
+   - Primary Account: `Yes` (used for Section 11 Wire Refund Payouts)
+5. Click **Register Customer**.
+6. Select the customer in the table to view the **6 Financial Summary KPI Cards**:
+   - `Total Deposits: ETB 0.00`
+   - `Allocated: ETB 0.00`
+   - `Outstanding: ETB 0.00`
+   - `Customer Credit: ETB 0.00`
+   - `Unallocated Excess: ETB 0.00`
+   - `Refundable Balance: ETB 0.00`
 
 ### Negative tests
-
-- Duplicate mobile number.
-- Duplicate TIN.
-- Dealer/Government customer without TIN.
+- Attempt creating a customer with duplicate mobile number $\rightarrow$ System rejects with error banner.
+- Attempt duplicate TIN $\rightarrow$ System rejects with error banner.
+- Dealer / Corporate customer without TIN $\rightarrow$ System blocks submission.
 
 ### Expected result
-
-- Customer is created.
-- Customer detail panel shows profile and financial summary cards.
+- Customer profile saves successfully.
+- Bank account is linked and ready for sensitive masked display in Section 11 refund workflows.
+- Financial summary cards initialize cleanly at zero.
 
 ---
 
@@ -677,37 +659,126 @@ Use this for spare parts / stock items that are not individually VIN tracked.
 
 # PHASE 8 — Settlement, Refunds, Documents, Approvals
 
-## Screen 22: Excess & Refund Payouts
+## Screen 22: Excess Funds, Credit Routing & Section 11 Refund Management
 
-**Navigation:** `Excess & Refund Payouts`
+**Navigation:** `Financial Engine → Excess Funds & Refunds` (`/settlement`)
 
-### Excess routing input checklist
+### Goal
+Demonstrate compliance with **Client Business Rules Module 9 & Sections 10 / 11**:
+1. **Section 10 Excess Payment & Credit Routing**: Instant reallocation of unallocated customer deposits between Store Credit and Refundable Balance.
+2. **Section 11 Standardized Refund Requests**: Master category dropdown, registered bank account selection with sensitive account number masking (`••••••••1234`), and real-time Approval Tier badges.
+3. **4-Stage Approval Pipeline & Step 4 Finance Payout**: Mandatory Bank Reference / Transaction ID, Payout Date, Payment Method, Audit Notes, and automatic Customer Ledger debit posting.
 
-- Customer: select customer with excess/credit
-- Action: choose routing option, e.g. refundable balance or booking allocation
-- Amount: amount available
-- Notes: `E2E excess routing`
+---
 
-### Refund request input checklist
+### Tab 1: Section 10 — Excess Deposits & Credit Routing
 
-- Customer
-- Amount
-- Refund Reason
-- Refund Method
-- Bank account / payout reference if visible
-- Notes: `E2E refund request`
+#### Demonstration Steps
+1. Navigate to **Financial Engine → Excess Funds & Refunds** and select tab **Excess Deposits & Credit Routing**.
+2. Locate a customer with unallocated excess funds in the table (columns: `CUSTOMER CODE`, `NAME / COMPANY`, `UNALLOCATED EXCESS`, `STORE CREDIT`, `REFUNDABLE BALANCE`).
+3. Click **Route Deposit Funds** to open the allocation modal.
+4. **Input Checklist**:
+   - **Target Allocation / Action**:
+     - `Transfer to Refundable Balance` (enables customer wire/cash refund payouts)
+     - `Transfer to Store Credit` (allocates to customer credit for future vehicle bookings)
+   - **Amount (ETB) \***: Enter desired transfer amount (e.g. `25000.00`).
+   - **Internal Audit Justification & Notes**: `Routing excess wire deposit to refundable balance per customer written request`.
+5. **Live Allocation Impact Simulation**:
+   - Verify that the simulation banner updates dynamically:
+     - `Remaining Excess`: `[Available - Transfer]`
+     - `Projected Target Balance`: `[Current Target + Transfer]`
+6. Click **Confirm Routing**.
 
-### Refund approval ladder
+#### Negative Tests
+- Enter `0` or negative amount $\rightarrow$ Blocked with in-modal error alert (`<ModalErrorAlert>`).
+- Enter amount exceeding unallocated excess balance $\rightarrow$ Blocked with clear validation error: *"Amount cannot exceed available unallocated excess"*.
+- Modal remains open with error alert displayed on failure.
 
-- Review
-- Approve
-- Finance Process
-- Confirm Payout
+#### Expected Result
+- Toast notification: `ETB X successfully routed to [Store Credit / Refundable Balance]!`.
+- Customer financial summary and ledger balances update immediately.
 
-### Expected result
+---
 
-- Invalid over-refund is blocked.
-- Valid refund posts ledger debit after payout confirmation.
+### Tab 2: Section 11 — Customer Refund Management Lifecycle
+
+#### Step 1: Initiate Refund Request
+1. Switch to tab **Customer Refund Requests** and click **+ Initiate Refund Request**.
+2. **Input Checklist**:
+   - **Customer \***: Select customer from dropdown.
+     - *Verified Balance Banner*: System displays live `Available Refundable Balance: ETB X,XXX.XX` (green badge).
+   - **Target Customer Bank Account**:
+     - System displays registered accounts with **sensitive account masking** (e.g. `Commercial Bank of Ethiopia (CBE) — ••••••••1010 (Oromia Logistics) ★ Primary`).
+     - Select verified destination bank account.
+     - *(If customer has no registered account, an amber notice alerts user)*.
+   - **Refund Amount (ETB) \***:
+     - Enter amount (e.g. `45000.00`) or click `Max Available (ETB X)`.
+     - **Dynamic Approval Tier Badge**: Watch real-time tier calculation directly beneath input:
+       - `≤ ETB 10,000` $\rightarrow$ **Tier 1: Finance Officer** (Cyan badge)
+       - `ETB 10,001 – 50,000` $\rightarrow$ **Tier 2: Finance Manager** (Amber badge)
+       - `> ETB 50,000` $\rightarrow$ **Tier 3: Senior Management / Executive** (Rose badge)
+   - **Disbursement Method \***: Select `Bank Wire Transfer`, `Cashier Payment Order (CPO)`, `Bank Cheque`, or `Cash Payout`.
+   - **Refund Reason (Section 11 Master Category) \***: Select from standardized dropdown:
+     - `Excess Payment (customer paid more than required amount)`
+     - `Booking Cancellation (booking cancelled and advance refundable)`
+     - `Vehicle Model Change (existing payment returned or adjusted)`
+     - `Inventory Unavailable (vehicle cannot be supplied)`
+     - `Customer Cancellation (customer requested cancellation)`
+     - `Other Approved Reason (specify below)`
+   - **Specific Justification & Details** *(Mandatory if "Other Approved Reason" selected)*:
+     - Enter detailed justification: `Management approved goodwill refund due to extended assembly transit delay`.
+3. Click **Submit Request**.
+
+#### Negative Tests
+- Enter amount exceeding available refundable balance $\rightarrow$ Inline error & API block (SRS §7.4 validation: *"Refund request exceeds available refundable balance"*).
+- Select `Other Approved Reason` without entering explanation $\rightarrow$ In-modal validation alert: *"Please specify the detailed explanation for Other Approved Reason"*.
+- Submit without customer or zero amount $\rightarrow$ Modal stays open with clear error banner.
+
+---
+
+#### Step 2: 4-Stage Approval & Audit Ladder
+The table displays the new refund row with:
+- **REFUND REF**: `REF-XXXXXXXX`
+- **CUSTOMER**: Name, Code, and Masked Bank Account (`Building` icon + `Bank • ••••••••1010`)
+- **REASON & METHOD**: Standard category & payment method
+- **AMOUNT (ETB)**: Amount + Approval Tier badge (`Tier 1 / Tier 2 / Tier 3`)
+- **AUDIT PIPELINE**: `REQUESTED` $\rightarrow$ `REVIEWED` $\rightarrow$ `APPROVED` $\rightarrow$ `FINANCE PROCESSED` $\rightarrow$ `CONFIRMED`
+
+**Execute the Sequential Workflow**:
+1. **Sales / Operations Review**:
+   - User with `REFUNDS_REVIEW` permission clicks **Review**.
+   - Status transitions to `REVIEWED`.
+2. **Manager Approval**:
+   - User with `REFUNDS_APPROVE` permission clicks **Manager Approve**.
+   - Status transitions to `APPROVED`, routed to Finance.
+3. **Finance Audit**:
+   - User with `REFUNDS_PROCESS` permission clicks **Finance Audit**.
+   - Status transitions to `FINANCE_PROCESSED`.
+4. **Step 4: Finance Payout Confirmation (Disbursement)**:
+   - Click **Confirm Payout** $\rightarrow$ opens the dedicated **Confirm Finance Payout** modal.
+   - **Read-Only Audit Summary**:
+     - Refund Request Ref, Customer Name, Approved Amount, Destination Account (Masked).
+   - **Mandatory Payout Inputs**:
+     - **Bank Ref / Transaction ID \***: Enter bank wire transaction reference (e.g. `FT2610098234` or `CPO-98124`).
+     - **Disbursement Date \***: Today's date or bank execution date.
+     - **Actual Amount Disbursed (ETB) \***: Verified payout amount (defaults to approved refund amount).
+     - **Payment Method \***: `BANK_TRANSFER`.
+     - **Finance Audit Notes / Comments**: `Disbursed via CBE Corporate Internet Banking; debit advice attached`.
+   - Click **Confirm & Post Payout**.
+
+#### Rejection Flow (Optional Branch)
+- At any pending stage prior to payout, authorized user clicks **Reject**.
+- Opens Reject modal requiring **Mandatory Rejection Explanation**.
+- On submission, status transitions to `REJECTED`. Customer refundable balance remains intact with zero deduction.
+
+---
+
+### Expected Result
+- Toast: `Refund payout for REF-XXXXXXXX successfully confirmed! Ledger settled.`.
+- Refund status updates to **CONFIRMED** (`Settled & Debited` green checkmark).
+- Customer refundable balance is immediately debited by the payout amount.
+- An immutable `DEBIT` transaction is automatically posted to the **Customer Ledger** with the bank transaction ID in the audit reference.
+- All actions logged in **Audit Trail Logs** with actor ID, timestamp, and metadata.
 
 ---
 
@@ -893,7 +964,7 @@ Use this for spare parts / stock items that are not individually VIN tracked.
 | Allotment | Chassis is locked to booking | `[ ]` |
 | Invoice | VAT invoice created from booking | `[ ]` |
 | PDI and delivery | Unit moves to ready/delivered state | `[ ]` |
-| Settlement/refund | Excess/refund validations work | `[ ]` |
+| Excess & Refunds (Sec 10 & 11) | Excess credit routing, masked bank accounts, approval tiers, payout modal & ledger debit | `[ ]` |
 | Reports | Search, filter, flip, export work | `[ ]` |
 | Dashboard | KPIs, filters, matrix, charts work | `[ ]` |
 | Audit | Key actions are traceable | `[ ]` |
