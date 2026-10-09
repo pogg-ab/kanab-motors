@@ -195,10 +195,10 @@ export const BookingsPage: React.FC = () => {
     setSaving(true);
     try {
       await api.transferBookingFunds({
-        sourceBookingId: selectedBooking.bookingId,
-        destinationBookingId: transferData.destinationBookingId,
-        amount: transferData.amount,
-        reason: transferData.reason,
+        sourceBookingId: String(selectedBooking.bookingId),
+        destinationBookingId: String(transferData.destinationBookingId),
+        amount: Number(transferData.amount),
+        reason: transferData.reason?.trim() || undefined,
       });
       showToast('success', `ETB ${transferData.amount.toLocaleString()} transferred successfully`);
       setShowTransferModal(false);

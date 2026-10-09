@@ -75,6 +75,8 @@ export class BookingsController {
       body.sourceBookingId,
       targetId,
       body.amount,
+      1,
+      body.reason || body.justification || body.notes,
     );
   }
 }

@@ -12,14 +12,17 @@ export class CancelBookingDto {
 }
 
 export class TransferBookingFundsDto {
+  @Type(() => String)
   @Matches(/^[1-9]\d*$/)
   sourceBookingId: string;
 
   @IsOptional()
+  @Type(() => String)
   @Matches(/^[1-9]\d*$/)
   targetBookingId?: string;
 
   @IsOptional()
+  @Type(() => String)
   @Matches(/^[1-9]\d*$/)
   destinationBookingId?: string;
 
@@ -27,4 +30,16 @@ export class TransferBookingFundsDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount: number;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  justification?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

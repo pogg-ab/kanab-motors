@@ -242,6 +242,7 @@ export class BookingsService {
     targetBookingId: string,
     amount: number,
     userId: number = 1,
+    reason?: string,
   ) {
     const source = await this.findOne(sourceBookingId);
     const target = await this.findOne(targetBookingId);
@@ -274,12 +275,14 @@ export class BookingsService {
 
     await this.bookingRepo.save([source, target]);
 
+    const reasonSuffix = reason?.trim() ? ` (Justification: ${reason.trim()})` : '';
+
     // Record balanced transfer in ledger (Stories B10 & B11)
     await this.ledgerService.postTransaction({
       customerId: source.customerId,
       transactionType: LedgerTransactionType.BOOKING_TRANSFER,
       referenceNumber: `TRF-OUT-${source.bookingNumber}`,
-      description: `Transfer Out of ETB ${amount.toLocaleString()} to Booking ${target.bookingNumber}`,
+      description: `Transfer Out of ETB ${amount.toLocaleString()} to Booking ${target.bookingNumber}${reasonSuffix}`,
       debitAmount: amount,
       creditAmount: 0,
       relatedBookingId: source.bookingId,
@@ -290,7 +293,7 @@ export class BookingsService {
       customerId: source.customerId,
       transactionType: LedgerTransactionType.BOOKING_TRANSFER,
       referenceNumber: `TRF-IN-${target.bookingNumber}`,
-      description: `Transfer In of ETB ${amount.toLocaleString()} from Booking ${source.bookingNumber}`,
+      description: `Transfer In of ETB ${amount.toLocaleString()} from Booking ${source.bookingNumber}${reasonSuffix}`,
       debitAmount: 0,
       creditAmount: amount,
       relatedBookingId: target.bookingId,
