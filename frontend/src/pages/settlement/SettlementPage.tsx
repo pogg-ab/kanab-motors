@@ -23,6 +23,7 @@ import {
   CustomerRefund,
   Customer,
   CustomerBankAccount,
+  Booking,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
@@ -88,6 +89,7 @@ export const SettlementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'refunds' | 'excess'>('refunds');
   const [refunds, setRefunds] = useState<CustomerRefund[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
 
@@ -110,6 +112,8 @@ export const SettlementPage: React.FC = () => {
   // Refund Form State (Section 11 standard)
   const [newRefund, setNewRefund] = useState<{
     customerId: string;
+    bookingId?: string;
+    originalPaymentReference?: string;
     refundAmount: number;
     refundReasonCode: string;
     refundReasonCustom: string;
@@ -117,6 +121,8 @@ export const SettlementPage: React.FC = () => {
     bankAccountId: string;
   }>({
     customerId: '',
+    bookingId: '',
+    originalPaymentReference: '',
     refundAmount: 0,
     refundReasonCode: 'EXCESS_PAYMENT',
     refundReasonCustom: '',
@@ -160,12 +166,14 @@ export const SettlementPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [refRes, custRes] = await Promise.all([
+      const [refRes, custRes, bookRes] = await Promise.all([
         api.getRefunds(),
         api.getCustomers(),
+        api.getBookings(),
       ]);
       setRefunds(refRes.items || []);
       setCustomers(custRes.items || []);
+      setBookings(bookRes.items || []);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load settlement data'));
     } finally {
@@ -195,6 +203,8 @@ export const SettlementPage: React.FC = () => {
     try {
       const created = await api.createRefund({
         customerId: newRefund.customerId,
+        bookingId: newRefund.bookingId || undefined,
+        originalPaymentReference: newRefund.originalPaymentReference?.trim() || undefined,
         refundAmount: newRefund.refundAmount,
         refundReason: finalReason,
         refundMethod: newRefund.refundMethod,
@@ -205,6 +215,8 @@ export const SettlementPage: React.FC = () => {
       setRefundError(null);
       setNewRefund({
         customerId: '',
+        bookingId: '',
+        originalPaymentReference: '',
         refundAmount: 0,
         refundReasonCode: 'EXCESS_PAYMENT',
         refundReasonCustom: '',
@@ -420,54 +432,76 @@ export const SettlementPage: React.FC = () => {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Disbursed Refunds</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-emerald)' }}>
-              <ArrowDownRight size={18} />
-            </div>
+      {/* Dashboard KPI Summary Cards (Client Specification: Section 11 Dashboard) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-amber)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Pending Requests
           </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-amber)', marginTop: '0.25rem' }}>
+            {refunds.filter((r) => r.status === 'REQUESTED' || r.status === 'REVIEWED').length}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Under review</div>
+        </div>
+
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-cyan)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Approved
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.25rem' }}>
+            {refunds.filter((r) => r.status === 'APPROVED').length}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Manager approved</div>
+        </div>
+
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-indigo)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Processing
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-indigo)', marginTop: '0.25rem' }}>
+            {refunds.filter((r) => r.status === 'FINANCE_PROCESSED').length}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Finance audit cleared</div>
+        </div>
+
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-emerald)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Completed (Settled)
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.25rem' }}>
+            {refunds.filter((r) => r.status === 'CONFIRMED').length}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Debited & confirmed</div>
+        </div>
+
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-rose)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Rejected
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-rose)', marginTop: '0.25rem' }}>
+            {refunds.filter((r) => r.status === 'REJECTED').length}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Balance intact</div>
+        </div>
+
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-emerald)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Total Disbursed
+          </div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'monospace', marginTop: '0.35rem' }}>
             ETB {totalRefunded.toLocaleString()}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-            Fully settled and customer ledger debited
-          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Settled payouts</div>
         </div>
 
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>In-Flight Refund Pipeline</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-amber)' }}>
-              <Clock size={18} />
-            </div>
+        <div className="card" style={{ padding: '1rem 1.15rem', borderLeft: '4px solid var(--accent-amber)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Pending Pipeline
           </div>
-          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace', marginTop: '0.35rem' }}>
             ETB {totalPendingRefunds.toLocaleString()}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-            Pending branch review or Finance disbursement audit
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-indigo)' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Compliance Protocol</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-indigo)' }}>
-              <ShieldAlert size={18} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            Audit Enforced
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-            Automated over-refund balance protection active
-          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>Active in-flight</div>
         </div>
       </div>
 
@@ -517,6 +551,7 @@ export const SettlementPage: React.FC = () => {
                 <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REFUND REF</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CUSTOMER</th>
+                  <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>BOOKING</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REASON & METHOD</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AMOUNT (ETB)</th>
                   <th style={{ padding: '0.9rem 1.25rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AUDIT PIPELINE</th>
@@ -526,13 +561,13 @@ export const SettlementPage: React.FC = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       Loading Refunds...
                     </td>
                   </tr>
                 ) : filteredRefunds.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No refund records found.
                     </td>
                   </tr>
@@ -559,6 +594,26 @@ export const SettlementPage: React.FC = () => {
                               <Building size={12} />
                               <span>{r.bankAccount.bankName} • {maskAccountNumber(r.bankAccount.accountNumber)}</span>
                             </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          {r.booking ? (
+                            <div>
+                              <span className="mono-code" style={{ color: 'var(--accent-cyan)' }}>
+                                {r.booking.bookingNumber}
+                              </span>
+                              {r.originalPaymentReference && (
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                  Ref: {r.originalPaymentReference}
+                                </div>
+                              )}
+                            </div>
+                          ) : r.originalPaymentReference ? (
+                            <span className="mono-code" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              Ref: {r.originalPaymentReference}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
                           )}
                         </td>
                         <td style={{ padding: '1rem 1.25rem' }}>
@@ -839,6 +894,43 @@ export const SettlementPage: React.FC = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* Optional Related Booking Order & Original Payment (Client Spec) */}
+                      {selCust && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                          <div>
+                            <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Related Booking (Optional)
+                            </label>
+                            <select
+                              className="input"
+                              value={newRefund.bookingId || ''}
+                              onChange={(e) => setNewRefund({ ...newRefund, bookingId: e.target.value })}
+                            >
+                              <option value="">None / General Balance</option>
+                              {bookings
+                                .filter((b) => b.customerId === selCust.customerId)
+                                .map((b) => (
+                                  <option key={b.bookingId} value={b.bookingId}>
+                                    {b.bookingNumber} — {b.item?.itemName || 'Vehicle'} (Dep: ETB {Number(b.totalAmountDeposited || 0).toLocaleString()})
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Original Deposit / BRV Ref
+                            </label>
+                            <input
+                              type="text"
+                              className="input"
+                              placeholder="e.g. BRV-202610-001 or CBE-98124"
+                              value={newRefund.originalPaymentReference || ''}
+                              onChange={(e) => setNewRefund({ ...newRefund, originalPaymentReference: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Customer Bank Account (Masked) */}
                       <div>
