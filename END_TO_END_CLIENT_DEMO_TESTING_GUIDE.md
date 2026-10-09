@@ -284,13 +284,38 @@ Use this if the target demo product does not already exist.
 **Navigation:** `Procurement & Supply Chain → Shipments & Landed Cost` (`/shipments`)
 
 ### Goal
-Demonstrate compliance with **Client Specification: Import, Shipment Tracking and Landed Cost Management**:
+Demonstrate 100% compliance with **Client Specification: Import, Shipment Tracking and Landed Cost Management**:
 1. **End-to-End Import Process**: `Supplier → Purchase Order → Supplier Invoice → Shipment Created → Shipping / Bill of Lading → Djibouti Port → Port / Handling Charges → Ethiopian Customs (Customs Duty, VAT, Other Charges) → Clearing Agent → Inland Transport → Landed Cost Calculation → Goods Receipt → Inventory Valuation (Module 13)`.
 2. **Import Purchase Order Tracking**: Consolidating confirmed PO lines into international shipments.
 3. **Structured Shipment Fields & Container Tracking**: Bill of lading, container references, carrier, origin/destination ports, vessel departure, and arrival dates.
 4. **Milestone Tracking Lifecycle**:
    `PO CREATED → READY FOR SHIPMENT → SHIPPED → IN TRANSIT → ARRIVED DJIBOUTI → PORT HANDLING → CUSTOMS CLEARANCE → CLEARED → INLAND TRANSPORT → RECEIVED → LANDED COST POSTED → CLOSED`.
-5. **Djibouti Port Handling & Multi-Currency Landed Cost Apportionment**: Apportioning CIF freight, customs duties, and inland transport across vehicle units by Value, Quantity, or Weight without rounding drift.
+5. **Multi-Currency Management**: Foreign supplier costs (`USD`, `EUR`) combined with local expenses (`ETB`) with immutable baseline exchange rate snapshots.
+6. **Landed Cost Components & Formula**:
+   $$\text{Landed Cost} = \text{Goods Value} + \text{Freight} + \text{Insurance} + \text{Port Charges} + \text{Customs Costs} + \text{Inland Transport} + \text{Clearing Fees} + \text{Other Capitalizable Costs}$$
+7. **Zero-Drift Apportionment Methods (Hare-Niemeyer)**:
+   - **Method 1 — By Value**: Allocates proportional to FOB price (e.g. Item A 100k USD / Item B 50k USD on 30k ETB cost = 20k ETB / 10k ETB).
+   - **Method 2 — By Quantity**: Allocates per unit (e.g. Item A 100 units / Item B 200 units on 30k ETB cost = 10k ETB / 20k ETB).
+   - **Method 3 — By Weight**: Allocates per gross kg (e.g. Item A 1,000 kg / Item B 2,000 kg on 30k ETB cost = 10k ETB / 20k ETB).
+8. **Allocation Rule Configuration**:
+   | Cost Component | Default Allocation Method |
+   |---|---|
+   | Freight | By Weight |
+   | Insurance | By Value |
+   | Port Handling (Djibouti) | By Weight |
+   | Customs Duty & VAT | By Value |
+   | Clearing Fee | By Value |
+   | Inland Transport | By Weight |
+   | Supplier Cost | Actual Item Value |
+   *Rule: Authorized Finance users can override the allocation method where business rules permit.*
+9. **Import Document Center**: 13-document checklist, digital versioning (`v1`, `v2`, `v3`), and closure validation (prevents shipment closure if mandatory documents are missing, subject to authorized override).
+10. **Landed Cost Approval Lifecycle**:
+    `DRAFT → CALCULATED → SUBMITTED → FINANCE REVIEW → APPROVED → POSTED`.
+11. **Module 13 Inventory Valuation Integration**:
+    - Automatic per-vehicle landed cost stamping (`Unit Landed Cost ETB`).
+    - Inventory received at fully capitalized landed cost (e.g. 20,300 ETB/unit vs 15,500 ETB base invoice price).
+    - **Duplicate Posting Prevention**: System returns *"Landed cost already posted for shipment {shipmentNumber}"* if re-posted.
+    - **Cost Adjustment Process**: Subsequent invoices arriving post-receipt create non-destructive *Inventory Valuation Adjustments*.
 
 ---
 
@@ -312,6 +337,7 @@ Demonstrate compliance with **Client Specification: Import, Shipment Tracking an
      - Seal Number: `SL-892104`
      - Gross / Net Weight: `12,500 KG / 10,800 KG`
      - Volume: `68 CBM`
+     - Number of Packages: `100 crates`
    - **Date Schedules**:
      - Estimated Departure Date (ETD): Current or past date.
      - Actual Departure Date (ATD): Recorded upon vessel departure.
@@ -347,15 +373,37 @@ Advance the shipment stage through the action buttons on the shipment detail scr
 
 ---
 
-### Step 3: Record Djibouti Port Handling & Landed Cost Breakdown
+### Step 3: Import Document Center Checklist
+Navigate to the **Document Centre** tab. Verify and upload required shipping documentation:
+
+| Document Type | Mandatory? | Purpose in Import Pipeline |
+|---|---|---|
+| **Commercial Invoice** | Yes | Supplier declaration of goods value and terms (CIF/FOB). |
+| **Packing List** | Yes | Detailed container cargo weight, package count, and volume. |
+| **Bill of Lading (B/L)** | Yes | Carrier title document for port release at Djibouti. |
+| **Customs Declaration** | Yes | Ethiopian Customs Commission declaration form. |
+| **Customs Assessment** | Optional | Formal duty and VAT assessment slip. |
+| **Customs Payment Receipt** | Optional | ECC electronic payment confirmation voucher. |
+| **Insurance Certificate** | Yes | Marine transport insurance coverage policy. |
+| **Freight Invoice** | Optional | Ocean carrier freight invoice. |
+| **Port Invoice (Djibouti)** | Optional | Doraleh container terminal handling voucher. |
+| **Clearing Agent Invoice** | Optional | Transit clearing and customs agent fee voucher. |
+| **Inland Transport Invoice** | Optional | Cross-border corridor trucking fee invoice. |
+| **Certificate of Origin** | Optional | Country of origin certification for duty preference. |
+| **Other Import Documents** | Optional | Technical specifications, test certificates, or PDI notes. |
+
+> **Document Validation Rule:** The system prevents shipment closure if mandatory documents are missing, subject to authorized override. Document version history is preserved (`v1`, `v2`, `v3`).
+
+---
+
+### Step 4: Record Djibouti Port Handling & Multi-Currency Vouchers
 Under the **Cost Components** section, add the multi-currency expenditure vouchers:
 
 1. **Ocean Freight**:
    - Cost Type: `FREIGHT`
    - Currency: `USD`
    - Exchange Rate to ETB: `158.50` (auto-filled snapshot from baseline rates)
-   - Amount in Foreign Currency: `2,200.00 USD`
-   - ETB Equivalent: `348,700.00 ETB`
+   - Amount: `2,200.00 USD` (`348,700.00 ETB`)
    - Vendor: `Maersk Line Ethiopia Agent`
    - Invoice Reference: `INV-MSK-9901`
 2. **Djibouti Port Handling**:
@@ -365,7 +413,7 @@ Under the **Cost Components** section, add the multi-currency expenditure vouche
    - Amount: `650.00 USD` (`103,025.00 ETB`)
    - Vendor: `Djibouti Port SA (DP World / DCT)`
    - Invoice Reference: `DCT-202610-441`
-3. **Ethiopian Customs Duties & Taxes**:
+3. **Ethiopian Customs Duties & VAT**:
    - Cost Type: `CUSTOMS_DUTY`
    - Currency: `ETB`
    - Exchange Rate: `1.0000`
@@ -382,7 +430,33 @@ Under the **Cost Components** section, add the multi-currency expenditure vouche
 
 ---
 
-### Step 4: Physical Vehicle Unit Receipt & Stock Intake
+### Step 5: Execute Landed Cost Allocation & Review Calculation Screen
+Navigate to the **Landed Cost Engine (Allocation)** tab:
+1. Review the **Landed Cost Aggregation Ledger (ETB)**:
+   - Goods Value (Base FOB): `336,000.00 ETB` (2 units @ 168,000 ETB)
+   - Total Additional Costs: `681,725.00 ETB` (Freight + Port + Customs + Transport)
+   - **Consignment Final Landed Value**: `1,017,725.00 ETB`
+2. Select Apportionment Methodology:
+   - `By Value (BY_VALUE)` (default for vehicle units).
+   - Alternatively select `By Weight` or `By Quantity`.
+3. Click **Execute Hare-Niemeyer Zero-Drift Allocation**.
+   - Guaranteed **0.00 Cents Rounding Drift** across all lines.
+4. **Unit Landed Cost Stamping**:
+   - Unit 1 Stamped Landed Cost: `508,862.50 ETB`
+   - Unit 2 Stamped Landed Cost: `508,862.50 ETB`
+5. **Vehicle-Level Costing Component Breakdown**:
+   For each serialized vehicle unit:
+   - Base Supplier FOB: `168,000.00 ETB`
+   - Freight Share: `174,350.00 ETB`
+   - Djibouti Port Share: `51,512.50 ETB`
+   - Customs Duty Share: `72,500.00 ETB`
+   - Inland Transport Share: `42,500.00 ETB`
+   - **Total Landed Cost per Vehicle**: `508,862.50 ETB`
+6. Click **Commit to Inventory Asset Ledger →** to post to Module 13 Inventory Valuation.
+
+---
+
+### Step 6: Physical Vehicle Unit Receipt & Stock Intake
 When the shipment reaches `RECEIVED` stage:
 1. Click **Receive Vehicle Units into Stock**.
 2. **Input Checklist**:
@@ -394,12 +468,18 @@ When the shipment reaches `RECEIVED` stage:
    - Unit 2:
      - Chassis Number: `KANAB-2026-CHAS-E2E-003`
      - Engine Number: `KANAB-2026-ENG-E2E-003`
-   - Technical Intake Notes: `Received in good condition; container seal verified intact; landed cost capitalized`.
+   - Technical Intake Notes: `Received in good condition; container seal verified intact; landed cost capitalized into inventory`.
 3. Submit Intake.
 
+### Negative Tests
+- Attempting to close shipment with missing mandatory documents (Commercial Invoice, Bill of Lading, Customs Declaration).
+- Attempting to re-post landed cost after already posted: system prevents duplicate posting and shows: *"Landed cost already posted for shipment {shipmentNumber}"*.
+- Adding negative cost or invalid exchange rate (blocked by validation).
+
 ### Expected Result
-- Landed cost calculation dynamically apportions total CIF, duty, port, and freight costs onto each received unit (`Unit Landed Cost ETB`).
-- Received units enter **Vehicle Units & Chassis Registry** and **Inventory Balances** with fully capitalized landed cost values (Module 13 Inventory Valuation).
+- Landed cost calculation dynamically capitalizes total CIF, duty, port, and freight costs onto each received unit (`Unit Landed Cost ETB`).
+- Received units enter **Vehicle Units & Chassis Registry** and **Module 13 Inventory Balances** with fully capitalized unit values (e.g. `508,862.50 ETB` rather than base invoice price of `168,000.00 ETB`).
+- Landed cost status advances along the lifecycle: `DRAFT → CALCULATED → SUBMITTED → FINANCE REVIEW → APPROVED → POSTED`.
 - Shipment status advances to `LANDED COST POSTED` $\rightarrow$ `CLOSED`.
 
 ---
