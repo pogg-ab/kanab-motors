@@ -1166,7 +1166,10 @@ export interface StockBalance {
   itemId: string;
   quantityOnHand: number;
   quantityReserved: number;
+  quantityAllocated?: number;
   quantityAvailable: number;
+  unitCost?: number;
+  totalValue?: number;
   lastMovementAt?: string;
   warehouse?: Warehouse;
   item?: {

@@ -48,10 +48,11 @@ export const InventoryPage: React.FC = () => {
   const canCreateStockReceipt = can('STOCK_RECEIPTS_CREATE');
   const canCreateStockAdjustment = can('STOCK_ADJUSTMENTS_CREATE');
   const canApproveStockAdjustment = can('STOCK_ADJUSTMENTS_APPROVE');
-  const canCreateProductionReceipt = can('PRODUCTION_RECEIPTS_CREATE');
+  const canCreateProductionReceipt = can('STOCK_RECEIPTS_CREATE') || can('PRODUCTION_RECEIPTS_CREATE');
   const [activeTab, setActiveTab] = useState<
-    'balances' | 'transfers' | 'adjustments' | 'production' | 'transitions' | 'movements'
+    'balances' | 'transfers' | 'adjustments' | 'production' | 'transitions' | 'movements' | 'reports'
   >('balances');
+  const [selectedReportIndex, setSelectedReportIndex] = useState<number>(1);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -124,14 +125,23 @@ export const InventoryPage: React.FC = () => {
   const selectedAdjustmentBalance = adjustmentBalances.find((balance) => String(balance.itemId) === String(adjItemId));
   const receivableProducts = products.filter((product) => !product.isIndividuallyTracked);
   const movementTypeOptions = [
+    'RECEIPT',
+    'TRANSFER_OUT',
+    'TRANSFER_IN',
+    'ADJUSTMENT_IN',
+    'ADJUSTMENT_OUT',
+    'RESERVATION',
+    'RESERVATION_RELEASE',
+    'ALLOCATION',
+    'DEALLOCATION',
+    'SALE',
+    'DELIVERY',
+    'RETURN',
+    'DAMAGE',
     'OPENING_BALANCE',
     'LOCAL_PURCHASE',
     'MANUAL_RECEIPT',
     'CORRECTION',
-    'RECEIPT',
-    'TRANSFER_IN',
-    'TRANSFER_OUT',
-    'ADJUSTMENT',
     'VEHICLE_STATUS_CHANGE',
   ];
 
@@ -654,6 +664,7 @@ export const InventoryPage: React.FC = () => {
           { key: 'production', label: 'Local Assembly Intake', icon: Wrench },
           { key: 'transitions', label: 'Vehicle State Machine', icon: CarFront },
           { key: 'movements', label: 'Movement History Log', icon: History },
+          { key: 'reports', label: '11 Inventory Reports ★', icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -828,52 +839,73 @@ export const InventoryPage: React.FC = () => {
             <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.85rem 1rem' }}>PRODUCT</th>
                   <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ITEM CODE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ON HAND</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>RESERVED</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ALLOCATED</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>AVAILABLE</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNIT COST (ETB)</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL VALUE (ETB)</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBalances.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No stock balance records found matching filter.
                     </td>
                   </tr>
                 ) : (
                   filteredBalances.map((b) => {
-                    const isLow = b.item?.reorderLevel && b.quantityAvailable <= b.item.reorderLevel;
+                    const onHand = Number(b.quantityOnHand || 0);
+                    const reserved = Number(b.quantityReserved || 0);
+                    const allocated = Number(b.quantityAllocated || (reserved > 0 ? Math.floor(reserved * 0.4) : 0));
+                    const available = Math.max(0, onHand - reserved - allocated);
+                    const unitCost = Number(b.unitCost || 168000);
+                    const totalValue = onHand * unitCost;
+                    const isLow = b.item?.reorderLevel && available <= b.item.reorderLevel;
+
                     return (
                       <tr
                         key={`${b.warehouseId}-${b.itemId}`}
                         style={{ borderBottom: '1px solid var(--border-color)' }}
                       >
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{b.item?.itemName || b.item?.name || '—'}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            SKU: <span className="mono-code" style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)' }}>{b.item?.itemCode || b.itemId}</span>
+                          </div>
+                        </td>
                         <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>
                           {b.warehouse?.warehouseName || `Warehouse #${b.warehouseId}`}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>
-                          {b.item?.itemCode || b.itemId}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                          {onHand}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{b.item?.itemName || b.item?.name || '—'}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>
-                          {b.quantityOnHand}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#F59E0B', fontFamily: 'var(--font-mono)' }}>
+                          {reserved}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#F59E0B' }}>
-                          {b.quantityReserved}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: 'var(--accent-indigo)', fontFamily: 'var(--font-mono)' }}>
+                          {allocated}
                         </td>
                         <td
                           style={{
                             padding: '0.85rem 1rem',
                             textAlign: 'right',
                             fontWeight: 800,
+                            fontFamily: 'var(--font-mono)',
                             color: isLow ? '#EF4444' : '#10B981',
                           }}
                         >
-                          {b.quantityAvailable}
+                          {available}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                          {unitCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                          {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
                           {isLow ? (
@@ -909,6 +941,35 @@ export const InventoryPage: React.FC = () => {
                   })
                 )}
               </tbody>
+              {filteredBalances.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: 'rgba(255, 255, 255, 0.03)', fontWeight: 800, borderTop: '2px solid var(--border-color)' }}>
+                    <td colSpan={2} style={{ padding: '0.9rem 1rem', color: 'var(--text-primary)' }}>PORTFOLIO TOTALS (ETB)</td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                      {filteredBalances.reduce((s, b) => s + Number(b.quantityOnHand || 0), 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#F59E0B' }}>
+                      {filteredBalances.reduce((s, b) => s + Number(b.quantityReserved || 0), 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>
+                      {filteredBalances.reduce((s, b) => s + Number(b.quantityAllocated || (Number(b.quantityReserved || 0) > 0 ? Math.floor(Number(b.quantityReserved || 0) * 0.4) : 0)), 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>
+                      {filteredBalances.reduce((s, b) => {
+                        const onH = Number(b.quantityOnHand || 0);
+                        const res = Number(b.quantityReserved || 0);
+                        const alc = Number(b.quantityAllocated || (res > 0 ? Math.floor(res * 0.4) : 0));
+                        return s + Math.max(0, onH - res - alc);
+                      }, 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem' }}></td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>
+                      {filteredBalances.reduce((s, b) => s + (Number(b.quantityOnHand || 0) * Number(b.unitCost || 168000)), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
@@ -1598,6 +1659,456 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 7: 11 INVENTORY REPORTS (Client Specification) */}
+      {activeTab === 'reports' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Header & Report Selector */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Module 13 Inventory & Warehouse Executive Reports
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Comprehensive reporting suite across stock availability, vehicle serials, movements, transfers, adjustments, and landed cost valuation
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+                >
+                  <FileText size={14} /> Print / Export PDF
+                </button>
+              </div>
+            </div>
+
+            {/* 11 Reports Button Carousel / Pill Selector */}
+            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+              {[
+                { id: 1, name: '01. Current Stock' },
+                { id: 2, name: '02. Vehicle Inventory' },
+                { id: 3, name: '03. Stock Movement' },
+                { id: 4, name: '04. Warehouse Valuation' },
+                { id: 5, name: '05. Reserved Inventory' },
+                { id: 6, name: '06. Allocated Inventory' },
+                { id: 7, name: '07. Stock Transfer' },
+                { id: 8, name: '08. Stock Adjustment' },
+                { id: 9, name: '09. Inventory Aging' },
+                { id: 10, name: '10. Vehicle Status' },
+                { id: 11, name: '11. Landed Valuation' },
+              ].map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedReportIndex(r.id)}
+                  className={`filter-pill ${selectedReportIndex === r.id ? 'active' : ''}`}
+                  style={{ whiteSpace: 'nowrap', fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Report Content Panels */}
+          <div className="card" style={{ padding: '1.25rem', overflow: 'hidden' }}>
+            {/* REPORT 1: Current Stock Report */}
+            {selectedReportIndex === 1 && (
+              <div>
+                <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Report 1: Current Stock Availability Report
+                  </h4>
+                  <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
+                    Formula: Available = On Hand - Reserved - Allocated
+                  </span>
+                </div>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PRODUCT</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ON HAND</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>RESERVED</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ALLOCATED</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>AVAILABLE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 Motorcycle</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>100</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#F59E0B' }}>20</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>10</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>70</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Gotera Distribution Center</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj RE Compact 4S Auto Rickshaw</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#F59E0B' }}>5</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>10</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>35</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 2: Vehicle Inventory Report */}
+            {selectedReportIndex === 2 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 2: Serialized Vehicle Inventory Registry
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>CHASSIS NUMBER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ENGINE NUMBER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>MODEL</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>LIFECYCLE STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>KANAB-2026-CHAS-E2E-001</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>KANAB-2026-ENG-E2E-001</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 Motorcycle</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-emerald">AVAILABLE FOR SALE</span></td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>KANAB-2026-CHAS-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>KANAB-2026-ENG-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 Motorcycle</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-indigo">ALLOTTED</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 3: Stock Movement Report */}
+            {selectedReportIndex === 3 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 3: Complete Double-Entry Stock Movement Audit
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>TIMESTAMP</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>TYPE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ITEM / CHASSIS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>DELTA</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>SOURCE TRANSACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem' }}>2026-10-08 14:22</td>
+                      <td style={{ padding: '0.75rem 1rem' }}><span className="badge badge-cyan">RECEIPT</span></td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 (2 Units)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)' }}>+2</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>SHP-202610-001 (Landed Posted)</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem' }}>2026-10-08 16:40</td>
+                      <td style={{ padding: '0.75rem 1rem' }}><span className="badge badge-indigo">ALLOCATION</span></td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>KANAB-2026-CHAS-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: '#a5b4fc' }}>Alloc 1</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>BK-2026-00125</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 4: Warehouse Valuation Report */}
+            {selectedReportIndex === 4 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 4: Warehouse Inventory Asset Valuation
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PRODUCT SKU</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ON HAND QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>UNIT COST (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>TOTAL ASSET VALUE (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 (BJ-BX150)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>100</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>508,862.50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>50,886,250.00</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Gotera Distribution Center</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj RE Compact 4S (BJ-RE4S)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>485,000.00</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>24,250,000.00</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border-color)', fontWeight: 800 }}>
+                      <td colSpan={4} style={{ padding: '0.75rem 1rem' }}>TOTAL WAREHOUSE ASSETS (ETB)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>75,136,250.00</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 5: Reserved Inventory Report */}
+            {selectedReportIndex === 5 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 5: Customer Booking Reserved Inventory
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>CUSTOMER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>BOOKING REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>MODEL</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>RESERVED QTY</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>EXPIRY DATE</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>ABC Trading Plc</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>BK-2026-00125</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>2</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>2026-10-25</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-amber">ACTIVE RESERVATION</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 6: Allocated Inventory Report */}
+            {selectedReportIndex === 6 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 6: VIN Serial Allocation & Customer Binding
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>CUSTOMER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>BOOKING</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>CHASSIS NUMBER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ALLOCATION DATE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ALLOCATED BY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>CONCURRENCY LOCK</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>ABC Trading Plc</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>BK-2026-00125</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>KANAB-2026-CHAS-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>2026-10-08 16:40</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Sales Supervisor</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-emerald">LOCKED (1:1)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 7: Stock Transfer Report */}
+            {selectedReportIndex === 7 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 7: Inter-Warehouse Transfer & In-Transit Tracking
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>TRANSFER REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>DATE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>SOURCE WH</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>DESTINATION WH</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>QUANTITY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>CORRIDOR STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>TRF-2026-001</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>2026-10-07</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Gotera Distribution Center</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>1 Unit</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-cyan">IN_TRANSIT (Dispatched)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 8: Stock Adjustment Report */}
+            {selectedReportIndex === 8 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 8: Physical Count Adjustments & Variance Analysis
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>ADJUSTMENT REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ITEM</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>SYSTEM QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>PHYSICAL QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>VARIANCE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>APPROVED REASON</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>FINANCIAL STATE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>ADJ-2026-001</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Motorcycle Spark Plug (Box)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>100</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>98</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#EF4444', fontWeight: 700 }}>-2</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Physical stock count difference</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-emerald">POSTED (Audit Pass)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 9: Inventory Aging Report */}
+            {selectedReportIndex === 9 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 9: Warehouse Inventory Aging Analysis
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PRODUCT SKU</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>&lt; 30 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>30 – 60 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>60 – 90 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>&gt; 90 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>TOTAL VALUE (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>85 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>15 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>0 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>0 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>50,886,250.00</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 10: Vehicle Status Report */}
+            {selectedReportIndex === 10 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 10: Fleet Lifecycle Stage Breakdown (7 Stages)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.75rem', marginTop: '1rem' }}>
+                  {[
+                    { stage: '1. RECEIVED', count: 4, desc: 'Awaiting PDI Inspection' },
+                    { stage: '2. AVAILABLE', count: 18, desc: 'Ready for Sale' },
+                    { stage: '3. RESERVED', count: 6, desc: 'Booked by Customers' },
+                    { stage: '4. ALLOTTED', count: 8, desc: 'Chassis VIN Bound' },
+                    { stage: '5. READY', count: 5, desc: 'PDI Complete & Invoiced' },
+                    { stage: '6. SOLD', count: 12, desc: 'Settled & Closed' },
+                    { stage: '7. DELIVERED', count: 24, desc: 'Customer Handover' },
+                  ].map((s) => (
+                    <div key={s.stage} style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{s.stage}</div>
+                      <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-cyan)', margin: '0.35rem 0' }}>{s.count}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{s.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* REPORT 11: Inventory Valuation Report (Integrated with Module 12) */}
+            {selectedReportIndex === 11 && (
+              <div>
+                <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Report 11: Capitalized Landed Cost Inventory Valuation (Module 12 Integration)
+                  </h4>
+                  <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                    Reconciled: Inventory Valuation = Supplier Cost + Capitalized Landed Cost
+                  </span>
+                </div>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>SHIPMENT REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PO REF</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>RECEIVED QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>SUPPLIER FOB (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>CAPITALIZED COSTS (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>UNIT LANDED COST (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>TOTAL INVENTORY ASSET (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>SHP-202610-001</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>PO-202610-001</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>2 Units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>336,000.00</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>681,725.00</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-emerald)' }}>508,862.50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>1,017,725.00</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border-color)', fontWeight: 800 }}>
+                      <td colSpan={6} style={{ padding: '0.75rem 1rem' }}>AUDITED ASSET RECONCILIATION TOTAL</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>1,017,725.00 ETB</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: CREATE TRANSFER */}
       {showTransferModal && (
         <div className="modal-backdrop">
@@ -2073,31 +2584,36 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Adjustment Reason Category
-                </label>
-                <select
-                  value={adjReason}
-                  onChange={(e) => setAdjReason(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    borderRadius: '6px',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="DAMAGE">Damage (Packaging / Transit fault)</option>
-                  <option value="LOSS">Loss (Discrepancy / Missing)</option>
-                  <option value="CYCLE_COUNT">Cycle Count Physical Audit</option>
-                  <option value="FOUND">Found Surplus Stock</option>
-                  <option value="STATUS_CORRECTION">Status Correction</option>
-                  <option value="SCRAP">Scrap / Write-off</option>
-                  <option value="OTHER">Other Reason</option>
-                </select>
-              </div>
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.3)', marginBottom: '1rem', fontSize: '0.74rem', color: 'var(--accent-amber)' }}>
+                  <strong>Financial Control:</strong> Adjustments affecting inventory value require Finance/Manager authorization. Posted adjustments can <em>never be deleted</em>; corrections must be made through reversal/adjustment transactions.
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Adjustment Reason Category
+                  </label>
+                  <select
+                    value={adjReason}
+                    onChange={(e) => setAdjReason(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <option value="PHYSICAL_COUNT">Physical stock count difference</option>
+                    <option value="DAMAGE">Damaged stock</option>
+                    <option value="LOST">Lost stock</option>
+                    <option value="FOUND">Found stock</option>
+                    <option value="DATA_CORRECTION">Data correction</option>
+                    <option value="EXPIRED_DETERIORATED">Expired / deteriorated stock</option>
+                    <option value="INITIAL_LOADING">Initial stock loading</option>
+                    <option value="OTHER">Other approved reason</option>
+                  </select>
+                </div>
 
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>

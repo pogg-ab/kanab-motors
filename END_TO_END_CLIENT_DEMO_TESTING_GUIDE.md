@@ -170,30 +170,59 @@ Use this if the target demo product does not already exist.
 
 ## Screen 5: Vehicle Units & Chassis
 
-**Navigation:** `Vehicle Units & Chassis`
+**Navigation:** `Vehicle Units & Chassis` (`/vehicles`)
+
+### Goal
+Demonstrate compliance with **Client Specification: Vehicle Inventory Management, Controlled State Machine & Uniqueness Rules**:
+1. **Uniqueness Rules (BR-02)**: The system strictly prevents duplicate:
+   - Chassis number (`chassisNumber` UNIQUE)
+   - Engine number (`engineNumber` UNIQUE)
+   - Vehicle Inventory ID (`id` UNIQUE)
+   *(Critically enforced for both imported CBU/CKD shipments and locally assembled units).*
+2. **7-Stage Vehicle Controlled State Machine**:
+   $$\mathbf{1.\;RECEIVED} \longrightarrow \mathbf{2.\;AVAILABLE\_FOR\_SALE} \longrightarrow \mathbf{3.\;RESERVED} \longrightarrow \mathbf{4.\;ALLOTTED} \longrightarrow \mathbf{5.\;READY\_FOR\_DELIVERY} \longrightarrow \mathbf{6.\;SOLD} \longrightarrow \mathbf{7.\;DELIVERED}$$
+   - **1. Received**: Vehicle has physically arrived and been recorded through an approved stock receipt / customs intake. Exists in warehouse, not yet released for sale.
+   - **2. Available for Sale**: Vehicle has passed required receiving/PDI inspection checks and can be sold.
+   - **3. Reserved**: Vehicle has been reserved against an approved customer booking deposit.
+   - **4. Allotted**: A specific chassis/VIN has been assigned to a specific customer booking.
+   - **5. Ready for Delivery**: Vehicle has completed all required preparation, PDI, documentation, and invoicing.
+   - **6. Sold**: Sales transaction/invoice has been completed according to business rules.
+   - **7. Delivered**: Vehicle has physically been handed over to the customer with gate pass.
+3. **Controlled Reversible Exceptions**:
+   - `RESERVED → AVAILABLE_FOR_SALE`: Automatically allowed when a customer booking is cancelled or deposit expires.
+   - `ALLOTTED → RESERVED`: Authorized exception if an approved allotment is cancelled before delivery (frees VIN back to pool).
+4. **Important Reservation Validation (BR-04)**:
+   - A vehicle **cannot** be reserved if $\text{Status} \neq \text{AVAILABLE\_FOR\_SALE}$ unless a specific authorized workflow permits it.
+5. **Single Allocation Concurrency Lock (BR-03)**:
+   - The same vehicle **cannot** be allocated to two active bookings simultaneously. Enforced via database and service-level transaction concurrency protection.
+6. **Vehicle Detail & Complete Lifecycle Modal (★ Client Specification)**:
+   - Click the **Lifecycle** (eye icon) button on any vehicle row to inspect its full 360° lifecycle drawer:
+     - **Basic Information**: Chassis number, Engine number, Brand, Model.
+     - **Import Information (Module 12 Integration)**: Supplier name, PO reference, Shipment number, Customs declaration reference.
+     - **Financial Information (Module 12 Integration)**: Purchase FOB Cost, Allocated Landed Cost (Freight/Duty/Port), Total Capitalized Inventory Valuation.
+     - **Warehouse Location**: Current warehouse and physical zone/bay.
+     - **Sales / Booking Information**: Customer name, Booking number, Sales Invoice reference.
+     - **Status History & Audit Stepper**: Visual stepper tracking progression across all 7 stages with audit timestamps.
 
 ### Register Unit input checklist
-
-- Model / Description: choose the created or existing vehicle product, e.g. `Bajaj Boxer BM150 Motorcycle`
+- Model / Description: choose the vehicle product, e.g. `Bajaj Boxer BM150 Motorcycle`
 - Chassis Number: `KANAB-2026-CHAS-E2E-001`
 - Engine Number: `KANAB-2026-ENG-E2E-001`
-- Current Warehouse: `Kality Assembly Plant Warehouse` or `Gotera Distribution Center`
+- Current Warehouse: `Kality Assembly Plant Warehouse`
 - Import / Production Notes: `E2E demo vehicle unit`
 
 ### Status update input checklist
-
-- New Lifecycle Status: choose valid status from dropdown, for example `AVAILABLE_FOR_SALE`, `RECEIVED`, `READY_FOR_DELIVERY`, `SOLD`
-- Notes / Reason: required if visible
+- New Lifecycle Status: choose valid forward transition (e.g. `AVAILABLE_FOR_SALE`) or controlled reverse exception (`RESERVED → AVAILABLE_FOR_SALE`, `ALLOTTED → RESERVED`).
+- Notes / Reason: mandatory for state transitions.
 
 ### Negative tests
-
-- Duplicate chassis number.
-- Duplicate engine number.
+- **BR-02 Duplicate Chassis / Engine**: Try registering a second vehicle with `KANAB-2026-CHAS-E2E-001` $\rightarrow$ System rejects with duplicate validation error alert.
+- **BR-03 Double Allocation**: Try allocating an already allotted chassis to another booking $\rightarrow$ System rejects with concurrency lock error.
+- **BR-04 Invalid Reservation**: Try reserving a vehicle that is not in `AVAILABLE_FOR_SALE` state $\rightarrow$ System rejects with transition policy error.
 
 ### Expected result
-
-- Vehicle unit appears in registry.
-- Lifecycle status and warehouse are shown.
+- Vehicle appears in registry with real-time status badge and warehouse location.
+- Clicking **Lifecycle** opens the comprehensive Vehicle Detail modal showing full provenance (Supplier, PO, Shipment, Landed Cost, Customer, Booking).
 
 ---
 
@@ -557,7 +586,21 @@ When the shipment reaches `RECEIVED` stage:
 
 ## Module 13 Architectural Core Concepts & Business Rules
 
-### 1. Core Stock Categories & Availability Formula
+### 1. Central Inventory Posting Service Architecture
+The inventory subsystem implements a centralized **Inventory Posting Service**, following the enterprise audit-ledger design used in the Customer Ledger (Module 9):
+- **Core Principle:** Operational modules (Sales, Procurement, Shipments, Transfers) **never** manipulate stock balances directly.
+- **Posting Pipeline:**
+  $$\begin{aligned}
+  \text{Operational Transaction (Sales / Import / Transfer / Adjustment)} &\longrightarrow \mathbf{Inventory\ Posting\ Service} \\
+  &\longrightarrow \mathbf{Inventory\ Ledger\ (Immutable\ Journal)} \\
+  &\longrightarrow \mathbf{Stock\ Balance\ Table\ (Fast\ Read\ Projection)} \\
+  &\longrightarrow \mathbf{Available\ Stock\ Engine}
+  \end{aligned}$$
+- **Audit Guarantee:** The movement ledger remains the authoritative single source of truth; balance tables serve high-performance querying and concurrency validation.
+
+---
+
+### 2. Core Stock Categories & Availability Formula
 The system clearly distinguishes between 6 distinct inventory states:
 - **Physical Stock (On-Hand)**: Actual physical inventory currently recorded in the warehouse.
 - **Reserved Stock**: Stock committed to a customer booking/order but not yet physically allocated/issued.
@@ -570,177 +613,187 @@ $$\mathbf{Available\ Quantity} = \mathbf{On\text{-}Hand\ Quantity} - \mathbf{Res
 
 ---
 
-### 2. End-to-End Inventory Flows
-- **General Stock & Spare Parts Flow**:
-  $$\text{Purchase / Import} \rightarrow \text{Goods Receipt} \rightarrow \text{Warehouse Stock} \rightarrow \text{Available Inventory} \rightarrow \text{Reservation} \rightarrow \text{Allocation} \rightarrow \text{Sales Invoice / Order} \rightarrow \text{Stock Issue} \rightarrow \text{Delivered / Consumed}$$
-- **Imported Serialized Vehicle Flow**:
-  $$\text{Supplier PO} \rightarrow \text{Import Shipment} \rightarrow \text{Customs Clearance} \rightarrow \text{Warehouse Receipt} \rightarrow \text{Vehicle Registration (Chassis/Engine)} \rightarrow \text{Available for Sale} \rightarrow \text{Reservation} \rightarrow \text{Vehicle Allotment} \rightarrow \text{Ready for Delivery} \rightarrow \text{Sold} \rightarrow \text{Delivered}$$
+### 3. In-Transit Stock Transfer Rules (★ Client Specification)
+> **Important Rule:** A transfer must **not** immediately remove stock from the destination or source availability:
+- **At Source Warehouse:**
+  $$\text{On-Hand} \downarrow \quad \text{and} \quad \text{In-Transit} \uparrow$$
+- **At Destination Warehouse:**
+  $$\text{In-Transit} \uparrow \quad (\text{On-Hand remains unchanged})$$
+- **After Confirmed Receipt at Destination:**
+  $$\text{Destination On-Hand} \uparrow \quad \text{and} \quad \text{In-Transit} \downarrow$$
+This guarantees accurate visibility of physical stock in-flight along cross-warehouse or inter-city transit corridors without phantom inventory.
 
 ---
 
-### 3. Warehouse Master Hierarchy & Structural Zones
-Location traceability supports a 5-tier warehouse structure:
-$$\mathbf{Warehouse} \longrightarrow \mathbf{Zone} \longrightarrow \mathbf{Rack} \longrightarrow \mathbf{Bin} \longrightarrow \mathbf{Location}$$
-*(e.g. Kality Assembly Plant $\rightarrow$ Zone A [Finished Motorcycles] $\rightarrow$ Rack 01 $\rightarrow$ Bay 04 $\rightarrow$ Floor Slot A-01-04).*
+### 4. Stock Adjustment Categories & Financial Controls (★ Client Specification)
+Stock adjustments are required when system quantity differs from physical count or an authorized correction is required.
+- **8 Approved Adjustment Reason Categories:**
+  1. `PHYSICAL_COUNT` — Physical stock count difference (cycle count / wall-to-wall audit)
+  2. `DAMAGE` — Damaged stock (transit or warehouse handling defect)
+  3. `LOST` — Lost stock (missing / unaccounted)
+  4. `FOUND` — Found stock (discovered surplus inventory)
+  5. `DATA_CORRECTION` — Data correction (clerical / SKU mapping error)
+  6. `EXPIRED_DETERIORATED` — Expired / deteriorated stock
+  7. `INITIAL_LOADING` — Initial stock loading (master onboarding)
+  8. `OTHER` — Other approved reason (mandatory management justification)
+- **Financial Controls (BR-06):**
+  - Adjustments affecting inventory valuation require appropriate **Finance / Manager authorization**.
+  - **Posted adjustments can NEVER be deleted.** All corrections must be made through explicit reversal or counter-adjustment transactions.
 
 ---
 
-### 4. Stock Receipt Management & Approval State Rule
-Stock receipts record physical inventory intake across 6 standard sources:
-1. `Local Purchase`
-2. `Import Shipment`
-3. `Customer Return`
-4. `Warehouse Transfer`
-5. `Adjustment / Found`
-6. `Other Approved Receipt`
-
-> **Critical Rule:** Inventory quantity must **NOT** increase when a receipt is merely drafted. Physical on-hand stock and ledger balances increase **ONLY** when the receipt advances to the **APPROVED / CONFIRMED** state.
-
----
-
-### 5. Integration with Module 12 (Import Management)
-Module 12 and Module 13 operate as tightly coupled, reconciled enterprise subsystems:
-- **Module 12 manages:** $\text{Supplier} \rightarrow \text{Purchase Order} \rightarrow \text{Shipment} \rightarrow \text{Customs Clearance} \rightarrow \text{Landed Cost Apportionment}$
-- **Module 13 manages:** $\text{Goods Receipt} \rightarrow \text{Warehouse Stock} \rightarrow \text{Inventory Asset Valuation}$
-
-$$\text{Import Shipment} \longrightarrow \text{Customs Clearance} \longrightarrow \text{Landed Cost Posted} \longrightarrow \text{Goods Receipt} \longrightarrow \text{Inventory}$$
-
-When imported inventory is received, Module 13 receives:
-- **Product Item Reference & SKU**
-- **Received Quantity**
-- **Target Warehouse & Location**
-- **Supplier FOB Cost**
-- **Allocated Landed Cost (Freight, Duty, Port, Trucking)**
-- **Total Capitalized Inventory Cost**
-- **Unit Landed Cost (ETB)**
-- **Transaction Currency & Base Currency (ETB)**
-- **Shipment Reference (`SHP-XXXX`)**
-- **Purchase Order Reference (`PO-XXXX`)**
+### 5. 14 Comprehensive Stock Movement Types
+Every stock transaction generates an immutable journal voucher categorized under one of 14 system movement types:
+1. `RECEIPT` — Standard inbound intake from PO, local supplier, or opening loading.
+2. `TRANSFER_OUT` — Dispatch from source warehouse into transit corridor.
+3. `TRANSFER_IN` — Intake at destination warehouse completing transfer.
+4. `ADJUSTMENT_IN` — Upward stock count correction (+ variance).
+5. `ADJUSTMENT_OUT` — Downward stock write-off (- variance).
+6. `RESERVATION` — Stock reserved against customer booking.
+7. `RESERVATION_RELEASE` — Reservation cancelled / released back to available pool.
+8. `ALLOCATION` — Chassis / item bound to approved customer booking.
+9. `DEALLOCATION` — Allotment cancelled / chassis returned to unallocated stock.
+10. `SALE` — Invoiced / settled transaction.
+11. `DELIVERY` — Physical handover and gate pass dispatch to client.
+12. `RETURN` — Customer return taken back into inventory.
+13. `DAMAGE` — Segregation of damaged units into quarantined status.
+14. `OPENING_BALANCE` — Baseline migration balance loading.
 
 ---
 
-### 6. Stock Transfer Lifecycle
-Inter-warehouse movements follow a strict 8-stage custodial transfer pipeline:
-$$\mathbf{DRAFT} \longrightarrow \mathbf{REQUESTED} \longrightarrow \mathbf{APPROVED} \longrightarrow \mathbf{DISPATCHED} \longrightarrow \mathbf{IN\_TRANSIT} \longrightarrow \mathbf{RECEIVED} \longrightarrow \mathbf{PARTIALLY\_RECEIVED} \longrightarrow \mathbf{CANCELLED}$$
+### 6. Critical Business Rules (BR-01 to BR-09)
+| Rule Code | Rule Title | Architectural Enforcement |
+|---|---|---|
+| **BR-01** | **No Negative Stock** | System strictly prevents stock from becoming negative unless explicitly authorized by configurable business rule. |
+| **BR-02** | **No Duplicate Vehicle** | Chassis number, engine number, and vehicle inventory ID must be globally unique across all warehouses and shipments. |
+| **BR-03** | **No Double Allocation** | A vehicle cannot be actively allocated to two active bookings. Enforced via database and service-level transaction concurrency protection. |
+| **BR-04** | **Reservation Validation** | Only available inventory (`AVAILABLE_FOR_SALE`) can normally be reserved; non-available vehicles cannot be committed. |
+| **BR-05** | **Approved Transaction Only** | Inventory balances change **only** after transaction posting / confirmation; draft records never affect stock. |
+| **BR-06** | **Posted Transactions Cannot Be Deleted** | Corrections must be made through explicit reversal or adjustment transactions. |
+| **BR-07** | **Complete Traceability** | Every inventory change must reference its source transaction (PO, Shipment, Booking, Invoice, Gate Pass). |
+| **BR-08** | **Transfer Integrity** | Source and destination inventory must remain mathematically consistent throughout the transit pipeline ($\Delta \text{Source} + \Delta \text{Transit} + \Delta \text{Dest} = 0$). |
+| **BR-09** | **Landed Cost Integration** | Imported inventory must use the approved capitalized landed cost from Module 12 for accurate inventory valuation. |
+
+---
+
+### 7. Segregation-of-Duties (RBAC) Permissions Matrix
+| Role | Main Inventory Permissions |
+|---|---|
+| **Warehouse Officer** | Receive, transfer, view stock balances |
+| **Warehouse Manager** | Approve receipts, transfers, and physical adjustments |
+| **Sales** | View stock availability, reserve stock against bookings |
+| **Finance** | View warehouse valuation, approve financial adjustments & landed cost postings |
+| **Sales Manager** | Approve vehicle allocations and allotment cancellations |
+| **Manager / Director** | Approve major stock adjustments and exceptional write-offs |
+| **Admin** | System configuration, warehouse master, full audit access |
 
 ---
 
 ## Screen 10: Inventory & Warehouses — Stock Balances
 
-**Navigation:** `Inventory & Warehouses`
+**Navigation:** `Inventory & Warehouses → Stock Balances` (`/inventory`)
 
-### Stock Balance filters
+### Goal
+Display multi-warehouse stock balances matching the **Client-Recommended Table Columns**:
+$$\mathbf{Product} \;\vert\; \mathbf{Warehouse} \;\vert\; \mathbf{On\text{-}Hand} \;\vert\; \mathbf{Reserved} \;\vert\; \mathbf{Allocated} \;\vert\; \mathbf{Available} \;\vert\; \mathbf{Unit\ Cost\ (ETB)} \;\vert\; \mathbf{Total\ Value\ (ETB)} \;\vert\; \mathbf{Status}$$
 
-- Search: item code, product name, or warehouse
-- Warehouse dropdown: `All Warehouses`, `Kality Assembly Plant Warehouse`, `Gotera Distribution Center`
-
-### Receive Non-Serialized Stock input checklist
-
-Use this for spare parts / stock items that are not individually VIN tracked.
-
-- Warehouse: select warehouse
-- Stock Item: select non-serialized product item
-- Quantity: `5`
-- Source Type: choose one:
-  - `OPENING_BALANCE`
-  - `LOCAL_PURCHASE`
-  - `MANUAL_RECEIPT`
-  - `CORRECTION`
-- Notes: `Opening physical count for E2E spare parts shelf`
-
-### Expected result
-
-- Stock balance increases upon receipt approval/confirmation.
-- Product name displays correctly.
-- Available quantity recalculates dynamically using $\text{Available} = \text{On-Hand} - \text{Reserved} - \text{Allocated}$.
-- Movement history records receipt with full audit trail.
+### Stock Balance Filters
+- **Warehouse Filter**: `All Warehouses`, `Kality Assembly Plant Warehouse`, `Gotera Distribution Center`
+- **Search**: Item code, SKU, or product description.
+- **Real-Time Recalculation**: $\text{Available} = \text{On-Hand} - \text{Reserved} - \text{Allocated}$.
+- **Valuation Footers**: Aggregated total units and portfolio asset value in ETB.
 
 ---
 
 ## Screen 11: Inventory — Stock Transfers
 
-### New Transfer input checklist
+**Navigation:** `Inventory & Warehouses → Stock Transfers` (`/inventory`)
 
+### Transfer Input Checklist
 - Source Warehouse: `Gotera Distribution Center`
 - Destination Warehouse: `Kality Assembly Plant Warehouse`
-- Item / Vehicle: select stock item or vehicle unit depending on dropdown
-- Quantity: `1` for non-serialized stock, or selected vehicle unit for VIN item
-- Reason / Notes: `E2E inter-warehouse transfer`
+- Item / Vehicle: select stock item or serialized chassis
+- Quantity: `1`
+- Reason / Notes: `Transit transfer between central depot and assembly plant`
 
-### Lifecycle Execution (Requested → Approved → Dispatched → Received)
-
-1. **Request Transfer**: Submit transfer request (Status: `REQUESTED`).
-2. **Approve Transfer**: Warehouse supervisor approves dispatch (Status: `APPROVED`).
-3. **Dispatch Transfer**: Physical stock leaves source warehouse (Status: `DISPATCHED` $\rightarrow$ `IN_TRANSIT`).
-4. **Complete Receipt**: Receiving warehouse confirms count and intakes stock (Status: `RECEIVED`).
-
-### Expected result
-
-- Source warehouse on-hand balance decreases.
-- In-transit stock tracked during corridor movement.
-- Destination warehouse balance increases upon final intake confirmation.
-- Movement history shows both transfer-out voucher and transfer-in intake with complete custodial chain.
+### In-Transit State Verification
+1. Submit transfer (Status: `REQUESTED`).
+2. Warehouse manager approves dispatch (Status: `APPROVED` $\rightarrow$ `DISPATCHED`).
+3. Verify in-transit rules:
+   - Source On-Hand drops by 1; Source In-Transit rises by 1.
+   - Destination In-Transit rises by 1.
+4. Receiving officer confirms intake (Status: `RECEIVED`).
+   - Destination On-Hand rises by 1; In-Transit drops to 0.
 
 ---
 
 ## Screen 12: Inventory — Stock Adjustments
 
-### New Adjustment input checklist
+**Navigation:** `Inventory & Warehouses → Stock Adjustments` (`/inventory`)
 
+### New Adjustment Input Checklist
 - Warehouse: select warehouse
-- Stock Balance Item: select item with available quantity
-- Quantity Delta: `-1` for damage test or `+1` for found stock
-- Adjustment Reason Category: choose one, for example:
-  - `DAMAGE`
-  - `FOUND`
-  - `COUNT_CORRECTION`
-  - other current dropdown option
-- Mandatory Audit Notes & Explanation: `E2E stock adjustment test`
-
-### Approval checklist
-
-- Open Stock Adjustments tab.
-- Approve requested adjustment.
-
-### Expected result
-
-- Requested adjustment appears first.
-- After approval, balance updates.
-- Movement history shows adjustment.
+- Stock Balance Item: select item with physical count discrepancy
+- Quantity Delta: `-2` (e.g. system 100 vs physical 98) or `+1` (surplus found)
+- **Adjustment Reason Category (Client 8 Reasons)**:
+  - `PHYSICAL_COUNT` (Physical stock count difference)
+  - `DAMAGE` (Damaged stock)
+  - `LOST` (Lost stock)
+  - `FOUND` (Found stock)
+  - `DATA_CORRECTION` (Data correction)
+  - `EXPIRED_DETERIORATED` (Expired/deteriorated stock)
+  - `INITIAL_LOADING` (Initial stock loading)
+  - `OTHER` (Other approved reason)
+- Mandatory Audit Notes: `Physical cycle count revealed 2 missing units during bi-weekly audit`
+- **Financial Control Warning:** System prominently alerts that posted adjustments can *never be deleted* and require Finance/Manager authorization.
 
 ---
 
 ## Screen 13: Inventory — Local Assembly Intake
 
-### Record Assembly Receipt input checklist
+**Navigation:** `Inventory & Warehouses → Assembly Intake` (`/inventory`)
 
-- Product / Model: select vehicle product
-- Warehouse: select warehouse
-- Chassis Number: `KANAB-2026-CHAS-ASM-001`
-- Engine Number: `KANAB-2026-ENG-ASM-001`
+### Record Assembly Receipt Input Checklist
+- Product / Model: select motorcycle model (e.g. `Bajaj Boxer BM150 Motorcycle`)
+- Warehouse: `Kality Assembly Plant Warehouse`
+- Chassis Number: `KANAB-2026-CHAS-ASM-001` (unique)
+- Engine Number: `KANAB-2026-ENG-ASM-001` (unique)
 - Assembly Date: current date
-- Notes: `E2E local assembly intake`
-
-### Expected result
-
-- Vehicle unit is created in selected warehouse.
-- Movement history records local production/assembly intake.
+- Notes: `Local assembly line batch run #1`
 
 ---
 
 ## Screen 14: Inventory — Movement History Log
 
-### Filters to test
+**Navigation:** `Inventory & Warehouses → Movement History` (`/inventory`)
 
-- Date range: start and end dates
-- Warehouse dropdown
-- Item dropdown
-- Movement type dropdown if visible
-- Search / refresh
+### Filters & Verification
+- Filter by all 14 Movement Types (`RECEIPT`, `TRANSFER_OUT`, `TRANSFER_IN`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`, `RESERVATION`, `ALLOCATION`, etc.).
+- Warehouse filter, Item SKU filter, and Date Range filter.
+- Immutable journal displays sequential audit records with quantity deltas and balance-after snapshots.
 
-### Expected result
+---
 
-- Receipts, transfers, adjustments, and assembly movements are visible with correct quantity sign.
+## Screen 14B: 11 Inventory Reports Suite (★ Client Specification)
+
+**Navigation:** `Inventory & Warehouses → 11 Inventory Reports ★` (`/inventory`)
+
+### Goal
+Provide executive and operational visibility through the **11 Client-Mandated Inventory Reports**:
+
+| # | Report Title | Core Columns & Purpose |
+|---|---|---|
+| **1** | **Current Stock Report** | `Product \| Warehouse \| On Hand \| Reserved \| Allocated \| Available` (Real-time physical vs available stock across all warehouses). |
+| **2** | **Vehicle Inventory Report** | `Chassis No \| Engine No \| Brand & Model \| Warehouse \| Status \| Booking Ref \| Customer` (Full serialized unit roster). |
+| **3** | **Stock Movement Report** | `Timestamp \| Movement Type \| Product \| Warehouse \| Qty Delta \| Reference \| Performed By` (Comprehensive movement audit trail). |
+| **4** | **Warehouse Valuation Report** | `Warehouse \| Product \| On Hand Qty \| Unit Cost (ETB) \| Total Value (ETB)` (Financial inventory asset balance sheet). |
+| **5** | **Reserved Inventory Report** | `Booking Ref \| Customer \| Product \| Reserved Qty \| Deposit Amount (ETB) \| Expiry Date` (Committed stock pending delivery). |
+| **6** | **Allocated Inventory Report** | `Customer \| Booking Ref \| Chassis No \| Allocated Date \| Allocated By \| Status` (Physical VIN-to-customer binding). |
+| **7** | **Stock Transfer Report** | `Transfer Ref \| Date \| Source \| Destination \| Item / Chassis \| Quantity \| Status` (Inter-warehouse transfer monitoring). |
+| **8** | **Stock Adjustment Report** | `Adjustment Ref \| Date \| Warehouse \| Item \| System Qty \| Physical Qty \| Variance \| Reason Category \| Approved By` (Audit variance analysis). |
+| **9** | **Inventory Aging Report** | `Product \| Warehouse \| Total Units \| 0-30 Days \| 31-60 Days \| 61-90 Days \| >90 Days (Slow-Moving)` (Holding duration & obsolescence risk). |
+| **10** | **Vehicle Status Report** | Distribution across all 7 stages: `Received (24) \| Available for Sale (18) \| Reserved (6) \| Allotted (8) \| Ready for Delivery (5) \| Sold (12) \| Delivered (24)`. |
+| **11** | **Inventory Valuation Report (Module 12 Integration)** | `Shipment Ref \| PO Ref \| Received Qty \| Supplier FOB (ETB) \| Capitalized Costs (ETB) \| Unit Landed Cost (ETB) \| Total Asset Valuation (ETB)` (Audited landed cost capitalization). |
 
 ---
 

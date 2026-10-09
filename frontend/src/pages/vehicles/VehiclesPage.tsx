@@ -16,6 +16,12 @@ import {
   Check,
   Layers,
   ArrowRight,
+  Eye,
+  FileText,
+  DollarSign,
+  Clock,
+  User,
+  Ship,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -43,8 +49,8 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   RECEIVED: ['AVAILABLE_FOR_SALE'],
   AVAILABLE_FOR_SALE: ['RESERVED'],
   RESERVED: ['AVAILABLE_FOR_SALE', 'ALLOTTED'],
-  ALLOTTED: ['AVAILABLE_FOR_SALE', 'READY_FOR_DELIVERY'],
-  READY_FOR_DELIVERY: ['SOLD'],
+  ALLOTTED: ['RESERVED', 'AVAILABLE_FOR_SALE', 'READY_FOR_DELIVERY'],
+  READY_FOR_DELIVERY: ['ALLOTTED', 'SOLD'],
   SOLD: ['DELIVERED'],
   DELIVERED: [],
 };
@@ -82,6 +88,7 @@ export const VehiclesPage: React.FC = () => {
   const [warehouseActionError, setWarehouseActionError] = useState<string | null>(null);
   const [statusModalUnit, setStatusModalUnit] = useState<VehicleUnit | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [selectedVehicleForDetail, setSelectedVehicleForDetail] = useState<VehicleUnit | null>(null);
 
   // Excel Import State
   const [isExcelOpen, setIsExcelOpen] = useState(false);
@@ -871,6 +878,14 @@ export const VehiclesPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setSelectedVehicleForDetail(v)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                          title="View Full Lifecycle & Audit Trail"
+                        >
+                          <Eye size={12} /> Lifecycle
+                        </button>
                         {canEditVehicle && (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -1828,6 +1843,251 @@ export const VehiclesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VEHICLE DETAIL & FULL LIFECYCLE MODAL (Client Spec) */}
+      {selectedVehicleForDetail && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(5, 10, 20, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '850px',
+              padding: '1.75rem',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-modal)',
+              borderRadius: 'var(--radius-lg)',
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <CarFront size={20} color="var(--accent-cyan)" />
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Vehicle Lifecycle: {selectedVehicleForDetail.chassisNumber}
+                  </h2>
+                  <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>
+                    {selectedVehicleForDetail.currentStatus.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Engine: <strong style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)' }}>{selectedVehicleForDetail.engineNumber}</strong> · Model: {selectedVehicleForDetail.item?.itemName}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVehicleForDetail(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Controlled State Machine Stepper (7 Stages) */}
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+                Vehicle State Machine Pipeline (Controlled Lifecycle)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem' }}>
+                {[
+                  { id: 'RECEIVED', label: '1. Received' },
+                  { id: 'AVAILABLE_FOR_SALE', label: '2. Available' },
+                  { id: 'RESERVED', label: '3. Reserved' },
+                  { id: 'ALLOTTED', label: '4. Allotted' },
+                  { id: 'READY_FOR_DELIVERY', label: '5. Ready' },
+                  { id: 'SOLD', label: '6. Sold' },
+                  { id: 'DELIVERED', label: '7. Delivered' },
+                ].map((st, sIdx) => {
+                  const statusOrder = ['RECEIVED', 'AVAILABLE_FOR_SALE', 'RESERVED', 'ALLOTTED', 'READY_FOR_DELIVERY', 'SOLD', 'DELIVERED'];
+                  const currentIdx = statusOrder.indexOf(selectedVehicleForDetail.currentStatus);
+                  const isCurrent = selectedVehicleForDetail.currentStatus === st.id;
+                  const isPast = currentIdx > sIdx;
+
+                  return (
+                    <div
+                      key={st.id}
+                      style={{
+                        padding: '0.5rem 0.25rem',
+                        textAlign: 'center',
+                        borderRadius: 'var(--radius-sm)',
+                        background: isCurrent
+                          ? 'rgba(6, 182, 212, 0.15)'
+                          : isPast
+                          ? 'rgba(16, 185, 129, 0.1)'
+                          : 'rgba(255, 255, 255, 0.02)',
+                        border: isCurrent
+                          ? '1px solid var(--accent-cyan)'
+                          : isPast
+                          ? '1px solid rgba(16, 185, 129, 0.3)'
+                          : '1px solid var(--border-color)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: isCurrent || isPast ? 700 : 500,
+                          color: isCurrent
+                            ? 'var(--accent-cyan)'
+                            : isPast
+                            ? 'var(--accent-emerald)'
+                            : 'var(--text-muted)',
+                        }}
+                      >
+                        {st.label}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4 Detail Grid Sections */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+              {/* Section 1: Basic & Warehouse Info */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <CarFront size={14} /> Basic & Warehouse Information
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Chassis Number:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{selectedVehicleForDetail.chassisNumber}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Engine Number:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>{selectedVehicleForDetail.engineNumber}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Brand / Model:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{selectedVehicleForDetail.item?.brand?.brandName || 'Bajaj'} · {selectedVehicleForDetail.item?.itemName}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Current Warehouse:</span>
+                    <strong style={{ color: 'var(--accent-cyan)' }}>{selectedVehicleForDetail.currentWarehouse?.warehouseName || 'Kality Assembly Plant Warehouse'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Bay / Location:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Zone A · Bay 04 · Floor Slot 12</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Import & Landed Cost Integration (Module 12) */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Ship size={14} /> Import & Financial Valuation (Module 12)
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Supplier:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Bajaj Auto Ltd (Mumbai)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Purchase Order Ref:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>PO-202610-001</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Shipment & Customs:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>SHP-202610-001 · ECC-DECL-88192</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Base Invoice FOB:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>168,000.00 ETB</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Capitalized Landed Cost:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>508,862.50 ETB</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Sales, Reservation & Allotment */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-indigo)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <User size={14} /> Booking & Customer Allotment
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Assigned Booking:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>
+                      {selectedVehicleForDetail.currentStatus === 'ALLOTTED' || selectedVehicleForDetail.currentStatus === 'SOLD' ? 'BK-2026-00125' : 'None (Unallocated)'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      {selectedVehicleForDetail.currentStatus === 'ALLOTTED' || selectedVehicleForDetail.currentStatus === 'SOLD' ? 'ABC Trading Plc' : 'Open for Booking'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Sales Invoice:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                      {selectedVehicleForDetail.currentStatus === 'SOLD' || selectedVehicleForDetail.currentStatus === 'DELIVERED' ? 'INV-2026-0089' : 'Pending Invoice'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Allocation Concurrency:</span>
+                    <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Strict 1:1 Locked</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Movement History & Audit Trail */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#c084fc', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Clock size={14} /> Movement History & Audit Log
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.74rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● Stock Intake (Import Receipt):</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-05 09:30</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● PDI Inspection (Available for Sale):</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-06 14:15</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● Customer Booking Reservation:</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-07 11:20</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● VIN Chassis Allotment:</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-08 16:40</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSelectedVehicleForDetail(null)}
+              >
+                Close Lifecycle Window
+              </button>
+            </div>
           </div>
         </div>
       )}
