@@ -13,15 +13,69 @@ import {
   ArrowDownRight,
   X,
   Info,
+  Building,
+  Check,
+  FileText,
+  Calendar,
 } from 'lucide-react';
 import {
   api,
   CustomerRefund,
   Customer,
+  CustomerBankAccount,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 import { formatApiError } from '../../utils/error';
+
+export const REFUND_REASONS = [
+  { code: 'EXCESS_PAYMENT', label: 'Excess Payment (customer paid more than required amount)' },
+  { code: 'BOOKING_CANCELLATION', label: 'Booking Cancellation (booking cancelled and advance refundable)' },
+  { code: 'VEHICLE_MODEL_CHANGE', label: 'Vehicle Model Change (existing payment returned or adjusted)' },
+  { code: 'INVENTORY_UNAVAILABLE', label: 'Inventory Unavailable (vehicle cannot be supplied)' },
+  { code: 'CUSTOMER_CANCELLATION', label: 'Customer Cancellation (customer requested cancellation)' },
+  { code: 'OTHER_APPROVED_REASON', label: 'Other Approved Reason (specify below)' },
+];
+
+export const maskAccountNumber = (accNum?: string) => {
+  if (!accNum) return 'N/A';
+  if (accNum.length <= 4) return '••••' + accNum;
+  return '••••••••' + accNum.slice(-4);
+};
+
+export const getApprovalTier = (amount: number) => {
+  if (amount <= 10000) {
+    return {
+      tier: 'Tier 1',
+      role: 'Finance Officer',
+      badgeClass: 'badge-cyan',
+      color: 'var(--accent-cyan)',
+      bg: 'rgba(6, 182, 212, 0.12)',
+      border: 'rgba(6, 182, 212, 0.3)',
+      desc: '≤ ETB 10,000 — Finance Officer',
+    };
+  } else if (amount <= 50000) {
+    return {
+      tier: 'Tier 2',
+      role: 'Finance Manager',
+      badgeClass: 'badge-amber',
+      color: 'var(--accent-amber)',
+      bg: 'rgba(245, 158, 11, 0.12)',
+      border: 'rgba(245, 158, 11, 0.3)',
+      desc: 'ETB 10,001 to 50,000 — Finance Manager',
+    };
+  } else {
+    return {
+      tier: 'Tier 3',
+      role: 'Senior Management',
+      badgeClass: 'badge-rose',
+      color: 'var(--accent-rose)',
+      bg: 'rgba(244, 63, 94, 0.12)',
+      border: 'rgba(244, 63, 94, 0.3)',
+      desc: '> ETB 50,000 — Senior Management / Executive',
+    };
+  }
+};
 
 export const SettlementPage: React.FC = () => {
   const { can } = usePermissions();
@@ -41,7 +95,9 @@ export const SettlementPage: React.FC = () => {
   const [showNewRefundModal, setShowNewRefundModal] = useState<boolean>(false);
   const [showExcessRouteModal, setShowExcessRouteModal] = useState<boolean>(false);
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+  const [showPayoutModal, setShowPayoutModal] = useState<boolean>(false);
   const [rejectingRefund, setRejectingRefund] = useState<CustomerRefund | null>(null);
+  const [payoutRefund, setPayoutRefund] = useState<CustomerRefund | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
@@ -49,18 +105,38 @@ export const SettlementPage: React.FC = () => {
   const [refundError, setRefundError] = useState<string | null>(null);
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
 
-  // Refund Form State
+  // Refund Form State (Section 11 standard)
   const [newRefund, setNewRefund] = useState<{
     customerId: string;
     refundAmount: number;
-    refundReason: string;
+    refundReasonCode: string;
+    refundReasonCustom: string;
     refundMethod: string;
+    bankAccountId: string;
   }>({
     customerId: '',
     refundAmount: 0,
-    refundReason: '',
+    refundReasonCode: 'EXCESS_PAYMENT',
+    refundReasonCustom: '',
     refundMethod: 'BANK_TRANSFER',
+    bankAccountId: '',
+  });
+
+  // Finance Payout Confirmation State (Section 11 Step 4)
+  const [payoutData, setPayoutData] = useState<{
+    paymentReference: string;
+    payoutDate: string;
+    actualAmountPaid: number;
+    paymentMethod: string;
+    notes: string;
+  }>({
+    paymentReference: '',
+    payoutDate: new Date().toISOString().split('T')[0],
+    actualAmountPaid: 0,
+    paymentMethod: 'BANK_TRANSFER',
+    notes: '',
   });
 
   // Excess Routing State
@@ -105,17 +181,35 @@ export const SettlementPage: React.FC = () => {
       setRefundError('Customer and positive refund amount are required');
       return;
     }
+    const reasonObj = REFUND_REASONS.find((r) => r.code === newRefund.refundReasonCode);
+    let finalReason = reasonObj ? reasonObj.label : newRefund.refundReasonCode;
+    if (newRefund.refundReasonCode === 'OTHER_APPROVED_REASON') {
+      if (!newRefund.refundReasonCustom.trim()) {
+        setRefundError('Please specify the detailed explanation for Other Approved Reason.');
+        return;
+      }
+      finalReason = `Other: ${newRefund.refundReasonCustom.trim()}`;
+    }
+
     setSaving(true);
     try {
-      const created = await api.createRefund(newRefund);
+      const created = await api.createRefund({
+        customerId: newRefund.customerId,
+        refundAmount: newRefund.refundAmount,
+        refundReason: finalReason,
+        refundMethod: newRefund.refundMethod,
+        bankAccountId: newRefund.bankAccountId || undefined,
+      });
       showToast('success', `Refund request ${created.refundNumber} submitted! Subject to available balance validation.`);
       setShowNewRefundModal(false);
       setRefundError(null);
       setNewRefund({
         customerId: '',
         refundAmount: 0,
-        refundReason: '',
+        refundReasonCode: 'EXCESS_PAYMENT',
+        refundReasonCustom: '',
         refundMethod: 'BANK_TRANSFER',
+        bankAccountId: '',
       });
       loadData();
     } catch (err: any) {
@@ -125,8 +219,8 @@ export const SettlementPage: React.FC = () => {
     }
   };
 
-  const handleAdvanceWorkflow = async (id: string, stage: 'review' | 'approve' | 'process' | 'payout') => {
-    if ((stage === 'review' && !canReviewRefund) || (stage === 'approve' && !canApproveRefund) || ((stage === 'process' || stage === 'payout') && !canProcessRefund)) return;
+  const handleAdvanceWorkflow = async (id: string, stage: 'review' | 'approve' | 'process') => {
+    if ((stage === 'review' && !canReviewRefund) || (stage === 'approve' && !canApproveRefund) || (stage === 'process' && !canProcessRefund)) return;
     setActioningId(id);
     try {
       if (stage === 'review') {
@@ -138,15 +232,40 @@ export const SettlementPage: React.FC = () => {
       } else if (stage === 'process') {
         await api.processRefund(id);
         showToast('success', 'Finance Audit passed. Processed for disbursement.');
-      } else if (stage === 'payout') {
-        await api.confirmRefundPayout(id);
-        showToast('success', 'Refund payout confirmed! Ledger debited and balance settled.');
       }
       loadData();
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Workflow action failed'));
     } finally {
       setActioningId(null);
+    }
+  };
+
+  const handleConfirmPayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canProcessRefund || !payoutRefund) return;
+    setPayoutError(null);
+    if (!payoutData.paymentReference.trim()) {
+      setPayoutError('Bank Reference / Transaction ID is mandatory for payout audit trail.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.confirmRefundPayout(payoutRefund.refundId, {
+        paymentReference: payoutData.paymentReference.trim(),
+        paymentMethod: payoutData.paymentMethod,
+        actualAmountPaid: payoutData.actualAmountPaid,
+        notes: payoutData.notes.trim() || undefined,
+      });
+      showToast('success', `Refund payout for ${payoutRefund.refundNumber} successfully confirmed! Ledger settled.`);
+      setShowPayoutModal(false);
+      setPayoutRefund(null);
+      setPayoutError(null);
+      loadData();
+    } catch (err: any) {
+      setPayoutError(formatApiError(err, 'Payout confirmation failed'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -435,6 +554,12 @@ export const SettlementPage: React.FC = () => {
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                             Code: <span className="mono-code" style={{ fontSize: '0.65rem' }}>{r.customer?.customerCode}</span>
                           </div>
+                          {r.bankAccount && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.3rem' }} title={`Account Holder: ${r.bankAccount.accountHolderName}`}>
+                              <Building size={12} />
+                              <span>{r.bankAccount.bankName} • {maskAccountNumber(r.bankAccount.accountNumber)}</span>
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '1rem 1.25rem' }}>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem' }}>{r.refundMethod}</div>
@@ -446,6 +571,20 @@ export const SettlementPage: React.FC = () => {
                           <div style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--accent-rose)', fontFamily: 'monospace' }}>
                             ETB {Number(r.refundAmount).toLocaleString()}
                           </div>
+                          {(() => {
+                            const tier = getApprovalTier(Number(r.refundAmount || 0));
+                            return (
+                              <div style={{ marginTop: '0.25rem' }}>
+                                <span
+                                  className={`badge ${tier.badgeClass}`}
+                                  style={{ fontSize: '0.62rem', letterSpacing: '0.02em', padding: '0.15rem 0.45rem' }}
+                                  title={tier.desc}
+                                >
+                                  {tier.role}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <span
@@ -501,12 +640,23 @@ export const SettlementPage: React.FC = () => {
 
                             {r.status === 'FINANCE_PROCESSED' && canProcessRefund && (
                               <button
-                                onClick={() => handleAdvanceWorkflow(r.refundId, 'payout')}
+                                onClick={() => {
+                                  setPayoutError(null);
+                                  setPayoutRefund(r);
+                                  setPayoutData({
+                                    paymentReference: '',
+                                    payoutDate: new Date().toISOString().split('T')[0],
+                                    actualAmountPaid: Number(r.refundAmount || 0),
+                                    paymentMethod: r.refundMethod || 'BANK_TRANSFER',
+                                    notes: '',
+                                  });
+                                  setShowPayoutModal(true);
+                                }}
                                 disabled={actioningId === r.refundId}
                                 className="btn btn-cyan"
                                 style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem' }}
                               >
-                                {actioningId === r.refundId ? 'Paying...' : 'Confirm Payout'}
+                                Confirm Payout
                               </button>
                             )}
 
@@ -627,10 +777,10 @@ export const SettlementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: New Refund Request */}
+      {/* Modal: New Refund Request (Section 11) */}
       {showNewRefundModal && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '620px', width: '95%' }}>
+          <div className="modal-content" style={{ maxWidth: '640px', width: '95%' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ padding: '0.55rem', background: 'rgba(244, 63, 94, 0.12)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -638,7 +788,7 @@ export const SettlementPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Initiate Customer Refund Request</h3>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Strictly validated against customer available refundable balance</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Strictly validated against customer available refundable balance (Section 11)</span>
                 </div>
               </div>
               <button onClick={() => setShowNewRefundModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>
@@ -661,7 +811,16 @@ export const SettlementPage: React.FC = () => {
                         <select
                           className="input"
                           value={newRefund.customerId}
-                          onChange={(e) => setNewRefund({ ...newRefund, customerId: e.target.value })}
+                          onChange={(e) => {
+                            const cid = e.target.value;
+                            const targetCust = customers.find((c) => c.customerId === cid);
+                            const primaryBa = targetCust?.bankAccounts?.find((b) => b.isPrimary) || targetCust?.bankAccounts?.[0];
+                            setNewRefund({
+                              ...newRefund,
+                              customerId: cid,
+                              bankAccountId: primaryBa ? primaryBa.bankAccountId : '',
+                            });
+                          }}
                           required
                         >
                           <option value="">Select Customer...</option>
@@ -677,6 +836,47 @@ export const SettlementPage: React.FC = () => {
                             <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontSize: '0.85rem' }}>
                               ETB {availRefundable.toLocaleString()}
                             </strong>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Customer Bank Account (Masked) */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                            Target Customer Bank Account
+                          </label>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Masked for security</span>
+                        </div>
+                        {selCust && selCust.bankAccounts && selCust.bankAccounts.length > 0 ? (
+                          <select
+                            className="input"
+                            value={newRefund.bankAccountId}
+                            onChange={(e) => setNewRefund({ ...newRefund, bankAccountId: e.target.value })}
+                          >
+                            <option value="">Select Registered Account...</option>
+                            {selCust.bankAccounts.map((ba) => (
+                              <option key={ba.bankAccountId} value={ba.bankAccountId}>
+                                {ba.bankName} — {maskAccountNumber(ba.accountNumber)} ({ba.accountHolderName}){ba.isPrimary ? ' ★ Primary' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'rgba(245, 158, 11, 0.08)',
+                              border: '1px solid rgba(245, 158, 11, 0.25)',
+                              color: 'var(--accent-amber)',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                            }}
+                          >
+                            <AlertTriangle size={14} />
+                            <span>{selCust ? 'No registered bank account found on profile. Wire payout will require manual details.' : 'Select a customer to view registered bank accounts.'}</span>
                           </div>
                         )}
                       </div>
@@ -713,6 +913,30 @@ export const SettlementPage: React.FC = () => {
                             <span>Refund amount exceeds customer's available refundable balance of ETB {availRefundable.toLocaleString()}</span>
                           </div>
                         )}
+                        {newRefund.refundAmount > 0 && (() => {
+                          const tier = getApprovalTier(newRefund.refundAmount);
+                          return (
+                            <div
+                              style={{
+                                marginTop: '0.4rem',
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: 'var(--radius-sm)',
+                                background: tier.bg,
+                                border: `1px solid ${tier.border}`,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              <span style={{ color: 'var(--text-secondary)' }}>Required Approval Tier:</span>
+                              <strong style={{ color: tier.color, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <ShieldAlert size={13} />
+                                {tier.tier}: {tier.role} ({tier.desc})
+                              </strong>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div>
@@ -730,17 +954,40 @@ export const SettlementPage: React.FC = () => {
                         </select>
                       </div>
 
+                      {/* Standardized Refund Reason (Master Category) */}
                       <div>
-                        <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Refund Reason & Justification *</label>
-                        <textarea
+                        <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Refund Reason (Section 11 Master Category) *
+                        </label>
+                        <select
                           className="input"
-                          rows={2}
-                          value={newRefund.refundReason}
-                          onChange={(e) => setNewRefund({ ...newRefund, refundReason: e.target.value })}
-                          placeholder="Order cancelled, excess wire deposit, bank loan rejected..."
+                          value={newRefund.refundReasonCode}
+                          onChange={(e) => setNewRefund({ ...newRefund, refundReasonCode: e.target.value })}
                           required
-                        />
+                        >
+                          {REFUND_REASONS.map((reason) => (
+                            <option key={reason.code} value={reason.code}>
+                              {reason.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
+
+                      {newRefund.refundReasonCode === 'OTHER_APPROVED_REASON' && (
+                        <div>
+                          <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Specific Justification & Details *
+                          </label>
+                          <textarea
+                            className="input"
+                            rows={2}
+                            value={newRefund.refundReasonCustom}
+                            onChange={(e) => setNewRefund({ ...newRefund, refundReasonCustom: e.target.value })}
+                            placeholder="Enter detailed reason, management exception approval, or audit justification..."
+                            required
+                          />
+                        </div>
+                      )}
                     </>
                   );
                 })()}
@@ -752,6 +999,204 @@ export const SettlementPage: React.FC = () => {
                 </button>
                 <button type="submit" disabled={saving} className="btn btn-cyan">
                   {saving ? 'Validating...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirm Finance Payout (Section 11 Step 4) */}
+      {showPayoutModal && payoutRefund && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '640px', width: '95%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.55rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Coins size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Confirm Finance Payout
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Step 4: Final Disbursement, Bank Reference & Ledger Settlement
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPayoutModal(false);
+                  setPayoutRefund(null);
+                  setPayoutError(null);
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmPayout}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                <ModalErrorAlert error={payoutError} onDismiss={() => setPayoutError(null)} />
+
+                {/* Summary Card */}
+                <div
+                  style={{
+                    padding: '1rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid var(--border-color)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '0.75rem',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Refund Request</div>
+                    <strong className="mono-code" style={{ color: 'var(--accent-rose)' }}>{payoutRefund.refundNumber}</strong>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Customer</div>
+                    <strong style={{ color: 'var(--text-primary)' }}>{payoutRefund.customer?.fullName}</strong>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Approved Amount</div>
+                    <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontSize: '0.95rem' }}>
+                      ETB {Number(payoutRefund.refundAmount).toLocaleString()}
+                    </strong>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Destination Account</div>
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      {payoutRefund.bankAccount
+                        ? `${payoutRefund.bankAccount.bankName} • ${maskAccountNumber(payoutRefund.bankAccount.accountNumber)}`
+                        : `${payoutRefund.refundMethod} (Direct)`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Form Inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Bank Ref / Transaction ID *
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={payoutData.paymentReference}
+                      onChange={(e) => setPayoutData({ ...payoutData, paymentReference: e.target.value })}
+                      placeholder="e.g. FT2409823482 or CPO-1928"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Disbursement Date *
+                    </label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={payoutData.payoutDate}
+                      onChange={(e) => setPayoutData({ ...payoutData, payoutDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Actual Amount Disbursed (ETB) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input"
+                      value={payoutData.actualAmountPaid}
+                      onChange={(e) => setPayoutData({ ...payoutData, actualAmountPaid: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Payment Method *
+                    </label>
+                    <select
+                      className="input"
+                      value={payoutData.paymentMethod}
+                      onChange={(e) => setPayoutData({ ...payoutData, paymentMethod: e.target.value })}
+                      required
+                    >
+                      <option value="BANK_TRANSFER">Bank Wire Transfer</option>
+                      <option value="CPO">Cashier Payment Order (CPO)</option>
+                      <option value="CHEQUE">Bank Cheque</option>
+                      <option value="CASH">Cash Payout</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Finance Audit Notes / Comments (Optional)
+                  </label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={payoutData.notes}
+                    onChange={(e) => setPayoutData({ ...payoutData, notes: e.target.value })}
+                    placeholder="e.g. Paid via CBE Internet Banking portal, confirmation advice archived..."
+                  />
+                </div>
+
+                <div
+                  style={{
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(6, 182, 212, 0.08)',
+                    border: '1px solid rgba(6, 182, 212, 0.25)',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <Info size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+                  <span>
+                    Confirming payout transitions status to <strong>CONFIRMED</strong>, creates an immutable Customer Ledger DEBIT transaction, and deducts the refundable balance.
+                  </span>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPayoutModal(false);
+                    setPayoutRefund(null);
+                    setPayoutError(null);
+                  }}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving || !payoutData.paymentReference.trim()} className="btn btn-cyan">
+                  {saving ? 'Posting to Ledger...' : 'Confirm & Post Payout'}
                 </button>
               </div>
             </form>

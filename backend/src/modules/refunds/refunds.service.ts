@@ -100,32 +100,41 @@ export class RefundsService {
   }
 
   /**
-   * Final Payment Confirmation & Ledger Deduction (Story R6)
+   * Final Payment Confirmation & Ledger Deduction (Story R6, Workflow Section 11)
    * Posts REFUND entry to Customer Ledger, debiting the customer balance
    * and reducing refundable_balance atomically.
    */
-  async confirmPayout(id: string, userId: number = 1): Promise<CustomerRefund> {
+  async confirmPayout(id: string, userId: number = 1, dto?: { paymentReference?: string; notes?: string; actualAmountPaid?: number; paymentMethod?: string }): Promise<CustomerRefund> {
     const refund = await this.findOne(id);
     if (refund.status === RefundStatus.CONFIRMED) {
       throw new BadRequestException('Refund is already confirmed and paid');
     }
 
     refund.status = RefundStatus.CONFIRMED;
+    if (dto?.paymentMethod) {
+      refund.refundMethod = dto.paymentMethod;
+    }
     refund.updatedAt = new Date();
     const saved = await this.refundRepo.save(refund);
+
+    const refNum = dto?.paymentReference?.trim() || refund.refundNumber;
+    const finalAmount = dto?.actualAmountPaid && dto.actualAmountPaid > 0 ? Number(dto.actualAmountPaid) : Number(refund.refundAmount);
+    const desc = dto?.notes?.trim()
+      ? `Customer Refund Payout via ${refund.refundMethod} (${refund.refundReason}) - Ref: ${refNum} - ${dto.notes.trim()}`
+      : `Customer Refund Payout via ${refund.refundMethod} (${refund.refundReason}) - Ref: ${refNum}`;
 
     // Post to Customer Ledger (Story R6)
     await this.ledgerService.postTransaction({
       customerId: refund.customerId,
       transactionType: LedgerTransactionType.REFUND,
-      referenceNumber: refund.refundNumber,
-      description: `Customer Refund Payout via ${refund.refundMethod} (${refund.refundReason})`,
-      debitAmount: Number(refund.refundAmount),
+      referenceNumber: refNum,
+      description: desc,
+      debitAmount: finalAmount,
       creditAmount: 0,
       relatedBookingId: refund.bookingId || undefined,
       processedBy: userId,
       summaryDelta: {
-        refundableBalance: -Number(refund.refundAmount),
+        refundableBalance: -finalAmount,
       },
     });
 
@@ -137,7 +146,9 @@ export class RefundsService {
       newValue: {
         action: 'REFUND_CONFIRMED',
         refundNumber: refund.refundNumber,
-        amount: refund.refundAmount,
+        amount: finalAmount,
+        paymentReference: refNum,
+        notes: dto?.notes,
       },
     });
 

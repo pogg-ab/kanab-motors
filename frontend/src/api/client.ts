@@ -316,6 +316,7 @@ export interface CustomerRefund {
   refundAmount: number;
   refundMethod: string;
   bankAccountId?: string;
+  bankAccount?: CustomerBankAccount;
   status:
   | 'REQUESTED'
   | 'REVIEWED'
@@ -807,8 +808,8 @@ export const api = {
     apiClient.patch<CustomerRefund>(`/refunds/${id}/approve`).then((r) => r.data),
   processRefund: (id: string) =>
     apiClient.patch<CustomerRefund>(`/refunds/${id}/process`).then((r) => r.data),
-  confirmRefundPayout: (id: string) =>
-    apiClient.patch<CustomerRefund>(`/refunds/${id}/confirm-payout`).then((r) => r.data),
+  confirmRefundPayout: (id: string, data?: { paymentReference?: string; notes?: string; actualAmountPaid?: number; paymentMethod?: string }) =>
+    apiClient.patch<CustomerRefund>(`/refunds/${id}/confirm-payout`, data).then((r) => r.data),
   rejectRefund: (id: string, reason: string) =>
     apiClient.patch<CustomerRefund>(`/refunds/${id}/reject`, { reason }).then((r) => r.data),
 
