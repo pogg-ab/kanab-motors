@@ -293,27 +293,96 @@ Demonstrate 100% compliance with **Client Specification: Import, Shipment Tracki
 5. **Multi-Currency Management**: Foreign supplier costs (`USD`, `EUR`) combined with local expenses (`ETB`) with immutable baseline exchange rate snapshots.
 6. **Landed Cost Components & Formula**:
    $$\text{Landed Cost} = \text{Goods Value} + \text{Freight} + \text{Insurance} + \text{Port Charges} + \text{Customs Costs} + \text{Inland Transport} + \text{Clearing Fees} + \text{Other Capitalizable Costs}$$
-7. **Zero-Drift Apportionment Methods (Hare-Niemeyer)**:
-   - **Method 1 — By Value**: Allocates proportional to FOB price (e.g. Item A 100k USD / Item B 50k USD on 30k ETB cost = 20k ETB / 10k ETB).
-   - **Method 2 — By Quantity**: Allocates per unit (e.g. Item A 100 units / Item B 200 units on 30k ETB cost = 10k ETB / 20k ETB).
-   - **Method 3 — By Weight**: Allocates per gross kg (e.g. Item A 1,000 kg / Item B 2,000 kg on 30k ETB cost = 10k ETB / 20k ETB).
-8. **Allocation Rule Configuration**:
-   | Cost Component | Default Allocation Method |
-   |---|---|
-   | Freight | By Weight |
-   | Insurance | By Value |
-   | Port Handling (Djibouti) | By Weight |
-   | Customs Duty & VAT | By Value |
-   | Clearing Fee | By Value |
-   | Inland Transport | By Weight |
-   | Supplier Cost | Actual Item Value |
-   *Rule: Authorized Finance users can override the allocation method where business rules permit.*
-9. **Import Document Center**: 13-document checklist, digital versioning (`v1`, `v2`, `v3`), and closure validation (prevents shipment closure if mandatory documents are missing, subject to authorized override).
-10. **Landed Cost Approval Lifecycle**:
+7. **Accounting Integration & Financial References**:
+   Where accounting integration is required, the system generates proper double-entry accounting references:
+   - For Base Goods Receipt:
+     $$\text{Inventory (Dr)} \longrightarrow \text{Supplier / Cash / Payable (Cr)}$$
+   - For Capitalizable Landed Costs:
+     $$\text{Inventory / Landed Cost (Dr)} \longrightarrow \text{Payable / Cash (Cr)}$$
+   *(Exact GL accounts and tax treatment configured and approved by Finance).*
+8. **10 Import Dashboard KPI Cards**:
+   - `Active Shipments`: Active consignment batches in-flight.
+   - `In Transit`: Consolidated maritime vessels and cross-border road trucking.
+   - `At Djibouti`: Shipments berthed at Doraleh Container Terminal (DCT).
+   - `Customs Clearance`: Transit declarations undergoing Ethiopian Customs Commission (ECC) filing.
+   - `Delayed`: Consignments exceeding estimated arrival dates (past ETA).
+   - `Pending Documents`: Shipments with missing mandatory documents under checklist closure gate.
+   - `Pending Landed Cost`: Shipments arriving without finalized landed cost apportionment vouchers.
+   - `Received This Month`: Consignments fully taken into physical stock (Module 13).
+   - `Total Import Value`: Sum of declared FOB goods values in ETB.
+   - `Total Landed Cost`: Total capitalized consignments including freight, duty, port, and trucking.
+9. **Shipment Tracking Screen & Filters**:
+   - **Recommended Columns**: `Shipment | Supplier | PO Reference | Container / B/L | ETA (Djibouti) | Current Stage | Status`
+   - **Recommended Filters**: `Supplier`, `PO`, `Shipment`, `Status (Active / Closed)`, `Current Location/Stage`, `Expected Arrival Date`, `Product`, `Container`, `Date Range`.
+10. **3 Executive Import Reports**:
+    - **Import Cost Report**: `Shipment | Goods Cost (FOB) | Freight | Customs | Port | Transport | Clearing | Total Landed` (Complete view of real import cost for Finance).
+    - **Landed Cost Variance Report**: `Shipment | Estimated Landed Cost | Actual Landed Cost | Variance (ETB) | Variance (%) | Analysis Note` (e.g. IMP-001 20M vs 21M = +1M unfavorable; IMP-002 15M vs 14.5M = -0.5M favorable).
+    - **Shipment Delay Report**: `Shipment | Supplier | Expected Date (ETA) | Actual Date (ATA) | Days Delayed | Current Stage | Logistics Root Cause / Reason`.
+11. **Permissions & Segregation-of-Duties (RBAC) Matrix**:
+    | Function | Procurement | Finance | Warehouse | Manager | Admin |
+    |---|:---:|:---:|:---:|:---:|:---:|
+    | View Shipment | ✓ | ✓ | ✓ | ✓ | ✓ |
+    | Create Shipment | ✓ | - | - | ✓ | ✓ |
+    | Update Tracking | ✓ | - | ✓ | ✓ | ✓ |
+    | Add Costs | ✓ | ✓ | - | ✓ | ✓ |
+    | Calculate Landed Cost | ✓ | ✓ | - | ✓ | ✓ |
+    | Approve Landed Cost | - | ✓ | - | ✓ | ✓ |
+    | Post Landed Cost | - | ✓ | - | ✓ | ✓ |
+    | View Documents | ✓ | ✓ | ✓ | ✓ | ✓ |
+    | Close Shipment | ✓ | ✓ | - | ✓ | ✓ |
+    *Note: Strict segregation of duties enforces that Procurement cannot approve or post landed costs; only Finance, Manager, and Admin can execute.*
+12. **Key Business Rules (Rules 1 to 9)**:
+    - **Rule 1 — PO Traceability**: Every shipment must be linked to a valid PO unless explicitly authorized for exceptional imports.
+    - **Rule 2 — No Negative Costs**: Cost amounts must be positive unless the transaction is an authorized adjustment.
+    - **Rule 3 — Currency Traceability**: Store: Original Currency, Original Amount, Exchange Rate, Base Currency Amount (ETB).
+    - **Rule 4 — Allocation Completeness**: Allocated landed cost must equal the amount being allocated ($\text{Total Cost} = \sum \text{Allocations}$ with zero-drift Hare-Niemeyer rounding).
+    - **Rule 5 — Inventory Reconciliation**: After posting: $\text{Inventory Valuation} = \text{Supplier Cost} + \text{Capitalized Landed Costs}$.
+    - **Rule 6 — No Duplicate Posting**: One landed-cost posting cannot be applied twice.
+    - **Rule 7 — Posted Records**: Posted landed costs cannot be freely edited or deleted.
+    - **Rule 8 — Historical Exchange Rate**: Posting must preserve the exchange rate snapshot used for the transaction.
+    - **Rule 9 — Document Traceability**: Every major cost voucher must have a supporting document where required by Finance.
+13. **Acceptance Criteria (AC-01 to AC-20)**:
+    - `AC-01 (PO Linkage)`: System can create import shipments from existing confirmed supplier POs.
+    - `AC-02 (Shipment Tracking)`: System tracks shipments from supplier dispatch through final warehouse receipt.
+    - `AC-03 (Milestones)`: Users can record planned and actual shipment milestones.
+    - `AC-04 (Container)`: A shipment can contain multiple containers with individual tare/gross metrics.
+    - `AC-05 (Partial Shipment)`: One PO can be linked to multiple split shipments.
+    - `AC-06 (Customs)`: Customs declaration, duty, VAT, and related information are recorded.
+    - `AC-07 (Import Costs)`: Freight, insurance, port, customs, transport, and clearing costs can be registered.
+    - `AC-08 (Multi-Currency)`: USD/EUR and ETB transactions are recorded while retaining original currency values.
+    - `AC-09 (Exchange Rate)`: Every foreign-currency cost retains the baseline exchange rate used for conversion.
+    - `AC-10 (Allocation)`: Landed costs can be allocated by Value, Quantity, or Weight.
+    - `AC-11 (Allocation Validation)`: Sum of allocated costs equals the amount being allocated ($0.00$ cent drift).
+    - `AC-12 (Unit Cost)`: System calculates final landed cost per unit.
+    - `AC-13 (Vehicle Cost)`: Individually tracked vehicle units (VIN/chassis) receive specific landed cost associations.
+    - `AC-14 (Documents)`: 13 import documents can be uploaded and linked to shipments with digital versioning.
+    - `AC-15 (Approval)`: Landed cost requires Finance/Manager approval before posting.
+    - `AC-16 (Inventory)`: Posted landed cost updates Module 13 inventory asset valuation.
+    - `AC-17 (Duplicate Protection)`: System prevents duplicate landed-cost posting.
+    - `AC-18 (Adjustment)`: Additional costs discovered after posting are handled through non-destructive valuation adjustments.
+    - `AC-19 (Audit)`: All changes, approvals, postings, and adjustments are logged in immutable audit trails.
+    - `AC-20 (Reconciliation)`: Full reconciliation between $\text{Supplier Cost} + \text{Capitalized Import Costs} = \text{Total Landed Cost} = \sum \text{Item Allocated Costs} = \text{Inventory Valuation}$.
+14. **Zero-Drift Apportionment Methods (Hare-Niemeyer)**:
+    - **Method 1 — By Value**: Allocates proportional to FOB price.
+    - **Method 2 — By Quantity**: Allocates per unit.
+    - **Method 3 — By Weight**: Allocates per gross kg.
+15. **Allocation Rule Configuration**:
+    | Cost Component | Default Allocation Method |
+    |---|---|
+    | Freight | By Weight |
+    | Insurance | By Value |
+    | Port Handling (Djibouti) | By Weight |
+    | Customs Duty & VAT | By Value |
+    | Clearing Fee | By Value |
+    | Inland Transport | By Weight |
+    | Supplier Cost | Actual Item Value |
+    *Rule: Authorized Finance users can override the allocation method where business rules permit.*
+16. **Import Document Center**: 13-document checklist, digital versioning (`v1`, `v2`, `v3`), and closure validation (prevents shipment closure if mandatory documents are missing, subject to authorized override).
+17. **Landed Cost Approval Lifecycle**:
     `DRAFT → CALCULATED → SUBMITTED → FINANCE REVIEW → APPROVED → POSTED`.
-11. **Module 13 Inventory Valuation Integration**:
+18. **Module 13 Inventory Valuation Integration**:
     - Automatic per-vehicle landed cost stamping (`Unit Landed Cost ETB`).
-    - Inventory received at fully capitalized landed cost (e.g. 20,300 ETB/unit vs 15,500 ETB base invoice price).
+    - Inventory received at fully capitalized landed cost (e.g. 508,862.50 ETB/unit vs 168,000.00 ETB base invoice price).
     - **Duplicate Posting Prevention**: System returns *"Landed cost already posted for shipment {shipmentNumber}"* if re-posted.
     - **Cost Adjustment Process**: Subsequent invoices arriving post-receipt create non-destructive *Inventory Valuation Adjustments*.
 
@@ -484,7 +553,77 @@ When the shipment reaches `RECEIVED` stage:
 
 ---
 
-# PHASE 4 — Inventory & Warehouse
+# PHASE 4 — Inventory & Warehouse Management (Module 13)
+
+## Module 13 Architectural Core Concepts & Business Rules
+
+### 1. Core Stock Categories & Availability Formula
+The system clearly distinguishes between 6 distinct inventory states:
+- **Physical Stock (On-Hand)**: Actual physical inventory currently recorded in the warehouse.
+- **Reserved Stock**: Stock committed to a customer booking/order but not yet physically allocated/issued.
+- **Allocated Stock**: Specific stock or VIN-serialized vehicle unit assigned to a particular customer booking.
+- **Available Stock**: Stock that can still be sold or allocated.
+- **Sold Stock**: Stock invoiced and settled.
+- **Delivered Stock**: Physical dispatch completed to customer.
+
+$$\mathbf{Available\ Quantity} = \mathbf{On\text{-}Hand\ Quantity} - \mathbf{Reserved\ Quantity} - \mathbf{Allocated\ Quantity}$$
+
+---
+
+### 2. End-to-End Inventory Flows
+- **General Stock & Spare Parts Flow**:
+  $$\text{Purchase / Import} \rightarrow \text{Goods Receipt} \rightarrow \text{Warehouse Stock} \rightarrow \text{Available Inventory} \rightarrow \text{Reservation} \rightarrow \text{Allocation} \rightarrow \text{Sales Invoice / Order} \rightarrow \text{Stock Issue} \rightarrow \text{Delivered / Consumed}$$
+- **Imported Serialized Vehicle Flow**:
+  $$\text{Supplier PO} \rightarrow \text{Import Shipment} \rightarrow \text{Customs Clearance} \rightarrow \text{Warehouse Receipt} \rightarrow \text{Vehicle Registration (Chassis/Engine)} \rightarrow \text{Available for Sale} \rightarrow \text{Reservation} \rightarrow \text{Vehicle Allotment} \rightarrow \text{Ready for Delivery} \rightarrow \text{Sold} \rightarrow \text{Delivered}$$
+
+---
+
+### 3. Warehouse Master Hierarchy & Structural Zones
+Location traceability supports a 5-tier warehouse structure:
+$$\mathbf{Warehouse} \longrightarrow \mathbf{Zone} \longrightarrow \mathbf{Rack} \longrightarrow \mathbf{Bin} \longrightarrow \mathbf{Location}$$
+*(e.g. Kality Assembly Plant $\rightarrow$ Zone A [Finished Motorcycles] $\rightarrow$ Rack 01 $\rightarrow$ Bay 04 $\rightarrow$ Floor Slot A-01-04).*
+
+---
+
+### 4. Stock Receipt Management & Approval State Rule
+Stock receipts record physical inventory intake across 6 standard sources:
+1. `Local Purchase`
+2. `Import Shipment`
+3. `Customer Return`
+4. `Warehouse Transfer`
+5. `Adjustment / Found`
+6. `Other Approved Receipt`
+
+> **Critical Rule:** Inventory quantity must **NOT** increase when a receipt is merely drafted. Physical on-hand stock and ledger balances increase **ONLY** when the receipt advances to the **APPROVED / CONFIRMED** state.
+
+---
+
+### 5. Integration with Module 12 (Import Management)
+Module 12 and Module 13 operate as tightly coupled, reconciled enterprise subsystems:
+- **Module 12 manages:** $\text{Supplier} \rightarrow \text{Purchase Order} \rightarrow \text{Shipment} \rightarrow \text{Customs Clearance} \rightarrow \text{Landed Cost Apportionment}$
+- **Module 13 manages:** $\text{Goods Receipt} \rightarrow \text{Warehouse Stock} \rightarrow \text{Inventory Asset Valuation}$
+
+$$\text{Import Shipment} \longrightarrow \text{Customs Clearance} \longrightarrow \text{Landed Cost Posted} \longrightarrow \text{Goods Receipt} \longrightarrow \text{Inventory}$$
+
+When imported inventory is received, Module 13 receives:
+- **Product Item Reference & SKU**
+- **Received Quantity**
+- **Target Warehouse & Location**
+- **Supplier FOB Cost**
+- **Allocated Landed Cost (Freight, Duty, Port, Trucking)**
+- **Total Capitalized Inventory Cost**
+- **Unit Landed Cost (ETB)**
+- **Transaction Currency & Base Currency (ETB)**
+- **Shipment Reference (`SHP-XXXX`)**
+- **Purchase Order Reference (`PO-XXXX`)**
+
+---
+
+### 6. Stock Transfer Lifecycle
+Inter-warehouse movements follow a strict 8-stage custodial transfer pipeline:
+$$\mathbf{DRAFT} \longrightarrow \mathbf{REQUESTED} \longrightarrow \mathbf{APPROVED} \longrightarrow \mathbf{DISPATCHED} \longrightarrow \mathbf{IN\_TRANSIT} \longrightarrow \mathbf{RECEIVED} \longrightarrow \mathbf{PARTIALLY\_RECEIVED} \longrightarrow \mathbf{CANCELLED}$$
+
+---
 
 ## Screen 10: Inventory & Warehouses — Stock Balances
 
@@ -511,9 +650,10 @@ Use this for spare parts / stock items that are not individually VIN tracked.
 
 ### Expected result
 
-- Stock balance increases.
+- Stock balance increases upon receipt approval/confirmation.
 - Product name displays correctly.
-- Movement history records receipt.
+- Available quantity recalculates dynamically using $\text{Available} = \text{On-Hand} - \text{Reserved} - \text{Allocated}$.
+- Movement history records receipt with full audit trail.
 
 ---
 
@@ -527,16 +667,19 @@ Use this for spare parts / stock items that are not individually VIN tracked.
 - Quantity: `1` for non-serialized stock, or selected vehicle unit for VIN item
 - Reason / Notes: `E2E inter-warehouse transfer`
 
-### Approval and completion
+### Lifecycle Execution (Requested → Approved → Dispatched → Received)
 
-- Approve transfer.
-- Complete transfer.
+1. **Request Transfer**: Submit transfer request (Status: `REQUESTED`).
+2. **Approve Transfer**: Warehouse supervisor approves dispatch (Status: `APPROVED`).
+3. **Dispatch Transfer**: Physical stock leaves source warehouse (Status: `DISPATCHED` $\rightarrow$ `IN_TRANSIT`).
+4. **Complete Receipt**: Receiving warehouse confirms count and intakes stock (Status: `RECEIVED`).
 
 ### Expected result
 
-- Source balance decreases.
-- Destination balance increases.
-- Movement history shows transfer out and transfer in.
+- Source warehouse on-hand balance decreases.
+- In-transit stock tracked during corridor movement.
+- Destination warehouse balance increases upon final intake confirmation.
+- Movement history shows both transfer-out voucher and transfer-in intake with complete custodial chain.
 
 ---
 
