@@ -33,8 +33,12 @@ import {
   Attachment,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const CustomersPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateCustomer = can('CUSTOMERS_CREATE');
   const canEditCustomer = can('CUSTOMERS_EDIT');
@@ -96,10 +100,12 @@ export const CustomersPage: React.FC = () => {
     accountHolderName: '',
     branch: '',
   });
+  const [bankError, setBankError] = useState<string | null>(null);
 
   // Selected file for document upload
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
 
   // Document Preview Modal State
   const [previewDoc, setPreviewDoc] = useState<Attachment | null>(null);
@@ -224,9 +230,7 @@ export const CustomersPage: React.FC = () => {
       setIsCreateOpen(false);
       fetchCustomers();
     } catch (err: any) {
-      setFormError(
-        err.response?.data?.message || 'Failed to create customer. Please check inputs.',
-      );
+      setFormError(formatApiError(err, 'Failed to create customer. Please check inputs.'));
     } finally {
       setSubmitting(false);
     }
@@ -234,6 +238,8 @@ export const CustomersPage: React.FC = () => {
 
   const handleViewCustomer = async (cust: Customer) => {
     try {
+      setBankError(null);
+      setDocError(null);
       const full = await api.getCustomer(cust.customerId);
       setSelectedCustomer(full);
       setActiveDetailTab('profile');
@@ -255,7 +261,11 @@ export const CustomersPage: React.FC = () => {
       setStatusConfirmTarget(null);
     } catch (err: any) {
       console.error('Failed to update customer status:', err);
-      alert(err.response?.data?.message || 'Failed to update customer status');
+      showAlert({
+        title: 'Customer Status Update Error',
+        message: err.response?.data?.message || 'Failed to update customer status.',
+        variant: 'danger',
+      });
     } finally {
       setStatusToggling(false);
     }
@@ -316,9 +326,7 @@ export const CustomersPage: React.FC = () => {
         setSelectedCustomer(updated);
       }
     } catch (err: any) {
-      setEditError(
-        err.response?.data?.message || err.message || 'Failed to update customer profile',
-      );
+      setEditError(formatApiError(err, 'Failed to update customer profile'));
     } finally {
       setEditSubmitting(false);
     }
@@ -328,25 +336,33 @@ export const CustomersPage: React.FC = () => {
     e.preventDefault();
     if (!canManageBank) return;
     if (!selectedCustomer) return;
+    setBankError(null);
     try {
       await api.addBankAccount(selectedCustomer.customerId, newBankForm);
       setNewBankForm({ bankName: '', accountNumber: '', accountHolderName: '', branch: '' });
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to add bank account');
+      setBankError(formatApiError(err, 'Failed to add bank account. Please review account details.'));
     }
   };
 
   const handleDeleteBankAccount = async (bankAccountId: string) => {
     if (!canManageBank) return;
-    if (!selectedCustomer || !window.confirm('Delete this bank account?')) return;
+    if (!selectedCustomer) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Bank Account',
+      message: 'Are you sure you want to delete this bank account from the customer profile?',
+      confirmText: 'Delete Account',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await api.deleteBankAccount(selectedCustomer.customerId, bankAccountId);
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      alert('Failed to delete bank account');
+      setBankError(formatApiError(err, 'Failed to delete bank account.'));
     }
   };
 
@@ -354,13 +370,14 @@ export const CustomersPage: React.FC = () => {
     if (!canUploadDocs) return;
     if (!selectedCustomer || !uploadFile) return;
     setUploading(true);
+    setDocError(null);
     try {
       await api.uploadCustomerDoc(selectedCustomer.customerId, uploadFile);
       setUploadFile(null);
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to upload document');
+      setDocError(formatApiError(err, 'Failed to upload document file.'));
     } finally {
       setUploading(false);
     }
@@ -368,13 +385,24 @@ export const CustomersPage: React.FC = () => {
 
   const handleDeleteDocument = async (docId: string) => {
     if (!canUploadDocs) return;
-    if (!selectedCustomer || !window.confirm('Delete this document?')) return;
+    if (!selectedCustomer) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Attachment Document',
+      message: 'Are you sure you want to permanently delete this customer document?',
+      confirmText: 'Delete Document',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await api.deleteCustomerDoc(selectedCustomer.customerId, docId);
       const updated = await api.getCustomer(selectedCustomer.customerId);
       setSelectedCustomer(updated);
     } catch (err) {
-      alert('Failed to delete document');
+      showAlert({
+        title: 'Delete Failed',
+        message: 'Failed to delete document.',
+        variant: 'danger',
+      });
     }
   };
 
@@ -739,20 +767,16 @@ export const CustomersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateCustomer}>
               <div className="modal-body">
-                {formError && (
-                  <div className="alert-banner-danger">
-                    <AlertCircle size={18} />
-                    <span style={{ fontWeight: 600 }}>{formError}</span>
-                  </div>
-                )}
+                <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
                 {/* Customer Type Selector */}
                 <div className="form-group">
@@ -869,7 +893,7 @@ export const CustomersPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Bank Accounts Repeater (Story 1.7) */}
+                {/* Bank Accounts Repeater */}
                 <div style={{
                   marginTop: '1.25rem',
                   paddingTop: '1rem',
@@ -997,20 +1021,16 @@ export const CustomersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setEditingCustomer(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleUpdateCustomer}>
               <div className="modal-body">
-                {editError && (
-                  <div className="alert-banner-danger">
-                    <AlertCircle size={18} />
-                    <span style={{ fontWeight: 600 }}>{editError}</span>
-                  </div>
-                )}
+                <ModalErrorAlert error={editError} onDismiss={() => setEditError(null)} />
 
                 {/* Immutable System Identifier banner */}
                 <div style={{
@@ -1291,9 +1311,10 @@ export const CustomersPage: React.FC = () => {
                 )}
                 <button
                   onClick={() => setSelectedCustomer(null)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 >
-                  <X size={20} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -1456,9 +1477,10 @@ export const CustomersPage: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 3: BANKING DETAILS (Story 1.7) */}
+              {/* TAB 3: BANKING DETAILS */}
               {activeDetailTab === 'banking' && (
                 <div>
+                  <ModalErrorAlert error={bankError} onDismiss={() => setBankError(null)} />
                   <div style={{ marginBottom: '1.25rem' }}>
                     <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                       Registered Bank Accounts
@@ -1551,9 +1573,10 @@ export const CustomersPage: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 4: DOCUMENTS (Story 1.8) */}
+              {/* TAB 4: DOCUMENTS */}
               {activeDetailTab === 'documents' && (
                 <div>
+                  <ModalErrorAlert error={docError} onDismiss={() => setDocError(null)} />
                   {canUploadDocs && <div style={{
                     padding: '1.5rem',
                     border: '2px dashed var(--border-color)',
@@ -1730,9 +1753,10 @@ export const CustomersPage: React.FC = () => {
                 </a>
                 <button
                   onClick={() => setPreviewDoc(null)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 >
-                  <X size={20} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -1838,9 +1862,10 @@ export const CustomersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setStatusConfirmTarget(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
             <div className="modal-body">

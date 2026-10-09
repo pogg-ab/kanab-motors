@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api, ExchangeRateDefault } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
 
 export const ProcurementReportsPage: React.FC = () => {
   const { can } = usePermissions();
@@ -57,9 +58,9 @@ export const ProcurementReportsPage: React.FC = () => {
       setPoData(po);
       setExchangeRates(rates || []);
     } catch (err: any) {
-      const message = err.response?.data?.message || err.message || 'Error';
+      const message = formatApiError(err, 'Failed to load procurement reports');
       setLoadError(message);
-      showToast('error', 'Failed to load procurement reports: ' + message);
+      showToast('error', message);
     } finally {
       setLoading(false);
     }
@@ -79,7 +80,7 @@ export const ProcurementReportsPage: React.FC = () => {
       setEditingRate(null);
       await refreshExchangeRates();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to update rate');
+      showToast('error', formatApiError(err, 'Failed to update rate'));
     } finally {
       setUpdatingRate(false);
     }
@@ -108,7 +109,7 @@ export const ProcurementReportsPage: React.FC = () => {
       setNewCurrencyRate(0);
       await refreshExchangeRates();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to add currency');
+      showToast('error', formatApiError(err, 'Failed to add currency'));
     } finally {
       setUpdatingRate(false);
     }

@@ -8,8 +8,10 @@ import {
   ShieldAlert,
   Filter,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../../api/client';
+import { formatApiError } from '../../utils/error';
 
 interface AuditLogRecord {
   auditId: string;
@@ -26,17 +28,20 @@ interface AuditLogRecord {
 export const AuditLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
 
   const fetchLogs = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.getAuditLogs({
         entityType: selectedEntity !== 'ALL' ? selectedEntity : undefined,
       });
       setLogs(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load audit logs:', err);
+      setError(formatApiError(err, 'Failed to load audit trail logs'));
     } finally {
       setLoading(false);
     }
@@ -238,6 +243,45 @@ export const AuditLogsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div
+          style={{
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: 'var(--accent-rose)',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              padding: '0.2rem',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Audit Log Table */}
       <div className="card" style={{ overflow: 'hidden' }}>

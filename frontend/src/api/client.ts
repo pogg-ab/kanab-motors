@@ -316,6 +316,7 @@ export interface CustomerRefund {
   refundAmount: number;
   refundMethod: string;
   bankAccountId?: string;
+  bankAccount?: CustomerBankAccount;
   status:
   | 'REQUESTED'
   | 'REVIEWED'
@@ -345,12 +346,16 @@ export interface Allotment {
   allotmentNumber: string;
   bookingId: string;
   booking?: Booking;
-  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  status: 'DRAFT' | 'SUBMITTED' | 'REQUESTED' | 'UNDER_REVIEW' | 'APPROVED' | 'POSTED' | 'REJECTED' | 'CANCELLED' | 'REVERSED' | string;
   requestedBy?: number;
   requestedAt: string;
   approvedBy?: number;
   approvedAt?: string;
   rejectionReason?: string;
+  remarks?: string;
+  notes?: string;
+  dispatchLocation?: string;
+  warehouseName?: string;
   lines?: AllotmentLine[];
 }
 
@@ -807,14 +812,12 @@ export const api = {
     apiClient.patch<CustomerRefund>(`/refunds/${id}/approve`).then((r) => r.data),
   processRefund: (id: string) =>
     apiClient.patch<CustomerRefund>(`/refunds/${id}/process`).then((r) => r.data),
-  confirmRefundPayout: (id: string) =>
-    apiClient.patch<CustomerRefund>(`/refunds/${id}/confirm-payout`).then((r) => r.data),
+  confirmRefundPayout: (id: string, data?: { paymentReference?: string; notes?: string; actualAmountPaid?: number; paymentMethod?: string }) =>
+    apiClient.patch<CustomerRefund>(`/refunds/${id}/confirm-payout`, data).then((r) => r.data),
   rejectRefund: (id: string, reason: string) =>
     apiClient.patch<CustomerRefund>(`/refunds/${id}/reject`, { reason }).then((r) => r.data),
 
-  // --- KMSICAMS-3 Endpoints ---
-
-  // Suppliers (Story F1)
+  // --- Suppliers Endpoints ---
   getSuppliers: (search?: string, isActive?: boolean) =>
     apiClient
       .get<Supplier[]>('/suppliers', { params: { search, isActive } })
@@ -1167,7 +1170,10 @@ export interface StockBalance {
   itemId: string;
   quantityOnHand: number;
   quantityReserved: number;
+  quantityAllocated?: number;
   quantityAvailable: number;
+  unitCost?: number;
+  totalValue?: number;
   lastMovementAt?: string;
   warehouse?: Warehouse;
   item?: {

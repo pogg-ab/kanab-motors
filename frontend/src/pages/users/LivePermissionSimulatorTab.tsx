@@ -31,6 +31,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { api, AppUser, Role } from '../../api/client';
+import { formatApiError } from '../../utils/error';
 
 interface Props {
   users: AppUser[];
@@ -178,7 +179,7 @@ export const LivePermissionSimulatorTab: React.FC<Props> = ({ users, roles }) =>
       setResult({
         evaluated: true,
         granted: false,
-        reason: err.response?.data?.message || 'Permission check query failed.',
+        reason: formatApiError(err, 'Permission check query failed.'),
         details: null,
       });
     } finally {

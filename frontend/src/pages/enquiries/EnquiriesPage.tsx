@@ -22,6 +22,8 @@ import {
   ProductItem,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const EnquiriesPage: React.FC = () => {
   const { can } = usePermissions();
@@ -60,13 +62,13 @@ export const EnquiriesPage: React.FC = () => {
     enquiryNumber: string;
   } | null>(null);
 
-  // Rejection Modal State (Story E9)
+  // Rejection Modal State
   const [rejectTarget, setRejectTarget] = useState<SalesEnquiry | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
 
-  // Printable Proforma Quotation Modal (Story E13)
+  // Printable Proforma Quotation Modal
   const [selectedQuote, setSelectedQuote] = useState<SalesEnquiry | null>(null);
 
   // Proforma Print Isolation Effect
@@ -173,7 +175,7 @@ export const EnquiriesPage: React.FC = () => {
       setIsCreateOpen(false);
       fetchEnquiries();
     } catch (err: any) {
-      setFormError(err.response?.data?.message || 'Failed to create enquiry');
+      setFormError(formatApiError(err, 'Failed to create enquiry'));
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +205,7 @@ export const EnquiriesPage: React.FC = () => {
       setConvertTarget(null);
       fetchEnquiries();
     } catch (err: any) {
-      setConvertError(err.response?.data?.message || 'Failed to convert enquiry to booking');
+      setConvertError(formatApiError(err, 'Failed to convert enquiry to booking'));
     } finally {
       setConverting(false);
     }
@@ -225,7 +227,7 @@ export const EnquiriesPage: React.FC = () => {
       setRejectReason('');
       fetchEnquiries();
     } catch (err: any) {
-      setRejectError(err.response?.data?.message || 'Failed to reject enquiry');
+      setRejectError(formatApiError(err, 'Failed to reject enquiry'));
     } finally {
       setRejecting(false);
     }
@@ -536,29 +538,39 @@ export const EnquiriesPage: React.FC = () => {
           <div className="modal-content">
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileText size={20} color="var(--accent-indigo)" />
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileText size={20} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Create Sales Enquiry</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Create Sales Enquiry</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Capture customer vehicle interest with real-time VAT calculation
-                  </p>
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateEnquiry}>
               <div className="modal-body">
-                {formError && (
-                  <div className="alert-banner-danger">
-                    {formError}
-                  </div>
-                )}
+                <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Customer *</label>
@@ -704,18 +716,15 @@ export const EnquiriesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setConvertTarget(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <div className="modal-body">
-              {convertError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1rem' }}>
-                  {convertError}
-                </div>
-              )}
+              <ModalErrorAlert error={convertError} onDismiss={() => setConvertError(null)} />
 
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: 'var(--radius-md)', padding: '1.15rem', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
@@ -803,7 +812,7 @@ export const EnquiriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* BEAUTIFUL REJECTION MODAL (Story E9) */}
+      {/* REJECTION MODAL */}
       {rejectTarget && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
@@ -821,19 +830,16 @@ export const EnquiriesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setRejectTarget(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleConfirmReject}>
               <div className="modal-body">
-                {rejectError && (
-                  <div className="alert-banner-danger" style={{ marginBottom: '1rem' }}>
-                    {rejectError}
-                  </div>
-                )}
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
 
                 <div style={{ background: 'rgba(15, 23, 42, 0.6)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', border: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.82rem' }}>
                   <div>Customer: <strong style={{ color: 'var(--text-primary)' }}>{rejectTarget.customer?.fullName}</strong></div>
@@ -879,7 +885,7 @@ export const EnquiriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* PRINTABLE PROFORMA INVOICE / QUOTATION MODAL (Story E13) */}
+      {/* PRINTABLE PROFORMA INVOICE / QUOTATION MODAL */}
       {selectedQuote && (
         <div className="modal-backdrop proforma-modal-backdrop">
           <div className="modal-content proforma-modal-content" style={{ maxWidth: '720px', padding: '0', background: '#0b1120', overflow: 'hidden', border: '1px solid #1e293b', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>

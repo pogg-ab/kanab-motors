@@ -26,6 +26,8 @@ import { api, AppUser, Role, SystemPermission } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { RolePermissionMatrixTab } from './RolePermissionMatrixTab';
 import { LivePermissionSimulatorTab } from './LivePermissionSimulatorTab';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const UsersPage: React.FC = () => {
   const { user: currentUser, hasPermission } = useAuth();
@@ -48,6 +50,7 @@ export const UsersPage: React.FC = () => {
 
   // Modal state for register
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [userError, setUserError] = useState<string | null>(null);
 
   // Create form state
   const [createForm, setCreateForm] = useState({
@@ -95,7 +98,7 @@ export const UsersPage: React.FC = () => {
         }));
       }
     } catch (err: any) {
-      showNotification('error', err.response?.data?.message || 'Failed to fetch user directory');
+      showNotification('error', formatApiError(err, 'Failed to fetch user directory'));
     } finally {
       setLoading(false);
     }
@@ -116,7 +119,7 @@ export const UsersPage: React.FC = () => {
       setUsers((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)));
       showNotification('success', `User ${user.fullName} is now ${updated.isActive ? 'Active' : 'Suspended'}`);
     } catch (err: any) {
-      showNotification('error', err.response?.data?.message || 'Failed to toggle user status');
+      showNotification('error', formatApiError(err, 'Failed to toggle user status'));
     }
   };
 
@@ -224,7 +227,7 @@ export const UsersPage: React.FC = () => {
       setEditingUser(null);
       showNotification('success', `Privileges and details for ${updated.fullName} saved successfully!`);
     } catch (err: any) {
-      showNotification('error', err.response?.data?.message || 'Failed to update user privileges');
+      showNotification('error', formatApiError(err, 'Failed to update user privileges'));
     } finally {
       setSaving(false);
     }
@@ -275,15 +278,15 @@ export const UsersPage: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateUser) return;
+    setUserError(null);
     if (!createForm.fullName || !createForm.username || !createForm.email || !createForm.password) {
-      showNotification('error', 'Please fill in all mandatory fields.');
+      setUserError('Please fill in all mandatory fields.');
       return;
     }
 
     const pw = createForm.password;
     if (pw.length < 8 || !/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[\d\W]/.test(pw)) {
-      showNotification(
-        'error',
+      setUserError(
         'Password does not comply with security policy (minimum 8 characters, 1 uppercase, 1 lowercase, 1 number or special character).',
       );
       return;
@@ -293,6 +296,7 @@ export const UsersPage: React.FC = () => {
       const newUser = await api.createUser(createForm);
       setUsers((prev) => [newUser, ...prev]);
       setShowCreateModal(false);
+      setUserError(null);
       setCreateForm({
         fullName: '',
         username: '',
@@ -303,7 +307,7 @@ export const UsersPage: React.FC = () => {
       });
       showNotification('success', `User ${newUser.fullName} registered successfully!`);
     } catch (err: any) {
-      showNotification('error', err.response?.data?.message || 'Failed to register user');
+      setUserError(formatApiError(err, 'Failed to register user'));
     }
   };
 
@@ -1028,7 +1032,10 @@ export const UsersPage: React.FC = () => {
           </button>
           {canCreateUser && (
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setUserError(null);
+              setShowCreateModal(true);
+            }}
             className="btn btn-cyan"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '40px' }}
           >
@@ -1619,15 +1626,17 @@ export const UsersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Modal Form Body */}
             <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
               <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+                <ModalErrorAlert error={userError} onDismiss={() => setUserError(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>

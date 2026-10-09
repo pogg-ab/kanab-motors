@@ -12,6 +12,7 @@ import {
   Info,
 } from 'lucide-react';
 import { api, Role, SystemModule, SystemAction, RolePermissionMatrixResponse } from '../../api/client';
+import { formatApiError } from '../../utils/error';
 
 interface Props {
   roles: Role[];
@@ -39,7 +40,7 @@ export const RolePermissionMatrixTab: React.FC<Props> = ({ roles, onNotification
         setSelectedRoleId(data.roles[0].roleId);
       }
     } catch (err: any) {
-      onNotification('error', err.response?.data?.message || 'Failed to fetch permission matrix');
+      onNotification('error', formatApiError(err, 'Failed to fetch permission matrix'));
     } finally {
       setLoading(false);
     }
@@ -162,7 +163,7 @@ export const RolePermissionMatrixTab: React.FC<Props> = ({ roles, onNotification
         `Role permission matrix updated successfully for ${selectedRole.displayName || selectedRole.roleName}!`,
       );
     } catch (err: any) {
-      onNotification('error', err.response?.data?.message || 'Failed to save permission matrix');
+      onNotification('error', formatApiError(err, 'Failed to save permission matrix'));
     } finally {
       setSaving(false);
     }

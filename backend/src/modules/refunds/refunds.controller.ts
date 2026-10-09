@@ -17,6 +17,8 @@ import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe
 import { RejectRefundDto } from './dto/reject-refund.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
+import { ConfirmPayoutDto } from './dto/confirm-payout.dto';
+
 @ApiTags('Customer Refund Management (KMSICAMS-2)')
 @Controller('refunds')
 export class RefundsController {
@@ -68,8 +70,11 @@ export class RefundsController {
   @RequirePermissions('REFUNDS_PROCESS')
   @Patch(':id/confirm-payout')
   @ApiOperation({ summary: 'Confirm refund payment & post to ledger (Step 4)' })
-  confirmPayout(@Param('id', PositiveBigIntIdPipe) id: string) {
-    return this.refundsService.confirmPayout(id);
+  confirmPayout(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto?: ConfirmPayoutDto,
+  ) {
+    return this.refundsService.confirmPayout(id, 1, dto);
   }
 
   @RequirePermissions('REFUNDS_REJECT')

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ModalProvider } from './context/ModalContext';
 import { LoginPage } from './pages/auth/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
@@ -214,7 +215,9 @@ export function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <MainAppContent />
+        <ModalProvider>
+          <MainAppContent />
+        </ModalProvider>
       </AuthProvider>
     </ThemeProvider>
   );

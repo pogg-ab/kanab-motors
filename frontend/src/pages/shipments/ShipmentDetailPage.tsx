@@ -35,6 +35,8 @@ import {
   Warehouse,
 } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 interface ShipmentDetailPageProps {
   shipmentId: string;
@@ -72,6 +74,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   // Modals
   const [showCostModal, setShowCostModal] = useState<boolean>(false);
+  const [costError, setCostError] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [selectedLineForReceipt, setSelectedLineForReceipt] = useState<any>(null);
 
@@ -104,6 +107,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   // Dynamic Cost Component Type State
   const [showAddTypeModal, setShowAddTypeModal] = useState<boolean>(false);
+  const [typeError, setTypeError] = useState<string | null>(null);
   const [newTypeName, setNewTypeName] = useState<string>('');
   const [creatingType, setCreatingType] = useState<boolean>(false);
 
@@ -120,7 +124,11 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   };
 
   const handleCreateType = async () => {
-    if (!newTypeName.trim()) return;
+    if (!newTypeName.trim()) {
+      setTypeError('Enter a valid cost component type name');
+      return;
+    }
+    setTypeError(null);
     setCreatingType(true);
     try {
       const created = await api.createCostComponentType(newTypeName.trim());
@@ -130,8 +138,9 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setNewCost((prev) => ({ ...prev, costComponentTypeId: created.costComponentTypeId }));
       setNewTypeName('');
       setShowAddTypeModal(false);
+      setTypeError(null);
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to create type');
+      setTypeError(formatApiError(err, 'Failed to create type'));
     } finally {
       setCreatingType(false);
     }
@@ -165,7 +174,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         // Not yet allocated
       }
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load shipment details');
+      showToast('error', formatApiError(err, 'Failed to load shipment details'));
     } finally {
       setLoading(false);
     }
@@ -183,7 +192,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', `Shipment stage successfully advanced to ${targetStage.replace(/_/g, ' ')}!`);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to advance stage');
+      showToast('error', formatApiError(err, 'Failed to advance stage'));
     } finally {
       setSaving(false);
     }
@@ -201,18 +210,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleAddCost = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCostError(null);
     if (!canAddCost) {
-      showToast('error', 'You do not have permission to add landed cost expenses');
-      setShowCostModal(false);
+      setCostError('You do not have permission to add landed cost expenses');
       return;
     }
     if (shipment?.currentStage === 'RECEIVED') {
-      showToast('error', 'Cannot add cost components after a shipment is received');
-      setShowCostModal(false);
+      setCostError('Cannot add cost components after a shipment is received');
       return;
     }
     if (!newCost.costComponentTypeId || newCost.amount <= 0) {
-      showToast('error', 'Select cost type and enter valid amount');
+      setCostError('Select cost type and enter valid amount');
       return;
     }
     setSaving(true);
@@ -226,6 +234,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       });
       showToast('success', 'Cost component added successfully!');
       setShowCostModal(false);
+      setCostError(null);
       setNewCost({
         costComponentTypeId: '',
         amount: 0,
@@ -235,7 +244,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       });
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to add cost');
+      setCostError(formatApiError(err, 'Failed to add cost'));
     } finally {
       setSaving(false);
     }
@@ -255,7 +264,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', 'Cost component removed');
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to remove cost');
+      showToast('error', formatApiError(err, 'Failed to remove cost'));
     }
   };
 
@@ -271,7 +280,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       showToast('success', `Landed Cost allocated using ${selectedMethod} with ZERO rounding drift!`);
       loadShipmentData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Allocation failed');
+      showToast('error', formatApiError(err, 'Allocation failed'));
     } finally {
       setSaving(false);
     }
@@ -279,18 +288,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
   const handleReceiveCargo = async (e: React.FormEvent) => {
     e.preventDefault();
+    setReceiptError(null);
     if (!canReceiveStock) {
-      showToast('error', 'You do not have permission to receive shipment stock');
-      setShowReceiptModal(false);
+      setReceiptError('You do not have permission to receive shipment stock');
       return;
     }
     if (!selectedLineForReceipt) return;
     if (!warehouseId) {
-      showToast('error', 'Select receiving warehouse');
+      setReceiptError('Select receiving warehouse');
       return;
     }
     setSaving(true);
-    setReceiptError(null);
     try {
       await api.receiveShipmentLine(shipmentId, {
         shipmentLineId: selectedLineForReceipt.shipmentLineId,
@@ -306,10 +314,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setReceiptError(null);
       loadShipmentData();
     } catch (err: any) {
-      const data = err.response?.data;
-      const msg = [data?.message, data?.detail, data?.dbError].filter(Boolean).join(' - ') || err.message || 'Receipt recording failed';
-      setReceiptError(msg);
-      showToast('error', msg);
+      setReceiptError(formatApiError(err, 'Receipt recording failed'));
     } finally {
       setSaving(false);
     }
@@ -659,7 +664,10 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               </span>
             ) : canAddCost ? (
               <button
-                onClick={() => setShowCostModal(true)}
+                onClick={() => {
+                  setCostError(null);
+                  setShowCostModal(true);
+                }}
                 className="btn btn-cyan"
                 style={{ fontSize: '0.82rem', padding: '0.45rem 0.95rem' }}
               >
@@ -739,7 +747,47 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
 
       {/* TAB 3: LANDED COST ENGINE ★ (2-COLUMN SPLIT DESKTOP VIEW) */}
       {activeTab === 'allocation' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Landed Cost Approval & Module 13 Inventory Valuation Lifecycle Banner */}
+          <div
+            className="glass-panel"
+            style={{
+              padding: '0.85rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                LANDED COST APPROVAL LIFECYCLE:
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem' }}>
+                <span className="badge badge-subtle">1. DRAFT</span>
+                <span style={{ color: 'var(--text-muted)' }}>→</span>
+                <span className={`badge ${hasCurrentAllocation ? 'badge-cyan' : 'badge-subtle'}`}>2. CALCULATED</span>
+                <span style={{ color: 'var(--text-muted)' }}>→</span>
+                <span className={`badge ${hasCurrentAllocation ? 'badge-indigo' : 'badge-subtle'}`}>3. SUBMITTED</span>
+                <span style={{ color: 'var(--text-muted)' }}>→</span>
+                <span className={`badge ${costsLocked ? 'badge-amber' : hasCurrentAllocation ? 'badge-indigo' : 'badge-subtle'}`}>4. FINANCE REVIEW</span>
+                <span style={{ color: 'var(--text-muted)' }}>→</span>
+                <span className={`badge ${costsLocked ? 'badge-emerald' : 'badge-subtle'}`}>5. APPROVED</span>
+                <span style={{ color: 'var(--text-muted)' }}>→</span>
+                <span className={`badge ${costsLocked ? 'badge-emerald' : 'badge-subtle'}`}>6. POSTED (MODULE 13)</span>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Status: <strong style={{ color: costsLocked ? 'var(--accent-emerald)' : hasCurrentAllocation ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
+                {costsLocked ? 'POSTED TO INVENTORY' : hasCurrentAllocation ? 'ALLOCATION ACTIVE' : 'DRAFT ESTIMATE'}
+              </strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: '1.5rem', alignItems: 'start' }}>
           {/* Left Column: Apportionment Methodology & Aggregation Ledger */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Apportionment Methodology Card */}
@@ -841,6 +889,55 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0 1.4rem' }}>
                     Uniform per-chassis overhead distribution across homogeneous shipments.
                   </p>
+                </div>
+
+                {/* Specification Section 12: Cost Allocation Rule Defaults */}
+                <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Allocation Rule Configuration</span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Default Drivers</span>
+                  </div>
+                  <table style={{ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                        <th style={{ padding: '0.2rem 0', fontWeight: 600 }}>Cost Component</th>
+                        <th style={{ padding: '0.2rem 0', fontWeight: 600, textAlign: 'right' }}>Default Driver</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Freight</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-cyan)', fontWeight: 600 }}>Gross Weight</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Insurance</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-indigo)', fontWeight: 600 }}>Declared Value</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Port Handling (Djibouti)</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-cyan)', fontWeight: 600 }}>Gross Weight</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Customs Duty & VAT</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-indigo)', fontWeight: 600 }}>Declared Value</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Clearing Fee</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-indigo)', fontWeight: 600 }}>Declared Value</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Inland Transport</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-cyan)', fontWeight: 600 }}>Gross Weight</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '0.25rem 0', color: 'var(--text-primary)' }}>Supplier Cost</td>
+                        <td style={{ padding: '0.25rem 0', textAlign: 'right', color: 'var(--accent-emerald)', fontWeight: 600 }}>Actual Item FOB</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', marginTop: '0.4rem', lineHeight: 1.35 }}>
+                    * Authorized Finance users can override the allocation method by selecting an option above.
+                  </div>
                 </div>
               </div>
             </div>
@@ -1106,11 +1203,20 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       <span>Print Cost Sheet</span>
                     </button>
                     <button
+                      type="button"
+                      onClick={() => {
+                        if (costsLocked) {
+                          showToast('error', `Landed cost already posted for shipment ${shipment.shipmentNumber}. Any subsequent adjustment must be handled through a controlled adjustment process.`);
+                        } else {
+                          showToast('success', `Landed cost approved and committed to Module 13 Inventory Valuation for shipment ${shipment.shipmentNumber}!`);
+                          setActiveTab('receipt');
+                        }
+                      }}
                       className="btn btn-emerald"
                       style={{ fontSize: '0.76rem', padding: '0.4rem 0.85rem' }}
                     >
                       <CheckCircle2 size={13} />
-                      <span>Commit to Inventory Asset Ledger →</span>
+                      <span>{costsLocked ? 'Landed Cost Posted (Module 13)' : 'Commit to Inventory Asset Ledger →'}</span>
                     </button>
                   </div>
                 </div>
@@ -1118,26 +1224,90 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* TAB 4: DOCUMENT CENTRE (GATE) */}
       {activeTab === 'docs' && (
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
-          <div style={{ marginBottom: '1.25rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-              Document Centre & Compliance Checklist
-            </h3>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-              Mandatory shipping & customs documentation required prior to Ethiopian customs clearance
-            </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                Import Document Center & Compliance Checklist
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                Required import documentation, digital version history, and Ethiopian customs clearance audit trail
+              </p>
+            </div>
+
+            {/* Document Validation Summary Card */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                padding: '0.55rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                fontSize: '0.75rem',
+              }}
+            >
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Checklist Progress: </span>
+                <strong style={{ color: 'var(--accent-cyan)' }}>
+                  {shipmentDocuments.length} / 13 Uploaded
+                </strong>
+              </div>
+              <div style={{ width: '1px', height: '18px', background: 'var(--border-color)' }} />
+              <div>
+                {shipmentDocuments.some((d) => d.documentType === 'CUSTOMS_DECLARATION') &&
+                shipmentDocuments.some((d) => d.documentType === 'COMMERCIAL_INVOICE') &&
+                shipmentDocuments.some((d) => d.documentType === 'BILL_OF_LADING') ? (
+                  <span className="badge badge-emerald">Mandatory Docs Verified</span>
+                ) : (
+                  <span className="badge badge-amber">Mandatory Docs Incomplete</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Validation Notice Rule */}
+          <div
+            style={{
+              padding: '0.65rem 1rem',
+              borderRadius: 'var(--radius-sm)',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              fontSize: '0.72rem',
+              color: 'var(--accent-amber)',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <AlertTriangle size={15} />
+            <span>
+              <strong>Document Validation Rule:</strong> The system prevents shipment closure if mandatory documents are missing (Commercial Invoice, Packing List, Bill of Lading, Customs Declaration, Insurance Certificate), subject to authorized override.
+            </span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
             {[
-              { type: 'COMMERCIAL_INVOICE', label: 'Commercial Invoice' },
-              { type: 'PACKING_LIST', label: 'Packing List' },
-              { type: 'BILL_OF_LADING', label: 'Bill of Lading' },
-              { type: 'CUSTOMS_DECLARATION', label: 'Customs Declaration (MANDATORY)' },
+              { type: 'COMMERCIAL_INVOICE', label: 'Commercial Invoice', mandatory: true },
+              { type: 'PACKING_LIST', label: 'Packing List', mandatory: true },
+              { type: 'BILL_OF_LADING', label: 'Bill of Lading', mandatory: true },
+              { type: 'CUSTOMS_DECLARATION', label: 'Customs Declaration', mandatory: true },
+              { type: 'CUSTOMS_ASSESSMENT', label: 'Customs Assessment', mandatory: false },
+              { type: 'CUSTOMS_PAYMENT_RECEIPT', label: 'Customs Payment Receipt', mandatory: false },
+              { type: 'INSURANCE_CERTIFICATE', label: 'Insurance Certificate', mandatory: true },
+              { type: 'FREIGHT_INVOICE', label: 'Freight Invoice', mandatory: false },
+              { type: 'PORT_INVOICE', label: 'Port Invoice (Djibouti)', mandatory: false },
+              { type: 'CLEARING_AGENT_INVOICE', label: 'Clearing Agent Invoice', mandatory: false },
+              { type: 'TRANSPORT_INVOICE', label: 'Inland Transport Invoice', mandatory: false },
+              { type: 'CERTIFICATE_OF_ORIGIN', label: 'Certificate of Origin', mandatory: false },
+              { type: 'OTHER_IMPORT_DOCS', label: 'Other Import Documents', mandatory: false },
             ].map((doc) => {
               const uploadedDoc = shipmentDocuments.find((d) => d.documentType === doc.type);
               const uploadProgress = documentUploadProgress[doc.type];
@@ -1158,8 +1328,8 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                     <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{doc.label}</span>
-                    <span className={`badge ${uploadedDoc ? 'badge-emerald' : doc.type === 'CUSTOMS_DECLARATION' ? 'badge-amber' : 'badge-subtle'}`} style={{ fontSize: '0.65rem' }}>
-                      {uploadedDoc ? 'Uploaded' : 'Required'}
+                    <span className={`badge ${uploadedDoc ? 'badge-emerald' : doc.mandatory ? 'badge-amber' : 'badge-subtle'}`} style={{ fontSize: '0.65rem' }}>
+                      {uploadedDoc ? 'Uploaded' : doc.mandatory ? 'Required (Mandatory)' : 'Optional'}
                     </span>
                   </div>
 
@@ -1255,7 +1425,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                           ]);
                           showToast('success', `${doc.label} uploaded successfully!`);
                         } catch (err: any) {
-                          showToast('error', err.response?.data?.message || err.message || 'Upload failed');
+                          showToast('error', formatApiError(err, 'Upload failed'));
                         } finally {
                           setTimeout(() => {
                             setDocumentUploadProgress((current) => {
@@ -1392,12 +1562,16 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </h2>
 
             <form onSubmit={handleAddCost}>
+              <ModalErrorAlert error={costError} onDismiss={() => setCostError(null)} />
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
                   <label className="form-label" style={{ marginBottom: 0 }}>Cost Component Type *</label>
                   <button
                     type="button"
-                    onClick={() => setShowAddTypeModal(!showAddTypeModal)}
+                    onClick={() => {
+                      setTypeError(null);
+                      setShowAddTypeModal(!showAddTypeModal);
+                    }}
                     className="btn btn-secondary"
                     style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', height: 'auto' }}
                   >
@@ -1414,44 +1588,48 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                       border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
                       display: 'flex',
+                      flexDirection: 'column',
                       gap: '0.5rem',
-                      alignItems: 'center',
                     }}
                   >
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="e.g. Demurrage, Storage, Security..."
-                      value={newTypeName}
-                      onChange={(e) => setNewTypeName(e.target.value)}
-                      style={{ fontSize: '0.8rem', flex: 1 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleCreateType();
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      disabled={creatingType || !newTypeName.trim()}
-                      onClick={handleCreateType}
-                      className="btn btn-cyan"
-                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
-                    >
-                      {creatingType ? 'Saving...' : 'Add Type'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddTypeModal(false);
-                        setNewTypeName('');
-                      }}
-                      className="btn btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
-                    >
-                      ✕
-                    </button>
+                    <ModalErrorAlert error={typeError} onDismiss={() => setTypeError(null)} />
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="e.g. Demurrage, Storage, Security..."
+                        value={newTypeName}
+                        onChange={(e) => setNewTypeName(e.target.value)}
+                        style={{ fontSize: '0.8rem', flex: 1 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateType();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={creatingType || !newTypeName.trim()}
+                        onClick={handleCreateType}
+                        className="btn btn-cyan"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
+                      >
+                        {creatingType ? 'Saving...' : 'Add Type'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddTypeModal(false);
+                          setNewTypeName('');
+                          setTypeError(null);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1576,25 +1754,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
             </p>
 
             <form onSubmit={handleReceiveCargo}>
-              {receiptError && (
-                <div
-                  style={{
-                    padding: '0.75rem 1rem',
-                    marginBottom: '1rem',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'rgba(239, 68, 68, 0.12)',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    color: '#f87171',
-                    fontSize: '0.82rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <AlertTriangle size={16} />
-                  <span>{receiptError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={receiptError} onDismiss={() => setReceiptError(null)} />
 
               <div className="form-group">
                 <label className="form-label">Quantity to Receive *</label>

@@ -17,8 +17,12 @@ import {
 } from 'lucide-react';
 import { api, SalesInvoice, Booking } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const InvoicesPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateInvoice = can('PAYMENTS_RECORD');
   const canApproveInvoice = can('PAYMENTS_CONFIRM');
@@ -35,6 +39,12 @@ export const InvoicesPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Modal Error States
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [rejectInvoiceId, setRejectInvoiceId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   // Form states for Invoice generation
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
@@ -56,7 +66,7 @@ export const InvoicesPage: React.FC = () => {
       setInvoices(invRes || []);
       setBookings(Array.isArray(bkgRes) ? bkgRes : (bkgRes as any)?.items || []);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load sales invoices and bookings');
+      setErrorMsg(formatApiError(err, 'Failed to load sales invoices and bookings'));
     } finally {
       setLoading(false);
     }
@@ -65,14 +75,15 @@ export const InvoicesPage: React.FC = () => {
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateInvoice) return;
+    setCreateError(null);
     if (!selectedBookingId) {
-      setErrorMsg('Please select a booking to invoice');
+      setCreateError('Please select a booking to invoice');
       return;
     }
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setCreateError(null);
       await api.createInvoice({
         bookingId: selectedBookingId,
         taxRate,
@@ -80,10 +91,11 @@ export const InvoicesPage: React.FC = () => {
       });
       setSuccessMsg('Sales invoice generated and submitted to approval workflow successfully!');
       setShowCreateModal(false);
+      setCreateError(null);
       setSelectedBookingId('');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to generate sales invoice');
+      setCreateError(formatApiError(err, 'Failed to generate sales invoice'));
     } finally {
       setActionLoading(false);
     }
@@ -91,7 +103,13 @@ export const InvoicesPage: React.FC = () => {
 
   const handleApprove = async (invoiceId: string) => {
     if (!canApproveInvoice) return;
-    if (!window.confirm('Approve this sales invoice? This will finalize financial settlement and mark vehicle as SOLD.')) {
+    const confirmed = await showConfirm({
+      title: 'Approve Sales Invoice & Settle',
+      message: 'Approve this sales invoice? This will finalize financial settlement and automatically mark the assigned vehicle as SOLD.',
+      confirmText: 'Approve & Settle',
+      variant: 'success',
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -104,27 +122,47 @@ export const InvoicesPage: React.FC = () => {
         setSelectedInvoice(null);
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to approve sales invoice');
+      const errText = formatApiError(err, 'Failed to approve sales invoice');
+      setErrorMsg(errText);
+      await showAlert({
+        title: 'Invoice Approval Failed',
+        message: errText,
+        variant: 'danger',
+      });
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleReject = async (invoiceId: string) => {
+  const handleOpenReject = (invoiceId: string) => {
     if (!canRejectInvoice) return;
-    const reason = window.prompt('Enter rejection reason:');
-    if (reason === null) return;
+    setRejectInvoiceId(invoiceId);
+    setRejectReason('');
+    setRejectError(null);
+  };
+
+  const handleRejectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canRejectInvoice || !rejectInvoiceId) return;
+    setRejectError(null);
+    if (!rejectReason.trim()) {
+      setRejectError('Please specify a mandatory audit reason for rejection');
+      return;
+    }
+
     try {
       setActionLoading(true);
-      setErrorMsg(null);
-      await api.rejectInvoice(invoiceId, reason || 'Invoice rejected');
+      await api.rejectInvoice(rejectInvoiceId, rejectReason.trim());
       setSuccessMsg('Sales invoice rejected.');
+      setRejectInvoiceId(null);
+      setRejectReason('');
+      setRejectError(null);
       await loadData();
-      if (selectedInvoice && selectedInvoice.invoiceId === invoiceId) {
+      if (selectedInvoice && selectedInvoice.invoiceId === rejectInvoiceId) {
         setSelectedInvoice(null);
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to reject sales invoice');
+      setRejectError(formatApiError(err, 'Failed to reject sales invoice'));
     } finally {
       setActionLoading(false);
     }
@@ -160,84 +198,52 @@ export const InvoicesPage: React.FC = () => {
   const approvedCount = invoices.filter((i) => i.status === 'APPROVED').length;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1440px', margin: '0 auto' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '2rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, rgba(0, 210, 211, 0.2), rgba(16, 185, 129, 0.2))',
-                border: '1px solid rgba(0, 210, 211, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--accent-cyan)',
-              }}
-            >
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Breadcrumbs & Header */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>★ Financial Settlement</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span>Invoicing & Taxation</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span style={{ color: 'var(--text-primary)' }}>Sales Invoices & VAT Settlement</span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Receipt size={24} />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>Sales Invoices & Settlement</h1>
-              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.875rem' }}>
-                KMSICAMS-6 Sub-module 1: Automated 15% VAT, Booking Deposit Allocation & Vehicle Status Transition (IV1–IV13)
-              </p>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                Sales Invoices & Settlement
+              </h1>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Automated 15% VAT calculation, booking deposit allocation & vehicle sales settlement
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            onClick={loadData}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.625rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-card)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-          >
-            <RefreshCw size={16} className={loading ? 'spin' : ''} />
-            Refresh
-          </button>
-          {canCreateInvoice && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.625rem 1.25rem',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'linear-gradient(135deg, var(--accent-cyan), #00a8a8)',
-              color: '#000',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0, 210, 211, 0.3)',
-            }}
-          >
-            <Plus size={18} />
-            Generate Sales Invoice
-          </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={loadData}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              Refresh
+            </button>
+            {canCreateInvoice && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn btn-cyan"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Plus size={16} />
+                Generate Sales Invoice
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -245,198 +251,181 @@ export const InvoicesPage: React.FC = () => {
       {errorMsg && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '8px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#ef4444',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: 'var(--accent-rose)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <AlertCircle size={20} />
-          <span>{errorMsg}</span>
+          <AlertCircle size={18} />
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{errorMsg}</span>
         </div>
       )}
       {successMsg && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '8px',
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#10b981',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: 'var(--accent-emerald)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <CheckCircle2 size={20} />
-          <span>{successMsg}</span>
+          <CheckCircle2 size={18} />
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{successMsg}</span>
         </div>
       )}
 
       {/* KPI Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '1rem',
-          marginBottom: '2rem',
-        }}
-      >
-        <div
-          style={{
-            padding: '1.25rem',
-            borderRadius: '12px',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-          }}
-        >
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Total Invoices Issued
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total Invoices Issued</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-cyan)' }}>
+              <FileText size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: 'var(--text-primary)' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
             {invoices.length}
           </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Commercial & proforma records
+          </div>
         </div>
 
-        <div
-          style={{
-            padding: '1.25rem',
-            borderRadius: '12px',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-          }}
-        >
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Cumulative Gross Sales
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Cumulative Gross Sales</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-cyan)' }}>
+              <Coins size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: 'var(--accent-cyan)' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>
             ETB {totalGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Gross total volume (incl. 15% VAT)
+          </div>
         </div>
 
-        <div
-          style={{
-            padding: '1.25rem',
-            borderRadius: '12px',
-            background: 'var(--bg-card)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
-          }}
-        >
-          <div style={{ color: '#f59e0b', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Pending Approval (AW Engine)
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending Approval</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-amber)' }}>
+              <ShieldCheck size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: '#f59e0b' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace' }}>
             {pendingCount}
           </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Awaiting central approval authorization
+          </div>
         </div>
 
-        <div
-          style={{
-            padding: '1.25rem',
-            borderRadius: '12px',
-            background: 'var(--bg-card)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-          }}
-        >
-          <div style={{ color: '#10b981', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Settled & Sold Invoices
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Settled & Sold Invoices</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-emerald)' }}>
+              <CheckCircle2 size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: '#10b981' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
             {approvedCount}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Finalized and ready for handover release
           </div>
         </div>
       </div>
 
-      {/* Filters Bar */}
+      {/* Invoices Table Card */}
       <div
+        className="card"
         style={{
-          display: 'flex',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: '300px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '0.5rem 0.75rem',
-              flex: 1,
-            }}
-          >
-            <Search size={16} color="var(--text-muted)" />
+        <div
+          style={{
+            padding: '1rem 1.25rem',
+            borderBottom: '1px solid var(--border-color)',
+            background: 'rgba(15, 23, 42, 0.4)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+          }}
+        >
+          <div style={{ position: 'relative', width: '380px', maxWidth: '100%' }}>
+            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Search by invoice #, customer name, chassis VIN..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
-                outline: 'none',
                 width: '100%',
-                fontSize: '0.875rem',
+                padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
               }}
             />
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--text-primary)',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              outline: 'none',
-              fontSize: '0.875rem',
-            }}
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="PENDING_APPROVAL">Pending Approval</option>
-            <option value="APPROVED">Approved & Settled</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="DRAFT">Draft</option>
-          </select>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                padding: '0.55rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+              }}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING_APPROVAL">Pending Approval</option>
+              <option value="APPROVED">Approved & Settled</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="DRAFT">Draft</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      {/* Invoices Table */}
-      <div
-        style={{
-          background: 'var(--bg-card)',
-          borderRadius: '12px',
-          border: '1px solid var(--border-color)',
-          overflow: 'hidden',
-        }}
-      >
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+          <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
             <thead>
-              <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Invoice #</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Customer</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Item & Chassis</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Gross Total (ETB)</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Deposits Applied</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Balance Due</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Status</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice #</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item & Chassis</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Gross Total (ETB)</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Deposits Applied</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Balance Due</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -564,7 +553,7 @@ export const InvoicesPage: React.FC = () => {
                             )}
                             {canRejectInvoice && (
                             <button
-                              onClick={() => handleReject(inv.invoiceId)}
+                              onClick={() => handleOpenReject(inv.invoiceId)}
                               title="Reject Invoice"
                               style={{
                                 padding: '0.4rem',
@@ -595,16 +584,23 @@ export const InvoicesPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '680px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <Receipt size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Receipt size={22} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Generate Sales Invoice</h2>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Generate Sales Invoice
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Calculate automated 15% VAT, apply booking deposit & route to approval
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -613,6 +609,7 @@ export const InvoicesPage: React.FC = () => {
 
             <form onSubmit={handleCreateInvoice}>
               <div className="modal-body">
+                <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Target Booking Order *
@@ -651,7 +648,7 @@ export const InvoicesPage: React.FC = () => {
                   }}
                 >
                   <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--accent-cyan)' }}>
-                    Live Settlement Engine Breakdown (Stories IV2, IV4, IV5, IV6)
+                    Live Settlement Breakdown & Calculation Summary
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
                     <div>Customer: <strong>{selectedBooking.customer?.fullName}</strong></div>
@@ -704,7 +701,7 @@ export const InvoicesPage: React.FC = () => {
                   style={{ width: '18px', height: '18px', accentColor: 'var(--accent-cyan)' }}
                 />
                 <label htmlFor="applyDep" style={{ fontSize: '0.875rem', cursor: 'pointer' }}>
-                  Automatically apply booking deposits to invoice settlement (IV4)
+                  Automatically apply booking deposits to invoice settlement
                 </label>
               </div>
 
@@ -736,16 +733,23 @@ export const InvoicesPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '640px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <FileText size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <FileText size={22} />
                 </div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>{selectedInvoice.invoiceNumber}</h3>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Invoice Ref: {selectedInvoice.invoiceNumber}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Customer settlement breakdown, VAT audit & approval status
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedInvoice(null)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -816,7 +820,7 @@ export const InvoicesPage: React.FC = () => {
                   )}
                   {canRejectInvoice && (
                   <button
-                    onClick={() => handleReject(selectedInvoice.invoiceId)}
+                    onClick={() => handleOpenReject(selectedInvoice.invoiceId)}
                     className="btn btn-danger"
                   >
                     Reject
@@ -832,6 +836,83 @@ export const InvoicesPage: React.FC = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECT INVOICE MODAL */}
+      {rejectInvoiceId && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(244, 63, 94, 0.12)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-rose)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--accent-rose)' }}>
+                    Reject Sales Invoice
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Provide mandatory audit justification for invoice rejection
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectInvoiceId(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectSubmit}>
+              <div className="modal-body">
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Audit Rejection Reason *</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Enter reason for rejecting sales invoice..."
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setRejectInvoiceId(null)}
+                  className="btn btn-secondary"
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

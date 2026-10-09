@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
 import {
   api,
   Delivery,
@@ -23,8 +24,11 @@ import {
   VehicleUnit,
   Booking,
 } from '../../api/client';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const DeliveriesPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canUpdateVehicleStatus = can('VEHICLES_STATUS_UPDATE');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -42,6 +46,8 @@ export const DeliveriesPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [pdiError, setPdiError] = useState<string | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
 
   // PDI inspection form state
   const [pdiVehicleId, setPdiVehicleId] = useState<string>('');
@@ -81,7 +87,7 @@ export const DeliveriesPage: React.FC = () => {
       });
       setPdiResults(initialResults);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load delivery data');
+      setErrorMsg(formatApiError(err, 'Failed to load delivery data'));
     } finally {
       setLoading(false);
     }
@@ -91,13 +97,13 @@ export const DeliveriesPage: React.FC = () => {
     e.preventDefault();
     if (!canUpdateVehicleStatus) return;
     if (!pdiVehicleId) {
-      setErrorMsg('Please select a vehicle for PDI inspection');
+      setPdiError('Please select a vehicle for PDI inspection');
       return;
     }
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setPdiError(null);
       const payload = {
         vehicleUnitId: pdiVehicleId,
         results: checklistItems.map((item) => ({
@@ -113,7 +119,7 @@ export const DeliveriesPage: React.FC = () => {
       setPdiVehicleId('');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to record PDI inspection');
+      setPdiError(formatApiError(err, 'Failed to record PDI inspection'));
     } finally {
       setActionLoading(false);
     }
@@ -123,13 +129,13 @@ export const DeliveriesPage: React.FC = () => {
     e.preventDefault();
     if (!canUpdateVehicleStatus) return;
     if (!deliveryBookingId || !deliveryVehicleId) {
-      setErrorMsg('Please select both a booking and a vehicle unit');
+      setDeliveryError('Please select both a booking and a vehicle unit');
       return;
     }
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setDeliveryError(null);
       await api.createDelivery({
         bookingId: deliveryBookingId,
         vehicleUnitId: deliveryVehicleId,
@@ -143,7 +149,7 @@ export const DeliveriesPage: React.FC = () => {
       setDeliveryVehicleId('');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to create delivery order');
+      setDeliveryError(formatApiError(err, 'Failed to create delivery order'));
     } finally {
       setActionLoading(false);
     }
@@ -151,7 +157,13 @@ export const DeliveriesPage: React.FC = () => {
 
   const handleAuthorize = async (deliveryId: string) => {
     if (!canUpdateVehicleStatus) return;
-    if (!window.confirm('Authorize vehicle release? This will verify PDI and financial settlement, and set vehicle to DELIVERED.')) {
+    const confirmed = await showConfirm({
+      title: 'Authorize Vehicle Handover & Gate Release',
+      message: 'Authorize vehicle release? This verifies mandatory PDI inspection standards and financial settlement before transitioning the vehicle to DELIVERED status.',
+      confirmText: 'Authorize Release',
+      variant: 'cyan',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -162,7 +174,7 @@ export const DeliveriesPage: React.FC = () => {
       setSuccessMsg('Delivery authorized successfully! Vehicle transitioned to DELIVERED.');
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Authorization failed. Verify PDI inspection and settlement.');
+      setErrorMsg(formatApiError(err, 'Authorization failed. Verify PDI inspection and settlement.'));
     } finally {
       setActionLoading(false);
     }
@@ -174,7 +186,7 @@ export const DeliveriesPage: React.FC = () => {
       const data = await api.getGatePass(deliveryId);
       setGatePassData(data);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to generate gate pass');
+      setErrorMsg(formatApiError(err, 'Failed to generate gate pass'));
     } finally {
       setActionLoading(false);
     }
@@ -195,86 +207,68 @@ export const DeliveriesPage: React.FC = () => {
   });
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1440px', margin: '0 auto' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '2rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(0, 210, 211, 0.2))',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#10b981',
-              }}
-            >
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Breadcrumbs & Header */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>★ Operations & Fulfillment</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span>Delivery & Dispatch</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span style={{ color: 'var(--text-primary)' }}>Vehicle Handover & Gate Pass</span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Car size={24} />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>Delivery & Vehicle Handover</h1>
-              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.875rem' }}>
-                KMSICAMS-6 Sub-module 2: PDI Inspection, Settlement Validation, Gate Pass & Dispatch to DELIVERED (DL1–DL10)
-              </p>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                Delivery & Vehicle Handover
+              </h1>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                PDI pre-delivery inspection, settlement verification, gate pass generation & dispatch fulfillment
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          {canUpdateVehicleStatus && (
-          <button
-            onClick={() => setShowPdiModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.625rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid rgba(0, 210, 211, 0.4)',
-              background: 'rgba(0, 210, 211, 0.1)',
-              color: 'var(--accent-cyan)',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            <ClipboardCheck size={18} />
-            Record PDI Inspection
-          </button>
-          )}
-          {canUpdateVehicleStatus && (
-          <button
-            onClick={() => setShowDeliveryModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.625rem 1.25rem',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              color: '#fff',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-            }}
-          >
-            <Plus size={18} />
-            New Handover Order
-          </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={loadData}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              Refresh
+            </button>
+            {canUpdateVehicleStatus && (
+              <button
+                onClick={() => {
+                  setPdiError(null);
+                  setShowPdiModal(true);
+                }}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <ClipboardCheck size={16} />
+                Record PDI Inspection
+              </button>
+            )}
+            {canUpdateVehicleStatus && (
+              <button
+                onClick={() => {
+                  setDeliveryError(null);
+                  setShowDeliveryModal(true);
+                }}
+                className="btn btn-cyan"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Plus size={16} />
+                New Handover Order
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -282,97 +276,125 @@ export const DeliveriesPage: React.FC = () => {
       {errorMsg && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '8px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#ef4444',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: 'var(--accent-rose)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <AlertCircle size={20} />
-          <span>{errorMsg}</span>
+          <AlertCircle size={18} />
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{errorMsg}</span>
         </div>
       )}
       {successMsg && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '8px',
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#10b981',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: 'var(--accent-emerald)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <CheckCircle2 size={20} />
-          <span>{successMsg}</span>
+          <CheckCircle2 size={18} />
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{successMsg}</span>
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
         <button
           onClick={() => setActiveTab('DELIVERIES')}
+          className={`filter-pill ${activeTab === 'DELIVERIES' ? 'active' : ''}`}
           style={{
-            background: 'none',
-            border: 'none',
-            padding: '0.5rem 1rem',
-            fontSize: '0.95rem',
-            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
             cursor: 'pointer',
-            color: activeTab === 'DELIVERIES' ? 'var(--accent-cyan)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'DELIVERIES' ? '2px solid var(--accent-cyan)' : 'none',
           }}
         >
-          Delivery Orders & Gate Passes ({deliveries.length})
+          <Car size={15} />
+          <span>Delivery Orders & Gate Passes ({deliveries.length})</span>
         </button>
         <button
           onClick={() => setActiveTab('PDI')}
+          className={`filter-pill ${activeTab === 'PDI' ? 'active' : ''}`}
           style={{
-            background: 'none',
-            border: 'none',
-            padding: '0.5rem 1rem',
-            fontSize: '0.95rem',
-            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
             cursor: 'pointer',
-            color: activeTab === 'PDI' ? 'var(--accent-cyan)' : 'var(--text-muted)',
-            borderBottom: activeTab === 'PDI' ? '2px solid var(--accent-cyan)' : 'none',
           }}
         >
-          PDI Checklist Station ({checklistItems.length} Checks)
+          <ClipboardCheck size={15} />
+          <span>PDI Checklist Station ({checklistItems.length} Checks)</span>
         </button>
       </div>
 
       {activeTab === 'DELIVERIES' ? (
         <>
-          {/* Deliveries Table */}
+          {/* Deliveries Table Card */}
           <div
+            className="card"
             style={{
-              background: 'var(--bg-card)',
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
               overflow: 'hidden',
             }}
           >
+            <div
+              style={{
+                padding: '1rem 1.25rem',
+                borderBottom: '1px solid var(--border-color)',
+                background: 'rgba(15, 23, 42, 0.4)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+              }}
+            >
+              <div style={{ position: 'relative', width: '380px', maxWidth: '100%' }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search delivery #, customer, chassis VIN..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </div>
+            </div>
+
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
                 <thead>
-                  <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Delivery #</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Customer</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Chassis & Vehicle</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Handover Date</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>PDI Checked</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Settlement</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Status</th>
-                    <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Actions</th>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Delivery #</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Chassis & Vehicle</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Handover Date</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>PDI Checked</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Settlement</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -510,27 +532,23 @@ export const DeliveriesPage: React.FC = () => {
         </>
       ) : (
         /* PDI CHECKLIST SECTION */
-        <div style={{ background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="card" style={{ padding: '1.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Mandatory Pre-Delivery Inspection (PDI) Standards</h3>
-              <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                SRS Precondition: All 7 checks must pass before a vehicle can be authorized for exit (Stories DL4, DL7).
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Mandatory Pre-Delivery Inspection (PDI) Standards</h3>
+              <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                Pre-Delivery Requirement: All 7 inspection checks must pass before a vehicle can be authorized for gate exit.
               </p>
             </div>
             {canUpdateVehicleStatus && (
             <button
-              onClick={() => setShowPdiModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                background: 'var(--accent-cyan)',
-                color: '#000',
-                border: 'none',
-                fontWeight: 700,
-                cursor: 'pointer',
+              onClick={() => {
+                setPdiError(null);
+                setShowPdiModal(true);
               }}
+              className="btn btn-cyan"
             >
+              <ClipboardCheck size={16} />
               Start Inspection
             </button>
             )}
@@ -540,11 +558,9 @@ export const DeliveriesPage: React.FC = () => {
             {checklistItems.map((item, idx) => (
               <div
                 key={item.pdiChecklistItemId}
+                className="card"
                 style={{
                   padding: '1.25rem',
-                  borderRadius: '10px',
-                  background: 'var(--bg-primary)',
-                  border: '1px solid var(--border-color)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '1rem',
@@ -567,7 +583,7 @@ export const DeliveriesPage: React.FC = () => {
                 </div>
                 <div>
                   <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.itemDescription}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#10b981' }}>Standard Requirement</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>Standard Requirement</div>
                 </div>
               </div>
             ))}
@@ -580,16 +596,23 @@ export const DeliveriesPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '640px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <ClipboardCheck size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <ClipboardCheck size={22} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Record Vehicle PDI Inspection</h2>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Record Vehicle PDI Inspection
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Perform 7-point mandatory pre-delivery safety verification
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPdiModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -598,7 +621,8 @@ export const DeliveriesPage: React.FC = () => {
 
             <form onSubmit={handleRecordPdi}>
               <div className="modal-body">
-              <div style={{ marginBottom: '1.5rem' }}>
+                <ModalErrorAlert error={pdiError} onDismiss={() => setPdiError(null)} />
+                <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Target Vehicle Unit *
                 </label>
@@ -697,21 +721,32 @@ export const DeliveriesPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Car color="#10b981" size={24} />
-                <h3 className="modal-title" style={{ margin: 0 }}>New Handover Order</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Car size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    New Handover Order
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Create customer delivery dispatch & authorize vehicle release
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
-                className="modal-close"
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 onClick={() => setShowDeliveryModal(false)}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateDelivery}>
               <div className="modal-body">
+                <ModalErrorAlert error={deliveryError} onDismiss={() => setDeliveryError(null)} />
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                     Target Booking Order *
@@ -794,7 +829,7 @@ export const DeliveriesPage: React.FC = () => {
                       onChange={(e) => setFinancialSettlementValidated(e.target.checked)}
                       style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
                     />
-                    <span style={{ fontSize: '0.875rem' }}>Financial Settlement Confirmed (DL3)</span>
+                    <span style={{ fontSize: '0.875rem' }}>Financial Settlement Confirmed</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input
@@ -819,11 +854,8 @@ export const DeliveriesPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={actionLoading || !deliveryBookingId || !deliveryVehicleId}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                   style={{
-                    background: '#10b981',
-                    color: '#fff',
-                    border: 'none',
                     fontWeight: 700,
                   }}
                 >
@@ -835,7 +867,7 @@ export const DeliveriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* OFFICIAL GATE PASS MODAL (STORY DL5) */}
+      {/* OFFICIAL GATE PASS MODAL */}
       {gatePassData && (
         <div className="modal-backdrop" onClick={() => setGatePassData(null)}>
           <div

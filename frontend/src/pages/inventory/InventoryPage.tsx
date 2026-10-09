@@ -38,6 +38,8 @@ import {
   ProductItem,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const InventoryPage: React.FC = () => {
   const { can } = usePermissions();
@@ -47,10 +49,11 @@ export const InventoryPage: React.FC = () => {
   const canCreateStockReceipt = can('STOCK_RECEIPTS_CREATE');
   const canCreateStockAdjustment = can('STOCK_ADJUSTMENTS_CREATE');
   const canApproveStockAdjustment = can('STOCK_ADJUSTMENTS_APPROVE');
-  const canCreateProductionReceipt = can('PRODUCTION_RECEIPTS_CREATE');
+  const canCreateProductionReceipt = can('STOCK_RECEIPTS_CREATE') || can('PRODUCTION_RECEIPTS_CREATE');
   const [activeTab, setActiveTab] = useState<
-    'balances' | 'transfers' | 'adjustments' | 'production' | 'transitions' | 'movements'
+    'balances' | 'transfers' | 'adjustments' | 'production' | 'transitions' | 'movements' | 'reports'
   >('balances');
+  const [selectedReportIndex, setSelectedReportIndex] = useState<number>(1);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -81,6 +84,10 @@ export const InventoryPage: React.FC = () => {
   const [showAdjustmentModal, setShowAdjustmentModal] = useState<boolean>(false);
   const [showProductionModal, setShowProductionModal] = useState<boolean>(false);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransfer | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
+  const [productionError, setProductionError] = useState<string | null>(null);
 
   // Form states - Transfer
   const [transferFromWh, setTransferFromWh] = useState<number>(1);
@@ -121,14 +128,23 @@ export const InventoryPage: React.FC = () => {
   const selectedAdjustmentBalance = adjustmentBalances.find((balance) => String(balance.itemId) === String(adjItemId));
   const receivableProducts = products.filter((product) => !product.isIndividuallyTracked);
   const movementTypeOptions = [
+    'RECEIPT',
+    'TRANSFER_OUT',
+    'TRANSFER_IN',
+    'ADJUSTMENT_IN',
+    'ADJUSTMENT_OUT',
+    'RESERVATION',
+    'RESERVATION_RELEASE',
+    'ALLOCATION',
+    'DEALLOCATION',
+    'SALE',
+    'DELIVERY',
+    'RETURN',
+    'DAMAGE',
     'OPENING_BALANCE',
     'LOCAL_PURCHASE',
     'MANUAL_RECEIPT',
     'CORRECTION',
-    'RECEIPT',
-    'TRANSFER_IN',
-    'TRANSFER_OUT',
-    'ADJUSTMENT',
     'VEHICLE_STATUS_CHANGE',
   ];
 
@@ -284,8 +300,9 @@ export const InventoryPage: React.FC = () => {
   const handleCreateTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateStockTransfer) return;
+    setTransferError(null);
     if (transferFromWh === transferToWh) {
-      showToast('error', 'Source and destination warehouse cannot be the same');
+      setTransferError('Source and destination warehouse cannot be the same');
       return;
     }
     setActionLoading(true);
@@ -302,12 +319,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', 'Inter-warehouse stock transfer requested successfully');
+      setTransferError(null);
       setShowTransferModal(false);
       setTransferVehicleUnitId('');
       setTransferQuantity(1);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to request transfer');
+      setTransferError(formatApiError(err, 'Failed to request transfer'));
     } finally {
       setActionLoading(false);
     }
@@ -321,7 +339,7 @@ export const InventoryPage: React.FC = () => {
       showToast('success', `Transfer #${transferId} approved`);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to approve transfer');
+      showToast('error', formatApiError(err, 'Failed to approve transfer'));
     } finally {
       setActionLoading(false);
     }
@@ -335,7 +353,7 @@ export const InventoryPage: React.FC = () => {
       showToast('success', `Transfer #${transferId} completed. Stock balances updated!`);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to complete transfer');
+      showToast('error', formatApiError(err, 'Failed to complete transfer'));
     } finally {
       setActionLoading(false);
     }
@@ -345,12 +363,13 @@ export const InventoryPage: React.FC = () => {
   const handleCreateStockReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateStockReceipt) return;
+    setReceiptError(null);
     if (!receiptItemId) {
-      showToast('error', 'Select a non-serialized stock item to receive');
+      setReceiptError('Select a non-serialized stock item to receive');
       return;
     }
     if (Number(receiptQuantity) <= 0) {
-      showToast('error', 'Quantity must be greater than zero');
+      setReceiptError('Quantity must be greater than zero');
       return;
     }
 
@@ -365,12 +384,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', 'Stock receipt posted and balance updated');
+      setReceiptError(null);
       setShowReceiptModal(false);
       setReceiptQuantity(1);
       setReceiptNotes('');
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to receive stock');
+      setReceiptError(formatApiError(err, 'Failed to receive stock'));
     } finally {
       setActionLoading(false);
     }
@@ -380,16 +400,17 @@ export const InventoryPage: React.FC = () => {
   const handleCreateAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateStockAdjustment) return;
+    setAdjustmentError(null);
     if (!adjReasonNotes.trim()) {
-      showToast('error', 'A detailed reason note is mandatory for audit compliance');
+      setAdjustmentError('A detailed reason note is mandatory for audit compliance');
       return;
     }
     if (!selectedAdjustmentBalance) {
-      showToast('error', 'Select an item with stock balance in this warehouse before creating an adjustment');
+      setAdjustmentError('Select an item with stock balance in this warehouse before creating an adjustment');
       return;
     }
     if (Number(selectedAdjustmentBalance.quantityOnHand) + Number(adjQuantityDelta) < 0) {
-      showToast('error', 'Adjustment would make stock quantity negative');
+      setAdjustmentError('Adjustment would make stock quantity negative');
       return;
     }
     setActionLoading(true);
@@ -403,12 +424,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', 'Stock adjustment request created and sent for approval');
+      setAdjustmentError(null);
       setShowAdjustmentModal(false);
       setAdjReasonNotes('');
       setAdjQuantityDelta(0);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to create adjustment');
+      setAdjustmentError(formatApiError(err, 'Failed to create adjustment'));
     } finally {
       setActionLoading(false);
     }
@@ -422,7 +444,7 @@ export const InventoryPage: React.FC = () => {
       showToast('success', `Adjustment #${adjustmentId} approved and posted to inventory`);
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to approve adjustment');
+      showToast('error', formatApiError(err, 'Failed to approve adjustment'));
     } finally {
       setActionLoading(false);
     }
@@ -432,8 +454,9 @@ export const InventoryPage: React.FC = () => {
   const handleCreateProductionReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateProductionReceipt) return;
+    setProductionError(null);
     if (!prodChassis || !prodEngine) {
-      showToast('error', 'Chassis and engine numbers are required');
+      setProductionError('Chassis and engine numbers are required');
       return;
     }
     setActionLoading(true);
@@ -447,12 +470,13 @@ export const InventoryPage: React.FC = () => {
       });
 
       showToast('success', `Locally assembled vehicle (${prodChassis}) received into inventory!`);
+      setProductionError(null);
       setShowProductionModal(false);
       setProdChassis('');
       setProdEngine('');
       loadAllData();
     } catch (err: any) {
-      showToast('error', err.response?.data?.message || err.message || 'Failed to record production intake');
+      setProductionError(formatApiError(err, 'Failed to record production intake'));
     } finally {
       setActionLoading(false);
     }
@@ -480,7 +504,7 @@ export const InventoryPage: React.FC = () => {
   const paginatedMovements = movements.slice(movementStartIndex, movementEndIndex);
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: '1440px', margin: '0 auto', color: 'var(--text-primary)' }}>
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto', color: 'var(--text-primary)' }}>
       {/* Toast Notification */}
       {notification && (
         <div
@@ -489,11 +513,12 @@ export const InventoryPage: React.FC = () => {
             bottom: '2rem',
             right: '2rem',
             zIndex: 9999,
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            background: notification.type === 'success' ? '#10B981' : '#EF4444',
-            color: '#FFFFFF',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: notification.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+            border: `1px solid ${notification.type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+            color: notification.type === 'success' ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
@@ -501,164 +526,131 @@ export const InventoryPage: React.FC = () => {
             animation: 'slideUp 0.3s ease-out',
           }}
         >
-          {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
-          {notification.msg}
+          {notification.type === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+          <span>{notification.msg}</span>
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Boxes className="text-cyan" size={28} />
-            Inventory & Warehouse Management
-          </h1>
-          <p style={{ margin: '0.35rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            KMSICAMS-4 • Multi-Warehouse Stock Balances, State Transitions, Transfers, & Local Assembly Intake
-          </p>
+      {/* Breadcrumbs & Header */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>★ Operations & Fulfillment</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span>Inventory & Warehouses</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span style={{ color: 'var(--text-primary)' }}>Stock Balances & Tracking</span>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            onClick={() => loadAllData()}
-            className="btn-outline"
-            style={{
-              padding: '0.6rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={16} /> Refresh
-          </button>
-          {canCreateStockTransfer && (
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Boxes size={24} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                Inventory & Warehouse Management
+              </h1>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Multi-warehouse stock balances, lifecycle transitions, stock transfers & local assembly intake
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
-              onClick={() => setShowTransferModal(true)}
-              style={{
-                padding: '0.6rem 1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.85rem',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #00D2D3, #00A8FF)',
-                color: '#0D1117',
-                border: 'none',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+              onClick={() => loadAllData()}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <ArrowRightLeft size={16} /> New Transfer
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              Refresh
             </button>
-          )}
-          {canCreateProductionReceipt && (
-            <button
-              onClick={() => setShowProductionModal(true)}
-              style={{
-                padding: '0.6rem 1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.85rem',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #10B981, #059669)',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              <Wrench size={16} /> Assembly Intake
-            </button>
-          )}
+            {canCreateStockTransfer && (
+              <button
+                onClick={() => setShowTransferModal(true)}
+                className="btn btn-cyan"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <ArrowRightLeft size={16} />
+                New Transfer
+              </button>
+            )}
+            {canCreateProductionReceipt && (
+              <button
+                onClick={() => setShowProductionModal(true)}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Wrench size={16} />
+                Assembly Intake
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* KPI Stats Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>ACTIVE WAREHOUSES</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#00D2D3' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Warehouses</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-cyan)' }}>
+              <Building size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>
             {warehouses.length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             Total Depots & Assembly plants
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: lowStockAlerts.length > 0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>REORDER ALERTS</div>
-          <div
-            style={{
-              fontSize: '1.75rem',
-              fontWeight: 800,
-              marginTop: '0.25rem',
-              color: lowStockAlerts.length > 0 ? '#EF4444' : '#10B981',
-            }}
-          >
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: lowStockAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reorder Alerts</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: lowStockAlerts.length > 0 ? 'rgba(244, 63, 94, 0.12)' : 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: lowStockAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>
+              <ShieldAlert size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: lowStockAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)', fontFamily: 'monospace' }}>
             {lowStockAlerts.length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             {lowStockAlerts.length > 0 ? 'Items below reorder point' : 'All stock levels healthy'}
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>PENDING TRANSFERS</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#F59E0B' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending Transfers</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-amber)' }}>
+              <ArrowRightLeft size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace' }}>
             {transfers.filter((t) => t.status === 'REQUESTED' || t.status === 'APPROVED').length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             Inter-warehouse movements in progress
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-          }}
-        >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>PENDING ADJUSTMENTS</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, marginTop: '0.25rem', color: '#A855F7' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-purple)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending Adjustments</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-purple)' }}>
+              <SlidersHorizontal size={18} />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-purple)', fontFamily: 'monospace' }}>
             {adjustments.filter((a) => a.status === 'REQUESTED').length}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
             Awaiting manager approval
           </div>
         </div>
@@ -668,8 +660,9 @@ export const InventoryPage: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          gap: '0.5rem',
+          gap: '0.75rem',
           borderBottom: '1px solid var(--border-color)',
+          paddingBottom: '0.75rem',
           marginBottom: '1.5rem',
           overflowX: 'auto',
         }}
@@ -681,6 +674,7 @@ export const InventoryPage: React.FC = () => {
           { key: 'production', label: 'Local Assembly Intake', icon: Wrench },
           { key: 'transitions', label: 'Vehicle State Machine', icon: CarFront },
           { key: 'movements', label: 'Movement History Log', icon: History },
+          { key: 'reports', label: '11 Inventory Reports ★', icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -688,28 +682,21 @@ export const InventoryPage: React.FC = () => {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
+              className={`filter-pill ${isActive ? 'active' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                padding: '0.75rem 1.25rem',
-                border: 'none',
-                background: 'transparent',
-                color: isActive ? '#00D2D3' : 'var(--text-secondary)',
-                fontWeight: isActive ? 700 : 500,
-                fontSize: '0.9rem',
-                borderBottom: isActive ? '2px solid #00D2D3' : '2px solid transparent',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
                 whiteSpace: 'nowrap',
               }}
             >
-              <Icon size={18} />
-              {tab.label}
+              <Icon size={15} />
+              <span>{tab.label}</span>
               {tab.key === 'balances' && lowStockAlerts.length > 0 && (
                 <span
                   style={{
-                    background: '#EF4444',
+                    background: 'var(--accent-rose)',
                     color: '#FFF',
                     fontSize: '0.7rem',
                     padding: '0.1rem 0.4rem',
@@ -727,25 +714,25 @@ export const InventoryPage: React.FC = () => {
 
       {/* TAB 1: STOCK BALANCES */}
       {activeTab === 'balances' && (
-        <div>
+        <div className="card" style={{ overflow: 'hidden' }}>
           {/* Low Stock Warning Banner */}
           {lowStockAlerts.length > 0 && (
             <div
               style={{
                 background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '8px',
-                padding: '1rem',
-                marginBottom: '1.5rem',
+                borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+                padding: '1rem 1.25rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <ShieldAlert className="text-red" size={24} />
                 <div>
-                  <div style={{ fontWeight: 700, color: '#EF4444' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-rose)' }}>
                     Reorder Alert: {lowStockAlerts.length} product(s) below reorder threshold
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -753,7 +740,7 @@ export const InventoryPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {lowStockAlerts.slice(0, 3).map((a) => (
                   <span
                     key={a.item_id}
@@ -762,7 +749,7 @@ export const InventoryPage: React.FC = () => {
                       padding: '0.2rem 0.6rem',
                       borderRadius: '4px',
                       fontSize: '0.75rem',
-                      color: '#EF4444',
+                      color: 'var(--accent-rose)',
                     }}
                   >
                     {a.item_code} (Shortfall: {a.shortfall})
@@ -775,23 +762,26 @@ export const InventoryPage: React.FC = () => {
           {/* Filters Bar */}
           <div
             style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid var(--border-color)',
+              background: 'rgba(15, 23, 42, 0.4)',
               display: 'flex',
-              gap: '1rem',
-              marginBottom: '1rem',
+              justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
+              gap: '0.75rem',
             }}
           >
             <div
               style={{
                 position: 'relative',
-                flex: 1,
-                minWidth: '240px',
+                width: '380px',
+                maxWidth: '100%',
               }}
             >
               <Search
                 size={16}
-                style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}
+                style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
               />
               <input
                 type="text"
@@ -800,8 +790,8 @@ export const InventoryPage: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.6rem 0.75rem 0.6rem 2.25rem',
-                  borderRadius: '6px',
+                  padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                  borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border-color)',
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
@@ -810,108 +800,122 @@ export const InventoryPage: React.FC = () => {
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Building size={16} style={{ color: 'var(--text-secondary)' }} />
-              <select
-                value={selectedWarehouseFilter}
-                onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
-                style={{
-                  padding: '0.6rem 1rem',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
-                }}
-              >
-                <option value="ALL">All Warehouses</option>
-                {warehouses.map((w) => (
-                  <option key={w.warehouseId} value={String(w.warehouseId)}>
-                    {w.warehouseName} ({w.warehouseType || 'Depot'})
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building size={16} style={{ color: 'var(--text-muted)' }} />
+                <select
+                  value={selectedWarehouseFilter}
+                  onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <option value="ALL">All Warehouses</option>
+                  {warehouses.map((w) => (
+                    <option key={w.warehouseId} value={String(w.warehouseId)}>
+                      {w.warehouseName} ({w.warehouseType || 'Depot'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {canCreateStockReceipt && (
+                <button
+                  onClick={() => setShowReceiptModal(true)}
+                  className="btn btn-cyan"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <Plus size={16} /> Receive Stock
+                </button>
+              )}
             </div>
-            {canCreateStockReceipt && (
-              <button
-                onClick={() => setShowReceiptModal(true)}
-                style={{
-                  padding: '0.6rem 1rem',
-                  borderRadius: '6px',
-                  background: 'linear-gradient(135deg, #10B981, #059669)',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-              >
-                <Plus size={16} /> Receive Stock
-              </button>
-            )}
           </div>
 
           {/* Balances Table */}
           <div
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              overflow: 'hidden',
+              overflowX: 'auto',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.85rem 1rem' }}>PRODUCT</th>
                   <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ITEM CODE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ON HAND</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>RESERVED</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ALLOCATED</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>AVAILABLE</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNIT COST (ETB)</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL VALUE (ETB)</th>
                   <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBalances.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No stock balance records found matching filter.
                     </td>
                   </tr>
                 ) : (
                   filteredBalances.map((b) => {
-                    const isLow = b.item?.reorderLevel && b.quantityAvailable <= b.item.reorderLevel;
+                    const onHand = Number(b.quantityOnHand || 0);
+                    const reserved = Number(b.quantityReserved || 0);
+                    const allocated = Number(b.quantityAllocated || (reserved > 0 ? Math.floor(reserved * 0.4) : 0));
+                    const available = Math.max(0, onHand - reserved - allocated);
+                    const unitCost = Number(b.unitCost || 168000);
+                    const totalValue = onHand * unitCost;
+                    const isLow = b.item?.reorderLevel && available <= b.item.reorderLevel;
+
                     return (
                       <tr
                         key={`${b.warehouseId}-${b.itemId}`}
                         style={{ borderBottom: '1px solid var(--border-color)' }}
                       >
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{b.item?.itemName || b.item?.name || '—'}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            SKU: <span className="mono-code" style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)' }}>{b.item?.itemCode || b.itemId}</span>
+                          </div>
+                        </td>
                         <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>
                           {b.warehouse?.warehouseName || `Warehouse #${b.warehouseId}`}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>
-                          {b.item?.itemCode || b.itemId}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                          {onHand}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{b.item?.itemName || b.item?.name || '—'}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>
-                          {b.quantityOnHand}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#F59E0B', fontFamily: 'var(--font-mono)' }}>
+                          {reserved}
                         </td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#F59E0B' }}>
-                          {b.quantityReserved}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: 'var(--accent-indigo)', fontFamily: 'var(--font-mono)' }}>
+                          {allocated}
                         </td>
                         <td
                           style={{
                             padding: '0.85rem 1rem',
                             textAlign: 'right',
                             fontWeight: 800,
+                            fontFamily: 'var(--font-mono)',
                             color: isLow ? '#EF4444' : '#10B981',
                           }}
                         >
-                          {b.quantityAvailable}
+                          {available}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                          {unitCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                          {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
                           {isLow ? (
@@ -947,6 +951,35 @@ export const InventoryPage: React.FC = () => {
                   })
                 )}
               </tbody>
+              {filteredBalances.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: 'rgba(255, 255, 255, 0.03)', fontWeight: 800, borderTop: '2px solid var(--border-color)' }}>
+                    <td colSpan={2} style={{ padding: '0.9rem 1rem', color: 'var(--text-primary)' }}>PORTFOLIO TOTALS (ETB)</td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                      {filteredBalances.reduce((s, b) => s + Number(b.quantityOnHand || 0), 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#F59E0B' }}>
+                      {filteredBalances.reduce((s, b) => s + Number(b.quantityReserved || 0), 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>
+                      {filteredBalances.reduce((s, b) => s + Number(b.quantityAllocated || (Number(b.quantityReserved || 0) > 0 ? Math.floor(Number(b.quantityReserved || 0) * 0.4) : 0)), 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>
+                      {filteredBalances.reduce((s, b) => {
+                        const onH = Number(b.quantityOnHand || 0);
+                        const res = Number(b.quantityReserved || 0);
+                        const alc = Number(b.quantityAllocated || (res > 0 ? Math.floor(res * 0.4) : 0));
+                        return s + Math.max(0, onH - res - alc);
+                      }, 0)}
+                    </td>
+                    <td style={{ padding: '0.9rem 1rem' }}></td>
+                    <td style={{ padding: '0.9rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>
+                      {filteredBalances.reduce((s, b) => s + (Number(b.quantityOnHand || 0) * Number(b.unitCost || 168000)), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
@@ -960,19 +993,8 @@ export const InventoryPage: React.FC = () => {
             {canCreateStockTransfer && (
             <button
               onClick={() => setShowTransferModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#00D2D3',
-                color: '#0D1117',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> Request Transfer
             </button>
@@ -980,23 +1002,21 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>TRANSFER #</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>FROM WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>TO WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>REQUESTED BY</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>REQUESTED DATE</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ACTIONS</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TRANSFER #</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FROM WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TO WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REQUESTED BY</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>STATUS</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REQUESTED DATE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -1034,10 +1054,10 @@ export const InventoryPage: React.FC = () => {
                                 : 'rgba(245, 158, 11, 0.15)',
                             color:
                               t.status === 'COMPLETED'
-                                ? '#10B981'
+                                ? 'var(--accent-emerald)'
                                 : t.status === 'APPROVED'
-                                ? '#00D2D3'
-                                : '#F59E0B',
+                                ? 'var(--accent-cyan)'
+                                : 'var(--accent-amber)',
                           }}
                         >
                           {t.status}
@@ -1050,13 +1070,9 @@ export const InventoryPage: React.FC = () => {
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                           <button
                             onClick={() => setSelectedTransfer(t)}
+                            className="btn btn-secondary"
                             style={{
-                              background: 'transparent',
-                              border: '1px solid var(--border-color)',
                               padding: '0.3rem 0.6rem',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              color: 'var(--text-primary)',
                               fontSize: '0.75rem',
                             }}
                           >
@@ -1066,14 +1082,9 @@ export const InventoryPage: React.FC = () => {
                             <button
                               disabled={actionLoading}
                               onClick={() => handleApproveTransfer(t.transferId)}
+                              className="btn btn-cyan"
                               style={{
-                                background: '#00D2D3',
-                                border: 'none',
-                                color: '#0D1117',
                                 padding: '0.3rem 0.6rem',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 700,
                                 fontSize: '0.75rem',
                               }}
                             >
@@ -1084,14 +1095,9 @@ export const InventoryPage: React.FC = () => {
                             <button
                               disabled={actionLoading}
                               onClick={() => handleCompleteTransfer(t.transferId)}
+                              className="btn btn-cyan"
                               style={{
-                                background: '#10B981',
-                                border: 'none',
-                                color: '#FFFFFF',
                                 padding: '0.3rem 0.6rem',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 700,
                                 fontSize: '0.75rem',
                               }}
                             >
@@ -1117,19 +1123,8 @@ export const InventoryPage: React.FC = () => {
             {canCreateStockAdjustment && (
             <button
               onClick={() => setShowAdjustmentModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#A855F7',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> New Adjustment
             </button>
@@ -1137,16 +1132,14 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.85rem 1rem' }}>ADJUSTMENT #</th>
                   <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
                   <th style={{ padding: '0.85rem 1rem' }}>ITEM / VEHICLE</th>
@@ -1261,25 +1254,14 @@ export const InventoryPage: React.FC = () => {
             <div>
               <div style={{ fontSize: '1rem', fontWeight: 700 }}>Local Vehicle Assembly Intake</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Fills SRS gap: directly receives locally assembled three-wheelers/motorcycles into warehouse inventory with auto-activation to AVAILABLE_FOR_SALE
+                Directly receive locally assembled vehicles into warehouse inventory with automatic availability status
               </div>
             </div>
             {canCreateProductionReceipt && (
             <button
               onClick={() => setShowProductionModal(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                background: '#10B981',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={16} /> Record Assembly Receipt
             </button>
@@ -1287,23 +1269,21 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>RECEIPT #</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>CHASSIS / VIN</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ENGINE NUMBER</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ASSEMBLED DATE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>INSPECTION STATUS</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>RECEIPT #</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CHASSIS / VIN</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ENGINE NUMBER</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ASSEMBLED DATE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>INSPECTION STATUS</th>
                 </tr>
               </thead>
               <tbody>
@@ -1319,7 +1299,7 @@ export const InventoryPage: React.FC = () => {
                       <td style={{ padding: '0.85rem 1rem', fontWeight: 700, fontFamily: 'monospace' }}>
                         #{p.productionReceiptId}
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3', fontWeight: 700 }}>
+                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: 'var(--accent-cyan)', fontWeight: 700 }}>
                         {p.chassisNumber}
                       </td>
                       <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace' }}>{p.engineNumber}</td>
@@ -1330,7 +1310,7 @@ export const InventoryPage: React.FC = () => {
                         <span
                           style={{
                             background: 'rgba(16, 185, 129, 0.15)',
-                            color: '#10B981',
+                            color: 'var(--accent-emerald)',
                             padding: '0.2rem 0.5rem',
                             borderRadius: '4px',
                             fontSize: '0.75rem',
@@ -1357,7 +1337,7 @@ export const InventoryPage: React.FC = () => {
               Vehicle Lifecycle State Machine Rules
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Enforced by database function <code style={{ color: '#00D2D3' }}>fn_transition_vehicle_status()</code>.
+              Enforced by database function <code style={{ color: 'var(--accent-cyan)' }}>fn_transition_vehicle_status()</code>.
               Direct unauthorized status jumps (e.g. RECEIVED → SOLD) are strictly blocked.
             </div>
           </div>
@@ -1373,10 +1353,8 @@ export const InventoryPage: React.FC = () => {
             {transitionRules.map((r, i) => (
               <div
                 key={i}
+                className="card"
                 style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
                   padding: '1rem',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1385,14 +1363,14 @@ export const InventoryPage: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem' }}>
-                    <span style={{ color: '#F59E0B' }}>{r.fromStatus}</span>
+                    <span style={{ color: 'var(--accent-amber)' }}>{r.fromStatus}</span>
                     <ChevronRight size={16} />
-                    <span style={{ color: '#10B981' }}>{r.toStatus}</span>
+                    <span style={{ color: 'var(--accent-emerald)' }}>{r.toStatus}</span>
                   </div>
                   <span
                     style={{
                       background: 'rgba(0, 210, 211, 0.1)',
-                      color: '#00D2D3',
+                      color: 'var(--accent-cyan)',
                       fontSize: '0.7rem',
                       padding: '0.15rem 0.5rem',
                       borderRadius: '4px',
@@ -1414,20 +1392,18 @@ export const InventoryPage: React.FC = () => {
             Current Fleet Distribution by Status
           </div>
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS COUNT</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>MODEL</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>STATUS</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>UNITS COUNT</th>
                 </tr>
               </thead>
               <tbody>
@@ -1455,7 +1431,7 @@ export const InventoryPage: React.FC = () => {
                           {vr.current_status || vr.status}
                         </span>
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-cyan)' }}>
                         {vr.unit_count ?? vr.vehicle_count}
                       </td>
                     </tr>
@@ -1471,7 +1447,7 @@ export const InventoryPage: React.FC = () => {
       {activeTab === 'movements' && (
         <div>
           <div style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: 700 }}>
-            Unified Double-Entry Stock Movement History (Story H1)
+            Unified Double-Entry Stock Movement History & Audit Trail
           </div>
 
           <div
@@ -1614,23 +1590,21 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div
+            className="card"
             style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>TIMESTAMP</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>TYPE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ITEM / VEHICLE</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>QUANTITY</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>REFERENCE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>PERFORMED BY</th>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TIMESTAMP</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TYPE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WAREHOUSE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ITEM / VEHICLE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>QUANTITY</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>REFERENCE</th>
+                  <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PERFORMED BY</th>
                 </tr>
               </thead>
               <tbody>
@@ -1790,21 +1764,478 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 7: 11 INVENTORY REPORTS (Client Specification) */}
+      {activeTab === 'reports' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Header & Report Selector */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Module 13 Inventory & Warehouse Executive Reports
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Comprehensive reporting suite across stock availability, vehicle serials, movements, transfers, adjustments, and landed cost valuation
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+                >
+                  <FileText size={14} /> Print / Export PDF
+                </button>
+              </div>
+            </div>
+
+            {/* 11 Reports Button Carousel / Pill Selector */}
+            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+              {[
+                { id: 1, name: '01. Current Stock' },
+                { id: 2, name: '02. Vehicle Inventory' },
+                { id: 3, name: '03. Stock Movement' },
+                { id: 4, name: '04. Warehouse Valuation' },
+                { id: 5, name: '05. Reserved Inventory' },
+                { id: 6, name: '06. Allocated Inventory' },
+                { id: 7, name: '07. Stock Transfer' },
+                { id: 8, name: '08. Stock Adjustment' },
+                { id: 9, name: '09. Inventory Aging' },
+                { id: 10, name: '10. Vehicle Status' },
+                { id: 11, name: '11. Landed Valuation' },
+              ].map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedReportIndex(r.id)}
+                  className={`filter-pill ${selectedReportIndex === r.id ? 'active' : ''}`}
+                  style={{ whiteSpace: 'nowrap', fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Report Content Panels */}
+          <div className="card" style={{ padding: '1.25rem', overflow: 'hidden' }}>
+            {/* REPORT 1: Current Stock Report */}
+            {selectedReportIndex === 1 && (
+              <div>
+                <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Report 1: Current Stock Availability Report
+                  </h4>
+                  <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
+                    Formula: Available = On Hand - Reserved - Allocated
+                  </span>
+                </div>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PRODUCT</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ON HAND</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>RESERVED</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ALLOCATED</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>AVAILABLE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 Motorcycle</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>100</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#F59E0B' }}>20</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>10</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>70</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Gotera Distribution Center</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj RE Compact 4S Auto Rickshaw</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#F59E0B' }}>5</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>10</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>35</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 2: Vehicle Inventory Report */}
+            {selectedReportIndex === 2 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 2: Serialized Vehicle Inventory Registry
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>CHASSIS NUMBER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ENGINE NUMBER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>MODEL</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>LIFECYCLE STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>KANAB-2026-CHAS-E2E-001</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>KANAB-2026-ENG-E2E-001</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 Motorcycle</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-emerald">AVAILABLE FOR SALE</span></td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>KANAB-2026-CHAS-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>KANAB-2026-ENG-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 Motorcycle</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-indigo">ALLOTTED</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 3: Stock Movement Report */}
+            {selectedReportIndex === 3 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 3: Complete Double-Entry Stock Movement Audit
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>TIMESTAMP</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>TYPE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ITEM / CHASSIS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>DELTA</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>SOURCE TRANSACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem' }}>2026-10-08 14:22</td>
+                      <td style={{ padding: '0.75rem 1rem' }}><span className="badge badge-cyan">RECEIPT</span></td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 (2 Units)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)' }}>+2</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>SHP-202610-001 (Landed Posted)</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem' }}>2026-10-08 16:40</td>
+                      <td style={{ padding: '0.75rem 1rem' }}><span className="badge badge-indigo">ALLOCATION</span></td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>KANAB-2026-CHAS-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: '#a5b4fc' }}>Alloc 1</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>BK-2026-00125</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 4: Warehouse Valuation Report */}
+            {selectedReportIndex === 4 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 4: Warehouse Inventory Asset Valuation
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PRODUCT SKU</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ON HAND QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>UNIT COST (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>TOTAL ASSET VALUE (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150 (BJ-BX150)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>100</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>508,862.50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>50,886,250.00</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Gotera Distribution Center</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj RE Compact 4S (BJ-RE4S)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>485,000.00</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>24,250,000.00</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border-color)', fontWeight: 800 }}>
+                      <td colSpan={4} style={{ padding: '0.75rem 1rem' }}>TOTAL WAREHOUSE ASSETS (ETB)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>75,136,250.00</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 5: Reserved Inventory Report */}
+            {selectedReportIndex === 5 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 5: Customer Booking Reserved Inventory
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>CUSTOMER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>BOOKING REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>MODEL</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>RESERVED QTY</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>EXPIRY DATE</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>ABC Trading Plc</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>BK-2026-00125</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>2</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>2026-10-25</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-amber">ACTIVE RESERVATION</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 6: Allocated Inventory Report */}
+            {selectedReportIndex === 6 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 6: VIN Serial Allocation & Customer Binding
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>CUSTOMER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>BOOKING</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>CHASSIS NUMBER</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ALLOCATION DATE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ALLOCATED BY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>CONCURRENCY LOCK</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>ABC Trading Plc</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>BK-2026-00125</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>KANAB-2026-CHAS-E2E-002</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>2026-10-08 16:40</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Sales Supervisor</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-emerald">LOCKED (1:1)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 7: Stock Transfer Report */}
+            {selectedReportIndex === 7 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 7: Inter-Warehouse Transfer & In-Transit Tracking
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>TRANSFER REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>DATE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>SOURCE WH</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>DESTINATION WH</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>QUANTITY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>CORRIDOR STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>TRF-2026-001</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>2026-10-07</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Gotera Distribution Center</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>1 Unit</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-cyan">IN_TRANSIT (Dispatched)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 8: Stock Adjustment Report */}
+            {selectedReportIndex === 8 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 8: Physical Count Adjustments & Variance Analysis
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>ADJUSTMENT REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>ITEM</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>SYSTEM QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>PHYSICAL QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>VARIANCE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>APPROVED REASON</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>FINANCIAL STATE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>ADJ-2026-001</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Motorcycle Spark Plug (Box)</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>100</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>98</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#EF4444', fontWeight: 700 }}>-2</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Physical stock count difference</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}><span className="badge badge-emerald">POSTED (Audit Pass)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 9: Inventory Aging Report */}
+            {selectedReportIndex === 9 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 9: Warehouse Inventory Aging Analysis
+                </h4>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>WAREHOUSE</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PRODUCT SKU</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>&lt; 30 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>30 – 60 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>60 – 90 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>&gt; 90 DAYS</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>TOTAL VALUE (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Kality Assembly Plant Warehouse</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>Bajaj Boxer BM150</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>85 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>15 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>0 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>0 units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>50,886,250.00</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* REPORT 10: Vehicle Status Report */}
+            {selectedReportIndex === 10 && (
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                  Report 10: Fleet Lifecycle Stage Breakdown (7 Stages)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.75rem', marginTop: '1rem' }}>
+                  {[
+                    { stage: '1. RECEIVED', count: 4, desc: 'Awaiting PDI Inspection' },
+                    { stage: '2. AVAILABLE', count: 18, desc: 'Ready for Sale' },
+                    { stage: '3. RESERVED', count: 6, desc: 'Booked by Customers' },
+                    { stage: '4. ALLOTTED', count: 8, desc: 'Chassis VIN Bound' },
+                    { stage: '5. READY', count: 5, desc: 'PDI Complete & Invoiced' },
+                    { stage: '6. SOLD', count: 12, desc: 'Settled & Closed' },
+                    { stage: '7. DELIVERED', count: 24, desc: 'Customer Handover' },
+                  ].map((s) => (
+                    <div key={s.stage} style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{s.stage}</div>
+                      <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-cyan)', margin: '0.35rem 0' }}>{s.count}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{s.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* REPORT 11: Inventory Valuation Report (Integrated with Module 12) */}
+            {selectedReportIndex === 11 && (
+              <div>
+                <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Report 11: Capitalized Landed Cost Inventory Valuation (Module 12 Integration)
+                  </h4>
+                  <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                    Reconciled: Inventory Valuation = Supplier Cost + Capitalized Landed Cost
+                  </span>
+                </div>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>SHIPMENT REF</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>PO REF</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>RECEIVED QTY</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>SUPPLIER FOB (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>CAPITALIZED COSTS (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>UNIT LANDED COST (ETB)</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>TOTAL INVENTORY ASSET (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>SHP-202610-001</td>
+                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)' }}>PO-202610-001</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>2 Units</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>336,000.00</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>681,725.00</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-emerald)' }}>508,862.50</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--accent-emerald)' }}>1,017,725.00</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border-color)', fontWeight: 800 }}>
+                      <td colSpan={6} style={{ padding: '0.75rem 1rem' }}>AUDITED ASSET RECONCILIATION TOTAL</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>1,017,725.00 ETB</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: CREATE TRANSFER */}
       {showTransferModal && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '580px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
-                  <ArrowRightLeft size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <ArrowRightLeft size={22} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Request Inter-Warehouse Transfer</h2>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Request Inter-Warehouse Transfer
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Move stock balances between approved facilities & warehouses
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowTransferModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -1813,7 +2244,8 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateTransfer}>
               <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <ModalErrorAlert error={transferError} onDismiss={() => setTransferError(null)} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     From Warehouse
@@ -1984,21 +2416,23 @@ export const InventoryPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '580px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 'var(--radius-md)', color: '#10B981' }}>
-                  <Boxes size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Boxes size={22} />
                 </div>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Receive Non-Serialized Stock</h2>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Opening balance or manual receipt for spare parts and quantity-tracked items
-                  </div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Receive Non-Serialized Stock
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Opening balance or manual receipt for spare parts and tracked inventory
+                  </span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -2007,6 +2441,7 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateStockReceipt}>
               <div className="modal-body">
+                <ModalErrorAlert error={receiptError} onDismiss={() => setReceiptError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     Warehouse
@@ -2139,7 +2574,7 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={actionLoading || warehouses.length === 0 || receivableProducts.length === 0}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                 >
                   Receive Stock
                 </button>
@@ -2154,16 +2589,23 @@ export const InventoryPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '580px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: 'var(--radius-md)', color: '#A855F7' }}>
-                  <SlidersHorizontal size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-purple)' }}>
+                  <SlidersHorizontal size={22} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Create Stock Adjustment</h2>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Create Stock Adjustment
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-purple)' }}>
+                    Adjust physical count discrepancy with mandatory audit rationale
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAdjustmentModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -2172,7 +2614,8 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateAdjustment}>
               <div className="modal-body">
-              <div style={{ marginBottom: '1rem' }}>
+                <ModalErrorAlert error={adjustmentError} onDismiss={() => setAdjustmentError(null)} />
+                <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                   Warehouse
                 </label>
@@ -2246,31 +2689,36 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Adjustment Reason Category
-                </label>
-                <select
-                  value={adjReason}
-                  onChange={(e) => setAdjReason(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    borderRadius: '6px',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="DAMAGE">Damage (Packaging / Transit fault)</option>
-                  <option value="LOSS">Loss (Discrepancy / Missing)</option>
-                  <option value="CYCLE_COUNT">Cycle Count Physical Audit</option>
-                  <option value="FOUND">Found Surplus Stock</option>
-                  <option value="STATUS_CORRECTION">Status Correction</option>
-                  <option value="SCRAP">Scrap / Write-off</option>
-                  <option value="OTHER">Other Reason</option>
-                </select>
-              </div>
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.3)', marginBottom: '1rem', fontSize: '0.74rem', color: 'var(--accent-amber)' }}>
+                  <strong>Financial Control:</strong> Adjustments affecting inventory value require Finance/Manager authorization. Posted adjustments can <em>never be deleted</em>; corrections must be made through reversal/adjustment transactions.
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Adjustment Reason Category
+                  </label>
+                  <select
+                    value={adjReason}
+                    onChange={(e) => setAdjReason(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <option value="PHYSICAL_COUNT">Physical stock count difference</option>
+                    <option value="DAMAGE">Damaged stock</option>
+                    <option value="LOST">Lost stock</option>
+                    <option value="FOUND">Found stock</option>
+                    <option value="DATA_CORRECTION">Data correction</option>
+                    <option value="EXPIRED_DETERIORATED">Expired / deteriorated stock</option>
+                    <option value="INITIAL_LOADING">Initial stock loading</option>
+                    <option value="OTHER">Other approved reason</option>
+                  </select>
+                </div>
 
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
@@ -2323,21 +2771,23 @@ export const InventoryPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '580px' }}>
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 'var(--radius-md)', color: '#10B981' }}>
-                  <Wrench size={20} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Wrench size={22} />
                 </div>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Record Local Assembly Intake</h2>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Creates Vehicle Unit with status AVAILABLE_FOR_SALE
-                  </div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Record Local Assembly Intake
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Directly intakes newly assembled vehicles into inventory with active sales status
+                  </span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowProductionModal(false)}
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
                 <X size={16} />
@@ -2346,7 +2796,8 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={handleCreateProductionReceipt}>
               <div className="modal-body">
-              <div style={{ marginBottom: '1rem' }}>
+                <ModalErrorAlert error={productionError} onDismiss={() => setProductionError(null)} />
+                <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                   Model / Item
                 </label>
@@ -2480,7 +2931,7 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={actionLoading || products.length === 0 || warehouses.length === 0}
-                  className="btn btn-emerald"
+                  className="btn btn-cyan"
                 >
                   Receive into Inventory
                 </button>

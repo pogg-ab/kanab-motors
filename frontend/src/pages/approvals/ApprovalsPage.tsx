@@ -21,6 +21,8 @@ import {
   WorkflowType,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { formatApiError } from '../../utils/error';
 
 export const ApprovalsPage: React.FC = () => {
   const { any } = usePermissions();
@@ -38,6 +40,7 @@ export const ApprovalsPage: React.FC = () => {
   const [decisionModalMode, setDecisionModalMode] = useState<'APPROVE' | 'REJECT' | 'AUDIT' | null>(null);
   const [decisionComments, setDecisionComments] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -58,7 +61,7 @@ export const ApprovalsPage: React.FC = () => {
       setPolicies(policiesRes || []);
       setWorkflowTypes(typesRes || []);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to load approval workflow data');
+      setErrorMsg(formatApiError(err, 'Failed to load approval workflow data'));
     } finally {
       setLoading(false);
     }
@@ -70,7 +73,7 @@ export const ApprovalsPage: React.FC = () => {
 
     try {
       setActionLoading(true);
-      setErrorMsg(null);
+      setDecisionError(null);
       const decision = decisionModalMode === 'APPROVE' ? 'APPROVED' : 'REJECTED';
       const res = await api.recordApprovalDecision(selectedRequest.approvalRequestId, {
         decision,
@@ -81,9 +84,10 @@ export const ApprovalsPage: React.FC = () => {
       setSelectedRequest(null);
       setDecisionModalMode(null);
       setDecisionComments('');
+      setDecisionError(null);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to record approval decision');
+      setDecisionError(formatApiError(err, 'Failed to record approval decision'));
     } finally {
       setActionLoading(false);
     }
@@ -105,252 +109,241 @@ export const ApprovalsPage: React.FC = () => {
   const rejectedCount = requests.filter((r) => r.status === 'REJECTED').length;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1440px', margin: '0 auto' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '2rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(0, 210, 211, 0.2))',
-                border: '1px solid rgba(245, 158, 11, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#f59e0b',
-              }}
-            >
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Breadcrumbs & Header */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>★ Internal Controls</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span>Governance & Compliance</span>
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span style={{ color: 'var(--text-primary)' }}>Approval Workflow & Controls</span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ShieldCheck size={24} />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>Approval Workflow & Internal Controls</h1>
-              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.875rem' }}>
-                KMSICAMS-6 Sub-module 3: Central Approval Engine, Multi-level Chains, Role Hierarchy & Retrofit Dispatcher (AW1–AW10)
-              </p>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                Approval Workflow & Internal Controls
+              </h1>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Central approval workflow engine, multi-level authorization chains & governance controls
+              </div>
             </div>
           </div>
-        </div>
 
-        <button
-          onClick={loadData}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.625rem 1rem',
-            borderRadius: '8px',
-            border: '1px solid var(--border-color)',
-            background: 'var(--bg-card)',
-            color: 'var(--text-primary)',
-            cursor: 'pointer',
-            fontWeight: 500,
-          }}
-        >
-          <RefreshCw size={16} className={loading ? 'spin' : ''} />
-          Refresh Queue
-        </button>
+          <button
+            onClick={loadData}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            <RefreshCw size={15} className={loading ? 'spin' : ''} />
+            Refresh Queue
+          </button>
+        </div>
       </div>
 
       {/* Notifications */}
       {errorMsg && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '8px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#ef4444',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: 'var(--accent-rose)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <AlertCircle size={20} />
-          <span>{errorMsg}</span>
+          <AlertCircle size={18} />
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{errorMsg}</span>
         </div>
       )}
       {successMsg && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '8px',
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#10b981',
+            padding: '1rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: 'var(--accent-emerald)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           }}
         >
-          <CheckCircle2 size={20} />
-          <span>{successMsg}</span>
+          <CheckCircle2 size={18} />
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{successMsg}</span>
         </div>
       )}
 
       {/* KPI Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '1rem',
-          marginBottom: '2rem',
-        }}
-      >
-        <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-          <div style={{ color: '#f59e0b', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Pending Queue Actions
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending Queue Actions</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-amber)' }}>
+              <Clock size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: '#f59e0b' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace' }}>
             {pendingCount}
           </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Awaiting role authorization review
+          </div>
         </div>
 
-        <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-          <div style={{ color: '#10b981', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Authorized & Finalized
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Authorized & Finalized</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-emerald)' }}>
+              <CheckCircle2 size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: '#10b981' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
             {approvedCount}
           </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Successfully passed compliance rules
+          </div>
         </div>
 
-        <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-          <div style={{ color: '#ef4444', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Rejected Requests
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-rose)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rejected Requests</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-rose)' }}>
+              <XCircle size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: '#ef4444' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-rose)', fontFamily: 'monospace' }}>
             {rejectedCount}
           </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Declined by authorization managers
+          </div>
         </div>
 
-        <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-          <div style={{ color: 'var(--accent-cyan)', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-            Active Approval Policies
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Approval Policies</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-cyan)' }}>
+              <SlidersHorizontal size={18} />
+            </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: '0.5rem', color: 'var(--accent-cyan)' }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>
             {policies.length} Policies
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            Governing rules active across entities
           </div>
         </div>
       </div>
 
-      {/* Filters Bar */}
+      {/* Approval Requests Table Card */}
       <div
+        className="card"
         style={{
-          display: 'flex',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: '300px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '0.5rem 0.75rem',
-              flex: 1,
-            }}
-          >
-            <Search size={16} color="var(--text-muted)" />
+        <div
+          style={{
+            padding: '1rem 1.25rem',
+            borderBottom: '1px solid var(--border-color)',
+            background: 'rgba(15, 23, 42, 0.4)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+          }}
+        >
+          <div style={{ position: 'relative', width: '380px', maxWidth: '100%' }}>
+            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Search request #, entity type..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
-                outline: 'none',
                 width: '100%',
-                fontSize: '0.875rem',
+                padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
               }}
             />
           </div>
 
-          <select
-            value={selectedWorkflowType}
-            onChange={(e) => setSelectedWorkflowType(e.target.value)}
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--text-primary)',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              outline: 'none',
-              fontSize: '0.875rem',
-            }}
-          >
-            <option value="ALL">All Workflow Types</option>
-            {workflowTypes.map((wt) => (
-              <option key={wt.workflowTypeCode} value={wt.workflowTypeCode}>
-                {wt.workflowTypeName}
-              </option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={selectedWorkflowType}
+              onChange={(e) => setSelectedWorkflowType(e.target.value)}
+              style={{
+                padding: '0.55rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+              }}
+            >
+              <option value="ALL">All Workflow Types</option>
+              {workflowTypes.map((wt) => (
+                <option key={wt.workflowTypeCode} value={wt.workflowTypeCode}>
+                  {wt.workflowTypeName}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--text-primary)',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              outline: 'none',
-              fontSize: '0.875rem',
-            }}
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="PENDING">Pending Action</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                padding: '0.55rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+              }}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">Pending Action</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      {/* Approval Requests Table */}
-      <div
-        style={{
-          background: 'var(--bg-card)',
-          borderRadius: '12px',
-          border: '1px solid var(--border-color)',
-          overflow: 'hidden',
-        }}
-      >
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+          <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
             <thead>
-              <tr style={{ background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Request #</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Workflow Type</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Entity Target</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Level</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Requested By</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Requested At</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Status</th>
-                <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Action</th>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Request #</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Workflow Type</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Entity Target</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Level</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Requested By</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Requested At</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
+                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -446,21 +439,14 @@ export const ApprovalsPage: React.FC = () => {
                           <>
                             <button
                               onClick={() => {
+                                setDecisionError(null);
                                 setSelectedRequest(req);
                                 setDecisionModalMode('APPROVE');
                               }}
                               title="Approve Request"
+                              className="btn btn-emerald"
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                padding: '0.4rem 0.75rem',
-                                borderRadius: '6px',
-                                border: '1px solid rgba(16, 185, 129, 0.4)',
-                                background: 'rgba(16, 185, 129, 0.15)',
-                                color: '#10b981',
-                                cursor: 'pointer',
-                                fontWeight: 600,
+                                padding: '0.35rem 0.65rem',
                                 fontSize: '0.75rem',
                               }}
                             >
@@ -469,22 +455,17 @@ export const ApprovalsPage: React.FC = () => {
                             </button>
                             <button
                               onClick={() => {
+                                setDecisionError(null);
                                 setSelectedRequest(req);
                                 setDecisionModalMode('REJECT');
                               }}
                               title="Reject Request"
+                              className="btn btn-secondary"
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                padding: '0.4rem 0.75rem',
-                                borderRadius: '6px',
-                                border: '1px solid rgba(239, 68, 68, 0.4)',
-                                background: 'rgba(239, 68, 68, 0.15)',
-                                color: '#ef4444',
-                                cursor: 'pointer',
-                                fontWeight: 600,
+                                padding: '0.35rem 0.65rem',
                                 fontSize: '0.75rem',
+                                color: 'var(--accent-rose)',
+                                borderColor: 'rgba(239, 68, 68, 0.4)',
                               }}
                             >
                               <X size={14} />
@@ -494,6 +475,7 @@ export const ApprovalsPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => {
+                              setDecisionError(null);
                               setSelectedRequest(req);
                               setDecisionModalMode('AUDIT');
                             }}
@@ -540,38 +522,62 @@ export const ApprovalsPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <ShieldCheck
-                  color={
-                    decisionModalMode === 'APPROVE'
-                      ? '#10b981'
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    borderRadius: 'var(--radius-md)',
+                    background:
+                      decisionModalMode === 'APPROVE'
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'rgba(244, 63, 94, 0.12)'
+                        : 'rgba(6, 182, 212, 0.12)',
+                    border: `1px solid ${
+                      decisionModalMode === 'APPROVE'
+                        ? 'rgba(16, 185, 129, 0.3)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'rgba(244, 63, 94, 0.3)'
+                        : 'rgba(6, 182, 212, 0.3)'
+                    }`,
+                    color:
+                      decisionModalMode === 'APPROVE'
+                        ? 'var(--accent-emerald)'
+                        : decisionModalMode === 'REJECT'
+                        ? 'var(--accent-rose)'
+                        : 'var(--accent-cyan)',
+                  }}
+                >
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {decisionModalMode === 'APPROVE'
+                      ? 'Confirm Approval Authorization'
                       : decisionModalMode === 'REJECT'
-                      ? '#ef4444'
-                      : 'var(--accent-cyan)'
-                  }
-                  size={24}
-                />
-                <h3 className="modal-title" style={{ margin: 0 }}>
-                  {decisionModalMode === 'APPROVE'
-                    ? 'Confirm Approval Decision'
-                    : decisionModalMode === 'REJECT'
-                    ? 'Confirm Rejection Decision'
-                    : `Decision Audit Trail: #${selectedRequest.requestNumber}`}
-                </h3>
+                      ? 'Confirm Rejection Decision'
+                      : `Approval Trail: #${selectedRequest.requestNumber}`}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Entity: {selectedRequest.entityType} · Request #{selectedRequest.requestNumber}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
-                className="modal-close"
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
                 onClick={() => {
                   setSelectedRequest(null);
                   setDecisionModalMode(null);
                 }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             <div className="modal-body">
+              <ModalErrorAlert error={decisionError} onDismiss={() => setDecisionError(null)} />
               <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                   <div>Request: <strong>{selectedRequest.requestNumber}</strong></div>

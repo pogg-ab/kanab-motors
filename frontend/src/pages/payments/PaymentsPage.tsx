@@ -22,6 +22,8 @@ import {
   Booking,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const PaymentsPage: React.FC = () => {
   const { can } = usePermissions();
@@ -43,6 +45,8 @@ export const PaymentsPage: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState<string>('Cheque returned due to insufficient drawer funds');
   const [rejecting, setRejecting] = useState<boolean>(false);
   const [customBankName, setCustomBankName] = useState<string>('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   const ETHIOPIAN_BANKS = [
     'Commercial Bank of Ethiopia (CBE)',
@@ -119,7 +123,7 @@ export const PaymentsPage: React.FC = () => {
       setCustomers(custRes.items || []);
       setBookings(bkgRes.items || []);
     } catch (err: any) {
-      showToast('error', err.message || 'Failed to load payments data');
+      showToast('error', formatApiError(err, 'Failed to load payments data'));
     } finally {
       setLoading(false);
     }
@@ -128,15 +132,16 @@ export const PaymentsPage: React.FC = () => {
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRecordPayment) return;
-    if (!newPayment.customerId || !newPayment.amount || newPayment.amount <= 0) {
-      showToast('error', 'Customer and positive amount are required');
+    setCreateError(null);
+    if (!newPayment.customerId || !newPayment.amount || Number(newPayment.amount) <= 0) {
+      setCreateError('Customer and positive deposit amount are required');
       return;
     }
 
     const resolvedBank =
       newPayment.bankName === 'OTHER' ? customBankName.trim() : (newPayment.bankName || customBankName.trim());
     if (!resolvedBank) {
-      showToast('error', 'Please select or enter a valid bank name');
+      setCreateError('Please select or enter a valid bank name');
       return;
     }
 
@@ -160,6 +165,7 @@ export const PaymentsPage: React.FC = () => {
       const created = await api.createPayment(payload);
       showToast('success', `BRV ${created.receiptNumber} recorded! Pending Finance confirmation.`);
       setShowCreateModal(false);
+      setCreateError(null);
       setCustomBankName('');
       setNewPayment({
         customerId: '',
@@ -173,7 +179,7 @@ export const PaymentsPage: React.FC = () => {
       });
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Payment recording failed');
+      setCreateError(formatApiError(err, 'Payment recording failed'));
     } finally {
       setSaving(false);
     }
@@ -187,7 +193,7 @@ export const PaymentsPage: React.FC = () => {
       showToast('success', `Payment ${result.receiptNumber} confirmed! Ledger updated.`);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Confirmation failed');
+      showToast('error', formatApiError(err, 'Confirmation failed'));
     } finally {
       setConfirmingId(null);
     }
@@ -197,8 +203,9 @@ export const PaymentsPage: React.FC = () => {
     e.preventDefault();
     if (!canRejectPayment) return;
     if (!rejectingPayment) return;
+    setRejectError(null);
     if (!rejectionReason.trim()) {
-      showToast('error', 'Rejection reason is mandatory');
+      setRejectError('Rejection reason is mandatory for audit trail compliance');
       return;
     }
     setRejecting(true);
@@ -206,10 +213,11 @@ export const PaymentsPage: React.FC = () => {
       const result = await api.rejectPayment(rejectingPayment.paymentId, rejectionReason.trim());
       showToast('success', `Payment ${result.receiptNumber} rejected`);
       setShowRejectModal(false);
+      setRejectError(null);
       setRejectingPayment(null);
       loadData();
     } catch (err: any) {
-      showToast('error', err.message || 'Rejection failed');
+      setRejectError(formatApiError(err, 'Rejection failed'));
     } finally {
       setRejecting(false);
     }
@@ -510,17 +518,34 @@ export const PaymentsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '660px' }}>
             <div className="modal-header">
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Record Bank Receipt Voucher (BRV)
-                </h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Official Deposit Recording & Bank Slip Reconciliation</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Record Bank Receipt Voucher (BRV)
+                  </h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Official Deposit Recording & Bank Slip Reconciliation</span>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleCreatePayment}>
               <div className="modal-body">
+                <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label className="form-label">Customer *</label>
@@ -666,11 +691,27 @@ export const PaymentsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '700px' }}>
             <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>KANAB MOTORS PRIVATE LIMITED COMPANY</h3>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Automotive Assembly & Import Logistics Division</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-emerald)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileCheck size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>KANAB MOTORS PRIVATE LIMITED COMPANY</h3>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Automotive Assembly & Import Logistics Division</div>
+                </div>
               </div>
-              <button onClick={() => setSelectedReceipt(null)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setSelectedReceipt(null)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <div className="modal-body">
@@ -754,19 +795,36 @@ export const PaymentsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
-                  Reject Bank Receipt Voucher
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Voucher: {rejectingPayment.receiptNumber} (ETB {Number(rejectingPayment.amount).toLocaleString()})
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(244, 63, 94, 0.12)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-rose)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
+                    Reject Bank Receipt Voucher
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Voucher: {rejectingPayment.receiptNumber} (ETB {Number(rejectingPayment.amount).toLocaleString()})
+                  </span>
+                </div>
               </div>
-              <button onClick={() => setShowRejectModal(false)} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>✕</button>
+              <button onClick={() => setShowRejectModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>✕</button>
             </div>
 
             <form onSubmit={handleRejectPayment}>
               <div className="modal-body">
+                <ModalErrorAlert error={rejectError} onDismiss={() => setRejectError(null)} />
                 <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label">Mandatory Audit Rejection Reason *</label>
                   <textarea

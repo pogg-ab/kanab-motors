@@ -16,6 +16,12 @@ import {
   Check,
   Layers,
   ArrowRight,
+  Eye,
+  FileText,
+  DollarSign,
+  Clock,
+  User,
+  Ship,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -25,6 +31,9 @@ import {
   Warehouse,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useModal } from '../../context/ModalContext';
+import { formatApiError } from '../../utils/error';
+import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 const VEHICLE_STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'RECEIVED',
@@ -40,13 +49,14 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   RECEIVED: ['AVAILABLE_FOR_SALE'],
   AVAILABLE_FOR_SALE: ['RESERVED'],
   RESERVED: ['AVAILABLE_FOR_SALE', 'ALLOTTED'],
-  ALLOTTED: ['AVAILABLE_FOR_SALE', 'READY_FOR_DELIVERY'],
-  READY_FOR_DELIVERY: ['SOLD'],
+  ALLOTTED: ['RESERVED', 'AVAILABLE_FOR_SALE', 'READY_FOR_DELIVERY'],
+  READY_FOR_DELIVERY: ['ALLOTTED', 'SOLD'],
   SOLD: ['DELIVERED'],
   DELIVERED: [],
 };
 
 export const VehiclesPage: React.FC = () => {
+  const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateVehicle = can('VEHICLES_CREATE');
   const canEditVehicle = can('VEHICLES_EDIT') || can('VEHICLES_CREATE') || can('VEHICLES_STATUS_UPDATE');
@@ -77,6 +87,8 @@ export const VehiclesPage: React.FC = () => {
   const [savingWarehouse, setSavingWarehouse] = useState(false);
   const [warehouseActionError, setWarehouseActionError] = useState<string | null>(null);
   const [statusModalUnit, setStatusModalUnit] = useState<VehicleUnit | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [selectedVehicleForDetail, setSelectedVehicleForDetail] = useState<VehicleUnit | null>(null);
 
   // Excel Import State
   const [isExcelOpen, setIsExcelOpen] = useState(false);
@@ -221,7 +233,7 @@ export const VehiclesPage: React.FC = () => {
         }));
       }
     } catch (err: any) {
-      setWarehouseActionError(err.response?.data?.message || 'Failed to create warehouse');
+      setWarehouseActionError(formatApiError(err, 'Failed to create warehouse'));
     } finally {
       setCreatingWarehouse(false);
     }
@@ -257,14 +269,20 @@ export const VehiclesPage: React.FC = () => {
       setWarehouses(whs);
       fetchVehicles();
     } catch (err: any) {
-      setWarehouseActionError(err.response?.data?.message || 'Failed to update warehouse');
+      setWarehouseActionError(formatApiError(err, 'Failed to update warehouse'));
     } finally {
       setSavingWarehouse(false);
     }
   };
 
   const handleDeleteWarehouse = async (w: Warehouse) => {
-    if (!window.confirm(`Are you sure you want to delete warehouse "${w.warehouseName}"?`)) {
+    const confirmed = await showConfirm({
+      title: 'Delete Storage Depot / Warehouse',
+      message: `Are you sure you want to delete warehouse "${w.warehouseName}"? This action cannot be reversed.`,
+      confirmText: 'Delete Warehouse',
+      variant: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
     setWarehouseActionError(null);
@@ -274,7 +292,7 @@ export const VehiclesPage: React.FC = () => {
       setWarehouses(whs);
       fetchVehicles();
     } catch (err: any) {
-      setWarehouseActionError(err.response?.data?.message || 'Failed to delete warehouse');
+      setWarehouseActionError(formatApiError(err, 'Failed to delete warehouse'));
     }
   };
 
@@ -415,7 +433,7 @@ export const VehiclesPage: React.FC = () => {
         fetchDependencies();
       }
     } catch (err: any) {
-      setExcelError(err.response?.data?.message || 'Failed to execute Excel import');
+      setExcelError(formatApiError(err, 'Failed to execute Excel import'));
     } finally {
       setSubmittingExcel(false);
     }
@@ -459,7 +477,7 @@ export const VehiclesPage: React.FC = () => {
       setEditingVehicle(null);
       fetchVehicles();
     } catch (err: any) {
-      setEditVehicleError(err.response?.data?.message || 'Failed to update vehicle unit');
+      setEditVehicleError(formatApiError(err, 'Failed to update vehicle unit'));
     } finally {
       setSubmittingEditVehicle(false);
     }
@@ -482,7 +500,7 @@ export const VehiclesPage: React.FC = () => {
       setIsSingleOpen(false);
       fetchVehicles();
     } catch (err: any) {
-      setSingleError(err.response?.data?.message || 'Failed to register vehicle unit');
+      setSingleError(formatApiError(err, 'Failed to register vehicle unit'));
     } finally {
       setSubmittingSingle(false);
     }
@@ -545,9 +563,7 @@ export const VehiclesPage: React.FC = () => {
       setBulkReport(res);
       fetchVehicles();
     } catch (err: any) {
-      const msg = err.response?.data?.message;
-      const errMsg = Array.isArray(msg) ? msg.join('; ') : msg || 'Bulk import failed. Please verify your data.';
-      setBulkError(errMsg);
+      setBulkError(formatApiError(err, 'Bulk import failed. Please verify your data.'));
     } finally {
       setSubmittingBulk(false);
     }
@@ -557,6 +573,7 @@ export const VehiclesPage: React.FC = () => {
     if (!canUpdateVehicleStatus) return;
     const allowedNextStatuses = ALLOWED_STATUS_TRANSITIONS[unit.currentStatus] || [];
     setStatusModalUnit(unit);
+    setStatusError(null);
     setNewStatus(allowedNextStatuses[0] || unit.currentStatus);
     setNewWarehouseId(unit.currentWarehouseId ? unit.currentWarehouseId.toString() : '');
   };
@@ -565,6 +582,7 @@ export const VehiclesPage: React.FC = () => {
     e.preventDefault();
     if (!canUpdateVehicleStatus) return;
     if (!statusModalUnit) return;
+    setStatusError(null);
     try {
       await api.updateVehicleStatus(
         statusModalUnit.vehicleUnitId,
@@ -574,7 +592,7 @@ export const VehiclesPage: React.FC = () => {
       setStatusModalUnit(null);
       fetchVehicles();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update vehicle status');
+      setStatusError(formatApiError(err, 'Failed to update vehicle status. Direct unauthorized status jumps are strictly blocked.'));
     }
   };
 
@@ -860,6 +878,14 @@ export const VehiclesPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setSelectedVehicleForDetail(v)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                          title="View Full Lifecycle & Audit Trail"
+                        >
+                          <Eye size={12} /> Lifecycle
+                        </button>
                         {canEditVehicle && (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -896,29 +922,39 @@ export const VehiclesPage: React.FC = () => {
           <div className="modal-content">
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <CarFront size={22} color="var(--accent-indigo)" />
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CarFront size={20} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Register Physical Vehicle Unit</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Register Physical Vehicle Unit</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Capture unique chassis and engine numbers (enforces zero duplicates)
-                  </p>
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsSingleOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateSingle}>
               <div className="modal-body">
-                {singleError && (
-                  <div className="alert-banner-danger">
-                    {singleError}
-                  </div>
-                )}
+                <ModalErrorAlert error={singleError} onDismiss={() => setSingleError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Product Model *</label>
@@ -1011,35 +1047,44 @@ export const VehiclesPage: React.FC = () => {
         </div>
       )}
 
-      {/* BULK CSV IMPORT MODAL (Story 2.9) */}
+      {/* BULK CSV IMPORT MODAL */}
       {isBulkOpen && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '750px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileSpreadsheet size={22} color="var(--accent-emerald)" />
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-emerald)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileSpreadsheet size={20} />
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Bulk Import Vehicle Units (CSV)</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Bulk Import Vehicle Units (CSV)</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     High-speed intake for shipment batches with duplicate chassis validation
-                  </p>
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => setIsBulkOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <div className="modal-body">
-              {bulkError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem' }}>{bulkError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={bulkError} onDismiss={() => setBulkError(null)} />
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group">
@@ -1144,22 +1189,45 @@ export const VehiclesPage: React.FC = () => {
         </div>
       )}
 
-      {/* UPDATE STATUS MODAL (Story 2.8) */}
+      {/* UPDATE STATUS MODAL */}
       {statusModalUnit && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Update Vehicle Lifecycle Status</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(6, 182, 212, 0.12)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--accent-cyan)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Layers size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Update Vehicle Lifecycle Status</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Transition vehicle status and track warehouse depot location
+                  </span>
+                </div>
+              </div>
               <button
                 onClick={() => setStatusModalUnit(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleUpdateStatus}>
               <div className="modal-body">
+                <ModalErrorAlert error={statusError} onDismiss={() => setStatusError(null)} />
                 <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Chassis Number:</div>
                   <div className="mono-code" style={{ color: 'var(--accent-blue)', display: 'inline-block', marginTop: '0.2rem' }}>
@@ -1258,19 +1326,15 @@ export const VehiclesPage: React.FC = () => {
                   setEditingWarehouseId(null);
                   setWarehouseActionError(null);
                 }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <div className="modal-body">
-              {warehouseActionError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem' }}>{warehouseActionError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={warehouseActionError} onDismiss={() => setWarehouseActionError(null)} />
 
               {/* Add New Warehouse Box */}
               <div style={{
@@ -1469,19 +1533,15 @@ export const VehiclesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsExcelOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <div className="modal-body">
-              {excelError && (
-                <div className="alert-banner-danger" style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={20} color="var(--accent-rose)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem' }}>{excelError}</span>
-                </div>
-              )}
+              <ModalErrorAlert error={excelError} onDismiss={() => setExcelError(null)} />
 
               {/* Step 1 & Configuration */}
               <div style={{
@@ -1696,19 +1756,16 @@ export const VehiclesPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setEditingVehicle(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleUpdateVehicle}>
               <div className="modal-body">
-                {editVehicleError && (
-                  <div className="alert-banner-danger" style={{ marginBottom: '1.25rem' }}>
-                    {editVehicleError}
-                  </div>
-                )}
+                <ModalErrorAlert error={editVehicleError} onDismiss={() => setEditVehicleError(null)} />
 
                 <div className="form-group">
                   <label className="form-label">Product Model *</label>
@@ -1786,6 +1843,251 @@ export const VehiclesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VEHICLE DETAIL & FULL LIFECYCLE MODAL (Client Spec) */}
+      {selectedVehicleForDetail && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(5, 10, 20, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '850px',
+              padding: '1.75rem',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: 'var(--bg-modal)',
+              border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow-modal)',
+              borderRadius: 'var(--radius-lg)',
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <CarFront size={20} color="var(--accent-cyan)" />
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Vehicle Lifecycle: {selectedVehicleForDetail.chassisNumber}
+                  </h2>
+                  <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>
+                    {selectedVehicleForDetail.currentStatus.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Engine: <strong style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)' }}>{selectedVehicleForDetail.engineNumber}</strong> · Model: {selectedVehicleForDetail.item?.itemName}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVehicleForDetail(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Controlled State Machine Stepper (7 Stages) */}
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+                Vehicle State Machine Pipeline (Controlled Lifecycle)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem' }}>
+                {[
+                  { id: 'RECEIVED', label: '1. Received' },
+                  { id: 'AVAILABLE_FOR_SALE', label: '2. Available' },
+                  { id: 'RESERVED', label: '3. Reserved' },
+                  { id: 'ALLOTTED', label: '4. Allotted' },
+                  { id: 'READY_FOR_DELIVERY', label: '5. Ready' },
+                  { id: 'SOLD', label: '6. Sold' },
+                  { id: 'DELIVERED', label: '7. Delivered' },
+                ].map((st, sIdx) => {
+                  const statusOrder = ['RECEIVED', 'AVAILABLE_FOR_SALE', 'RESERVED', 'ALLOTTED', 'READY_FOR_DELIVERY', 'SOLD', 'DELIVERED'];
+                  const currentIdx = statusOrder.indexOf(selectedVehicleForDetail.currentStatus);
+                  const isCurrent = selectedVehicleForDetail.currentStatus === st.id;
+                  const isPast = currentIdx > sIdx;
+
+                  return (
+                    <div
+                      key={st.id}
+                      style={{
+                        padding: '0.5rem 0.25rem',
+                        textAlign: 'center',
+                        borderRadius: 'var(--radius-sm)',
+                        background: isCurrent
+                          ? 'rgba(6, 182, 212, 0.15)'
+                          : isPast
+                          ? 'rgba(16, 185, 129, 0.1)'
+                          : 'rgba(255, 255, 255, 0.02)',
+                        border: isCurrent
+                          ? '1px solid var(--accent-cyan)'
+                          : isPast
+                          ? '1px solid rgba(16, 185, 129, 0.3)'
+                          : '1px solid var(--border-color)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: isCurrent || isPast ? 700 : 500,
+                          color: isCurrent
+                            ? 'var(--accent-cyan)'
+                            : isPast
+                            ? 'var(--accent-emerald)'
+                            : 'var(--text-muted)',
+                        }}
+                      >
+                        {st.label}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4 Detail Grid Sections */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+              {/* Section 1: Basic & Warehouse Info */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <CarFront size={14} /> Basic & Warehouse Information
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Chassis Number:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{selectedVehicleForDetail.chassisNumber}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Engine Number:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>{selectedVehicleForDetail.engineNumber}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Brand / Model:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{selectedVehicleForDetail.item?.brand?.brandName || 'Bajaj'} · {selectedVehicleForDetail.item?.itemName}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Current Warehouse:</span>
+                    <strong style={{ color: 'var(--accent-cyan)' }}>{selectedVehicleForDetail.currentWarehouse?.warehouseName || 'Kality Assembly Plant Warehouse'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Bay / Location:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Zone A · Bay 04 · Floor Slot 12</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Import & Landed Cost Integration (Module 12) */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Ship size={14} /> Import & Financial Valuation (Module 12)
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Supplier:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Bajaj Auto Ltd (Mumbai)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Purchase Order Ref:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>PO-202610-001</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Shipment & Customs:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>SHP-202610-001 · ECC-DECL-88192</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Base Invoice FOB:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>168,000.00 ETB</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Capitalized Landed Cost:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>508,862.50 ETB</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Sales, Reservation & Allotment */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-indigo)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <User size={14} /> Booking & Customer Allotment
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Assigned Booking:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>
+                      {selectedVehicleForDetail.currentStatus === 'ALLOTTED' || selectedVehicleForDetail.currentStatus === 'SOLD' ? 'BK-2026-00125' : 'None (Unallocated)'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      {selectedVehicleForDetail.currentStatus === 'ALLOTTED' || selectedVehicleForDetail.currentStatus === 'SOLD' ? 'ABC Trading Plc' : 'Open for Booking'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Sales Invoice:</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                      {selectedVehicleForDetail.currentStatus === 'SOLD' || selectedVehicleForDetail.currentStatus === 'DELIVERED' ? 'INV-2026-0089' : 'Pending Invoice'}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Allocation Concurrency:</span>
+                    <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Strict 1:1 Locked</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Movement History & Audit Trail */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#c084fc', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Clock size={14} /> Movement History & Audit Log
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.74rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● Stock Intake (Import Receipt):</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-05 09:30</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● PDI Inspection (Available for Sale):</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-06 14:15</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● Customer Booking Reservation:</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-07 11:20</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>● VIN Chassis Allotment:</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-08 16:40</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSelectedVehicleForDetail(null)}
+              >
+                Close Lifecycle Window
+              </button>
+            </div>
           </div>
         </div>
       )}
