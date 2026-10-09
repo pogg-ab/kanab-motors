@@ -346,12 +346,16 @@ export interface Allotment {
   allotmentNumber: string;
   bookingId: string;
   booking?: Booking;
-  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  status: 'DRAFT' | 'SUBMITTED' | 'REQUESTED' | 'UNDER_REVIEW' | 'APPROVED' | 'POSTED' | 'REJECTED' | 'CANCELLED' | 'REVERSED' | string;
   requestedBy?: number;
   requestedAt: string;
   approvedBy?: number;
   approvedAt?: string;
   rejectionReason?: string;
+  remarks?: string;
+  notes?: string;
+  dispatchLocation?: string;
+  warehouseName?: string;
   lines?: AllotmentLine[];
 }
 

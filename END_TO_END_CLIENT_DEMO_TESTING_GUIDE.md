@@ -917,25 +917,120 @@ Provide executive and operational visibility through the **11 Client-Mandated In
 
 # PHASE 7 — Allotment, Invoice, Delivery
 
-## Screen 19: Vehicle Allotments
+## Screen 19: Vehicle Allotment Management (Module 14)
 
-**Navigation:** `Vehicle Allotments`
+**Navigation:** `Logistics & Sales Pipeline → Vehicle Allotment Management` (`/allotment`)
 
-### Create Allotment input checklist
+### Goal
+Demonstrate compliance with **Client Specification: Module 14 — Vehicle Allotment Management**:
+1. **Relationship with Previous Modules**:
+   - Module 14 does **not** create an independent vehicle inventory system.
+   - It directly **consumes real-time vehicle inventory information from Module 13**.
+   - Integrations: Module 5 (Product Master), Module 7 (Bookings), Module 8 (Customer Payments), Module 9 (Customer Ledger), Module 10 (Customer Credit), Module 11 (Refund / Cancellation), Module 12 (Imported Vehicles & Landed Cost), Module 13 (Real-Time Vehicle Inventory), and Module 15+ (Delivery Handover & Invoicing).
+2. **Current Allotment Format Specification**:
+   - **Header**: Allotment Number, Allotment Date, Booking Number, Customer, Customer Type, Dispatch Location, Warehouse, Salesperson, Remarks, Status, Prepared By, Approved By, Approval Date.
+   - **Item Information**: Product/Item, Model, Booking Quantity, Previously Allotted Quantity, Current Allotment Quantity, Remaining Quantity.
+   - **Vehicle Information**: Vehicle ID, Chassis Number, Engine Number, Warehouse, Unit Cost, Vehicle Status.
+3. **Booking Eligibility Validation**:
+   - Booking Status: `APPROVED` / `CONFIRMED`.
+   - Booking Quantity: $\text{Remaining Quantity} > 0$.
+   - Customer Status: Customer account must be active and valid.
+   - Payment Requirement: Active deposit threshold satisfied.
+   - Cancellation Gate: Cancelled or closed bookings are strictly blocked from allotment.
+   - Product Matching: Assigned vehicles must strictly match the booked product/model.
+4. **Configurable Payment Status Validation Rules**:
+   - **Option A — Minimum Deposit (Active Default)**: Required Deposit = 30% of Booking Value.
+   - **Option B — Fixed Amount**: Required Payment = 100,000 ETB per Booking.
+   - **Option C — Full Payment**: Paid Amount $\ge$ Booking Total Due (100%).
+   - **Option D — Manager Exception Override**: Authorized General Manager waiver for institutional fleet tenders.
+5. **Inventory Availability Validation**:
+   - Real-time stock retrieved directly from Module 13:
+     $$\text{Max Allotment Capacity} = \min(\text{Available in Warehouse},\; \text{Booking Remaining Needed})$$
+   - Availability is re-verified dynamically during both request submission and final posting.
+6. **Individual Vehicle Selection Table**:
+   - Format: `SELECT | CHASSIS NUMBER | ENGINE NUMBER | MODEL | WAREHOUSE | STATUS`.
+   - Chassis and Engine serials auto-loaded directly from inventory (eliminates manual data-entry errors).
+   - Only vehicles in `AVAILABLE_FOR_SALE` status eligible for allocation.
+7. **Double Allocation Defense (Multi-Level Protection)**:
+   - **UI Level**: Already allocated or reserved vehicles hidden from candidate table.
+   - **Backend Level**: Pre-transaction re-validation of vehicle availability.
+   - **Database Level**: Concurrency locking preventing simultaneous assignment of the same VIN.
+   - **Standard Concurrency Notice**: *"Vehicle {chassis} is no longer available. Please refresh inventory and select another vehicle."*
+8. **12-Step Controlled Atomic Transaction Pipeline**:
+   When an allotment is approved and posted, the system executes 12 steps in a single atomic database transaction:
+   1. Revalidate booking
+   2. Revalidate payment status
+   3. Revalidate remaining quantity
+   4. Revalidate vehicle availability
+   5. Lock selected vehicles
+   6. Create / update allotment record
+   7. Update vehicle status (`AVAILABLE_FOR_SALE → ALLOTTED`)
+   8. Update inventory allocation (Module 13 on-hand, reserved, allocated balances)
+   9. Update booking allocation status (`FULLY_ALLOTTED` or `PARTIALLY_ALLOTTED`)
+   10. Create inventory movement history (`ALLOCATION` voucher)
+   11. Create allotment audit journal record
+   12. Commit transaction with complete rollback on any exception.
+9. **Allotment Status Machine & Segregation-of-Duties (RBAC)**:
+   $$\mathbf{DRAFT} \longrightarrow \mathbf{SUBMITTED} \longrightarrow \mathbf{UNDER\_REVIEW} \longrightarrow \mathbf{APPROVED} \longrightarrow \mathbf{POSTED}$$
+   - Exceptions: `REJECTED`, `CANCELLED`, `REVERSED`.
+   - Approval Roles Matrix:
+     | Action | Sales Officer | Sales Manager | Finance | Admin |
+     |---|:---:|:---:|:---:|:---:|
+     | Create Allotment | ✓ | ✓ | - | ✓ |
+     | Submit Review | ✓ | ✓ | - | ✓ |
+     | View Payment | ✓ | ✓ | ✓ | ✓ |
+     | Approve Allotment | - | ✓ | - | ✓ |
+     | Reject Allotment | - | ✓ | - | ✓ |
+     | Post to Inventory | - | ✓ | ✓* | ✓ |
+     | Reverse / Un-allot | - | ✓ | ✓ | ✓ |
+10. **Allotment Cancellation & Non-Destructive Reversal**:
+    - `ALLOTTED → ALLOTMENT REVERSED → AVAILABLE_FOR_SALE`.
+    - Preserves historical allotment record intact; creates explicit reversal transaction.
+11. **Allotment History & Audit Ledger Tab**:
+    - Columns: `Date | Allotment Ref | Booking | Customer | Chassis Number | Engine Number | Warehouse | Status | User / Actor`.
+12. **Printable / PDF Allotment Document (★)**:
+    - Formal advice slip with KANAB Motors header, booking and customer metadata, breakdown table, serial master roster, signatures (`Prepared By`, `Approved By`), and official corporate stamp.
 
-- Booking: select eligible confirmed booking
-- Vehicle Unit / Chassis: select available vehicle unit
-- Notes: `E2E allotment request`
+---
 
-### Approval checklist
+### Step-by-Step Test Procedure
 
-- Submit allotment request.
-- Approve request with authorized user.
+#### Step 1: Verify Eligible Bookings Queue
+1. Open **Vehicle Allotment Management** and click the **Eligible Bookings Queue** tab.
+2. Confirm confirmed orders appear with deposit status (e.g. `ETB 100,000+` verified $\ge 30\%$).
+3. Click **Allot Vehicles** next to a booking to open the allocation modal.
 
-### Expected result
+#### Step 2: Select Individual Vehicles from Module 13 Inventory
+1. In the **New Vehicle Allotment Request** modal:
+   - Selected Booking auto-populates Customer, Customer Type, Model, and Deposit status.
+   - Review computed capacity: $\text{Available in WH} = N, \;\text{Remaining Needed} = M, \;\text{Max Can Allot} = \min(N, M)$.
+2. Select vehicle unit checkbox from the table displaying `Chassis Number | Engine Number | Model | Warehouse | Status`.
+3. Enter optional remarks (e.g. `Allocation for Dire Dawa commercial fleet dispatch`).
+4. Click **Submit Allotment Request**.
 
-- Vehicle status changes to allotted/reserved.
-- Same chassis cannot be allotted twice.
+#### Step 3: Review & Atomic 12-Step Posting
+1. In the **Allotments & Approvals** tab, locate the requested allotment.
+2. Click **Review & Post** to open the approval review drawer.
+3. Verify Customer Type, Deposit Verification (≥30%), and the Assigned Vehicle table.
+4. Click **Approve & Post Allotment**:
+   - System executes the 12-step atomic transaction.
+   - Vehicle status transitions from `AVAILABLE_FOR_SALE` to `ALLOTTED`.
+   - Module 13 Allocated Stock balance increments; Available Stock decrements.
+   - Status updates to `APPROVED` / `POSTED`.
+
+#### Step 4: Generate Formal Printable PDF Document
+1. Click **Document** on the approved allotment row.
+2. Review the formal **Vehicle Allotment Advice**:
+   - Allotment No, Date, Booking No, Customer, Dispatch Location (`Dire Dawa`), Warehouse (`Kality Plant`).
+   - Serialized VIN/Chassis and Engine table with unit valuation.
+   - Signatures for Sales Officer, Sales Manager, and Official Corporate Seal.
+3. Click **Print Document (PDF)** to trigger browser print preview.
+
+#### Step 5: Test Non-Destructive Reversal / Un-Allotment
+1. On an approved allotment, click **Un-allot**.
+2. Confirm the reversal warning.
+3. Verify vehicle units return to `AVAILABLE_FOR_SALE` in Module 13.
+4. Open the **Allotment History & Audit Ledger** tab and confirm both the original allotment and reversal records remain visible for audit compliance.
 
 ---
 
