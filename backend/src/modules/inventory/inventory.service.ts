@@ -125,7 +125,51 @@ export class InventoryService {
   // =====================================================================
   // 3. STOCK BALANCES & LOW STOCK ALERTS (Stories G1, G3)
   // =====================================================================
+  async syncVehicleStockBalances(): Promise<void> {
+    try {
+      // 1. Sync tracked physical vehicle counts per warehouse into stock_balance
+      await this.dataSource.query(`
+        INSERT INTO stock_balance (warehouse_id, item_id, quantity_on_hand, quantity_reserved)
+        SELECT 
+          vu.current_warehouse_id, 
+          vu.item_id, 
+          COUNT(*) FILTER (WHERE vu.current_status IN ('RECEIVED', 'PDI_PASSED', 'AVAILABLE_FOR_SALE', 'RESERVED', 'ALLOTTED'))::numeric AS on_hand,
+          COUNT(*) FILTER (WHERE vu.current_status IN ('RESERVED', 'ALLOTTED'))::numeric AS reserved
+        FROM vehicle_unit vu
+        JOIN product_item pi ON pi.item_id = vu.item_id
+        WHERE vu.current_warehouse_id IS NOT NULL 
+          AND vu.item_id IS NOT NULL
+          AND pi.is_individually_tracked = true
+        GROUP BY vu.current_warehouse_id, vu.item_id
+        ON CONFLICT (warehouse_id, item_id)
+        DO UPDATE SET 
+          quantity_on_hand = EXCLUDED.quantity_on_hand,
+          quantity_reserved = EXCLUDED.quantity_reserved,
+          updated_at = now();
+      `);
+
+      // 2. Zero-out any stock_balance rows for tracked vehicles if all units departed/delivered
+      await this.dataSource.query(`
+        UPDATE stock_balance sb
+        SET quantity_on_hand = 0, quantity_reserved = 0, updated_at = now()
+        FROM product_item pi
+        WHERE sb.item_id = pi.item_id
+          AND pi.is_individually_tracked = true
+          AND NOT EXISTS (
+            SELECT 1 FROM vehicle_unit vu
+            WHERE vu.current_warehouse_id = sb.warehouse_id
+              AND vu.item_id = sb.item_id
+              AND vu.current_status IN ('RECEIVED', 'PDI_PASSED', 'AVAILABLE_FOR_SALE', 'RESERVED', 'ALLOTTED')
+          );
+      `);
+    } catch (err) {
+      // Graceful fallback if query fails
+    }
+  }
+
   async getStockBalances(warehouseId?: number, itemId?: string): Promise<StockBalance[]> {
+    await this.syncVehicleStockBalances();
+
     const qb = this.stockBalanceRepo
       .createQueryBuilder('sb')
       .leftJoinAndSelect('sb.warehouse', 'w')
@@ -143,6 +187,7 @@ export class InventoryService {
   }
 
   async getLowStockAlerts(): Promise<any[]> {
+    await this.syncVehicleStockBalances();
     return this.dataSource.query(`SELECT * FROM vw_low_stock_alert`);
   }
 
