@@ -77,6 +77,10 @@ export class UpdateSparePartDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsString()
+  usageType?: string;
+
+  @IsOptional()
   @IsArray()
   compatibilities?: CompatibilityEntryDto[];
 }

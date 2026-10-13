@@ -99,6 +99,10 @@ export class CreateSparePartDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsString()
+  usageType?: string; // 'SALES_ONLY' | 'ASSEMBLY_ONLY' | 'BOTH'
+
+  @IsOptional()
   @IsArray()
   compatibilities?: CompatibilityEntryDto[];
 }

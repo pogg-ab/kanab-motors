@@ -1193,6 +1193,7 @@ export interface SparePartItem {
   taxConfigId?: number;
   taxConfig?: TaxConfiguration;
   reorderLevel: number;
+  usageType?: 'SALES_ONLY' | 'ASSEMBLY_ONLY' | 'BOTH';
   isActive: boolean;
   stock?: {
     onHand: number;
@@ -1233,6 +1234,7 @@ export interface SparePartStockItem {
   itemCode: string;
   itemName: string;
   partNumber?: string;
+  usageType?: 'SALES_ONLY' | 'ASSEMBLY_ONLY' | 'BOTH';
   reorderLevel: number;
   sellingPrice: number;
   purchasePrice: number;

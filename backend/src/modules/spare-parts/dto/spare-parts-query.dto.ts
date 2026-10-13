@@ -26,6 +26,10 @@ export class SparePartsQueryDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsString()
+  usageType?: string;
+
+  @IsOptional()
   @IsNumber()
   @Type(() => Number)
   warehouseId?: number;

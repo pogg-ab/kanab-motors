@@ -86,6 +86,7 @@ export class SparePartsService {
         taxConfigId: dto.taxConfigId || null,
         reorderLevel: dto.reorderLevel || 0,
         preferredSupplierId: dto.preferredSupplierId || null,
+        usageType: dto.usageType || 'BOTH',
         isIndividuallyTracked: false,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
         createdBy: userId,
@@ -169,6 +170,10 @@ export class SparePartsService {
 
     if (query.isActive !== undefined) {
       qb.andWhere('p.isActive = :isActive', { isActive: query.isActive });
+    }
+
+    if (query.usageType) {
+      qb.andWhere('p.usageType = :usageType', { usageType: query.usageType });
     }
 
     qb.orderBy('p.itemId', 'DESC');
@@ -304,6 +309,7 @@ export class SparePartsService {
       if (dto.taxConfigId !== undefined) item.taxConfigId = dto.taxConfigId;
       if (dto.reorderLevel !== undefined) item.reorderLevel = dto.reorderLevel;
       if (dto.preferredSupplierId !== undefined) item.preferredSupplierId = dto.preferredSupplierId;
+      if (dto.usageType !== undefined) item.usageType = dto.usageType;
       if (dto.isActive !== undefined) item.isActive = dto.isActive;
       item.updatedBy = userId;
 
@@ -412,6 +418,7 @@ export class SparePartsService {
         pi.item_code,
         pi.item_name,
         pi.part_number,
+        pi.usage_type,
         pi.reorder_level,
         pi.selling_price,
         pi.purchase_price,
@@ -452,6 +459,7 @@ export class SparePartsService {
       itemCode: r.item_code,
       itemName: r.item_name,
       partNumber: r.part_number,
+      usageType: r.usage_type || 'BOTH',
       reorderLevel: Number(r.reorder_level),
       sellingPrice: Number(r.selling_price),
       purchasePrice: Number(r.purchase_price),
@@ -573,6 +581,11 @@ export class SparePartsService {
         });
         if (!item) {
           throw new BadRequestException(`Active spare part #${line.itemId} not found.`);
+        }
+        if (item.usageType === 'ASSEMBLY_ONLY') {
+          throw new BadRequestException(
+            `Spare part "${item.itemCode} - ${item.itemName}" is designated for "Assembly Only" and cannot be sold through POS / Counter Sales.`,
+          );
         }
 
         // Lock stock balance row for update

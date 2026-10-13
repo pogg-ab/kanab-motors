@@ -96,6 +96,9 @@ export class ProductItem {
   @Column({ name: 'compatible_model', length: 100, nullable: true })
   compatibleModel?: string;
 
+  @Column({ name: 'usage_type', length: 30, default: 'BOTH' })
+  usageType: string; // 'SALES_ONLY' | 'ASSEMBLY_ONLY' | 'BOTH'
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

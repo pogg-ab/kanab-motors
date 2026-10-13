@@ -63,6 +63,7 @@ export const SparePartsPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<number | ''>('');
   const [selectedBrand, setSelectedBrand] = useState<number | ''>('');
   const [filterModel, setFilterModel] = useState('');
+  const [filterUsageType, setFilterUsageType] = useState<string>('');
   const [totalPartsCount, setTotalPartsCount] = useState(0);
 
   // Stock State
@@ -145,7 +146,7 @@ export const SparePartsPage: React.FC = () => {
     } else if (activeSubTab === 'reports') {
       loadReports();
     }
-  }, [activeSubTab, searchQuery, selectedCategory, selectedBrand, filterModel, selectedStockWarehouse, filterLowStockOnly]);
+  }, [activeSubTab, searchQuery, selectedCategory, selectedBrand, filterModel, filterUsageType, selectedStockWarehouse, filterLowStockOnly]);
 
   // Load summary metrics & full active parts list on mount
   useEffect(() => {
@@ -161,6 +162,7 @@ export const SparePartsPage: React.FC = () => {
         categoryId: selectedCategory || undefined,
         brandId: selectedBrand || undefined,
         model: filterModel || undefined,
+        usageType: filterUsageType || undefined,
         limit: 50,
       });
       setParts(res.items);
@@ -529,12 +531,25 @@ export const SparePartsPage: React.FC = () => {
                   onChange={(e) => setFilterModel(e.target.value)}
                 />
 
-                {(selectedCategory || selectedBrand || filterModel || searchQuery) && (
+                <select
+                  className="input"
+                  style={{ width: '185px', height: '38px', fontSize: '0.85rem' }}
+                  value={filterUsageType}
+                  onChange={(e) => setFilterUsageType(e.target.value)}
+                >
+                  <option value="">All Usage Types</option>
+                  <option value="SALES_ONLY">🛒 Sales Only</option>
+                  <option value="ASSEMBLY_ONLY">🏭 Assembly Only</option>
+                  <option value="BOTH">🔄 Sales & Assembly</option>
+                </select>
+
+                {(selectedCategory || selectedBrand || filterModel || filterUsageType || searchQuery) && (
                   <button
                     onClick={() => {
                       setSelectedCategory('');
                       setSelectedBrand('');
                       setFilterModel('');
+                      setFilterUsageType('');
                       setSearchQuery('');
                     }}
                     className="btn btn-secondary btn-sm"
@@ -612,13 +627,28 @@ export const SparePartsPage: React.FC = () => {
                           </div>
                         </td>
                         <td style={{ padding: '1rem 1.25rem' }}>
-                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
                             <span className="badge badge-indigo">
                               {p.category?.categoryName || 'SPARE_PARTS'}
                             </span>
                             {p.brand && (
                               <span className="badge badge-cyan">
                                 {p.brand.brandName}
+                              </span>
+                            )}
+                            {p.usageType === 'SALES_ONLY' && (
+                              <span className="badge badge-emerald" style={{ fontSize: '0.66rem' }} title="Designated for Retail / POS Sales Only">
+                                🛒 Sales Only
+                              </span>
+                            )}
+                            {p.usageType === 'ASSEMBLY_ONLY' && (
+                              <span className="badge badge-amber" style={{ fontSize: '0.66rem' }} title="Reserved for Factory Vehicle Assembly Only">
+                                🏭 Assembly Only
+                              </span>
+                            )}
+                            {(p.usageType === 'BOTH' || !p.usageType) && (
+                              <span className="badge badge-subtle" style={{ fontSize: '0.66rem' }} title="Usable for Both Sales and Assembly">
+                                🔄 Sales & Assembly
                               </span>
                             )}
                           </div>
@@ -1343,6 +1373,9 @@ const SparePartFormModal: React.FC<SparePartFormModalProps> = ({
   const [purchasePrice, setPurchasePrice] = useState<number>(editingPart?.purchasePrice || 0);
   const [sellingPrice, setSellingPrice] = useState<number>(editingPart?.sellingPrice || 0);
   const [reorderLevel, setReorderLevel] = useState<number>(editingPart?.reorderLevel || 10);
+  const [usageType, setUsageType] = useState<'SALES_ONLY' | 'ASSEMBLY_ONLY' | 'BOTH'>(
+    (editingPart?.usageType as any) || 'BOTH',
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1370,6 +1403,7 @@ const SparePartFormModal: React.FC<SparePartFormModalProps> = ({
         purchasePrice: Number(purchasePrice) || 0,
         sellingPrice: Number(sellingPrice),
         reorderLevel: Number(reorderLevel) || 0,
+        usageType,
       };
 
       if (editingPart) {
@@ -1572,6 +1606,91 @@ const SparePartFormModal: React.FC<SparePartFormModalProps> = ({
                   onChange={(e) => setReorderLevel(Number(e.target.value))}
                   className="input-field"
                 />
+              </div>
+            </div>
+
+            {/* Usage Type Designation */}
+            <div className="form-group" style={{ background: 'var(--bg-table-header)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <label className="form-label" style={{ fontWeight: 700, marginBottom: '0.45rem', display: 'block' }}>
+                Part Usage Designation *
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: usageType === 'SALES_ONLY' ? '2px solid var(--accent-emerald)' : '1px solid var(--border-color)',
+                    background: usageType === 'SALES_ONLY' ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '0.82rem',
+                    fontWeight: usageType === 'SALES_ONLY' ? 700 : 500,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="partUsageType"
+                    value="SALES_ONLY"
+                    checked={usageType === 'SALES_ONLY'}
+                    onChange={() => setUsageType('SALES_ONLY')}
+                  />
+                  <span>🛒 Sales Only</span>
+                </label>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: usageType === 'ASSEMBLY_ONLY' ? '2px solid var(--accent-amber)' : '1px solid var(--border-color)',
+                    background: usageType === 'ASSEMBLY_ONLY' ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '0.82rem',
+                    fontWeight: usageType === 'ASSEMBLY_ONLY' ? 700 : 500,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="partUsageType"
+                    value="ASSEMBLY_ONLY"
+                    checked={usageType === 'ASSEMBLY_ONLY'}
+                    onChange={() => setUsageType('ASSEMBLY_ONLY')}
+                  />
+                  <span>🏭 Assembly Only</span>
+                </label>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: usageType === 'BOTH' ? '2px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                    background: usageType === 'BOTH' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '0.82rem',
+                    fontWeight: usageType === 'BOTH' ? 700 : 500,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="partUsageType"
+                    value="BOTH"
+                    checked={usageType === 'BOTH'}
+                    onChange={() => setUsageType('BOTH')}
+                  />
+                  <span>🔄 Both (Sales & Assembly)</span>
+                </label>
+              </div>
+              <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.45rem' }}>
+                {usageType === 'SALES_ONLY' && '• Available for retail, workshop and counter POS sales only.'}
+                {usageType === 'ASSEMBLY_ONLY' && '• Reserved exclusively for vehicle manufacturing/assembly lines. Blocked from retail POS sales.'}
+                {usageType === 'BOTH' && '• Dual-purpose part eligible for both plant assembly allocations and counter POS sales.'}
               </div>
             </div>
 
@@ -1872,16 +1991,20 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Filter only spare parts eligible for sales (SALES_ONLY or BOTH)
+  const sellableParts = activeParts.filter((p) => p.usageType !== 'ASSEMBLY_ONLY');
+
   useEffect(() => {
     if (parts && parts.length > 0) {
       setActiveParts(parts);
+      const eligible = parts.filter((p) => p.usageType !== 'ASSEMBLY_ONLY');
       setLines((prev) => {
-        if (prev.length === 1 && !prev[0].itemId) {
+        if (prev.length === 1 && !prev[0].itemId && eligible.length > 0) {
           return [
             {
-              itemId: parts[0].itemId,
+              itemId: eligible[0].itemId,
               quantity: 1,
-              unitPrice: Number(parts[0].sellingPrice || 0),
+              unitPrice: Number(eligible[0].sellingPrice || 0),
               discountPercent: 0,
             },
           ];
@@ -1892,14 +2015,15 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
       api.getSpareParts({ limit: 500, isActive: true })
         .then((res) => {
           setActiveParts(res.items);
-          if (res.items.length > 0) {
+          const eligible = res.items.filter((p) => p.usageType !== 'ASSEMBLY_ONLY');
+          if (eligible.length > 0) {
             setLines((prev) => {
               if (prev.length === 1 && !prev[0].itemId) {
                 return [
                   {
-                    itemId: res.items[0].itemId,
+                    itemId: eligible[0].itemId,
                     quantity: 1,
-                    unitPrice: Number(res.items[0].sellingPrice || 0),
+                    unitPrice: Number(eligible[0].sellingPrice || 0),
                     discountPercent: 0,
                   },
                 ];
@@ -1922,7 +2046,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
   };
 
   const addLine = () => {
-    const firstPart = activeParts[0];
+    const firstPart = sellableParts[0] || activeParts[0];
     setLines([
       ...lines,
       {
@@ -2177,10 +2301,10 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                               className="select-field"
                               style={{ padding: '0.45rem', fontSize: '0.82rem' }}
                             >
-                              {activeParts.length === 0 ? (
-                                <option value="">No registered spare parts found</option>
+                              {sellableParts.length === 0 ? (
+                                <option value="">No sales-eligible spare parts found</option>
                               ) : (
-                                activeParts.map((p) => (
+                                sellableParts.map((p) => (
                                   <option key={p.itemId} value={p.itemId}>
                                     {p.itemCode} — {p.itemName} (ETB {Number(p.sellingPrice).toLocaleString()})
                                   </option>
