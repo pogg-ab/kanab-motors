@@ -57,6 +57,7 @@ export const SparePartsPage: React.FC = () => {
 
   // Catalog State
   const [parts, setParts] = useState<SparePartItem[]>([]);
+  const [allParts, setAllParts] = useState<SparePartItem[]>([]);
   const [loadingParts, setLoadingParts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | ''>('');
@@ -122,22 +123,34 @@ export const SparePartsPage: React.FC = () => {
     }
   };
 
+  const loadAllParts = async () => {
+    try {
+      const res = await api.getSpareParts({ limit: 500, isActive: true });
+      setAllParts(res.items);
+    } catch (err: any) {
+      console.error('Failed to load active spare parts:', err);
+    }
+  };
+
   // SubTab specific loaders
   useEffect(() => {
     if (activeSubTab === 'catalog') {
       loadParts();
     } else if (activeSubTab === 'stock') {
       loadStock();
+      loadAllParts();
     } else if (activeSubTab === 'pos') {
       loadSales();
+      loadAllParts();
     } else if (activeSubTab === 'reports') {
       loadReports();
     }
   }, [activeSubTab, searchQuery, selectedCategory, selectedBrand, filterModel, selectedStockWarehouse, filterLowStockOnly]);
 
-  // Load summary metrics on mount as well for top stats
+  // Load summary metrics & full active parts list on mount
   useEffect(() => {
     loadReports();
+    loadAllParts();
   }, []);
 
   const loadParts = async () => {
@@ -299,7 +312,10 @@ export const SparePartsPage: React.FC = () => {
             {hasPermission('STOCK_RECEIPTS_CREATE') && (
               <button
                 className="btn btn-secondary"
-                onClick={() => setIsStockIntakeModalOpen(true)}
+                onClick={() => {
+                  loadAllParts();
+                  setIsStockIntakeModalOpen(true);
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <Boxes size={16} color="var(--accent-cyan)" /> Stock Intake
@@ -309,7 +325,10 @@ export const SparePartsPage: React.FC = () => {
             {hasPermission('PAYMENTS_RECORD') && (
               <button
                 className="btn btn-emerald"
-                onClick={() => setIsNewSaleModalOpen(true)}
+                onClick={() => {
+                  loadAllParts();
+                  setIsNewSaleModalOpen(true);
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <ShoppingCart size={16} /> New POS Sale
@@ -1078,6 +1097,7 @@ export const SparePartsPage: React.FC = () => {
             setIsPartModalOpen(false);
             showNotification(editingPart ? 'Spare part updated successfully!' : 'New spare part registered successfully!');
             loadParts();
+            loadAllParts();
             loadReports();
           }}
         />
@@ -1089,7 +1109,7 @@ export const SparePartsPage: React.FC = () => {
       {isStockIntakeModalOpen && (
         <StockIntakeModal
           isOpen={isStockIntakeModalOpen}
-          parts={parts}
+          parts={allParts.length > 0 ? allParts : parts}
           warehouses={warehouses}
           onClose={() => setIsStockIntakeModalOpen(false)}
           onSuccess={() => {
@@ -1097,6 +1117,7 @@ export const SparePartsPage: React.FC = () => {
             showNotification('Stock received into warehouse balance successfully!');
             loadStock();
             loadParts();
+            loadAllParts();
             loadReports();
           }}
         />
@@ -1108,7 +1129,7 @@ export const SparePartsPage: React.FC = () => {
       {isNewSaleModalOpen && (
         <NewSaleModal
           isOpen={isNewSaleModalOpen}
-          parts={parts}
+          parts={allParts.length > 0 ? allParts : parts}
           warehouses={warehouses}
           customers={customers}
           onClose={() => setIsNewSaleModalOpen(false)}
@@ -1617,12 +1638,31 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
   onSuccess,
 }) => {
   const [warehouseId, setWarehouseId] = useState<number>(warehouses[0]?.warehouseId || 1);
+  const [activeParts, setActiveParts] = useState<SparePartItem[]>(parts);
   const [itemId, setItemId] = useState<string>(parts[0]?.itemId || '');
   const [quantity, setQuantity] = useState<number>(10);
   const [sourceType, setSourceType] = useState('OPENING_BALANCE');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (parts && parts.length > 0) {
+      setActiveParts(parts);
+      if (!itemId) {
+        setItemId(parts[0].itemId);
+      }
+    } else {
+      api.getSpareParts({ limit: 500, isActive: true })
+        .then((res) => {
+          setActiveParts(res.items);
+          if (res.items.length > 0 && !itemId) {
+            setItemId(res.items[0].itemId);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [parts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1710,12 +1750,17 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
                 value={itemId}
                 onChange={(e) => setItemId(e.target.value)}
                 className="select-field"
+                required
               >
-                {parts.map((p) => (
-                  <option key={p.itemId} value={p.itemId}>
-                    {p.itemCode} — {p.itemName} (Available: {p.stock?.available || 0})
-                  </option>
-                ))}
+                {activeParts.length === 0 ? (
+                  <option value="">No registered spare parts found</option>
+                ) : (
+                  activeParts.map((p) => (
+                    <option key={p.itemId} value={p.itemId}>
+                      {p.itemCode} — {p.itemName} (Available: {p.stock?.available || 0})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -1815,6 +1860,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paymentReference, setPaymentReference] = useState('');
+  const [activeParts, setActiveParts] = useState<SparePartItem[]>(parts);
   const [lines, setLines] = useState<SaleLineForm[]>([
     {
       itemId: parts[0]?.itemId || '',
@@ -1826,6 +1872,46 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (parts && parts.length > 0) {
+      setActiveParts(parts);
+      setLines((prev) => {
+        if (prev.length === 1 && !prev[0].itemId) {
+          return [
+            {
+              itemId: parts[0].itemId,
+              quantity: 1,
+              unitPrice: Number(parts[0].sellingPrice || 0),
+              discountPercent: 0,
+            },
+          ];
+        }
+        return prev;
+      });
+    } else {
+      api.getSpareParts({ limit: 500, isActive: true })
+        .then((res) => {
+          setActiveParts(res.items);
+          if (res.items.length > 0) {
+            setLines((prev) => {
+              if (prev.length === 1 && !prev[0].itemId) {
+                return [
+                  {
+                    itemId: res.items[0].itemId,
+                    quantity: 1,
+                    unitPrice: Number(res.items[0].sellingPrice || 0),
+                    discountPercent: 0,
+                  },
+                ];
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(console.error);
+    }
+  }, [parts]);
+
   const handleCustomerSelect = (id: string) => {
     setSelectedCustomerId(id);
     const found = customers.find((c) => String(c.customerId) === id);
@@ -1836,7 +1922,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
   };
 
   const addLine = () => {
-    const firstPart = parts[0];
+    const firstPart = activeParts[0];
     setLines([
       ...lines,
       {
@@ -1858,7 +1944,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
     copy[idx] = { ...copy[idx], [field]: val };
 
     if (field === 'itemId') {
-      const selected = parts.find((p) => p.itemId === val);
+      const selected = activeParts.find((p) => p.itemId === val);
       if (selected) {
         copy[idx].unitPrice = Number(selected.sellingPrice);
       }
@@ -2091,11 +2177,15 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                               className="select-field"
                               style={{ padding: '0.45rem', fontSize: '0.82rem' }}
                             >
-                              {parts.map((p) => (
-                                <option key={p.itemId} value={p.itemId}>
-                                  {p.itemCode} — {p.itemName} (ETB {p.sellingPrice})
-                                </option>
-                              ))}
+                              {activeParts.length === 0 ? (
+                                <option value="">No registered spare parts found</option>
+                              ) : (
+                                activeParts.map((p) => (
+                                  <option key={p.itemId} value={p.itemId}>
+                                    {p.itemCode} — {p.itemName} (ETB {Number(p.sellingPrice).toLocaleString()})
+                                  </option>
+                                ))
+                              )}
                             </select>
                           </td>
 
