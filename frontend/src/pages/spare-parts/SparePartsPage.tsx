@@ -1421,7 +1421,7 @@ const SparePartFormModal: React.FC<SparePartFormModalProps> = ({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content" style={{ maxWidth: '680px' }}>
+      <div className="modal-content" style={{ maxWidth: '680px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div
@@ -1456,8 +1456,8 @@ const SparePartFormModal: React.FC<SparePartFormModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
             <ModalErrorAlert error={error} onDismiss={() => setError(null)} />
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -1717,7 +1717,7 @@ const SparePartFormModal: React.FC<SparePartFormModalProps> = ({
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer" style={{ flexShrink: 0 }}>
             <button
               type="button"
               onClick={onClose}
@@ -1809,7 +1809,7 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content" style={{ maxWidth: '540px' }}>
+      <div className="modal-content" style={{ maxWidth: '540px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div
@@ -1844,8 +1844,8 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
             <ModalErrorAlert error={error} onDismiss={() => setError(null)} />
 
             <div className="form-group">
@@ -1924,7 +1924,7 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer" style={{ flexShrink: 0 }}>
             <button
               type="button"
               onClick={onClose}
@@ -2121,7 +2121,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content" style={{ maxWidth: '850px' }}>
+      <div className="modal-content" style={{ maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div
@@ -2156,8 +2156,8 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
             <ModalErrorAlert error={error} onDismiss={() => setError(null)} />
 
             {/* Warehouse and Customer Configuration */}
@@ -2421,7 +2421,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
             </div>
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer" style={{ flexShrink: 0 }}>
             <button
               type="button"
               onClick={onClose}
