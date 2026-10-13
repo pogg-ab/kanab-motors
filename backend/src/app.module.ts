@@ -25,6 +25,7 @@ import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
 import { PermissionGuard } from './common/guards/permission.guard';
 
 @Module({
@@ -56,6 +57,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
     DocumentsModule,
     InventoryModule,
     ReportsModule,
+    SparePartsModule,
   ],
   providers: [
     {

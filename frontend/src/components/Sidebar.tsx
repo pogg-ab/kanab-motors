@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   Shield,
   Layers,
+  Wrench,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { TAB_PERMISSIONS, canAccessAny } from '../authz/permissions';
@@ -194,6 +195,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       module: 'Models, Trim & Technical Specs',
       icon: Package,
       permissions: TAB_PERMISSIONS.products,
+    },
+    {
+      id: 'spare-parts',
+      label: 'Spare Parts & POS',
+      module: 'Catalog, Stock & Direct Sales',
+      icon: Wrench,
+      permissions: TAB_PERMISSIONS['spare-parts'],
     },
     {
       id: 'vehicles',

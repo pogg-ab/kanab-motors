@@ -54,6 +54,11 @@ export const SYSTEM_PERMISSIONS: SystemPermission[] = [
   { key: 'PRODUCTS_CREATE', label: 'Create Product Models', category: 'Product Master Data', description: 'Register new automotive models and parts items' },
   { key: 'PRODUCTS_EDIT', label: 'Edit Product Details', category: 'Product Master Data', description: 'Update pricing, technical specifications, and tax codes' },
   { key: 'PRODUCTS_CATEGORIES_MANAGE', label: 'Manage Categories & Brands', category: 'Product Master Data', description: 'Maintain vehicle categories, brands, and UOMs' },
+  { key: 'SPARE_PARTS_VIEW', label: 'View Spare Parts Catalog & Stock', category: 'Product Master Data', description: 'Browse spare parts catalog, compatibilities, and warehouse stock' },
+  { key: 'SPARE_PARTS_CREATE', label: 'Create Spare Parts', category: 'Product Master Data', description: 'Register new spare parts SKU and compatibility mapping' },
+  { key: 'SPARE_PARTS_EDIT', label: 'Edit Spare Parts', category: 'Product Master Data', description: 'Update spare parts pricing, reorder levels, and details' },
+  { key: 'SPARE_PARTS_SALES_RECORD', label: 'Record Spare Parts Sales', category: 'Product Master Data', description: 'Process point-of-sale and invoice orders for spare parts' },
+  { key: 'SPARE_PARTS_SALES_CANCEL', label: 'Cancel Spare Parts Sales', category: 'Product Master Data', description: 'Cancel spare parts sales orders and reverse warehouse inventory' },
 
   // Vehicle Stock & VIN Tracking
   { key: 'VEHICLES_VIEW', label: 'View Vehicle Inventory', category: 'Vehicle Fleet & Inventory', description: 'Inspect physical vehicle units, chassis numbers, and VINs' },

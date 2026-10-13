@@ -161,6 +161,7 @@ export interface Brand {
 export interface UnitOfMeasure {
   uomId: number;
   uomName: string;
+  uomCode?: string;
 }
 
 export interface TaxConfiguration {
@@ -1136,7 +1137,177 @@ export const api = {
     apiClient.get<ManagementDashboardSummary>('/reports/management-dashboard/summary', { params }).then((r) => r.data),
   getSalesPerformanceCrossTab: (params?: { startDate?: string; endDate?: string }) =>
     apiClient.get<SalesCrossTabItem[]>('/reports/management-dashboard/sales-cross-tab', { params }).then((r) => r.data),
+
+  // --- KMSICAMS-10 Endpoints (Spare Parts Enhancement) ---
+  getSpareParts: (params?: any) =>
+    apiClient.get<{ items: SparePartItem[]; total: number; page: number; limit: number }>('/spare-parts', { params }).then((r) => r.data),
+  getSparePartById: (id: string) =>
+    apiClient.get<SparePartDetail>(`/spare-parts/${id}`).then((r) => r.data),
+  createSparePart: (data: any) =>
+    apiClient.post<SparePartItem>('/spare-parts', data).then((r) => r.data),
+  updateSparePart: (id: string, data: any) =>
+    apiClient.put<SparePartItem>(`/spare-parts/${id}`, data).then((r) => r.data),
+  toggleSparePartStatus: (id: string, isActive: boolean) =>
+    apiClient.patch(`/spare-parts/${id}/status`, { isActive }).then((r) => r.data),
+  addSparePartCompatibility: (id: string, data: any) =>
+    apiClient.post(`/spare-parts/${id}/compatibility`, data).then((r) => r.data),
+  removeSparePartCompatibility: (compatibilityId: string) =>
+    apiClient.delete(`/spare-parts/compatibility/${compatibilityId}`).then((r) => r.data),
+  getSparePartsStock: (params?: { warehouseId?: number; lowStockOnly?: boolean }) =>
+    apiClient.get<SparePartStockItem[]>('/spare-parts/stock', { params }).then((r) => r.data),
+  receiveSparePartStock: (data: { warehouseId: number; itemId: string; quantity: number; sourceType?: string; notes?: string }) =>
+    apiClient.post('/spare-parts/stock/receive', data).then((r) => r.data),
+  getSparePartsSales: (params?: any) =>
+    apiClient.get<{ items: SparePartsSaleRecord[]; total: number; page: number; limit: number }>('/spare-parts/sales', { params }).then((r) => r.data),
+  getSparePartsSaleById: (id: string) =>
+    apiClient.get<SparePartsSaleRecord>(`/spare-parts/sales/${id}`).then((r) => r.data),
+  createSparePartsSale: (data: any) =>
+    apiClient.post<any>('/spare-parts/sales', data).then((r) => r.data),
+  cancelSparePartsSale: (id: string, reason: string) =>
+    apiClient.post(`/spare-parts/sales/${id}/cancel`, { reason }).then((r) => r.data),
+  getSparePartsReportsSummary: () =>
+    apiClient.get<SparePartsReportsSummary>('/spare-parts/reports/summary').then((r) => r.data),
 };
+
+// ============================================================================
+// KMSICAMS-10 Interfaces (Spare Parts)
+// ============================================================================
+export interface SparePartItem {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  itemType: string;
+  partNumber?: string;
+  barcode?: string;
+  description?: string;
+  compatibleMake?: string;
+  compatibleModel?: string;
+  categoryId: number;
+  category?: ProductCategory;
+  brandId?: number;
+  brand?: Brand;
+  uomId: number;
+  uom?: UnitOfMeasure;
+  purchasePrice: number;
+  sellingPrice: number;
+  taxConfigId?: number;
+  taxConfig?: TaxConfiguration;
+  reorderLevel: number;
+  isActive: boolean;
+  stock?: {
+    onHand: number;
+    reserved: number;
+    available: number;
+  };
+  isLowStock?: boolean;
+}
+
+export interface SparePartDetail extends SparePartItem {
+  compatibilities: Array<{
+    compatibilityId: string;
+    sparePartId: string;
+    vehicleModel: string;
+    vehicleMake?: string;
+    yearFrom?: number;
+    yearTo?: number;
+    notes?: string;
+  }>;
+  stockBalances: Array<{
+    warehouse_id: number;
+    warehouse_name: string;
+    warehouse_code: string;
+    quantity_on_hand: number;
+    quantity_reserved: number;
+    quantity_available: number;
+    updated_at: string;
+  }>;
+  totalStock: {
+    onHand: number;
+    reserved: number;
+    available: number;
+  };
+}
+
+export interface SparePartStockItem {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  partNumber?: string;
+  reorderLevel: number;
+  sellingPrice: number;
+  purchasePrice: number;
+  uomCode?: string;
+  categoryName?: string;
+  warehouseId: number;
+  warehouseName: string;
+  quantityOnHand: number;
+  quantityReserved: number;
+  quantityAvailable: number;
+  isLowStock: boolean;
+}
+
+export interface SparePartsSaleItemRecord {
+  saleItemId: string;
+  saleId: string;
+  itemId: string;
+  item?: SparePartItem;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  vatPercent: number;
+  lineSubtotal: number;
+  lineVat: number;
+  lineTotal: number;
+}
+
+export interface SparePartsSaleRecord {
+  saleId: string;
+  saleNumber: string;
+  customerId?: string;
+  customer?: Customer;
+  customerName: string;
+  customerPhone?: string;
+  customerType: string;
+  warehouseId: number;
+  warehouse?: Warehouse;
+  saleDate: string;
+  paymentMethod: string;
+  paymentReference?: string;
+  subtotal: number;
+  discountAmount: number;
+  vatAmount: number;
+  grandTotal: number;
+  status: 'COMPLETED' | 'CANCELLED';
+  notes?: string;
+  items?: SparePartsSaleItemRecord[];
+  creator?: AppUser;
+  createdAt: string;
+}
+
+export interface SparePartsReportsSummary {
+  totalCatalogParts: number;
+  stock: {
+    onHand: number;
+    reserved: number;
+    available: number;
+    valuationAtCost: number;
+    valuationAtRetail: number;
+  };
+  sales: {
+    count: number;
+    totalRevenue: number;
+    subtotal: number;
+    vatCollected: number;
+  };
+  lowStockAlertCount: number;
+  topSellingParts: Array<{
+    itemId: string;
+    itemCode: string;
+    itemName: string;
+    unitsSold: number;
+    revenue: number;
+  }>;
+}
 
 // ============================================================================
 // KMSICAMS-4 Interfaces

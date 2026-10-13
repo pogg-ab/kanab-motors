@@ -28,6 +28,7 @@ import { DocumentsPage } from './pages/documents/DocumentsPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ReportsHubPage } from './pages/reports/ReportsHubPage';
+import { SparePartsPage } from './pages/spare-parts/SparePartsPage';
 import { canAccessTab, getFirstAuthorizedTab } from './authz/permissions';
 
 function MainAppContent() {
@@ -135,6 +136,8 @@ function MainAppContent() {
         return 'Core Masters: Customer & Dealer Directory';
       case 'products':
         return 'Core Masters: Product & Vehicle Master Catalog';
+      case 'spare-parts':
+        return 'Spare Parts & POS: Parts Catalog, Stock Balances & Direct Sales';
       case 'vehicles':
         return 'Core Masters: Physical Vehicle Units Tracking (Chassis & Engine)';
       case 'users':
@@ -202,6 +205,7 @@ function MainAppContent() {
           {/* KMSICAMS-1 Pages */}
           {canAccessActiveTab && activeTab === 'customers' && <CustomersPage />}
           {canAccessActiveTab && activeTab === 'products' && <ProductsPage />}
+          {canAccessActiveTab && activeTab === 'spare-parts' && <SparePartsPage />}
           {canAccessActiveTab && activeTab === 'vehicles' && <VehiclesPage />}
           {canAccessActiveTab && activeTab === 'users' && <UsersPage />}
           {canAccessActiveTab && activeTab === 'audit' && <AuditLogsPage />}

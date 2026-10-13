@@ -72,6 +72,30 @@ export class ProductItem {
   @Column({ name: 'is_individually_tracked', type: 'boolean', default: false })
   isIndividuallyTracked: boolean;
 
+  @Column({ name: 'item_type', length: 20, default: 'VEHICLE' })
+  itemType: string;
+
+  @Column({ name: 'part_number', length: 100, nullable: true })
+  partNumber?: string;
+
+  @Column({ length: 100, nullable: true })
+  barcode?: string;
+
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
+  @Column({ name: 'purchase_price', type: 'numeric', precision: 18, scale: 2, default: 0, nullable: true })
+  purchasePrice?: number;
+
+  @Column({ name: 'preferred_supplier_id', type: 'int', nullable: true })
+  preferredSupplierId?: number;
+
+  @Column({ name: 'compatible_make', length: 100, nullable: true })
+  compatibleMake?: string;
+
+  @Column({ name: 'compatible_model', length: 100, nullable: true })
+  compatibleModel?: string;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

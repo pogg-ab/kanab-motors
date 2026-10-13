@@ -38,6 +38,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       permissions: [
         'CUSTOMERS_VIEW', 'CUSTOMERS_CREATE', 'CUSTOMERS_EDIT',
         'PRODUCTS_VIEW', 'VEHICLES_VIEW',
+        'SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD', 'SPARE_PARTS_SALES_CANCEL',
         'ENQUIRIES_VIEW', 'ENQUIRIES_CREATE', 'ENQUIRIES_APPROVE', 'ENQUIRIES_REJECT',
         'BOOKINGS_VIEW', 'BOOKINGS_CREATE', 'BOOKINGS_ALLOCATE', 'BOOKINGS_CANCEL', 'BOOKINGS_TRANSFER_FUNDS',
         'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW', 'REPORTS_VIEW',
@@ -49,6 +50,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       permissions: [
         'CUSTOMERS_VIEW', 'CUSTOMERS_CREATE', 'CUSTOMERS_EDIT', 'CUSTOMERS_DOCS_UPLOAD',
         'PRODUCTS_VIEW', 'VEHICLES_VIEW',
+        'SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD',
         'ENQUIRIES_VIEW', 'ENQUIRIES_CREATE',
         'BOOKINGS_VIEW', 'BOOKINGS_CREATE',
         'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW',
@@ -90,6 +92,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       description: 'Inventory Lead: physical vehicle intake, chassis & VIN management',
       permissions: [
         'PRODUCTS_VIEW', 'PRODUCTS_CREATE', 'PRODUCTS_EDIT', 'PRODUCTS_CATEGORIES_MANAGE',
+        'SPARE_PARTS_VIEW', 'SPARE_PARTS_CREATE', 'SPARE_PARTS_EDIT',
         'VEHICLES_VIEW', 'VEHICLES_CREATE', 'VEHICLES_BULK_IMPORT', 'VEHICLES_STATUS_UPDATE',
         'WAREHOUSES_MANAGE', 'SHIPMENTS_VIEW', 'SHIPMENTS_RECEIVE_STOCK',
         'STOCK_TRANSFERS_CREATE', 'STOCK_TRANSFERS_APPROVE', 'STOCK_TRANSFERS_COMPLETE',
@@ -102,6 +105,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       description: 'Yard & Warehouse Manager: stock intake & vehicle storage tracking',
       permissions: [
         'PRODUCTS_VIEW', 'VEHICLES_VIEW', 'VEHICLES_CREATE', 'VEHICLES_STATUS_UPDATE',
+        'SPARE_PARTS_VIEW', 'SPARE_PARTS_CREATE', 'SPARE_PARTS_EDIT',
         'WAREHOUSES_MANAGE', 'SHIPMENTS_VIEW', 'SHIPMENTS_RECEIVE_STOCK',
         'STOCK_TRANSFERS_CREATE', 'STOCK_TRANSFERS_APPROVE', 'STOCK_TRANSFERS_COMPLETE',
         'STOCK_RECEIPTS_CREATE',
@@ -257,7 +261,7 @@ export async function seedDatabase(dataSource?: DataSource) {
 
   // 5. Product Categories
   const categoryRepo = ds.getRepository(ProductCategory);
-  const categories = ['MOTORCYCLE', 'THREE_WHEELER', 'IMPORTED_VEHICLE'];
+  const categories = ['MOTORCYCLE', 'THREE_WHEELER', 'IMPORTED_VEHICLE', 'SPARE_PARTS', 'ACCESSORIES'];
   for (const c of categories) {
     const existing = await categoryRepo.findOne({ where: { categoryName: c } });
     if (!existing) {
@@ -298,6 +302,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       }),
     );
   }
+
 
   // 9. Clean up demo customer 'Abebe Bikila' and the 3 demo products (leaving catalog and customers clean for live demo)
   try {
