@@ -47,7 +47,7 @@ export const EnquiriesPage: React.FC = () => {
     itemId: '',
     quantity: 1,
     unitPrice: '',
-    salespersonName: 'Abel Legesse',
+    salespersonName: 'Sales Person',
     paymentMode: 'BANK_DEPOSIT',
   });
   const [formError, setFormError] = useState<string | null>(null);
@@ -128,7 +128,7 @@ export const EnquiriesPage: React.FC = () => {
       itemId: defaultItem?.itemId || '',
       quantity: 1,
       unitPrice: defaultItem ? defaultItem.sellingPrice.toString() : '',
-      salespersonName: 'Abel Legesse',
+      salespersonName: 'Sales Person',
       paymentMode: 'BANK_DEPOSIT',
     });
     setFormError(null);
@@ -636,7 +636,7 @@ export const EnquiriesPage: React.FC = () => {
                       type="text"
                       className="input-field"
                       required
-                      placeholder="e.g. Dawit Kebede"
+                      placeholder="e.g. Sales Person"
                       value={formData.salespersonName}
                       onChange={(e) => setFormData({ ...formData, salespersonName: e.target.value })}
                     />

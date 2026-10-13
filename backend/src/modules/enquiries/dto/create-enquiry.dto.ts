@@ -28,7 +28,7 @@ export class CreateEnquiryDto {
   @IsOptional()
   unitPrice?: number;
 
-  @ApiProperty({ example: 'Abel Legesse' })
+  @ApiProperty({ example: 'Sales Person' })
   @IsString()
   @IsNotEmpty({ message: 'Salesperson name is required' })
   salespersonName: string;
