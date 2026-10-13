@@ -497,21 +497,47 @@ export class SparePartsService {
     await queryRunner.startTransaction();
 
     try {
-      const receiptRows = await queryRunner.query(
-        `
-        INSERT INTO stock_receipt (warehouse_id, item_id, quantity, source_type, notes, received_by)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING stock_receipt_id
-      `,
-        [
-          dto.warehouseId,
-          dto.itemId,
-          dto.quantity,
-          dto.sourceType || 'OPENING_BALANCE',
-          dto.notes || 'Spare parts stock intake',
-          userId,
-        ],
-      );
+      const allowedSources = ['OPENING_BALANCE', 'LOCAL_PURCHASE', 'MANUAL_RECEIPT', 'CORRECTION', 'IMPORT_CONTAINER'];
+      const targetSource = dto.sourceType && allowedSources.includes(dto.sourceType) ? dto.sourceType : 'OPENING_BALANCE';
+
+      let receiptRows: any;
+      try {
+        receiptRows = await queryRunner.query(
+          `
+          INSERT INTO stock_receipt (warehouse_id, item_id, quantity, source_type, notes, received_by)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING stock_receipt_id
+        `,
+          [
+            dto.warehouseId,
+            dto.itemId,
+            dto.quantity,
+            targetSource,
+            dto.notes || 'Spare parts stock intake',
+            userId,
+          ],
+        );
+      } catch (insertErr: any) {
+        // Graceful fallback if enum value hasn't been added to PostgreSQL enum yet
+        if (insertErr?.message?.includes('stock_receipt_source_enum')) {
+          receiptRows = await queryRunner.query(
+            `
+            INSERT INTO stock_receipt (warehouse_id, item_id, quantity, source_type, notes, received_by)
+            VALUES ($1, $2, $3, 'MANUAL_RECEIPT', $4, $5)
+            RETURNING stock_receipt_id
+          `,
+            [
+              dto.warehouseId,
+              dto.itemId,
+              dto.quantity,
+              `[Source: ${targetSource}] ${dto.notes || 'Spare parts stock intake'}`,
+              userId,
+            ],
+          );
+        } else {
+          throw insertErr;
+        }
+      }
 
       await queryRunner.query(
         `

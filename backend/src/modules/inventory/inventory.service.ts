@@ -224,23 +224,47 @@ export class InventoryService {
     await queryRunner.startTransaction();
 
     try {
-      const receiptRows = await queryRunner.query(
-        `
-        INSERT INTO stock_receipt (
-          warehouse_id, item_id, quantity, source_type, notes, received_by
-        )
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING stock_receipt_id
-        `,
-        [
-          dto.warehouseId,
-          dto.itemId,
-          dto.quantity,
-          dto.sourceType,
-          dto.notes || null,
-          userId,
-        ],
-      );
+      let receiptRows: any;
+      try {
+        receiptRows = await queryRunner.query(
+          `
+          INSERT INTO stock_receipt (
+            warehouse_id, item_id, quantity, source_type, notes, received_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING stock_receipt_id
+          `,
+          [
+            dto.warehouseId,
+            dto.itemId,
+            dto.quantity,
+            dto.sourceType,
+            dto.notes || null,
+            userId,
+          ],
+        );
+      } catch (insertErr: any) {
+        if (insertErr?.message?.includes('stock_receipt_source_enum')) {
+          receiptRows = await queryRunner.query(
+            `
+            INSERT INTO stock_receipt (
+              warehouse_id, item_id, quantity, source_type, notes, received_by
+            )
+            VALUES ($1, $2, $3, 'MANUAL_RECEIPT', $4, $5)
+            RETURNING stock_receipt_id
+            `,
+            [
+              dto.warehouseId,
+              dto.itemId,
+              dto.quantity,
+              `[Source: ${dto.sourceType}] ${dto.notes || ''}`,
+              userId,
+            ],
+          );
+        } else {
+          throw insertErr;
+        }
+      }
 
       await queryRunner.query(
         `

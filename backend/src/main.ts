@@ -51,6 +51,12 @@ async function ensureSequences() {
       ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS shipment_line_id BIGINT;
       ALTER TABLE audit_log ALTER COLUMN action TYPE VARCHAR(100);
       ALTER TABLE product_item ADD COLUMN IF NOT EXISTS usage_type VARCHAR(30) DEFAULT 'BOTH';
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_receipt_source_enum') THEN
+          ALTER TYPE stock_receipt_source_enum ADD VALUE IF NOT EXISTS 'IMPORT_CONTAINER';
+        END IF;
+      END $$;
       INSERT INTO vehicle_status_transition_rule (from_status, to_status)
       VALUES ('RECEIVED', 'AVAILABLE_FOR_SALE')
       ON CONFLICT DO NOTHING;
