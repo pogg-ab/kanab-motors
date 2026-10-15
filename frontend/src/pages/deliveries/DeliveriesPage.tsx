@@ -43,6 +43,7 @@ export const DeliveriesPage: React.FC = () => {
   const [showPdiModal, setShowPdiModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [gatePassData, setGatePassData] = useState<any | null>(null);
+  const [docTab, setDocTab] = useState<'DELIVERY_VOUCHER' | 'HANDOVER_FORM'>('DELIVERY_VOUCHER');
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -867,105 +868,295 @@ export const DeliveriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* OFFICIAL GATE PASS MODAL */}
+      {/* STORY DL5: TWO PRINTED DOCUMENTS (DELIVERY VOUCHER & HANDOVER FORM WITH DECLARATION & HANDOVER PACK) */}
       {gatePassData && (
         <div className="modal-backdrop" onClick={() => setGatePassData(null)}>
           <div
             className="modal-content"
             style={{
-              maxWidth: '720px',
+              maxWidth: '820px',
               width: '100%',
               background: '#ffffff',
               color: '#0f172a',
               padding: 0,
               overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div id="printable-gate-pass" style={{ padding: '2.5rem' }}>
-              {/* Gate pass header */}
-              <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', color: '#0f172a' }}>
-                    KANAB MOTORS PLC
-                  </h2>
-                  <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                    Integrated Sales, Inventory & Customer Account Management
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0f172a', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
-                    OFFICIAL GATE PASS
-                  </span>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem' }}>
-                    {gatePassData.gatePassNumber}
-                  </div>
-                </div>
+            {/* Document Switcher Tab Header */}
+            <div
+              style={{
+                display: 'flex',
+                background: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+                padding: '0.75rem 2rem',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setDocTab('DELIVERY_VOUCHER')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: docTab === 'DELIVERY_VOUCHER' ? '#0f172a' : '#cbd5e1',
+                    background: docTab === 'DELIVERY_VOUCHER' ? '#0f172a' : '#ffffff',
+                    color: docTab === 'DELIVERY_VOUCHER' ? '#ffffff' : '#475569',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <Car size={15} />
+                  1. Delivery Voucher (Gate Pass)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDocTab('HANDOVER_FORM')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: docTab === 'HANDOVER_FORM' ? '#0f172a' : '#cbd5e1',
+                    background: docTab === 'HANDOVER_FORM' ? '#0f172a' : '#ffffff',
+                    color: docTab === 'HANDOVER_FORM' ? '#ffffff' : '#475569',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <FileCheck2 size={15} />
+                  2. Handover Form & Declaration (Handover Pack)
+                </button>
               </div>
 
-              {/* Verification status stamp */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Recipient Customer</div>
-                    <div style={{ fontWeight: 700, fontSize: '1rem' }}>{gatePassData.customer?.name}</div>
-                    <div style={{ color: '#475569' }}>Phone: {gatePassData.customer?.phone}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Handover Reference</div>
-                    <div style={{ fontWeight: 700 }}>Order: {gatePassData.booking?.bookingNumber}</div>
-                    <div style={{ color: '#475569' }}>Date: {gatePassData.deliveryDate}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Vehicle Details */}
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{ fontWeight: 800, fontSize: '0.9rem', marginBottom: '0.5rem', color: '#0f172a' }}>
-                  VEHICLE DISPATCH CREDENTIALS
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', fontSize: '0.85rem' }}>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Chassis / VIN:</span>
-                    <div style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.95rem' }}>{gatePassData.vehicle?.chassisNumber}</div>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Engine Number:</span>
-                    <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{gatePassData.vehicle?.engineNumber}</div>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Model:</span>
-                    <div style={{ fontWeight: 700 }}>{gatePassData.vehicle?.model}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Audit clearance badges */}
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', fontSize: '0.8rem' }}>
-                <div style={{ flex: 1, padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
-                  ✓ PDI INSPECTION VERIFIED ({gatePassData.pdiSummary?.passedChecks}/{gatePassData.pdiSummary?.totalChecks || 7})
-                </div>
-                <div style={{ flex: 1, padding: '0.5rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
-                  ✓ FINANCIAL SETTLEMENT CLEARED
-                </div>
-              </div>
-
-              {/* Signatures */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', borderTop: '1px dashed #cbd5e1', paddingTop: '1.5rem', fontSize: '0.8rem' }}>
-                <div>
-                  <div style={{ height: '35px' }}></div>
-                  <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
-                    Security & Yard Manager Signature
-                  </div>
-                </div>
-                <div>
-                  <div style={{ height: '35px' }}></div>
-                  <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
-                    Customer Acceptance Signature
-                  </div>
-                </div>
-              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                Story DL5 Dual-Document Pack
+              </span>
             </div>
+
+            {/* PRINTABLE DOCUMENT 1: DELIVERY VOUCHER & GATE PASS */}
+            {docTab === 'DELIVERY_VOUCHER' && (
+              <div id="printable-gate-pass" style={{ padding: '2.5rem' }}>
+                {/* Voucher header */}
+                <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', color: '#0f172a' }}>
+                      KANAB MOTORS PLC
+                    </h2>
+                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      Automotive Assembly, Commercial Distribution & Dispatch Operations
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0f172a', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
+                      DELIVERY VOUCHER & GATE PASS
+                    </span>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem', fontFamily: 'monospace' }}>
+                      Ref: {gatePassData.voucherNumber || gatePassData.gatePassNumber}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Particulars */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Recipient Customer</div>
+                      <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>{gatePassData.customer?.name}</div>
+                      <div style={{ color: '#475569' }}>Phone: {gatePassData.customer?.phone}</div>
+                      <div style={{ color: '#475569' }}>TIN: {gatePassData.customer?.tin}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>Dispatch Reference</div>
+                      <div style={{ fontWeight: 700 }}>Order: {gatePassData.booking?.bookingNumber}</div>
+                      <div style={{ color: '#475569' }}>Dispatch Date: {gatePassData.deliveryDate}</div>
+                      <div style={{ color: '#475569' }}>Location: {gatePassData.customer?.address || 'Main Assembly Yard, Addis Ababa'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicle Identification */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', marginBottom: '0.75rem', color: '#0f172a', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>VEHICLE DISPATCH SPECIFICATIONS</span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Odometer at Release: <strong>{gatePassData.vehicle?.odometerReading || 0} km</strong></span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', fontSize: '0.85rem' }}>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Chassis / VIN:</span>
+                      <div style={{ fontWeight: 800, fontFamily: 'monospace', fontSize: '0.95rem', color: '#0f172a' }}>{gatePassData.vehicle?.chassisNumber}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Engine Number:</span>
+                      <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>{gatePassData.vehicle?.engineNumber}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Model:</span>
+                      <div style={{ fontWeight: 700 }}>{gatePassData.vehicle?.model}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Colour / Finish:</span>
+                      <div style={{ fontWeight: 700 }}>🎨 {gatePassData.vehicle?.colour || 'Factory Standard'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Engine / Power:</span>
+                      <div style={{ fontWeight: 700 }}>⚡ {gatePassData.vehicle?.engineCapacity || 'Standard'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Status:</span>
+                      <div style={{ fontWeight: 700, color: '#10b981' }}>READY FOR DISPATCH</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Clearance Badges */}
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.75rem', fontSize: '0.8rem' }}>
+                  <div style={{ flex: 1, padding: '0.6rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
+                    ✓ PDI PRE-DELIVERY INSPECTION VERIFIED ({gatePassData.pdiSummary?.passedChecks || 7}/{gatePassData.pdiSummary?.totalChecks || 7})
+                  </div>
+                  <div style={{ flex: 1, padding: '0.6rem', background: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}>
+                    ✓ FINANCIAL SETTLEMENT CLEARED (100% PAID / AUTHORIZED)
+                  </div>
+                </div>
+
+                {/* Voucher Signatures */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', borderTop: '1px dashed #cbd5e1', paddingTop: '1.5rem', fontSize: '0.8rem' }}>
+                  <div>
+                    <div style={{ height: '35px' }}></div>
+                    <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
+                      Security Gate Clearance Officer
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Physical inspection & gate release authorization</div>
+                  </div>
+                  <div>
+                    <div style={{ height: '35px' }}></div>
+                    <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
+                      Releasing Dispatch Officer / Storekeeper
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{gatePassData.releasingOfficer || 'Dispatch Officer'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PRINTABLE DOCUMENT 2: HANDOVER FORM & ACCEPTANCE DECLARATION WITH HANDOVER PACK */}
+            {docTab === 'HANDOVER_FORM' && (
+              <div id="printable-handover-form" style={{ padding: '2.5rem' }}>
+                {/* Handover header */}
+                <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', color: '#0f172a' }}>
+                      KANAB MOTORS PLC
+                    </h2>
+                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      Official Vehicle Handover Form & Customer Acceptance Declaration
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0284c7', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
+                      HANDOVER & DECLARATION
+                    </span>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem', fontFamily: 'monospace' }}>
+                      Ref: HF-{gatePassData.deliveryNumber}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Handover Particulars */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Recipient Customer:</span>
+                      <div style={{ fontWeight: 800 }}>{gatePassData.customer?.name}</div>
+                      <div style={{ color: '#475569', fontSize: '0.75rem' }}>TIN: {gatePassData.customer?.tin}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Vehicle Model & Colour:</span>
+                      <div style={{ fontWeight: 700 }}>{gatePassData.vehicle?.model}</div>
+                      <div style={{ color: '#475569', fontSize: '0.75rem' }}>Colour: {gatePassData.vehicle?.colour || 'Standard'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Chassis / Engine:</span>
+                      <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>VIN: {gatePassData.vehicle?.chassisNumber}</div>
+                      <div style={{ color: '#475569', fontSize: '0.75rem', fontFamily: 'monospace' }}>Eng: {gatePassData.vehicle?.engineNumber}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Handover Pack Checklist (Story DL5) */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.5rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>📦 OFFICIAL HANDOVER PACK CHECKLIST (Story DL5 Requirement)</span>
+                  </div>
+                  <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                        <th style={{ padding: '0.4rem 0.6rem', textAlign: 'left' }}>Item Description</th>
+                        <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>Quantity</th>
+                        <th style={{ padding: '0.4rem 0.6rem', textAlign: 'center' }}>Physical Verification</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(gatePassData.handoverPack || [
+                        { name: 'Ignition Keys (Original & Spare Sets)', quantity: '2 Sets' },
+                        { name: 'Spare Wheel & Pneumatic Tyre (100% Tread)', quantity: '1 Unit' },
+                        { name: 'Vehicle Tool Kit (Jack, Handle & Wheel Spanner)', quantity: '1 Set' },
+                        { name: "Owner's Operational & Maintenance Manual", quantity: '1 Copy' },
+                        { name: 'Manufacturer Warranty Booklet & Service Schedule', quantity: '1 Booklet' },
+                        { name: 'Temporary Vehicle Transit Permit / Official Plates', quantity: '1 Set' },
+                      ]).map((item: any, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '0.45rem 0.6rem', fontWeight: 600 }}>{item.name}</td>
+                          <td style={{ padding: '0.45rem 0.6rem', textAlign: 'center', color: '#64748b' }}>{item.quantity}</td>
+                          <td style={{ padding: '0.45rem 0.6rem', textAlign: 'center', color: '#059669', fontWeight: 700 }}>
+                            [ ✓ Handed Over ]
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Customer Legal Acceptance Declaration (Story DL5) */}
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#166534', marginBottom: '0.35rem' }}>
+                    CUSTOMER STATUTORY HANDOVER DECLARATION
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#1e3a5f', lineHeight: 1.5, fontStyle: 'italic' }}>
+                    "{gatePassData.declarationText || `I, the undersigned ${gatePassData.customer?.name || 'Customer'}, hereby declare and confirm that I have physically inspected and taken formal delivery of the vehicle specified above in satisfactory, roadworthy condition, complete with all specified accessories, tools, and the Handover Pack listed herein. I acknowledge receipt of all official keys, user manuals, warranty terms, and accept full operational custody and responsibility from this timestamp.`}"
+                  </p>
+                </div>
+
+                {/* Handover Signatures */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', borderTop: '1px dashed #cbd5e1', paddingTop: '1.5rem', fontSize: '0.8rem' }}>
+                  <div>
+                    <div style={{ height: '35px' }}></div>
+                    <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
+                      Customer / Authorized Recipient Signature
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Date: {gatePassData.deliveryDate}</div>
+                  </div>
+                  <div>
+                    <div style={{ height: '35px' }}></div>
+                    <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
+                      Kanab Motors Delivery Officer Signature
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{gatePassData.releasingOfficer || 'Handover Officer'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Modal Actions */}
             <div className="modal-footer" style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', margin: 0, padding: '1rem 2.5rem' }}>
@@ -1001,7 +1192,7 @@ export const DeliveriesPage: React.FC = () => {
                 }}
               >
                 <Printer size={16} />
-                Print Official Pass
+                Print {docTab === 'DELIVERY_VOUCHER' ? 'Delivery Voucher' : 'Handover Form & Pack'}
               </button>
             </div>
           </div>

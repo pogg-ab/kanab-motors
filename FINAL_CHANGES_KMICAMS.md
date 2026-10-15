@@ -16,14 +16,20 @@
 
 ## Executive Summary of Tested Changes
 
-This testing walkthrough specifically validates the **4 bold red additions** in Module 1 and Module 2:
+This testing walkthrough specifically validates all **bold red additions** across the project SRS:
 
-| Story # | Jira Reference | Scope / Description | Implementation Details |
+| Story # | Jira / SRS Ref | Scope / Description | Implementation Details |
 |---|---|---|---|
 | **1.1** | **Customer WHT Flag** | Customers require a Withholding Tax (WHT) flag depending on legal/tax standing | Added `withholdingTaxFlag` to Customer entity, DB column, create/edit modals, directory table badge, and profile view |
 | **2.1** | **Vehicle Attributes** | Vehicles require Colour, Engine/Motor Capacity (cc), and Battery Power (kWh) | Added `colour`, `engine_capacity_cc`, `battery_power_kwh` to Product Items, tables, and lifecycle tracking |
 | **2.2** | **Reference Data Lookups** | Lookups for vehicle colours and units of measure | Added `vehicle_color` lookup table with 7 seeded colors, plus REST endpoints `/api/lookups/colors` and `/api/lookups/uoms` |
 | **2.3** | **Multi-Tax Configuration** | Multi-tax tiers for VAT (15%), Excise duty, and WHT (2%) with customer and vehicle applicability | Added `tax_type`, `applicable_customer_type`, `applicable_vehicle_type`, `description` to Tax Configuration modal & backend |
+| **E16-E18**| **Pre-Advance Slip** | Slip model, auto-generation on approval, printable slip UI, 3-day expiry | Auto-generated upon enquiry approval with sequence `PAS-YYYY-NNNNN`, 3-day expiry indicator, and printable modal |
+| **B3 & B4**| **100% Advance Booking**| Originating from approved enquiry/slip & 100% full gross advance | Advance booking slip selector, converts slip, and calculates 100% full gross vehicle advance requirement |
+| **P14** | **CEO Installment Gate**| Split / Installment deposit plan requires CEO approval gate | Installment toggle in payment intake, status badge, CEO Gate modal, and payment confirmation lockdown |
+| **X9 & X10**| **Credit Transfer** | Customer credit transfer between customers with two-sided atomic ledger | Atomic posting of balancing debit and credit entries with row-level safety and transfer UI modal |
+| **IV14** | **Non-Cash WHT Settlement**| Tax withheld by customer, recorded as non-cash settlement (non-refundable) | Atomic `WHT_SETTLEMENT` credit ledger posting, certificate tracking, and Finance WHT Hub |
+| **DL5** | **Two Printed Documents**| Two printed documents: Delivery Voucher (Gate Pass) & Handover Form with Declaration & Pack | Official printable Delivery Voucher (Gate Pass) + Handover Form with 6-item Handover Pack & legal declaration |
 
 ---
 
@@ -350,9 +356,145 @@ This testing walkthrough specifically validates the **4 bold red additions** in 
 6. Click **Confirm & Post Credit Transfer**.
 7. **Expected Results:**
    - Success message appears: *"Successfully transferred ETB 20,000 credit from [Customer A] to [Customer B]"*.
-   - Source Customer's Available Credit is debited by ETB 20,000.
    - Recipient Customer's Available Credit is credited by ETB 20,000 atomically.
    - In the Customer Ledger (`/ledger`), two balancing `CREDIT_TRANSFER` entries are logged with matching reference number.
+
+---
+
+## Test Suite 9: Tax Withheld by the Customer (Non-Cash Settlement) (Story IV14)
+
+### Test Case 9.1: Generate Sales Invoice for WHT Customer & Verify Calculation
+1. In the left navigation menu, click **Invoices** (icon: 🧾).
+2. Click top-right button **+ Generate Sales Invoice**.
+3. Select an advance booking for a commercial client (e.g. `Abyssinia Logistics PLC` with TIN `0012345678`).
+4. Notice in the live settlement summary:
+   - Base Vehicle Total: e.g. `ETB 200,000.00`
+   - VAT (15%): `+ ETB 30,000.00` (or as configured)
+   - Gross Total: `ETB 230,000.00`
+   - Expected Customer Withholding Tax (2% commercial WHT deduction): `ETB 4,000.00`
+5. Click **Confirm & Submit to Approval**.
+6. **Expected Results:**
+   - Invoice is created with status `DRAFT` or `PENDING_APPROVAL`.
+   - In the table row, under the Invoice #, verify the amber badge: **`⏳ WHT 2% Pending Cert`**.
+
+---
+
+### Test Case 9.2: Record Non-Cash Withholding Tax Settlement (Story IV14)
+1. On that invoice row, locate the purple **WHT Settlement** button (icon: tag/percent `🏷️`).
+2. Click the **WHT Settlement** button.
+3. The **Record Customer WHT Non-Cash Settlement** modal opens:
+   - Header: **Record Customer WHT Non-Cash Settlement (Story IV14)**.
+   - Statutory Rule Alert: Displays the mandatory non-cash settlement mandate:
+     *"The customer is a designated withholding tax agent who withheld tax at source. This posts a WHT_SETTLEMENT credit linked to the invoice and booking. No cash reached KANAB. This credit is strictly non-refundable."*
+   - Summary display shows:
+     - Gross Invoice Total: e.g. `ETB 200,000.00`
+     - Cash Received via BRV: e.g. `ETB 196,000.00`
+     - Current Outstanding Balance: `ETB 4,000.00`
+4. Fill in the modal fields:
+   - **Withheld Tax Amount (ETB):** `4,000.00` (pre-filled with 2% deduction)
+   - **Withholding Certificate #:** Type `01243` (matching the SRS statement doc example)
+   - **Certificate Issue Date:** Today's date
+   - **Certificate Physical Status:** Select `✓ Certificate Received & Verified`
+   - **Audit Notes:** `Tax withheld at source, certificate 01243`
+5. Observe the **Live Customer Ledger Atomic Posting Preview**:
+   - `Sales Invoice: ETB 200,000 (Debit)`
+   - `Bank Receipt Voucher (Cash): ETB 196,000 (Credit)`
+   - `Tax withheld at source, cert 01243: ETB 4,000 (Credit)`
+   - `Net Outstanding Balance: ETB 0.00`
+6. Click **Confirm & Post WHT Settlement**.
+7. **Expected Results:**
+   - Success toast appears: *"Non-cash WHT settlement of ETB 4,000 recorded successfully! Customer ledger updated."*
+   - Invoice row updates:
+     - Under Invoice #, badge changes to emerald: **`✓ WHT Cert: 01243`**.
+     - Deposits Applied shows: `ETB 200,000 (incl. ETB 4,000 WHT Non-Cash)`.
+     - Balance Due becomes: **`ETB 0.00`**.
+
+---
+
+### Test Case 9.3: Customer Ledger Verification (Non-Cash WHT_SETTLEMENT Entry)
+1. In the left navigation menu, click **Statement of Account** (or Customer Ledger).
+2. Select the customer (`Abyssinia Logistics PLC`).
+3. Inspect the transaction ledger table:
+   - Line 1: `INVOICE_CHARGE` — Debit: `ETB 200,000.00`
+   - Line 2: `ADVANCE_DEPOSIT` (BRV Cash) — Credit: `ETB 196,000.00`
+   - Line 3: **`WHT_SETTLEMENT`** — Credit: **`ETB 4,000.00`** · Ref: `01243` · Description: *"Tax withheld at source, certificate 01243"*
+   - Running Balance: **`ETB 0.00`**
+4. **Expected Results:**
+   - Matches the exact 3-line accounting table specified in SRS §IV14.
+
+---
+
+### Test Case 9.4: Non-Refundable Statutory Rule Verification
+1. Navigate to **Customer Balances / Excess & Refunds** (`/settlement`).
+2. Select the customer:
+   - Notice **Total Cash Deposits** is `ETB 196,000.00` (does NOT include the ETB 4,000 non-cash WHT).
+   - **Refundable Balance** is based ONLY on actual cash received.
+3. If a refund is requested, the system enforces:
+   - KANAB refunds only the net cash actually received (`ETB 196,000`), never the non-cash WHT deduction.
+
+---
+
+### Test Case 9.5: Finance Withholding Tax Certificates Hub
+1. Return to **Invoices** page.
+2. In the top tab bar, click **Withholding Tax (WHT) Tracking Hub (Story IV14)**.
+3. Observe the Finance Hub view:
+   - 4 KPI cards:
+     - WHT Tracked Invoices
+     - Total Tax Withheld (ETB)
+     - Certificates on File
+     - Missing Certificates (Pending Follow-up)
+   - Table of all WHT orders with Customer Name, TIN, WHT Amount, and Certificate #.
+4. On any record with missing certificate, click **Enter Cert #**:
+   - Updates the certificate number and transitions status to `✓ Verified On File` or `★ Claimed Tax Credit`.
+
+---
+
+## Test Suite 10: Two Printed Documents for Delivery & Handover (Story DL5)
+
+### Test Case 10.1: Document 1 — Official Delivery Voucher & Gate Pass
+1. In the left navigation menu, click **Delivery & Handover** (icon: 🚗).
+2. Locate any authorized delivery order (or click **New Handover Order** to create and authorize one).
+3. In the Actions column, click the **Gate Pass / Release Documents** button (icon: eye / printer).
+4. The printable document dialog opens.
+5. In the top switcher bar, verify **1. Delivery Voucher (Gate Pass)** is active:
+   - Document Header: **KANAB MOTORS PLC — DELIVERY VOUCHER & GATE PASS**.
+   - Voucher Reference: e.g. `DV-DEL-000001` or `GP-DEL-000001`.
+   - Customer Details: Full Name, Code, Phone, TIN, Delivery Location.
+   - Vehicle Credentials: Model, Chassis / VIN, Engine Number, Colour tag, Engine CC/Power, Odometer reading.
+   - Clearance Badges:
+     - `✓ PDI PRE-DELIVERY INSPECTION VERIFIED`
+     - `✓ FINANCIAL SETTLEMENT CLEARED (100% PAID / AUTHORIZED)`
+   - Dual Clearance Signatures:
+     - *Security Gate Clearance Officer*
+     - *Releasing Dispatch Officer / Storekeeper*
+
+---
+
+### Test Case 10.2: Document 2 — Handover Form & Acceptance Declaration with Handover Pack
+1. In the same modal dialog, click the second tab: **2. Handover Form & Declaration (Handover Pack)**.
+2. Observe the document layout transitions:
+   - Document Header: **KANAB MOTORS PLC — VEHICLE HANDOVER FORM & CUSTOMER ACCEPTANCE DECLARATION**.
+   - Handover Reference: `HF-DEL-000001`.
+   - Customer & Vehicle particulars clearly displayed.
+   - **Official Handover Pack Checklist (Story DL5 explicit criteria):**
+     1. `Ignition Keys (Original & Spare Sets) — 2 Sets — [ ✓ Handed Over ]`
+     2. `Spare Wheel & Pneumatic Tyre (100% Tread) — 1 Unit — [ ✓ Handed Over ]`
+     3. `Vehicle Tool Kit (Jack, Handle & Wheel Spanner) — 1 Set — [ ✓ Handed Over ]`
+     4. `Owner's Operational & Maintenance Manual — 1 Copy — [ ✓ Handed Over ]`
+     5. `Manufacturer Warranty Booklet & Service Schedule — 1 Booklet — [ ✓ Handed Over ]`
+     6. `Temporary Vehicle Transit Permit / Official Plates — 1 Set — [ ✓ Handed Over ]`
+   - **Customer Statutory Handover Declaration:**
+     - Displays the formal legal text:
+       *"I, the undersigned [Customer Name], hereby declare and confirm that I have physically inspected and taken formal delivery of the vehicle specified above in satisfactory, roadworthy condition, complete with all specified accessories, tools, and the Handover Pack listed herein. I acknowledge receipt of all official keys, user manuals, warranty terms, and accept full operational custody and responsibility from this timestamp."*
+   - Handover Acceptance Signatures:
+     - *Customer / Authorized Recipient Signature & Date*
+     - *Kanab Motors Delivery Officer Signature & Date*
+
+---
+
+### Test Case 10.3: Official Printing
+1. Click the bottom button: **Print Handover Form & Pack** (or Print Delivery Voucher).
+2. Verify browser print preview opens cleanly on official letterhead without UI elements, tabs, or modal buttons.
 
 ---
 
@@ -378,6 +520,11 @@ This testing walkthrough specifically validates the **4 bold red additions** in 
 | **Story P14** | Instalment Approval gate (CEO) | [ ] | CEO review gate & confirm button restriction |
 | **Story X9** | Credit transfer between customers (two-sided atomic ledger) | [ ] | Concurrency-safe atomic two-sided posting |
 | **Story X10** | Credit transfer UI and tests | [ ] | Interactive modal with live ledger preview |
+| **Story IV14**| Tax withheld by customer, recorded as non-cash settlement | [ ] | Atomic `WHT_SETTLEMENT` credit ledger posting |
+| **Story IV14**| Non-refundable statutory rule (refunds only actual cash received) | [ ] | Enforced in ledger & refunds balance |
+| **Story IV14**| Finance tracks WHT certificates & missing list | [ ] | Dedicated WHT Tracking Hub & certificate status |
+| **Story DL5** | Document 1: Delivery Voucher (Gate Pass) | [ ] | Official printable voucher with security signatures |
+| **Story DL5** | Document 2: Handover Form with Declaration & Pack | [ ] | Customer legal declaration + 6-item pack checklist |
 
 ---
 

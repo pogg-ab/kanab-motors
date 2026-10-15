@@ -132,8 +132,23 @@ async function ensureSequences() {
       BEGIN
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'customer_ledger_transaction_transaction_type_enum') THEN
           ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'CREDIT_TRANSFER';
+          ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'WHT_SETTLEMENT';
         END IF;
       END $$;
+
+      -- Story IV14: Tax withheld by customer (Non-cash settlement)
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_applicable BOOLEAN DEFAULT FALSE;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_rate NUMERIC(5, 4) DEFAULT 0.02;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_amount NUMERIC(18, 2) DEFAULT 0;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_certificate_number VARCHAR(100);
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_certificate_date DATE;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_status VARCHAR(30) DEFAULT 'NONE';
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_settled_at TIMESTAMPTZ;
+
+      -- Story DL5: Delivery Handover pack and customer declaration
+      ALTER TABLE delivery ADD COLUMN IF NOT EXISTS handover_pack_items JSONB DEFAULT '{"keys": 2, "spare_wheel": true, "tool_kit": true, "manual": true, "warranty_booklet": true, "transit_permit": true}'::jsonb;
+      ALTER TABLE delivery ADD COLUMN IF NOT EXISTS customer_declaration_text TEXT;
+      ALTER TABLE delivery ADD COLUMN IF NOT EXISTS odometer_reading INT DEFAULT 0;
     `);
   } catch (err) {
     console.warn('⚠️ Sequence initialization note:', (err as any)?.message || err);

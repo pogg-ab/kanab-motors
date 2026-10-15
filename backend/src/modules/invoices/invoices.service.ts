@@ -4,6 +4,9 @@ import { Repository, DataSource } from 'typeorm';
 import { SalesInvoice, InvoiceStatus } from './entities/sales-invoice.entity';
 import { Booking } from '../bookings/entities/booking.entity';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { RecordWhtSettlementDto, UpdateWhtCertificateDto } from './dto/record-wht-settlement.dto';
+import { LedgerService } from '../ledger/ledger.service';
+import { LedgerTransactionType } from '../ledger/entities/customer-ledger-transaction.entity';
 
 @Injectable()
 export class InvoicesService {
@@ -13,6 +16,7 @@ export class InvoicesService {
     @InjectRepository(Booking)
     private bookingRepo: Repository<Booking>,
     private dataSource: DataSource,
+    private ledgerService: LedgerService,
   ) {}
 
   async create(dto: CreateInvoiceDto, userId = 1): Promise<SalesInvoice> {
@@ -53,6 +57,12 @@ export class InvoicesService {
       }
     }
 
+    // Story IV14: WHT applicability from customer tax standing
+    const isWhtCustomer = (booking.customer as any)?.withholdingTaxFlag || false;
+    const whtApplicable = dto.whtApplicable !== undefined ? dto.whtApplicable : isWhtCustomer;
+    const whtRate = dto.whtRate !== undefined ? dto.whtRate : 0.02;
+    const whtStatus = whtApplicable ? 'PENDING_CERTIFICATE' : 'NONE';
+
     // Calculate deposits applied and excess flag
     let depositsApplied = 0;
     let excessPaymentFlag = false;
@@ -68,9 +78,10 @@ export class InvoicesService {
       INSERT INTO sales_invoice (
         booking_id, customer_id, item_id, vehicle_unit_id,
         quantity, unit_price, vat_amount, deposits_applied,
-        excess_payment_flag, status, created_by
+        excess_payment_flag, status, created_by,
+        wht_applicable, wht_rate, wht_status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'DRAFT', $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'DRAFT', $10, $11, $12, $13)
       RETURNING invoice_id
     `, [
       booking.bookingId,
@@ -83,6 +94,9 @@ export class InvoicesService {
       depositsApplied,
       excessPaymentFlag,
       userId,
+      whtApplicable,
+      whtRate,
+      whtStatus,
     ]);
 
     const invoiceId = insertResult[0].invoice_id;
@@ -170,6 +184,122 @@ export class InvoicesService {
       await this.dataSource.query(`
         UPDATE sales_invoice SET status = 'REJECTED' WHERE invoice_id = $1
       `, [id]);
+    }
+
+    return this.findOne(id);
+  }
+
+  /**
+   * Story IV14: Tax withheld by the customer, recorded as a non-cash settlement.
+   * - Offsets invoice balance
+   * - Records separate WHT_SETTLEMENT credit in customer ledger carrying certificate number
+   * - Non-refundable (decreases outstanding debt without adding to cash refundable balance)
+   */
+  async recordWhtSettlement(id: string, dto: RecordWhtSettlementDto, userId = 1): Promise<SalesInvoice> {
+    const invoice = await this.findOne(id);
+    const amount = Number(dto.whtAmount);
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('Withholding tax amount must be greater than zero');
+    }
+
+    const certNo = dto.certificateNumber?.trim() || `WHT-CERT-${invoice.invoiceNumber}`;
+    const certDate = dto.certificateDate || new Date().toISOString().split('T')[0];
+    const notes = dto.notes || `Tax withheld at source, certificate ${certNo}`;
+
+    // 1. Post to Customer Ledger as atomic non-cash WHT_SETTLEMENT credit (Story IV14)
+    // Non-refundable: decreases outstanding balance only, does NOT touch refundableBalance or totalDeposits
+    await this.ledgerService.postTransaction({
+      customerId: String(invoice.customerId),
+      transactionType: LedgerTransactionType.WHT_SETTLEMENT,
+      referenceNumber: certNo,
+      description: notes,
+      creditAmount: amount,
+      debitAmount: 0,
+      relatedSalesInvoiceId: String(invoice.invoiceId),
+      relatedBookingId: String(invoice.bookingId),
+      processedBy: userId,
+      summaryDelta: {
+        outstandingBalance: -amount,
+      },
+    });
+
+    // 2. Update sales_invoice record:
+    // Update deposits_applied (which in postgres satisfies outstanding_balance = quantity*unit_price+vat - deposits_applied = 0)
+    await this.dataSource.query(`
+      UPDATE sales_invoice
+      SET deposits_applied = deposits_applied + $1,
+          wht_applicable = TRUE,
+          wht_amount = COALESCE(wht_amount, 0) + $1,
+          wht_certificate_number = $2,
+          wht_certificate_date = $3,
+          wht_status = 'CERTIFICATE_RECEIVED',
+          wht_settled_at = NOW()
+      WHERE invoice_id = $4
+    `, [amount, certNo, certDate, id]);
+
+    return this.findOne(id);
+  }
+
+  /**
+   * Story IV14: Finance tracks certificates.
+   * Returns list of withheld amounts, certificate numbers, and status.
+   */
+  async getWhtCertificates(): Promise<any[]> {
+    const rows = await this.dataSource.query(`
+      SELECT 
+        inv.invoice_id AS "invoiceId",
+        inv.invoice_number AS "invoiceNumber",
+        inv.created_at AS "createdAt",
+        inv.gross_total AS "grossTotal",
+        inv.deposits_applied AS "depositsApplied",
+        inv.outstanding_balance AS "outstandingBalance",
+        inv.status AS "status",
+        inv.wht_applicable AS "whtApplicable",
+        inv.wht_amount AS "whtAmount",
+        inv.wht_certificate_number AS "whtCertificateNumber",
+        inv.wht_certificate_date AS "whtCertificateDate",
+        inv.wht_status AS "whtStatus",
+        inv.wht_settled_at AS "whtSettledAt",
+        c.customer_id AS "customerId",
+        c.full_name AS "customerName",
+        c.tin_number AS "tinNumber",
+        c.mobile_number AS "mobileNumber",
+        b.booking_number AS "bookingNumber"
+      FROM sales_invoice inv
+      JOIN customer c ON c.customer_id = inv.customer_id
+      LEFT JOIN booking b ON b.booking_id = inv.booking_id
+      WHERE inv.wht_applicable = TRUE OR (inv.wht_amount IS NOT NULL AND inv.wht_amount > 0) OR c.withholding_tax_flag = TRUE
+      ORDER BY inv.created_at DESC
+    `);
+    return rows;
+  }
+
+  async updateWhtCertificate(id: string, dto: UpdateWhtCertificateDto): Promise<SalesInvoice> {
+    const invoice = await this.findOne(id);
+    const updates: string[] = [];
+    const params: any[] = [];
+    let pIdx = 1;
+
+    if (dto.certificateNumber !== undefined) {
+      updates.push(`wht_certificate_number = $${pIdx++}`);
+      params.push(dto.certificateNumber);
+    }
+    if (dto.certificateDate !== undefined) {
+      updates.push(`wht_certificate_date = $${pIdx++}`);
+      params.push(dto.certificateDate);
+    }
+    if (dto.status !== undefined) {
+      updates.push(`wht_status = $${pIdx++}`);
+      params.push(dto.status);
+    }
+
+    if (updates.length > 0) {
+      params.push(id);
+      await this.dataSource.query(`
+        UPDATE sales_invoice
+        SET ${updates.join(', ')}
+        WHERE invoice_id = $${pIdx}
+      `, params);
     }
 
     return this.findOne(id);

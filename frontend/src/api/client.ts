@@ -618,6 +618,13 @@ export interface SalesInvoice {
   depositsApplied: number;
   outstandingBalance: number;
   excessPaymentFlag: boolean;
+  whtApplicable?: boolean;
+  whtRate?: number;
+  whtAmount?: number;
+  whtCertificateNumber?: string;
+  whtCertificateDate?: string;
+  whtStatus?: string;
+  whtSettledAt?: string;
   status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
   createdBy?: number;
   creator?: AppUser;
@@ -1069,6 +1076,11 @@ export const api = {
     apiClient.patch<SalesInvoice>(`/invoices/${id}/approve`, { comments }).then((r) => r.data),
   rejectInvoice: (id: string, comments?: string) =>
     apiClient.patch<SalesInvoice>(`/invoices/${id}/reject`, { comments }).then((r) => r.data),
+  recordWhtSettlement: (id: string, data: { whtAmount: number; certificateNumber?: string; certificateDate?: string; notes?: string }) =>
+    apiClient.post<SalesInvoice>(`/invoices/${id}/wht-settlement`, data).then((r) => r.data),
+  getWhtCertificates: () => apiClient.get<any[]>('/invoices/wht/certificates').then((r) => r.data),
+  updateWhtCertificate: (id: string, data: { certificateNumber?: string; certificateDate?: string; status?: string; notes?: string }) =>
+    apiClient.patch<SalesInvoice>(`/invoices/${id}/wht-certificate`, data).then((r) => r.data),
 
   // Deliveries & PDI
   getDeliveries: () => apiClient.get<Delivery[]>('/deliveries').then((r) => r.data),

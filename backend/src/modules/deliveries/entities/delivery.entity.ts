@@ -67,6 +67,15 @@ export class Delivery {
   @Column({ name: 'financial_settlement_validated', type: 'boolean', default: false })
   financialSettlementValidated: boolean;
 
+  @Column({ name: 'handover_pack_items', type: 'jsonb', nullable: true })
+  handoverPackItems?: any;
+
+  @Column({ name: 'customer_declaration_text', type: 'text', nullable: true })
+  customerDeclarationText?: string;
+
+  @Column({ name: 'odometer_reading', type: 'int', default: 0 })
+  odometerReading: number;
+
   @Column({
     type: 'enum',
     enum: DeliveryStatus,

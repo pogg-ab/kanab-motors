@@ -14,6 +14,10 @@ import {
   Car,
   Receipt,
   X,
+  Tag,
+  Percent,
+  ClipboardCheck,
+  FileCheck2,
 } from 'lucide-react';
 import { api, SalesInvoice, Booking } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
@@ -32,6 +36,28 @@ export const InvoicesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  // Story IV14: Module Tabs & WHT Hub state
+  const [activeTab, setActiveTab] = useState<'INVOICES' | 'WHT_HUB'>('INVOICES');
+  const [whtCertificates, setWhtCertificates] = useState<any[]>([]);
+  const [whtCertSearch, setWhtCertSearch] = useState('');
+  const [whtStatusFilter, setWhtStatusFilter] = useState<string>('ALL');
+
+  // WHT Settlement Modal state
+  const [showWhtModal, setShowWhtModal] = useState(false);
+  const [whtTargetInvoice, setWhtTargetInvoice] = useState<SalesInvoice | null>(null);
+  const [whtAmount, setWhtAmount] = useState<number | string>(0);
+  const [whtCertNumber, setWhtCertNumber] = useState('');
+  const [whtCertDate, setWhtCertDate] = useState(new Date().toISOString().split('T')[0]);
+  const [whtNotes, setWhtNotes] = useState('');
+  const [whtError, setWhtError] = useState<string | null>(null);
+
+  // Update Certificate Modal state
+  const [showUpdateCertModal, setShowUpdateCertModal] = useState(false);
+  const [updateCertInvoice, setUpdateCertInvoice] = useState<any | null>(null);
+  const [newCertNumber, setNewCertNumber] = useState('');
+  const [newCertDate, setNewCertDate] = useState('');
+  const [newCertStatus, setNewCertStatus] = useState('CERTIFICATE_RECEIVED');
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -59,16 +85,85 @@ export const InvoicesPage: React.FC = () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const [invRes, bkgRes] = await Promise.all([
+      const [invRes, bkgRes, whtRes] = await Promise.all([
         api.getInvoices(),
         api.getBookings ? api.getBookings() : Promise.resolve([]),
+        api.getWhtCertificates ? api.getWhtCertificates() : Promise.resolve([]),
       ]);
       setInvoices(invRes || []);
       setBookings(Array.isArray(bkgRes) ? bkgRes : (bkgRes as any)?.items || []);
+      setWhtCertificates(whtRes || []);
     } catch (err: any) {
       setErrorMsg(formatApiError(err, 'Failed to load sales invoices and bookings'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenWhtModal = (invoice: SalesInvoice) => {
+    setWhtTargetInvoice(invoice);
+    const gross = Number(invoice.grossTotal) || 0;
+    const basePrice = Number(invoice.unitPrice) * Number(invoice.quantity) || gross;
+    // Standard 2% WHT on base price or remaining balance
+    const suggestedWht = Math.round(basePrice * 0.02 * 100) / 100;
+    const balance = Number(invoice.outstandingBalance) || 0;
+    setWhtAmount(balance > 0 && balance < suggestedWht ? balance : suggestedWht);
+    setWhtCertNumber(invoice.whtCertificateNumber || '');
+    setWhtCertDate(invoice.whtCertificateDate || new Date().toISOString().split('T')[0]);
+    setWhtNotes(`Tax withheld at source by withholding agent customer`);
+    setWhtError(null);
+    setShowWhtModal(true);
+  };
+
+  const handleRecordWhtSettlement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!whtTargetInvoice) return;
+    try {
+      setActionLoading(true);
+      setWhtError(null);
+      await api.recordWhtSettlement(whtTargetInvoice.invoiceId, {
+        whtAmount: Number(whtAmount),
+        certificateNumber: whtCertNumber.trim() || undefined,
+        certificateDate: whtCertDate || undefined,
+        notes: whtNotes.trim() || undefined,
+      });
+      setSuccessMsg(`Non-cash WHT settlement of ETB ${Number(whtAmount).toLocaleString()} recorded successfully! Customer ledger updated.`);
+      setShowWhtModal(false);
+      setWhtTargetInvoice(null);
+      await loadData();
+    } catch (err: any) {
+      setWhtError(formatApiError(err, 'Failed to record WHT settlement'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenUpdateCert = (cert: any) => {
+    setUpdateCertInvoice(cert);
+    setNewCertNumber(cert.whtCertificateNumber || '');
+    setNewCertDate(cert.whtCertificateDate || new Date().toISOString().split('T')[0]);
+    setNewCertStatus(cert.whtStatus || 'CERTIFICATE_RECEIVED');
+    setShowUpdateCertModal(true);
+  };
+
+  const handleSaveCertificate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!updateCertInvoice) return;
+    try {
+      setActionLoading(true);
+      await api.updateWhtCertificate(updateCertInvoice.invoiceId, {
+        certificateNumber: newCertNumber.trim() || undefined,
+        certificateDate: newCertDate || undefined,
+        status: newCertStatus,
+      });
+      setSuccessMsg('WHT certificate details updated successfully!');
+      setShowUpdateCertModal(false);
+      setUpdateCertInvoice(null);
+      await loadData();
+    } catch (err: any) {
+      setErrorMsg(formatApiError(err, 'Failed to update WHT certificate'));
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -247,6 +342,52 @@ export const InvoicesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Module Navigation Tabs (Story IV14) */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+        <button
+          onClick={() => setActiveTab('INVOICES')}
+          className="btn"
+          style={{
+            background: activeTab === 'INVOICES' ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+            color: activeTab === 'INVOICES' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+            border: activeTab === 'INVOICES' ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid transparent',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '8px',
+          }}
+        >
+          <FileText size={16} />
+          Commercial Sales Invoices ({invoices.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('WHT_HUB')}
+          className="btn"
+          style={{
+            background: activeTab === 'WHT_HUB' ? 'rgba(168, 85, 247, 0.15)' : 'transparent',
+            color: activeTab === 'WHT_HUB' ? '#c084fc' : 'var(--text-secondary)',
+            border: activeTab === 'WHT_HUB' ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid transparent',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '8px',
+          }}
+        >
+          <Tag size={16} />
+          Withholding Tax (WHT) Tracking Hub (Story IV14)
+          {whtCertificates.filter((w) => !w.whtCertificateNumber || w.whtStatus === 'PENDING_CERTIFICATE').length > 0 && (
+            <span style={{ padding: '0.15rem 0.45rem', borderRadius: '10px', background: '#f59e0b', color: '#000', fontSize: '0.7rem', fontWeight: 800 }}>
+              {whtCertificates.filter((w) => !w.whtCertificateNumber || w.whtStatus === 'PENDING_CERTIFICATE').length} Missing
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Notifications */}
       {errorMsg && (
         <div
@@ -287,8 +428,11 @@ export const InvoicesPage: React.FC = () => {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+      {/* Commercial Invoices Tab Content */}
+      {activeTab === 'INVOICES' && (
+        <>
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
         <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-cyan)' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -445,7 +589,16 @@ export const InvoicesPage: React.FC = () => {
                     }}
                   >
                     <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                      {inv.invoiceNumber}
+                      <div>{inv.invoiceNumber}</div>
+                      {inv.whtCertificateNumber ? (
+                        <div style={{ marginTop: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#c084fc', fontSize: '0.7rem', fontWeight: 700 }}>
+                          ✓ WHT Cert: {inv.whtCertificateNumber}
+                        </div>
+                      ) : (inv.whtApplicable || (inv.customer as any)?.withholdingTaxFlag) ? (
+                        <div style={{ marginTop: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.7rem', fontWeight: 700 }}>
+                          ⏳ WHT 2% Pending Cert
+                        </div>
+                      ) : null}
                     </td>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -469,6 +622,11 @@ export const InvoicesPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'right', color: '#10b981', fontWeight: 500 }}>
                       ETB {Number(inv.depositsApplied).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {Number(inv.whtAmount || 0) > 0 && (
+                        <div style={{ fontSize: '0.7rem', color: '#c084fc', fontWeight: 700, marginTop: '0.2rem' }}>
+                          incl. ETB {Number(inv.whtAmount).toLocaleString()} WHT Non-Cash
+                        </div>
+                      )}
                       {inv.excessPaymentFlag && (
                         <div style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 700 }}>
                           ★ EXCESS DEPOSIT
@@ -533,6 +691,23 @@ export const InvoicesPage: React.FC = () => {
                           <Eye size={15} />
                         </button>
 
+                        {canCreateInvoice && (
+                          <button
+                            onClick={() => handleOpenWhtModal(inv)}
+                            title="Story IV14: Record Non-Cash Withholding Tax (WHT) Settlement"
+                            style={{
+                              padding: '0.4rem',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(168, 85, 247, 0.4)',
+                              background: 'rgba(168, 85, 247, 0.15)',
+                              color: '#c084fc',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Tag size={15} />
+                          </button>
+                        )}
+
                         {inv.status === 'PENDING_APPROVAL' && (canApproveInvoice || canRejectInvoice) && (
                           <>
                             {canApproveInvoice && (
@@ -578,6 +753,247 @@ export const InvoicesPage: React.FC = () => {
           </table>
         </div>
       </div>
+      </>
+      )}
+
+      {/* STORY IV14: WITHHOLDING TAX (WHT) TRACKING HUB */}
+      {activeTab === 'WHT_HUB' && (
+        <>
+          {/* Statutory Rule Banner */}
+          <div
+            style={{
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(168, 85, 247, 0.08)',
+              border: '1px solid rgba(168, 85, 247, 0.3)',
+              marginBottom: '1.75rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '1rem',
+            }}
+          >
+            <div style={{ padding: '0.5rem', background: 'rgba(168, 85, 247, 0.2)', borderRadius: '8px', color: '#c084fc' }}>
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: '#c084fc' }}>
+                SRS Story IV14: Customer Withholding Tax Compliance & Certificate Ledger
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Customers designated as withholding agents remit net cash to KANAB and withhold commercial tax (2%) at source. 
+                Finance tracks all withheld tax deductions, physical certificate numbers, and claims against corporate income tax.
+                <span style={{ display: 'block', marginTop: '0.35rem', color: '#f59e0b', fontWeight: 700 }}>
+                  ★ Non-Refundable Statutory Rule: Withheld tax is credited to the customer ledger as non-cash and is never refundable upon booking cancellation.
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* WHT KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+            <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#a855f7' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>WHT Tracked Invoices</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc' }}>
+                  <Tag size={18} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                {whtCertificates.length}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                Orders subject to 2% withholding
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#c084fc' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Tax Withheld (ETB)</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(192, 132, 252, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc' }}>
+                  <Coins size={18} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#c084fc', fontFamily: 'monospace' }}>
+                ETB {whtCertificates.reduce((sum, w) => sum + Number(w.whtAmount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                Non-cash credits posted to ledger
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Certificates on File</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-emerald)' }}>
+                  <CheckCircle2 size={18} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                {whtCertificates.filter((w) => w.whtCertificateNumber && w.whtStatus !== 'PENDING_CERTIFICATE').length}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                Verified & ready for tax credit claim
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-amber)' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Missing Certificates</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-amber)' }}>
+                  <AlertCircle size={18} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-amber)', fontFamily: 'monospace' }}>
+                {whtCertificates.filter((w) => !w.whtCertificateNumber || w.whtStatus === 'PENDING_CERTIFICATE').length}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                Requires client follow-up
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar & Table */}
+          <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ position: 'relative', minWidth: '320px' }}>
+                <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search by customer, TIN, invoice, or certificate #..."
+                  value={whtCertSearch}
+                  onChange={(e) => setWhtCertSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 1rem 0.65rem 2.5rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <select
+                  value={whtStatusFilter}
+                  onChange={(e) => setWhtStatusFilter(e.target.value)}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <option value="ALL">All Certificates</option>
+                  <option value="MISSING">Missing Certificates (Action Required)</option>
+                  <option value="RECEIVED">Verified On File</option>
+                  <option value="CLAIMED">Claimed for Corporate Tax</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Invoice & Order</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Customer & TIN</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'right' }}>Gross Total (ETB)</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'right' }}>Cash via BRV</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'right' }}>Tax Withheld (2%)</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Certificate #</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Compliance Status</th>
+                    <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {whtCertificates
+                    .filter((c) => {
+                      const term = whtCertSearch.toLowerCase();
+                      const matchSearch =
+                        (c.customerName && c.customerName.toLowerCase().includes(term)) ||
+                        (c.tinNumber && c.tinNumber.toLowerCase().includes(term)) ||
+                        (c.invoiceNumber && c.invoiceNumber.toLowerCase().includes(term)) ||
+                        (c.whtCertificateNumber && c.whtCertificateNumber.toLowerCase().includes(term));
+                      const isMissing = !c.whtCertificateNumber || c.whtStatus === 'PENDING_CERTIFICATE';
+                      const matchStatus =
+                        whtStatusFilter === 'ALL' ||
+                        (whtStatusFilter === 'MISSING' && isMissing) ||
+                        (whtStatusFilter === 'RECEIVED' && c.whtStatus === 'CERTIFICATE_RECEIVED') ||
+                        (whtStatusFilter === 'CLAIMED' && c.whtStatus === 'CLAIMED');
+                      return matchSearch && matchStatus;
+                    })
+                    .map((c) => {
+                      const isMissing = !c.whtCertificateNumber || c.whtStatus === 'PENDING_CERTIFICATE';
+                      return (
+                        <tr key={c.invoiceId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
+                            <div>{c.invoiceNumber}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Order: {c.bookingNumber || 'Direct'}</div>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <div style={{ fontWeight: 600 }}>{c.customerName}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#c084fc', fontFamily: 'monospace' }}>
+                              TIN: {c.tinNumber || '0012345678'}
+                            </div>
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>
+                            ETB {Number(c.grossTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'right', color: '#10b981', fontWeight: 500 }}>
+                            ETB {Math.max(0, Number(c.depositsApplied) - Number(c.whtAmount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700, color: '#c084fc' }}>
+                            ETB {Number(c.whtAmount || (Number(c.grossTotal) * 0.02)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '1rem', fontFamily: 'monospace', fontWeight: 600 }}>
+                            {c.whtCertificateNumber ? (
+                              <span style={{ color: 'var(--text-primary)' }}>{c.whtCertificateNumber}</span>
+                            ) : (
+                              <span style={{ color: '#f59e0b', fontStyle: 'italic' }}>Pending Certificate</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'center' }}>
+                            {c.whtStatus === 'CLAIMED' ? (
+                              <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '20px', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid #38bdf8', color: '#38bdf8', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ★ Claimed Tax Credit
+                              </span>
+                            ) : !isMissing ? (
+                              <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '20px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', color: '#10b981', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ✓ Verified On File
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '20px', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid #f59e0b', color: '#f59e0b', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ⏳ Missing Certificate
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'center' }}>
+                            <button
+                              onClick={() => handleOpenUpdateCert(c)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              <FileCheck2 size={14} />
+                              {isMissing ? 'Enter Cert #' : 'Edit Status'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* CREATE INVOICE MODAL */}
       {showCreateModal && (
@@ -916,7 +1332,357 @@ export const InvoicesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* STORY IV14: RECORD NON-CASH WHT SETTLEMENT MODAL */}
+      {showWhtModal && whtTargetInvoice && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '640px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: 'var(--radius-md)', color: '#c084fc' }}>
+                  <Tag size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Record Customer WHT Non-Cash Settlement
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 600 }}>
+                    Story IV14: Atomic WHT_SETTLEMENT credit posting & non-refundable deduction
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWhtModal(false)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordWhtSettlement}>
+              <div className="modal-body">
+                <ModalErrorAlert error={whtError} onDismiss={() => setWhtError(null)} />
+
+                {/* Statutory rule card */}
+                <div style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+                  <div style={{ fontWeight: 700, color: '#c084fc', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <ShieldCheck size={16} />
+                    SRS §IV14 Non-Cash Settlement Mandate
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    The customer is a designated withholding tax agent who withheld tax at source. This posts a <strong>WHT_SETTLEMENT</strong> credit linked to invoice <strong>{whtTargetInvoice.invoiceNumber}</strong> and booking. No cash reached KANAB.
+                    <div style={{ marginTop: '0.4rem', color: '#f59e0b', fontWeight: 600 }}>
+                      ⚠️ Statutory Requirement: This credit is strictly non-refundable. If cancelled, KANAB refunds only actual cash received.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Summary */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                    <div style={{ fontWeight: 700 }}>{whtTargetInvoice.customer?.fullName}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>TIN: {whtTargetInvoice.customer?.tinNumber || '0012345678'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Gross Invoice Total:</span>
+                    <div style={{ fontWeight: 700 }}>ETB {Number(whtTargetInvoice.grossTotal).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Cash Received via BRV:</span>
+                    <div style={{ fontWeight: 700, color: '#10b981' }}>ETB {Number(whtTargetInvoice.depositsApplied).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Current Invoice Balance:</span>
+                    <div style={{ fontWeight: 700, color: Number(whtTargetInvoice.outstandingBalance) > 0 ? '#f59e0b' : '#10b981' }}>
+                      ETB {Number(whtTargetInvoice.outstandingBalance).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      Withheld Tax Amount (ETB) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={whtAmount}
+                      onChange={(e) => setWhtAmount(e.target.value)}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                      }}
+                    />
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Standard 2% Commercial WHT
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      Withholding Certificate # *
+                    </label>
+                    <input
+                      type="text"
+                      value={whtCertNumber}
+                      onChange={(e) => setWhtCertNumber(e.target.value)}
+                      placeholder="e.g. 01243 or WHT-2026-0089"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                        fontFamily: 'monospace',
+                        fontWeight: 700,
+                      }}
+                    />
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Official Tax Authority Certificate #
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      Certificate Issue Date
+                    </label>
+                    <input
+                      type="date"
+                      value={whtCertDate}
+                      onChange={(e) => setWhtCertDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      Audit Notes
+                    </label>
+                    <input
+                      type="text"
+                      value={whtNotes}
+                      onChange={(e) => setWhtNotes(e.target.value)}
+                      placeholder="e.g. Tax withheld at source, certificate 01243"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Atomic Ledger Posting Preview */}
+                <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '0.85rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                    Live Customer Ledger Atomic Posting Preview (Story IV14)
+                  </div>
+                  <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ color: '#64748b', borderBottom: '1px solid #1e293b' }}>
+                        <th style={{ textAlign: 'left', padding: '0.3rem 0' }}>Transaction Entry</th>
+                        <th style={{ textAlign: 'right', padding: '0.3rem 0' }}>Debit (ETB)</th>
+                        <th style={{ textAlign: 'right', padding: '0.3rem 0' }}>Credit (ETB)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ color: '#e2e8f0' }}>
+                        <td style={{ padding: '0.3rem 0' }}>Sales Invoice ({whtTargetInvoice.invoiceNumber})</td>
+                        <td style={{ textAlign: 'right' }}>{Number(whtTargetInvoice.grossTotal).toLocaleString()}</td>
+                        <td style={{ textAlign: 'right' }}>-</td>
+                      </tr>
+                      <tr style={{ color: '#10b981' }}>
+                        <td style={{ padding: '0.3rem 0' }}>Bank Receipt Voucher (Cash Received)</td>
+                        <td style={{ textAlign: 'right' }}>-</td>
+                        <td style={{ textAlign: 'right' }}>{Number(whtTargetInvoice.depositsApplied).toLocaleString()}</td>
+                      </tr>
+                      <tr style={{ color: '#c084fc', fontWeight: 700 }}>
+                        <td style={{ padding: '0.3rem 0' }}>Tax withheld at source, cert {whtCertNumber || 'PENDING'}</td>
+                        <td style={{ textAlign: 'right' }}>-</td>
+                        <td style={{ textAlign: 'right' }}>{Number(whtAmount || 0).toLocaleString()}</td>
+                      </tr>
+                      <tr style={{ color: '#38bdf8', borderTop: '1px solid #334155', fontWeight: 800 }}>
+                        <td style={{ padding: '0.4rem 0' }}>Net Outstanding Customer Balance</td>
+                        <td style={{ textAlign: 'right' }}>-</td>
+                        <td style={{ textAlign: 'right' }}>
+                          ETB {Math.max(0, Number(whtTargetInvoice.outstandingBalance) - Number(whtAmount || 0)).toLocaleString()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowWhtModal(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || !whtAmount || Number(whtAmount) <= 0}
+                  className="btn"
+                  style={{
+                    background: '#a855f7',
+                    color: '#fff',
+                    fontWeight: 700,
+                  }}
+                >
+                  {actionLoading ? 'Posting...' : 'Confirm & Post WHT Settlement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* STORY IV14: UPDATE CERTIFICATE MODAL */}
+      {showUpdateCertModal && updateCertInvoice && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: 'var(--radius-md)', color: '#c084fc' }}>
+                  <FileCheck2 size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Update WHT Certificate
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#c084fc' }}>
+                    Invoice: {updateCertInvoice.invoiceNumber} · Customer: {updateCertInvoice.customerName}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUpdateCertModal(false)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCertificate}>
+              <div className="modal-body">
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                    Withholding Tax Certificate # *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCertNumber}
+                    onChange={(e) => setNewCertNumber(e.target.value)}
+                    placeholder="Enter official certificate number..."
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                    Certificate Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newCertDate}
+                    onChange={(e) => setNewCertDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                    Compliance & Tax Claim Status
+                  </label>
+                  <select
+                    value={newCertStatus}
+                    onChange={(e) => setNewCertStatus(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <option value="CERTIFICATE_RECEIVED">✓ Certificate Received & On File</option>
+                    <option value="PENDING_CERTIFICATE">⏳ Missing Certificate (Pending Follow-up)</option>
+                    <option value="CLAIMED">★ Claimed as Tax Credit against KANAB Corporate Tax</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowUpdateCertModal(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="btn btn-cyan"
+                  style={{ fontWeight: 700 }}
+                >
+                  {actionLoading ? 'Saving...' : 'Save Certificate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 export default InvoicesPage;
+

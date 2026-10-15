@@ -12,6 +12,7 @@ import {
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { RecordWhtSettlementDto, UpdateWhtCertificateDto } from './dto/record-wht-settlement.dto';
 import { InvoiceStatus } from './entities/sales-invoice.entity';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
@@ -30,6 +31,13 @@ export class InvoicesController {
   }
 
   @RequirePermissions('PAYMENTS_VIEW')
+  @Get('wht/certificates')
+  @ApiOperation({ summary: 'Story IV14: Track customer withholding tax certificates & missing list for finance' })
+  getWhtCertificates() {
+    return this.invoicesService.getWhtCertificates();
+  }
+
+  @RequirePermissions('PAYMENTS_VIEW')
   @Get()
   @ApiOperation({ summary: 'List all sales invoices with balances, VAT & status' })
   findAll(
@@ -44,6 +52,28 @@ export class InvoicesController {
   @ApiOperation({ summary: 'Get sales invoice details with line calculations' })
   findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.invoicesService.findOne(id);
+  }
+
+  @RequirePermissions('PAYMENTS_RECORD')
+  @Post(':id/wht-settlement')
+  @ApiOperation({ summary: 'Story IV14: Record non-cash WHT settlement and atomic ledger posting' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  recordWhtSettlement(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: RecordWhtSettlementDto,
+    @Query('userId') userId?: string,
+  ) {
+    return this.invoicesService.recordWhtSettlement(id, dto, Number(userId) || 1);
+  }
+
+  @RequirePermissions('PAYMENTS_CONFIRM')
+  @Patch(':id/wht-certificate')
+  @ApiOperation({ summary: 'Story IV14: Update WHT certificate number or mark as claimed' })
+  updateWhtCertificate(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdateWhtCertificateDto,
+  ) {
+    return this.invoicesService.updateWhtCertificate(id, dto);
   }
 
   @RequirePermissions('PAYMENTS_CONFIRM')

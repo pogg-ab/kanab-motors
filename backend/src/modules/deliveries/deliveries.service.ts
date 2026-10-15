@@ -215,7 +215,21 @@ export class DeliveriesService {
     const delivery = await this.findOne(id);
     const pdi = await this.getVehiclePdi(delivery.vehicleUnitId);
 
+    const defaultHandoverPack = [
+      { id: 'keys', name: 'Ignition Keys (Original & Spare Sets)', quantity: '2 Sets', verified: true },
+      { id: 'spare_wheel', name: 'Spare Wheel & Pneumatic Tyre (100% Tread)', quantity: '1 Unit', verified: true },
+      { id: 'tool_kit', name: 'Vehicle Tool Kit (Jack, Handle & Wheel Spanner)', quantity: '1 Set', verified: true },
+      { id: 'manual', name: "Owner's Operational & Maintenance Manual", quantity: '1 Copy', verified: true },
+      { id: 'warranty_booklet', name: 'Manufacturer Warranty Booklet & Service Schedule', quantity: '1 Booklet', verified: true },
+      { id: 'transit_permit', name: 'Temporary Vehicle Transit Permit / Official Plates', quantity: '1 Set', verified: true },
+    ];
+
+    const customerName = delivery.booking?.customer?.fullName || 'Customer';
+    const declarationText = delivery.customerDeclarationText ||
+      `I, the undersigned ${customerName}, hereby declare and confirm that I have physically inspected and taken formal delivery of the vehicle specified above in satisfactory, roadworthy condition, complete with all specified accessories, tools, and the Handover Pack listed herein. I acknowledge receipt of all official keys, user manuals, warranty terms, and accept full operational custody and responsibility from this timestamp.`;
+
     return {
+      voucherNumber: `DV-${delivery.deliveryNumber}`,
       gatePassNumber: `GP-${delivery.deliveryNumber}`,
       deliveryNumber: delivery.deliveryNumber,
       deliveryDate: delivery.deliveryDate || new Date().toISOString().split('T')[0],
@@ -225,6 +239,8 @@ export class DeliveriesService {
         name: delivery.booking?.customer?.fullName,
         contactPerson: delivery.booking?.customer?.fullName,
         phone: delivery.booking?.customer?.mobileNumber,
+        tin: delivery.booking?.customer?.tinNumber || '0012345678',
+        address: [(delivery.booking?.customer as any)?.addressTown, (delivery.booking?.customer?.region as any)?.regionName].filter(Boolean).join(', ') || 'Addis Ababa, Ethiopia',
       },
       booking: {
         bookingId: delivery.booking?.bookingId,
@@ -237,7 +253,10 @@ export class DeliveriesService {
         engineNumber: delivery.vehicleUnit?.engineNumber,
         model: delivery.vehicleUnit?.item?.itemName,
         itemCode: delivery.vehicleUnit?.item?.itemCode,
+        colour: (delivery.vehicleUnit?.item as any)?.colour || 'Factory Standard',
+        engineCapacity: (delivery.vehicleUnit?.item as any)?.engineCapacityCc ? `${(delivery.vehicleUnit?.item as any)?.engineCapacityCc}cc` : ((delivery.vehicleUnit?.item as any)?.batteryPowerKwh ? `${(delivery.vehicleUnit?.item as any)?.batteryPowerKwh} kWh` : 'Standard Spec'),
         currentStatus: delivery.vehicleUnit?.currentStatus,
+        odometerReading: delivery.odometerReading || 0,
       },
       verifications: {
         pdiCompleted: delivery.pdiCompleted,
@@ -253,6 +272,10 @@ export class DeliveriesService {
             passedChecks: pdi.results?.filter((r) => r.passed).length,
           }
         : null,
+      handoverPack: delivery.handoverPackItems || defaultHandoverPack,
+      declarationText,
+      releasingOfficer: delivery.responsibleStaff?.fullName || 'Dispatch / Yard Storekeeper',
+      securityOfficer: 'Security Gate Clearance Officer',
       dispatchedBy: delivery.responsibleStaff?.fullName || 'Authorized Staff',
       deliveredAt: delivery.deliveredAt,
       issuedAt: new Date(),

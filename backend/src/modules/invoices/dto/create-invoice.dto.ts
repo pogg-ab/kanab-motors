@@ -31,4 +31,14 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsBoolean()
   applyDeposits?: boolean;
+
+  @ApiPropertyOptional({ description: 'Flag whether withholding tax (2%) applies to this invoice', example: true })
+  @IsOptional()
+  @IsBoolean()
+  whtApplicable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Withholding tax rate (defaults to 0.02 for 2%)', example: 0.02 })
+  @IsOptional()
+  @IsNumber()
+  whtRate?: number;
 }

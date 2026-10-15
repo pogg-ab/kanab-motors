@@ -104,6 +104,27 @@ export class SalesInvoice {
   @Column({ name: 'excess_payment_flag', type: 'boolean', default: false })
   excessPaymentFlag: boolean;
 
+  @Column({ name: 'wht_applicable', type: 'boolean', default: false })
+  whtApplicable: boolean;
+
+  @Column({ name: 'wht_rate', type: 'numeric', precision: 5, scale: 4, default: 0.02 })
+  whtRate: number;
+
+  @Column({ name: 'wht_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  whtAmount: number;
+
+  @Column({ name: 'wht_certificate_number', length: 100, nullable: true })
+  whtCertificateNumber?: string;
+
+  @Column({ name: 'wht_certificate_date', type: 'date', nullable: true })
+  whtCertificateDate?: string;
+
+  @Column({ name: 'wht_status', length: 30, default: 'NONE' })
+  whtStatus: string;
+
+  @Column({ name: 'wht_settled_at', type: 'timestamptz', nullable: true })
+  whtSettledAt?: Date;
+
   @Column({
     type: 'enum',
     enum: InvoiceStatus,
