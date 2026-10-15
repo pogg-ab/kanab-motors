@@ -65,6 +65,7 @@ export const CustomersPage: React.FC = () => {
     fullName: '',
     mobileNumber: '',
     tinNumber: '',
+    withholdingTaxFlag: false,
     regionId: '' as string | number,
     addressTown: '',
     bankAccounts: [] as Array<{
@@ -86,6 +87,7 @@ export const CustomersPage: React.FC = () => {
     fullName: '',
     mobileNumber: '',
     tinNumber: '',
+    withholdingTaxFlag: false,
     regionId: '' as string | number,
     addressTown: '',
     isActive: true,
@@ -161,6 +163,7 @@ export const CustomersPage: React.FC = () => {
       fullName: '',
       mobileNumber: '',
       tinNumber: '',
+      withholdingTaxFlag: false,
       regionId: regions[0]?.regionId || '',
       addressTown: '',
       bankAccounts: [],
@@ -217,6 +220,7 @@ export const CustomersPage: React.FC = () => {
         fullName: formData.fullName,
         mobileNumber: formData.mobileNumber,
         addressTown: formData.addressTown,
+        withholdingTaxFlag: formData.withholdingTaxFlag,
       };
       if (formData.tinNumber.trim()) payload.tinNumber = formData.tinNumber.trim();
       if (formData.regionId) payload.regionId = Number(formData.regionId);
@@ -279,6 +283,7 @@ export const CustomersPage: React.FC = () => {
       fullName: cust.fullName,
       mobileNumber: cust.mobileNumber,
       tinNumber: cust.tinNumber || '',
+      withholdingTaxFlag: !!cust.withholdingTaxFlag,
       regionId: cust.regionId || (cust.region?.regionId ? String(cust.region.regionId) : ''),
       addressTown: cust.addressTown || '',
       isActive: cust.isActive !== false,
@@ -308,6 +313,7 @@ export const CustomersPage: React.FC = () => {
         fullName: editFormData.fullName,
         mobileNumber: editFormData.mobileNumber,
         addressTown: editFormData.addressTown,
+        withholdingTaxFlag: editFormData.withholdingTaxFlag,
         isActive: editFormData.isActive,
       };
       if (editFormData.tinNumber && editFormData.tinNumber.trim()) {
@@ -640,6 +646,15 @@ export const CustomersPage: React.FC = () => {
                       >
                         {c.customerType}
                       </span>
+                      {c.withholdingTaxFlag && (
+                        <span
+                          className="badge badge-amber"
+                          style={{ marginLeft: '0.4rem', fontSize: '0.68rem', padding: '0.15rem 0.4rem' }}
+                          title="Subject to Withholding Tax"
+                        >
+                          WHT
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                       {c.isActive !== false ? (
@@ -890,6 +905,34 @@ export const CustomersPage: React.FC = () => {
                     placeholder="e.g. Bole Subcity, Woreda 03, Addis Ababa"
                     value={formData.addressTown}
                     onChange={(e) => setFormData({ ...formData, addressTown: e.target.value })}
+                  />
+                </div>
+
+                {/* Withholding Tax Flag (Story 1.1) */}
+                <div className="form-group" style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: formData.withholdingTaxFlag ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-tertiary)',
+                  border: formData.withholdingTaxFlag ? '1px solid var(--accent-amber)' : '1px solid var(--border-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  marginTop: '0.5rem',
+                }}>
+                  <div>
+                    <label style={{ fontWeight: 700, fontSize: '0.875rem', display: 'block', color: 'var(--text-primary)', cursor: 'pointer' }} onClick={() => setFormData({ ...formData, withholdingTaxFlag: !formData.withholdingTaxFlag })}>
+                      Withholding Tax (WHT) Applicable
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Enable if this customer is a registered tax withholding agent or entity subject to WHT deductions.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.withholdingTaxFlag}
+                    onChange={(e) => setFormData({ ...formData, withholdingTaxFlag: e.target.checked })}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-amber)' }}
                   />
                 </div>
 
@@ -1170,6 +1213,34 @@ export const CustomersPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Withholding Tax Flag (Story 1.1) */}
+                <div className="form-group" style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: editFormData.withholdingTaxFlag ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-tertiary)',
+                  border: editFormData.withholdingTaxFlag ? '1px solid var(--accent-amber)' : '1px solid var(--border-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  marginTop: '0.5rem',
+                }}>
+                  <div>
+                    <label style={{ fontWeight: 700, fontSize: '0.875rem', display: 'block', color: 'var(--text-primary)', cursor: 'pointer' }} onClick={() => setEditFormData({ ...editFormData, withholdingTaxFlag: !editFormData.withholdingTaxFlag })}>
+                      Withholding Tax (WHT) Applicable
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Enable if this customer is a registered tax withholding agent subject to WHT deductions.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={editFormData.withholdingTaxFlag}
+                    onChange={(e) => setEditFormData({ ...editFormData, withholdingTaxFlag: e.target.checked })}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-amber)' }}
+                  />
+                </div>
+
                 {/* Account Status Switch */}
                 <div
                   className="form-group"
@@ -1377,6 +1448,16 @@ export const CustomersPage: React.FC = () => {
                         <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Tax Identification Number (TIN)</div>
                         <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>
                           {selectedCustomer.tinNumber || 'None (Direct/POS customer)'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Withholding Tax (WHT)</div>
+                        <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>
+                          {selectedCustomer.withholdingTaxFlag ? (
+                            <span className="badge badge-amber" style={{ fontSize: '0.75rem' }}>Subject to WHT</span>
+                          ) : (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.75rem' }}>Exempt / Standard</span>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -62,6 +62,9 @@ export class Customer {
   @Column({ name: 'tin_number', length: 30, nullable: true })
   tinNumber: string;
 
+  @Column({ name: 'withholding_tax_flag', type: 'boolean', default: false })
+  withholdingTaxFlag: boolean;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

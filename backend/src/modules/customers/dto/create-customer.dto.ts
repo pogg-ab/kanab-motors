@@ -7,6 +7,7 @@ import {
   ValidateIf,
   IsArray,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -72,6 +73,11 @@ export class CreateCustomerDto {
   @IsNotEmpty({ message: 'TIN Number is mandatory for Dealer and Government customers' })
   @IsString()
   tinNumber?: string;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsBoolean()
+  @IsOptional()
+  withholdingTaxFlag?: boolean;
 
   @ApiPropertyOptional({ type: [CreateBankAccountDto] })
   @IsArray()

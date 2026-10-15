@@ -12,6 +12,18 @@ export class TaxConfiguration {
   @Column({ name: 'tax_rate_pct', type: 'numeric', precision: 5, scale: 2 })
   taxRatePct: number;
 
+  @Column({ name: 'tax_type', length: 20, default: 'VAT' })
+  taxType: string; // 'VAT' | 'EXCISE' | 'WHT'
+
+  @Column({ name: 'applicable_customer_type', length: 30, default: 'ALL' })
+  applicableCustomerType: string; // 'ALL' | 'DEALER' | 'GOVERNMENT' | 'DIRECT_POS' | 'WHT_ONLY'
+
+  @Column({ name: 'applicable_vehicle_type', length: 50, default: 'ALL' })
+  applicableVehicleType: string; // 'ALL' | 'MOTORCYCLE' | 'THREE_WHEELER' | 'IMPORTED_VEHICLE'
+
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

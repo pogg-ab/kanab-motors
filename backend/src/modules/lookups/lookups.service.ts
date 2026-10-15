@@ -22,6 +22,34 @@ export class LookupsService {
     return this.regionRepo.find({ order: { regionName: 'ASC' } });
   }
 
+  async getColors(): Promise<any[]> {
+    return this.dataSource.query(
+      'SELECT color_id AS "colorId", color_name AS "colorName", hex_code AS "hexCode", is_active AS "isActive" FROM vehicle_color WHERE is_active = true ORDER BY color_name ASC',
+    );
+  }
+
+  async createColor(colorName: string, hexCode?: string): Promise<any> {
+    const rows = await this.dataSource.query(
+      `INSERT INTO vehicle_color (color_name, hex_code) VALUES ($1, $2) ON CONFLICT (color_name) DO UPDATE SET hex_code = EXCLUDED.hex_code, is_active = true RETURNING color_id AS "colorId", color_name AS "colorName", hex_code AS "hexCode"`,
+      [colorName.trim(), hexCode?.trim() || '#000000'],
+    );
+    return rows[0];
+  }
+
+  async getUnits(): Promise<any[]> {
+    return this.dataSource.query(
+      'SELECT uom_id AS "uomId", uom_name AS "uomName" FROM unit_of_measure ORDER BY uom_name ASC',
+    );
+  }
+
+  async createUnit(uomName: string): Promise<any> {
+    const rows = await this.dataSource.query(
+      `INSERT INTO unit_of_measure (uom_name) VALUES ($1) ON CONFLICT (uom_name) DO UPDATE SET uom_name = EXCLUDED.uom_name RETURNING uom_id AS "uomId", uom_name AS "uomName"`,
+      [uomName.trim().toUpperCase()],
+    );
+    return rows[0];
+  }
+
   async getWarehouses(): Promise<Warehouse[]> {
     return this.warehouseRepo.find({ where: { isActive: true }, order: { warehouseName: 'ASC' } });
   }

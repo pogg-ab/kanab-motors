@@ -96,6 +96,15 @@ export class ProductItem {
   @Column({ name: 'compatible_model', length: 100, nullable: true })
   compatibleModel?: string;
 
+  @Column({ length: 50, nullable: true })
+  colour?: string;
+
+  @Column({ name: 'engine_capacity_cc', length: 50, nullable: true })
+  engineCapacityCc?: string;
+
+  @Column({ name: 'battery_power_kwh', type: 'numeric', precision: 6, scale: 2, nullable: true })
+  batteryPowerKwh?: number;
+
   @Column({ name: 'usage_type', length: 30, default: 'BOTH' })
   usageType: string; // 'SALES_ONLY' | 'ASSEMBLY_ONLY' | 'BOTH'
 

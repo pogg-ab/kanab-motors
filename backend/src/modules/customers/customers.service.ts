@@ -71,6 +71,7 @@ export class CustomersService {
       addressTown: dto.addressTown,
       mobileNumber: dto.mobileNumber.trim(),
       tinNumber: dto.tinNumber?.trim() || null,
+      withholdingTaxFlag: dto.withholdingTaxFlag ?? false,
       createdBy: userId,
     });
 

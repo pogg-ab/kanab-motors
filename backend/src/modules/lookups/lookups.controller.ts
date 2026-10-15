@@ -28,6 +28,34 @@ export class LookupsController {
     return this.lookupsService.getRegions();
   }
 
+  @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW')
+  @Get('colors')
+  @ApiOperation({ summary: 'Get list of vehicle colors' })
+  getColors() {
+    return this.lookupsService.getColors();
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Post('colors')
+  @ApiOperation({ summary: 'Add a new vehicle color' })
+  createColor(@Body() body: { colorName: string; hexCode?: string }) {
+    return this.lookupsService.createColor(body.colorName, body.hexCode);
+  }
+
+  @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW')
+  @Get('uoms')
+  @ApiOperation({ summary: 'Get list of units of measure' })
+  getUnits() {
+    return this.lookupsService.getUnits();
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Post('uoms')
+  @ApiOperation({ summary: 'Add a new unit of measure' })
+  createUnit(@Body() body: { uomName: string }) {
+    return this.lookupsService.createUnit(body.uomName);
+  }
+
   @RequirePermissions('WAREHOUSES_MANAGE', 'VEHICLES_VIEW')
   @Get('warehouses')
   @ApiOperation({ summary: 'Get list of active warehouses' })

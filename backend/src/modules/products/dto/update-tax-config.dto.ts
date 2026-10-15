@@ -18,4 +18,24 @@ export class UpdateTaxConfigDto {
   @Min(0)
   @IsOptional()
   ratePct?: number;
+
+  @ApiPropertyOptional({ example: 'VAT', enum: ['VAT', 'EXCISE', 'WHT'] })
+  @IsString()
+  @IsOptional()
+  taxType?: string;
+
+  @ApiPropertyOptional({ example: 'ALL' })
+  @IsString()
+  @IsOptional()
+  applicableCustomerType?: string;
+
+  @ApiPropertyOptional({ example: 'ALL' })
+  @IsString()
+  @IsOptional()
+  applicableVehicleType?: string;
+
+  @ApiPropertyOptional({ example: 'Tax description notes' })
+  @IsString()
+  @IsOptional()
+  description?: string;
 }

@@ -140,6 +140,7 @@ export interface Customer {
   addressTown?: string;
   mobileNumber: string;
   tinNumber?: string;
+  withholdingTaxFlag?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -164,10 +165,21 @@ export interface UnitOfMeasure {
   uomCode?: string;
 }
 
+export interface VehicleColor {
+  colorId: number;
+  colorName: string;
+  hexCode?: string;
+  isActive?: boolean;
+}
+
 export interface TaxConfiguration {
   taxConfigId: number;
   taxName: string;
   taxRatePct: number | string;
+  taxType?: 'VAT' | 'EXCISE' | 'WHT';
+  applicableCustomerType?: string;
+  applicableVehicleType?: string;
+  description?: string;
   isActive: boolean;
 }
 
@@ -180,6 +192,9 @@ export interface ProductItem {
   brandId?: number;
   brand?: Brand;
   model?: string;
+  colour?: string;
+  engineCapacityCc?: string;
+  batteryPowerKwh?: number;
   uomId: number;
   uom?: UnitOfMeasure;
   sellingPrice: number | string;
@@ -649,6 +664,9 @@ export interface UnifiedDocumentItem {
 export const api = {
   // Lookups
   getRegions: () => apiClient.get<Region[]>('/lookups/regions').then((r) => r.data),
+  getColors: () => apiClient.get<VehicleColor[]>('/lookups/colors').then((r) => r.data),
+  createColor: (colorName: string, hexCode?: string) =>
+    apiClient.post<VehicleColor>('/lookups/colors', { colorName, hexCode }).then((r) => r.data),
   getWarehouses: () => apiClient.get<Warehouse[]>('/lookups/warehouses').then((r) => r.data),
   createWarehouse: (name: string, location?: string) =>
     apiClient.post<Warehouse>('/lookups/warehouses', { name, location }).then((r) => r.data),
@@ -720,9 +738,11 @@ export const api = {
   getUoms: () => apiClient.get<UnitOfMeasure[]>('/products/uoms').then((r) => r.data),
   getTaxConfigs: () =>
     apiClient.get<TaxConfiguration[]>('/products/tax-configs').then((r) => r.data),
-  createTaxConfig: (name: string, ratePct: number) =>
-    apiClient.post<TaxConfiguration>('/products/tax-configs', { name, ratePct }).then((r) => r.data),
-  updateTaxConfig: (id: number, data: { name?: string; ratePct?: number }) =>
+  createTaxConfig: (data: { name: string; ratePct: number; taxType?: string; applicableCustomerType?: string; applicableVehicleType?: string; description?: string } | string, ratePct?: number) => {
+    const payload = typeof data === 'string' ? { name: data, ratePct: ratePct || 0 } : data;
+    return apiClient.post<TaxConfiguration>('/products/tax-configs', payload).then((r) => r.data);
+  },
+  updateTaxConfig: (id: number, data: { name?: string; ratePct?: number; taxType?: string; applicableCustomerType?: string; applicableVehicleType?: string; description?: string }) =>
     apiClient.put<TaxConfiguration>(`/products/tax-configs/${id}`, data).then((r) => r.data),
   deleteTaxConfig: (id: number) =>
     apiClient.delete<{ success: boolean; message: string }>(`/products/tax-configs/${id}`).then((r) => r.data),

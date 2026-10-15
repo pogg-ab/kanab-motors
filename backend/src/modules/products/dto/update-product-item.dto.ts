@@ -63,6 +63,22 @@ export class UpdateProductItemDto {
   weightKg?: number;
 
   @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  colour?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  engineCapacityCc?: string;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
+  batteryPowerKwh?: number;
+
+  @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;

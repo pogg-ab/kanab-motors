@@ -62,6 +62,22 @@ export class CreateProductItemDto {
   @IsOptional()
   weightKg?: number;
 
+  @ApiPropertyOptional({ example: 'Crimson Red' })
+  @IsString()
+  @IsOptional()
+  colour?: string;
+
+  @ApiPropertyOptional({ example: '150cc' })
+  @IsString()
+  @IsOptional()
+  engineCapacityCc?: string;
+
+  @ApiPropertyOptional({ example: 7.2 })
+  @IsNumber()
+  @IsPositive({ message: 'Battery power must be greater than 0' })
+  @IsOptional()
+  batteryPowerKwh?: number;
+
   @ApiPropertyOptional({ default: true })
   @IsBoolean()
   @IsOptional()

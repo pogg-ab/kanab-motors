@@ -16,6 +16,7 @@ import { UpdateProductItemDto } from './dto/update-product-item.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { AuditService } from '../audit/audit.service';
 
+import { CreateTaxConfigDto } from './dto/create-tax-config.dto';
 import { UpdateTaxConfigDto } from './dto/update-tax-config.dto';
 
 @Injectable()
@@ -249,11 +250,15 @@ export class ProductsService {
     return this.taxRepo.find({ where: { isActive: true }, order: { taxRatePct: 'ASC' } });
   }
 
-  async createTaxConfig(name: string, ratePct: number): Promise<TaxConfiguration> {
+  async createTaxConfig(dto: CreateTaxConfigDto): Promise<TaxConfiguration> {
     return this.taxRepo.save(
       this.taxRepo.create({
-        taxName: name.trim(),
-        taxRatePct: ratePct,
+        taxName: dto.name.trim(),
+        taxRatePct: dto.ratePct,
+        taxType: dto.taxType || 'VAT',
+        applicableCustomerType: dto.applicableCustomerType || 'ALL',
+        applicableVehicleType: dto.applicableVehicleType || 'ALL',
+        description: dto.description || null,
         isActive: true,
       }),
     );
@@ -264,6 +269,10 @@ export class ProductsService {
     if (!tax) throw new NotFoundException(`Tax configuration with ID ${id} not found`);
     if (dto.name !== undefined) tax.taxName = dto.name.trim();
     if (dto.ratePct !== undefined) tax.taxRatePct = dto.ratePct;
+    if (dto.taxType !== undefined) tax.taxType = dto.taxType;
+    if (dto.applicableCustomerType !== undefined) tax.applicableCustomerType = dto.applicableCustomerType;
+    if (dto.applicableVehicleType !== undefined) tax.applicableVehicleType = dto.applicableVehicleType;
+    if (dto.description !== undefined) tax.description = dto.description;
     return this.taxRepo.save(tax);
   }
 

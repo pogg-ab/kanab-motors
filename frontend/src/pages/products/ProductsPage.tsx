@@ -23,6 +23,7 @@ import {
   Brand,
   UnitOfMeasure,
   TaxConfiguration,
+  VehicleColor,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
@@ -40,6 +41,7 @@ export const ProductsPage: React.FC = () => {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [uoms, setUoms] = useState<UnitOfMeasure[]>([]);
   const [taxConfigs, setTaxConfigs] = useState<TaxConfiguration[]>([]);
+  const [colors, setColors] = useState<VehicleColor[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Filters
@@ -61,6 +63,9 @@ export const ProductsPage: React.FC = () => {
     taxConfigId: '' as string | number,
     reorderLevel: '5',
     weightKg: '',
+    colour: '',
+    engineCapacityCc: '',
+    batteryPowerKwh: '',
   });
   const [editProductError, setEditProductError] = useState<string | null>(null);
   const [editProductSubmitting, setEditProductSubmitting] = useState(false);
@@ -85,9 +90,14 @@ export const ProductsPage: React.FC = () => {
   const [isTaxModalOpen, setIsTaxModalOpen] = useState(false);
   const [newTaxName, setNewTaxName] = useState('');
   const [newTaxRate, setNewTaxRate] = useState('0');
+  const [newTaxType, setNewTaxType] = useState<'VAT' | 'EXCISE' | 'WHT'>('VAT');
+  const [newTaxCustomerType, setNewTaxCustomerType] = useState('ALL');
+  const [newTaxVehicleType, setNewTaxVehicleType] = useState('ALL');
+  const [newTaxDescription, setNewTaxDescription] = useState('');
   const [editingTaxId, setEditingTaxId] = useState<number | null>(null);
   const [editingTaxName, setEditingTaxName] = useState('');
   const [editingTaxRate, setEditingTaxRate] = useState('0');
+  const [editingTaxType, setEditingTaxType] = useState<'VAT' | 'EXCISE' | 'WHT'>('VAT');
   const [taxActionError, setTaxActionError] = useState<string | null>(null);
   const [taxSaving, setTaxSaving] = useState(false);
 
@@ -103,6 +113,9 @@ export const ProductsPage: React.FC = () => {
     taxConfigId: '' as string | number,
     reorderLevel: '5',
     weightKg: '',
+    colour: '',
+    engineCapacityCc: '',
+    batteryPowerKwh: '',
   });
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -110,16 +123,18 @@ export const ProductsPage: React.FC = () => {
 
   const fetchReferenceData = async () => {
     try {
-      const [cats, brs, uomList, taxes] = await Promise.all([
+      const [cats, brs, uomList, taxes, colList] = await Promise.all([
         api.getCategories(),
         api.getBrands(),
         api.getUoms(),
         api.getTaxConfigs(),
+        api.getColors().catch(() => []),
       ]);
       setCategories(cats);
       setBrands(brs);
       setUoms(uomList);
       setTaxConfigs(taxes);
+      setColors(colList);
     } catch (err) {
       console.error('Failed to load reference data:', err);
     }
@@ -182,6 +197,9 @@ export const ProductsPage: React.FC = () => {
       categoryId: currentCats[0]?.categoryId || '',
       brandId: currentBrands[0]?.brandId || '',
       model: '',
+      colour: '',
+      engineCapacityCc: '',
+      batteryPowerKwh: '',
       uomId: currentUoms[0]?.uomId || '',
       sellingPrice: '',
       taxConfigId: currentTaxes[0]?.taxConfigId || '',
@@ -216,6 +234,9 @@ export const ProductsPage: React.FC = () => {
         taxConfigId: formData.taxConfigId ? Number(formData.taxConfigId) : undefined,
         reorderLevel: Number(formData.reorderLevel) || 0,
         weightKg: formData.weightKg ? Number(formData.weightKg) : undefined,
+        colour: formData.colour.trim() || undefined,
+        engineCapacityCc: formData.engineCapacityCc.trim() || undefined,
+        batteryPowerKwh: formData.batteryPowerKwh ? Number(formData.batteryPowerKwh) : undefined,
       });
       setIsCreateOpen(false);
       fetchItems();
@@ -239,6 +260,9 @@ export const ProductsPage: React.FC = () => {
       taxConfigId: item.taxConfigId || (item.taxConfig?.taxConfigId ?? ''),
       reorderLevel: String(item.reorderLevel ?? '5'),
       weightKg: item.weightKg !== undefined && item.weightKg !== null ? String(item.weightKg) : '',
+      colour: item.colour || '',
+      engineCapacityCc: item.engineCapacityCc || '',
+      batteryPowerKwh: item.batteryPowerKwh !== undefined && item.batteryPowerKwh !== null ? String(item.batteryPowerKwh) : '',
     });
     setEditProductError(null);
   };
@@ -267,6 +291,9 @@ export const ProductsPage: React.FC = () => {
         taxConfigId: editFormData.taxConfigId ? Number(editFormData.taxConfigId) : undefined,
         reorderLevel: Number(editFormData.reorderLevel) || 0,
         weightKg: editFormData.weightKg ? Number(editFormData.weightKg) : undefined,
+        colour: editFormData.colour.trim() || undefined,
+        engineCapacityCc: editFormData.engineCapacityCc.trim() || undefined,
+        batteryPowerKwh: editFormData.batteryPowerKwh ? Number(editFormData.batteryPowerKwh) : undefined,
       });
       setEditingProduct(null);
       await fetchItems();
@@ -417,9 +444,20 @@ export const ProductsPage: React.FC = () => {
     setTaxSaving(true);
     setTaxActionError(null);
     try {
-      await api.createTaxConfig(newTaxName.trim(), parseFloat(newTaxRate) || 0);
+      await api.createTaxConfig({
+        name: newTaxName.trim(),
+        ratePct: parseFloat(newTaxRate) || 0,
+        taxType: newTaxType,
+        applicableCustomerType: newTaxCustomerType,
+        applicableVehicleType: newTaxVehicleType,
+        description: newTaxDescription.trim() || undefined,
+      });
       setNewTaxName('');
       setNewTaxRate('0');
+      setNewTaxType('VAT');
+      setNewTaxCustomerType('ALL');
+      setNewTaxVehicleType('ALL');
+      setNewTaxDescription('');
       await fetchReferenceData();
       await fetchItems();
     } catch (err: any) {
@@ -711,6 +749,9 @@ export const ProductsPage: React.FC = () => {
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                         Model: {item.model || 'Standard'} · UoM: {item.uom?.uomName || 'UNIT'}
+                        {item.colour && ` · Color: ${item.colour}`}
+                        {item.engineCapacityCc && ` · Engine: ${item.engineCapacityCc}`}
+                        {item.batteryPowerKwh && ` · Battery: ${item.batteryPowerKwh} kWh`}
                       </div>
                     </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
@@ -901,6 +942,49 @@ export const ProductsPage: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                {/* Vehicle Specifications: Colour, Engine Capacity, Battery Power (Stories 2.1 & 2.2) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Vehicle Colour</label>
+                    <select
+                      className="select-field"
+                      value={formData.colour}
+                      onChange={(e) => setFormData({ ...formData, colour: e.target.value })}
+                    >
+                      <option value="">Select Colour</option>
+                      {colors.map((c) => (
+                        <option key={c.colorId} value={c.colorName}>
+                          {c.colorName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Engine / Motor Capacity</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. 150cc, 200cc, or 4 kW"
+                      value={formData.engineCapacityCc}
+                      onChange={(e) => setFormData({ ...formData, engineCapacityCc: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Battery Power (kWh)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="input-field"
+                      placeholder="e.g. 7.2 (for EVs)"
+                      value={formData.batteryPowerKwh}
+                      onChange={(e) => setFormData({ ...formData, batteryPowerKwh: e.target.value })}
+                    />
                   </div>
                 </div>
 
@@ -1098,6 +1182,49 @@ export const ProductsPage: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                {/* Edit Vehicle Specifications: Colour, Engine Capacity, Battery Power */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Vehicle Colour</label>
+                    <select
+                      className="select-field"
+                      value={editFormData.colour}
+                      onChange={(e) => setEditFormData({ ...editFormData, colour: e.target.value })}
+                    >
+                      <option value="">Select Colour</option>
+                      {colors.map((c) => (
+                        <option key={c.colorId} value={c.colorName}>
+                          {c.colorName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Engine / Motor Capacity</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. 150cc, 200cc, or 4 kW"
+                      value={editFormData.engineCapacityCc}
+                      onChange={(e) => setEditFormData({ ...editFormData, engineCapacityCc: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Battery Power (kWh)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="input-field"
+                      placeholder="e.g. 7.2 (for EVs)"
+                      value={editFormData.batteryPowerKwh}
+                      onChange={(e) => setEditFormData({ ...editFormData, batteryPowerKwh: e.target.value })}
+                    />
                   </div>
                 </div>
 
@@ -1615,28 +1742,59 @@ export const ProductsPage: React.FC = () => {
                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
                   + ADD NEW TAX CONFIGURATION
                 </div>
-                <form onSubmit={handleCreateTax} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '0.6rem' }}>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Tax Name (e.g. Standard VAT)"
-                    required
-                    value={newTaxName}
-                    onChange={(e) => setNewTaxName(e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    className="input-field"
-                    placeholder="Rate % (e.g. 15)"
-                    required
-                    value={newTaxRate}
-                    onChange={(e) => setNewTaxRate(e.target.value)}
-                  />
-                  <button type="submit" className="btn btn-cyan" disabled={taxSaving} style={{ whiteSpace: 'nowrap' }}>
-                    {taxSaving ? 'Adding...' : '+ Add Rate'}
+                <form onSubmit={handleCreateTax} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr auto', gap: '0.6rem', alignItems: 'end' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Tax Name *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. Excise Tax Three-Wheeler"
+                      required
+                      value={newTaxName}
+                      onChange={(e) => setNewTaxName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Rate % *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className="input-field"
+                      placeholder="e.g. 5"
+                      required
+                      value={newTaxRate}
+                      onChange={(e) => setNewTaxRate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Tax Type *</label>
+                    <select
+                      className="select-field"
+                      value={newTaxType}
+                      onChange={(e) => setNewTaxType(e.target.value as any)}
+                    >
+                      <option value="VAT">VAT (Value Added)</option>
+                      <option value="EXCISE">Excise Duty</option>
+                      <option value="WHT">WHT (Withholding)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Applicable To</label>
+                    <select
+                      className="select-field"
+                      value={newTaxVehicleType}
+                      onChange={(e) => setNewTaxVehicleType(e.target.value)}
+                    >
+                      <option value="ALL">All Products</option>
+                      <option value="MOTORCYCLE">Motorcycles</option>
+                      <option value="THREE_WHEELER">Three-Wheelers</option>
+                      <option value="IMPORTED_VEHICLE">Imported Vehicles</option>
+                    </select>
+                  </div>
+                  <button type="submit" className="btn btn-cyan" disabled={taxSaving} style={{ whiteSpace: 'nowrap', height: '38px' }}>
+                    {taxSaving ? 'Adding...' : '+ Add Tax'}
                   </button>
                 </form>
               </div>
@@ -1712,16 +1870,26 @@ export const ProductsPage: React.FC = () => {
                           </div>
                         ) : (
                           <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                               <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
                                 {tax.taxName}
                               </span>
                               <span className="badge badge-amber" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
                                 {tax.taxRatePct}%
                               </span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                #{tax.taxConfigId}
+                              <span className={`badge ${tax.taxType === 'WHT' ? 'badge-rose' : tax.taxType === 'EXCISE' ? 'badge-cyan' : 'badge-emerald'}`} style={{ fontSize: '0.7rem' }}>
+                                {tax.taxType || 'VAT'}
                               </span>
+                              {tax.applicableVehicleType && tax.applicableVehicleType !== 'ALL' && (
+                                <span className="badge badge-indigo" style={{ fontSize: '0.68rem' }}>
+                                  {tax.applicableVehicleType}
+                                </span>
+                              )}
+                              {tax.applicableCustomerType && tax.applicableCustomerType !== 'ALL' && (
+                                <span className="badge badge-amber" style={{ fontSize: '0.68rem' }}>
+                                  {tax.applicableCustomerType}
+                                </span>
+                              )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                               <button

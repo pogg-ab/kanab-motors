@@ -146,7 +146,7 @@ export class ProductsController {
   @ApiOperation({ summary: 'Create tax configuration' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createTaxConfig(@Body() dto: CreateTaxConfigDto) {
-    return this.productsService.createTaxConfig(dto.name, dto.ratePct);
+    return this.productsService.createTaxConfig(dto);
   }
 
   @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')

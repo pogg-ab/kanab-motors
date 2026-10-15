@@ -849,6 +849,25 @@ export const VehiclesPage: React.FC = () => {
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                         Code: <span className="mono-code" style={{ fontSize: '0.65rem' }}>{v.item?.itemCode}</span> · {v.item?.brand?.brandName}
                       </div>
+                      {(v.item?.colour || v.item?.engineCapacityCc || v.item?.batteryPowerKwh) && (
+                        <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                          {v.item?.colour && (
+                            <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.12)', color: '#818cf8', fontWeight: 600 }}>
+                              🎨 {v.item.colour}
+                            </span>
+                          )}
+                          {v.item?.engineCapacityCc && (
+                            <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.12)', color: '#34d399', fontWeight: 600 }}>
+                              ⚡ {v.item.engineCapacityCc}
+                            </span>
+                          )}
+                          {v.item?.batteryPowerKwh && (
+                            <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', fontWeight: 600 }}>
+                              🔋 {v.item.batteryPowerKwh} kWh
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
@@ -1981,6 +2000,20 @@ export const VehiclesPage: React.FC = () => {
                     <span style={{ color: 'var(--text-muted)' }}>Brand / Model:</span>
                     <strong style={{ color: 'var(--text-primary)' }}>{selectedVehicleForDetail.item?.brand?.brandName || 'Bajaj'} · {selectedVehicleForDetail.item?.itemName}</strong>
                   </div>
+                  {selectedVehicleForDetail.item?.colour && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Colour / Finish:</span>
+                      <strong style={{ color: '#818cf8' }}>🎨 {selectedVehicleForDetail.item.colour}</strong>
+                    </div>
+                  )}
+                  {(selectedVehicleForDetail.item?.engineCapacityCc || selectedVehicleForDetail.item?.batteryPowerKwh) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Engine / Power:</span>
+                      <strong style={{ color: '#34d399' }}>
+                        {selectedVehicleForDetail.item.engineCapacityCc ? `⚡ ${selectedVehicleForDetail.item.engineCapacityCc}` : `🔋 ${selectedVehicleForDetail.item.batteryPowerKwh} kWh`}
+                      </strong>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Current Warehouse:</span>
                     <strong style={{ color: 'var(--accent-cyan)' }}>{selectedVehicleForDetail.currentWarehouse?.warehouseName || 'Kality Assembly Plant Warehouse'}</strong>

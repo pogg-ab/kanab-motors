@@ -44,5 +44,10 @@ export class UpdateCustomerDto {
   @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()
+  withholdingTaxFlag?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
   isActive?: boolean;
 }
