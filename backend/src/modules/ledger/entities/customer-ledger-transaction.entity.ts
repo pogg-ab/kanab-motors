@@ -23,6 +23,7 @@ export enum LedgerTransactionType {
   ADJUSTMENT = 'ADJUSTMENT',
   BOOKING_CANCELLATION = 'BOOKING_CANCELLATION',
   BOOKING_TRANSFER = 'BOOKING_TRANSFER',
+  CREDIT_TRANSFER = 'CREDIT_TRANSFER',
 }
 
 @Entity('customer_ledger_transaction')

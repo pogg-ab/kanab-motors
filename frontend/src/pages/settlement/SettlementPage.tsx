@@ -109,6 +109,15 @@ export const SettlementPage: React.FC = () => {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [payoutError, setPayoutError] = useState<string | null>(null);
 
+  // Story X9 & X10: Credit Transfer Between Customers State
+  const [showCreditTransferModal, setShowCreditTransferModal] = useState<boolean>(false);
+  const [targetCustomerId, setTargetCustomerId] = useState<string>('');
+  const [transferAmount, setTransferAmount] = useState<number>(0);
+  const [transferReason, setTransferReason] = useState<string>('');
+  const [transferTargetBookingId, setTransferTargetBookingId] = useState<string>('');
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [submittingTransfer, setSubmittingTransfer] = useState<boolean>(false);
+
   // Refund Form State (Section 11 standard)
   const [newRefund, setNewRefund] = useState<{
     customerId: string;
@@ -339,6 +348,42 @@ export const SettlementPage: React.FC = () => {
       setRouteError(formatApiError(err, 'Excess routing failed'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreditTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer) return;
+    if (!targetCustomerId) {
+      setTransferError('Please select a recipient customer to receive the credit transfer.');
+      return;
+    }
+    if (selectedCustomer.customerId === targetCustomerId) {
+      setTransferError('Cannot transfer credit to the same customer account.');
+      return;
+    }
+    const avail = Number(selectedCustomer.accountSummary?.availableCredit || 0);
+    if (transferAmount <= 0 || transferAmount > avail) {
+      setTransferError(`Transfer amount must be between ETB 1 and available credit (ETB ${avail.toLocaleString()}).`);
+      return;
+    }
+
+    setSubmittingTransfer(true);
+    setTransferError(null);
+    try {
+      const res = await api.transferCustomerCredit(selectedCustomer.customerId, {
+        targetCustomerId,
+        amount: transferAmount,
+        reason: transferReason.trim() || undefined,
+        targetBookingId: transferTargetBookingId || undefined,
+      });
+      showToast('success', res.message || 'Credit transfer completed with two-sided atomic ledger posting!');
+      setShowCreditTransferModal(false);
+      loadData();
+    } catch (err: any) {
+      setTransferError(formatApiError(err, 'Failed to transfer customer credit'));
+    } finally {
+      setSubmittingTransfer(false);
     }
   };
 
@@ -806,22 +851,46 @@ export const SettlementPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                        {canRouteExcess && (
-                        <button
-                          onClick={() => {
-                            setRouteError(null);
-                            setSelectedCustomer(c);
-                            setExcessAmount(excess > 0 ? excess : 0);
-                            setExcessNotes('');
-                            setExcessAction('TRANSFER_TO_REFUNDABLE');
-                            setShowExcessRouteModal(true);
-                          }}
-                          className={`btn ${excess > 0 ? 'btn-cyan' : 'btn-secondary'}`}
-                          style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
-                        >
-                          Route Deposit Funds
-                        </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.45rem', justifyContent: 'center' }}>
+                          {canRouteExcess && (
+                          <button
+                            onClick={() => {
+                              setRouteError(null);
+                              setSelectedCustomer(c);
+                              setExcessAmount(excess > 0 ? excess : 0);
+                              setExcessNotes('');
+                              setExcessAction('TRANSFER_TO_REFUNDABLE');
+                              setShowExcessRouteModal(true);
+                            }}
+                            className={`btn ${excess > 0 ? 'btn-cyan' : 'btn-secondary'}`}
+                            style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                          >
+                            Route Deposit Funds
+                          </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedCustomer(c);
+                              setTargetCustomerId('');
+                              setTransferAmount(credit > 0 ? credit : 0);
+                              setTransferReason('');
+                              setTransferTargetBookingId('');
+                              setTransferError(null);
+                              setShowCreditTransferModal(true);
+                            }}
+                            className={`btn ${credit > 0 ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{
+                              fontSize: '0.75rem',
+                              padding: '0.4rem 0.85rem',
+                              background: credit > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : undefined,
+                              border: 'none',
+                              color: credit > 0 ? '#ffffff' : undefined,
+                            }}
+                            title="Transfer customer credit to another customer or order (Story X9/X10)"
+                          >
+                            Transfer Credit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1705,6 +1774,200 @@ export const SettlementPage: React.FC = () => {
                 >
                   <ArrowRightLeft size={16} />
                   {saving ? 'Processing...' : 'Confirm Routing'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Modal: Story X9 & X10 Credit Transfer Between Customers */}
+      {showCreditTransferModal && selectedCustomer && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '640px', width: '95%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#818cf8',
+                  }}
+                >
+                  <ArrowRightLeft size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Customer Credit Transfer
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Story X9: Two-sided atomic ledger posting between customer balances
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowCreditTransferModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreditTransfer}>
+              <div className="modal-body">
+                <ModalErrorAlert error={transferError} onDismiss={() => setTransferError(null)} />
+
+                {/* Source Account Info */}
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    marginBottom: '1rem',
+                  }}
+                >
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Source Customer (Debited)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.35rem' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                        {selectedCustomer.fullName}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Code: {selectedCustomer.customerCode} · TIN: {selectedCustomer.tinNumber || 'N/A'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Available Credit</div>
+                      <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--accent-emerald)' }}>
+                        ETB {Number(selectedCustomer.accountSummary?.availableCredit || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recipient Target Customer */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Recipient Customer (Credited) *</label>
+                  <select
+                    className="input"
+                    value={targetCustomerId}
+                    onChange={(e) => setTargetCustomerId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select Recipient Customer...</option>
+                    {customers
+                      .filter((c) => c.customerId !== selectedCustomer.customerId)
+                      .map((c) => (
+                        <option key={c.customerId} value={c.customerId}>
+                          {c.fullName} ({c.customerCode}) — TIN: {c.tinNumber || 'No TIN'}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Transfer Amount */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">
+                    Transfer Amount (ETB) * — Max: ETB {Number(selectedCustomer.accountSummary?.availableCredit || 0).toLocaleString()}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    max={Number(selectedCustomer.accountSummary?.availableCredit || 0)}
+                    className="input"
+                    value={transferAmount || ''}
+                    onChange={(e) => setTransferAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                {/* Optional Target Booking Selection */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Optional Destination Booking (To Settle Vehicle Order)</label>
+                  <select
+                    className="input"
+                    value={transferTargetBookingId}
+                    onChange={(e) => setTransferTargetBookingId(e.target.value)}
+                  >
+                    <option value="">No Booking (Deposit directly to Available Credit)</option>
+                    {bookings
+                      .filter((b) => !targetCustomerId || b.customerId === targetCustomerId)
+                      .map((b) => (
+                        <option key={b.bookingId} value={b.bookingId}>
+                          {b.bookingNumber} — {b.customer?.fullName} ({b.item?.itemName}) · Bal: ETB {Number(b.outstandingBalance).toLocaleString()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Reason Notes */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Transfer Authorization / Purpose Notes</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={transferReason}
+                    onChange={(e) => setTransferReason(e.target.value)}
+                    placeholder="e.g. Authorized customer credit transfer for commercial vehicle order settlement"
+                  />
+                </div>
+
+                {/* Two-Sided Atomic Ledger Preview Card (Story X9) */}
+                <div
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px solid rgba(99, 102, 241, 0.25)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: '#818cf8', marginBottom: '0.4rem' }}>
+                    ⚡ Two-Sided Atomic Ledger Posting Impact:
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
+                    <span>Side 1 ({selectedCustomer.fullName}):</span>
+                    <strong style={{ color: 'var(--accent-rose)' }}>-ETB {transferAmount.toLocaleString()} (Debit Credit)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                    <span>Side 2 (Recipient Account):</span>
+                    <strong style={{ color: 'var(--accent-emerald)' }}>+ETB {transferAmount.toLocaleString()} (Credit Allocation)</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowCreditTransferModal(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    submittingTransfer ||
+                    Number(selectedCustomer.accountSummary?.availableCredit || 0) <= 0 ||
+                    transferAmount <= 0 ||
+                    transferAmount > Number(selectedCustomer.accountSummary?.availableCredit || 0) ||
+                    !targetCustomerId
+                  }
+                  className="btn btn-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <ArrowRightLeft size={16} />
+                  {submittingTransfer ? 'Posting Transfer...' : 'Confirm & Post Credit Transfer'}
                 </button>
               </div>
             </form>

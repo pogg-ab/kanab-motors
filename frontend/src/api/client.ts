@@ -271,6 +271,27 @@ export interface SalesEnquiry {
   createdAt: string;
 }
 
+export interface PreAdvanceSlip {
+  slipId: string;
+  slipNumber: string;
+  enquiryId: string;
+  enquiry?: SalesEnquiry;
+  customerId: string;
+  customer?: Customer;
+  itemId: string;
+  item?: ProductItem;
+  quantity: number;
+  unitPrice: number;
+  vatAmount: number;
+  totalAmount: number;
+  requiredAdvanceAmount: number;
+  status: 'ACTIVE' | 'PAYMENT_PENDING' | 'CONVERTED' | 'EXPIRED' | 'CANCELLED';
+  issuedAt: string;
+  expiresAt: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Booking {
   bookingId: string;
   bookingNumber: string;
@@ -278,6 +299,8 @@ export interface Booking {
   customer?: Customer;
   enquiryId?: string;
   enquiry?: SalesEnquiry;
+  slipId?: string;
+  slip?: PreAdvanceSlip;
   itemId: string;
   item?: ProductItem;
   quantity: number;
@@ -315,6 +338,11 @@ export interface CustomerPayment {
   referenceNumber: string;
   referenceDate?: string;
   status: 'SUBMITTED' | 'CONFIRMED' | 'REJECTED';
+  isInstallment?: boolean;
+  installmentApprovalStatus?: 'NONE' | 'PENDING_CEO' | 'APPROVED' | 'REJECTED';
+  ceoApprovedBy?: number;
+  ceoApprovedAt?: string;
+  ceoRejectionReason?: string;
   confirmedBy?: number;
   confirmedAt?: string;
   createdAt: string;
@@ -773,7 +801,7 @@ export const api = {
   postAdjustment: (customerId: string, data: any) =>
     apiClient.post(`/ledger/customers/${customerId}/adjustment`, data).then((r) => r.data),
 
-  // Sales Enquiries (Stories E1-E15)
+  // Sales Enquiries (Stories E1-E18)
   getEnquiries: (params?: any) =>
     apiClient
       .get<{ items: SalesEnquiry[]; total: number; page: number; limit: number }>('/enquiries', {
@@ -783,6 +811,12 @@ export const api = {
   createEnquiry: (data: any) => apiClient.post<SalesEnquiry>('/enquiries', data).then((r) => r.data),
   updateEnquiryStatus: (id: string, status: string, rejectionReason?: string) =>
     apiClient.patch<SalesEnquiry>(`/enquiries/${id}/status`, { status, rejectionReason }).then((r) => r.data),
+  getPreAdvanceSlips: (params?: { status?: string; search?: string }) =>
+    apiClient.get<PreAdvanceSlip[]>('/enquiries/slips', { params }).then((r) => r.data),
+  getPreAdvanceSlipById: (slipId: string) =>
+    apiClient.get<PreAdvanceSlip>(`/enquiries/slips/${slipId}`).then((r) => r.data),
+  getPreAdvanceSlipByEnquiryId: (enquiryId: string) =>
+    apiClient.get<PreAdvanceSlip>(`/enquiries/${enquiryId}/slip`).then((r) => r.data),
 
   // Bookings (Stories B1-B14)
   getBookings: (params?: any) =>
@@ -799,7 +833,7 @@ export const api = {
   transferBookingFunds: (data: any) =>
     apiClient.post<any>('/bookings/transfer', data).then((r) => r.data),
 
-  // Payments (BRV - Stories P1-P13)
+  // Payments (BRV - Stories P1-P14)
   getPayments: (params?: any) =>
     apiClient
       .get<{ items: CustomerPayment[]; total: number; page: number; limit: number }>('/payments', {
@@ -812,10 +846,16 @@ export const api = {
     apiClient.patch<CustomerPayment>(`/payments/${id}/confirm`).then((r) => r.data),
   rejectPayment: (id: string, reason: string) =>
     apiClient.patch<CustomerPayment>(`/payments/${id}/reject`, { reason }).then((r) => r.data),
+  decideCeoInstallmentApproval: (paymentId: string, data: { approved: boolean; reason?: string }) =>
+    apiClient.patch<CustomerPayment>(`/payments/${paymentId}/ceo-approval`, data).then((r) => r.data),
 
-  // Excess & Customer Credit (Stories X1-X8)
+  // Excess & Customer Credit (Stories X1-X10)
   routeExcess: (customerId: string, data: any) =>
     apiClient.post<any>(`/excess/customers/${customerId}/route`, data).then((r) => r.data),
+  transferCustomerCredit: (
+    customerId: string,
+    data: { targetCustomerId: string; amount: number; reason?: string; targetBookingId?: string },
+  ) => apiClient.post<any>(`/excess/customers/${customerId}/transfer-credit`, data).then((r) => r.data),
   getExcessReport: () => apiClient.get<any[]>('/excess/reports/excess-payments').then((r) => r.data),
   getCreditReport: () => apiClient.get<any[]>('/excess/reports/credit-balances').then((r) => r.data),
 

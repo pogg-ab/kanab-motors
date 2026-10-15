@@ -38,15 +38,36 @@ export class EnquiriesController {
   }
 
   @RequirePermissions('ENQUIRIES_VIEW')
+  @Get('slips')
+  @ApiOperation({ summary: 'List all pre-advance slips with 3-day expiry status (Story E16, E18)' })
+  getAllSlips(@Query('status') status?: string, @Query('search') search?: string) {
+    return this.enquiriesService.getAllSlips({ status, search });
+  }
+
+  @RequirePermissions('ENQUIRIES_VIEW')
+  @Get('slips/:slipId')
+  @ApiOperation({ summary: 'Get pre-advance slip by ID (Story E17)' })
+  getSlipById(@Param('slipId', PositiveBigIntIdPipe) slipId: string) {
+    return this.enquiriesService.getSlipById(slipId);
+  }
+
+  @RequirePermissions('ENQUIRIES_VIEW')
   @Get(':id')
   @ApiOperation({ summary: 'Get sales enquiry details' })
   findOne(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.enquiriesService.findOne(id);
   }
 
+  @RequirePermissions('ENQUIRIES_VIEW')
+  @Get(':id/slip')
+  @ApiOperation({ summary: 'Get generated pre-advance slip for an approved enquiry (Story E16, E17)' })
+  getSlipByEnquiryId(@Param('id', PositiveBigIntIdPipe) id: string) {
+    return this.enquiriesService.getSlipByEnquiryId(id);
+  }
+
   @RequirePermissions('ENQUIRIES_APPROVE', 'ENQUIRIES_REJECT')
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Approve or Reject Sales Enquiry (Story E9)' })
+  @ApiOperation({ summary: 'Approve or Reject Sales Enquiry (Story E9, E16)' })
   updateStatus(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() body: UpdateEnquiryStatusDto,

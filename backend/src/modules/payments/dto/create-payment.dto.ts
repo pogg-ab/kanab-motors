@@ -48,4 +48,8 @@ export class CreatePaymentDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  isInstallment?: boolean;
 }

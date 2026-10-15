@@ -32,6 +32,7 @@ async function ensureSequences() {
       'refund_number_seq',
       'po_number_seq',
       'shipment_number_seq',
+      'pre_advance_slip_seq',
     ];
     for (const seq of sequences) {
       await client.query(`CREATE SEQUENCE IF NOT EXISTS ${seq} START 1;`);
@@ -91,6 +92,48 @@ async function ensureSequences() {
       INSERT INTO vehicle_status_transition_rule (from_status, to_status)
       VALUES ('RECEIVED', 'AVAILABLE_FOR_SALE')
       ON CONFLICT DO NOTHING;
+
+      -- Story E16, E17, E18: Pre-Advance Slip table
+      CREATE TABLE IF NOT EXISTS pre_advance_slip (
+        slip_id BIGSERIAL PRIMARY KEY,
+        slip_number VARCHAR(30) UNIQUE NOT NULL DEFAULT ('PAS-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('pre_advance_slip_seq')::text, 5, '0')),
+        enquiry_id BIGINT NOT NULL,
+        customer_id BIGINT NOT NULL,
+        item_id BIGINT NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        unit_price NUMERIC(18, 2) NOT NULL,
+        vat_amount NUMERIC(18, 2) NOT NULL DEFAULT 0,
+        total_amount NUMERIC(18, 2) NOT NULL,
+        required_advance_amount NUMERIC(18, 2) NOT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+        issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '3 days'),
+        notes TEXT,
+        created_by INT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_slip_enquiry ON pre_advance_slip(enquiry_id);
+      CREATE INDEX IF NOT EXISTS idx_slip_customer ON pre_advance_slip(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_slip_status ON pre_advance_slip(status);
+
+      -- Story B3: Booking slip linkage
+      ALTER TABLE booking ADD COLUMN IF NOT EXISTS slip_id BIGINT;
+
+      -- Story P14: Customer Payment Installment CEO Approval Gate
+      ALTER TABLE customer_payment ADD COLUMN IF NOT EXISTS is_installment BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE customer_payment ADD COLUMN IF NOT EXISTS installment_approval_status VARCHAR(30) DEFAULT 'NONE';
+      ALTER TABLE customer_payment ADD COLUMN IF NOT EXISTS ceo_approved_by INT;
+      ALTER TABLE customer_payment ADD COLUMN IF NOT EXISTS ceo_approved_at TIMESTAMPTZ;
+      ALTER TABLE customer_payment ADD COLUMN IF NOT EXISTS ceo_rejection_reason TEXT;
+
+      -- Story X9: Credit transfer ledger transaction type support
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'customer_ledger_transaction_transaction_type_enum') THEN
+          ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'CREDIT_TRANSFER';
+        END IF;
+      END $$;
     `);
   } catch (err) {
     console.warn('⚠️ Sequence initialization note:', (err as any)?.message || err);

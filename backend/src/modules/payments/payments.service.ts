@@ -46,6 +46,9 @@ export class PaymentsService {
       throw new BadRequestException('Customer ID is required for general account deposits');
     }
 
+    const isInstallment = Boolean(dto.isInstallment);
+    const installmentStatus = isInstallment ? 'PENDING_CEO' : 'NONE';
+
     const payment = this.paymentRepo.create({
       bookingId: bookingId || undefined,
       customerId,
@@ -54,6 +57,8 @@ export class PaymentsService {
       amount: dto.amount,
       referenceNumber: dto.referenceNumber.trim(),
       referenceDate: dto.referenceDate,
+      isInstallment,
+      installmentApprovalStatus: installmentStatus,
       status: PaymentStatus.SUBMITTED,
       createdBy: userId,
     });
@@ -70,6 +75,8 @@ export class PaymentsService {
         bookingId: saved.bookingId,
         amount: saved.amount,
         bankName: saved.bankName,
+        isInstallment,
+        installmentApprovalStatus: installmentStatus,
       },
     });
 
@@ -77,7 +84,7 @@ export class PaymentsService {
   }
 
   /**
-   * Confirm Bank Receipt Voucher (Story P4, P6, P7, P8)
+   * Confirm Bank Receipt Voucher (Story P4, P6, P7, P8, P14)
    * Posts either ADVANCE_DEPOSIT or ADDITIONAL_PAYMENT to the Customer Ledger,
    * updates booking deposited and outstanding balance, and updates account summary atomically.
    */
@@ -85,6 +92,11 @@ export class PaymentsService {
     const payment = await this.findOne(id);
     if (payment.status === PaymentStatus.CONFIRMED) {
       throw new BadRequestException('Payment is already confirmed');
+    }
+
+    // Story P14: Instalment Approval gate (CEO)
+    if (payment.isInstallment && payment.installmentApprovalStatus !== 'APPROVED') {
+      throw new BadRequestException('This installment payment requires CEO approval before confirmation');
     }
 
     payment.status = PaymentStatus.CONFIRMED;
@@ -246,5 +258,47 @@ export class PaymentsService {
     });
     if (!payment) throw new NotFoundException(`Payment receipt ${id} not found`);
     return payment;
+  }
+
+  /**
+   * Decide CEO Installment Approval (Story P14: Instalment Approval gate - CEO)
+   */
+  async decideCeoInstallmentApproval(
+    paymentId: string,
+    approved: boolean,
+    reason?: string,
+    userId: number = 1,
+  ): Promise<CustomerPayment> {
+    const payment = await this.findOne(paymentId);
+    if (!payment.isInstallment) {
+      throw new BadRequestException('Payment is not flagged as an installment');
+    }
+
+    if (approved) {
+      payment.installmentApprovalStatus = 'APPROVED';
+      payment.ceoApprovedBy = userId;
+      payment.ceoApprovedAt = new Date();
+    } else {
+      payment.installmentApprovalStatus = 'REJECTED';
+      payment.status = PaymentStatus.REJECTED;
+      payment.ceoRejectionReason = reason || 'Rejected by CEO';
+      payment.rejectionReason = payment.ceoRejectionReason;
+    }
+
+    const saved = await this.paymentRepo.save(payment);
+
+    await this.auditService.log({
+      entityType: 'customer_payment',
+      entityId: paymentId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        action: approved ? 'CEO_APPROVED_INSTALLMENT' : 'CEO_REJECTED_INSTALLMENT',
+        installmentApprovalStatus: saved.installmentApprovalStatus,
+        reason,
+      },
+    });
+
+    return saved;
   }
 }

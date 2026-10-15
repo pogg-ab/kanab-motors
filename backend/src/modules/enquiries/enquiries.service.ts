@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SalesEnquiry, EnquiryStatus } from './entities/sales-enquiry.entity';
+import { PreAdvanceSlip, PreAdvanceSlipStatus } from './entities/pre-advance-slip.entity';
 import { ProductItem } from '../products/entities/product-item.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
@@ -17,6 +18,8 @@ export class EnquiriesService {
   constructor(
     @InjectRepository(SalesEnquiry)
     private readonly enquiryRepo: Repository<SalesEnquiry>,
+    @InjectRepository(PreAdvanceSlip)
+    private readonly slipRepo: Repository<PreAdvanceSlip>,
     @InjectRepository(ProductItem)
     private readonly itemRepo: Repository<ProductItem>,
     @InjectRepository(Customer)
@@ -136,6 +139,34 @@ export class EnquiriesService {
 
     const saved = await this.enquiryRepo.save(enquiry);
 
+    // Story E16, E17, E18: Once approved, automatically generate pre-advance slip with 3-day expiry
+    if (status === EnquiryStatus.APPROVED) {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 3);
+
+      let slip = await this.slipRepo.findOne({ where: { enquiryId: id } });
+      if (!slip) {
+        slip = this.slipRepo.create({
+          enquiryId: id,
+          customerId: enquiry.customerId,
+          itemId: enquiry.itemId,
+          quantity: enquiry.quantity,
+          unitPrice: enquiry.unitPrice,
+          vatAmount: enquiry.vatAmount,
+          totalAmount: enquiry.estimatedSalesValue,
+          requiredAdvanceAmount: enquiry.estimatedSalesValue, // Story B4: advance is the full current price
+          status: PreAdvanceSlipStatus.ACTIVE,
+          issuedAt: new Date(),
+          expiresAt,
+          createdBy: userId,
+        });
+      } else {
+        slip.status = PreAdvanceSlipStatus.ACTIVE;
+        slip.expiresAt = expiresAt;
+      }
+      await this.slipRepo.save(slip);
+    }
+
     await this.auditService.log({
       entityType: 'sales_enquiry',
       entityId: id,
@@ -146,5 +177,62 @@ export class EnquiriesService {
     });
 
     return saved;
+  }
+
+  async getSlipByEnquiryId(enquiryId: string): Promise<PreAdvanceSlip | null> {
+    const slip = await this.slipRepo.findOne({
+      where: { enquiryId },
+      relations: ['enquiry', 'customer', 'item', 'item.brand', 'creator'],
+    });
+
+    if (slip && slip.status === PreAdvanceSlipStatus.ACTIVE && new Date() > new Date(slip.expiresAt)) {
+      slip.status = PreAdvanceSlipStatus.EXPIRED;
+      await this.slipRepo.save(slip);
+    }
+
+    return slip;
+  }
+
+  async getSlipById(slipId: string): Promise<PreAdvanceSlip> {
+    const slip = await this.slipRepo.findOne({
+      where: { slipId },
+      relations: ['enquiry', 'customer', 'item', 'item.brand', 'creator'],
+    });
+    if (!slip) throw new NotFoundException(`Pre-advance slip #${slipId} not found`);
+
+    if (slip.status === PreAdvanceSlipStatus.ACTIVE && new Date() > new Date(slip.expiresAt)) {
+      slip.status = PreAdvanceSlipStatus.EXPIRED;
+      await this.slipRepo.save(slip);
+    }
+
+    return slip;
+  }
+
+  async getAllSlips(query?: { status?: string; search?: string }): Promise<PreAdvanceSlip[]> {
+    const qb = this.slipRepo
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.enquiry', 'enquiry')
+      .leftJoinAndSelect('s.customer', 'customer')
+      .leftJoinAndSelect('s.item', 'item')
+      .leftJoinAndSelect('item.brand', 'brand')
+      .orderBy('s.issuedAt', 'DESC');
+
+    if (query?.status) {
+      qb.andWhere('s.status = :st', { st: query.status });
+    }
+    if (query?.search && query.search.trim()) {
+      const s = `%${query.search.trim()}%`;
+      qb.andWhere('(s.slipNumber ILIKE :s OR customer.fullName ILIKE :s OR item.itemName ILIKE :s)', { s });
+    }
+
+    const slips = await qb.getMany();
+    const now = new Date();
+    for (const slip of slips) {
+      if (slip.status === PreAdvanceSlipStatus.ACTIVE && now > new Date(slip.expiresAt)) {
+        slip.status = PreAdvanceSlipStatus.EXPIRED;
+        await this.slipRepo.save(slip);
+      }
+    }
+    return slips;
   }
 }

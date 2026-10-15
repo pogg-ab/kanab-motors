@@ -18,6 +18,7 @@ import {
 import {
   api,
   SalesEnquiry,
+  PreAdvanceSlip,
   Customer,
   ProductItem,
 } from '../../api/client';
@@ -70,6 +71,26 @@ export const EnquiriesPage: React.FC = () => {
 
   // Printable Proforma Quotation Modal
   const [selectedQuote, setSelectedQuote] = useState<SalesEnquiry | null>(null);
+
+  // Pre-Advance Slip Modal State (Story E16, E17, E18)
+  const [selectedSlip, setSelectedSlip] = useState<PreAdvanceSlip | null>(null);
+  const [loadingSlip, setLoadingSlip] = useState(false);
+
+  const handleOpenSlip = async (enq: SalesEnquiry) => {
+    setLoadingSlip(true);
+    try {
+      const slip = await api.getPreAdvanceSlipByEnquiryId(enq.enquiryId);
+      if (slip) {
+        setSelectedSlip(slip);
+      } else {
+        alert('Pre-advance slip is generated automatically when an enquiry is approved.');
+      }
+    } catch (err) {
+      console.error('Failed to load pre-advance slip:', err);
+    } finally {
+      setLoadingSlip(false);
+    }
+  };
 
   // Proforma Print Isolation Effect
   useEffect(() => {
@@ -512,6 +533,24 @@ export const EnquiriesPage: React.FC = () => {
                           <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }} title={enq.rejectionReason}>
                             {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 20)}...` : 'Rejected'}
                           </span>
+                        )}
+                        {(enq.status === 'APPROVED' || enq.status === 'CONVERTED') && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                              border: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                            }}
+                            title="View & Print Official Pre-Advance Slip (Story E16/E17)"
+                            onClick={() => handleOpenSlip(enq)}
+                            disabled={loadingSlip}
+                          >
+                            <FileText size={13} /> Pre-Advance Slip
+                          </button>
                         )}
                         <button
                           className="btn btn-secondary btn-sm"
@@ -1050,6 +1089,262 @@ export const EnquiriesPage: React.FC = () => {
                 <div>
                   <div style={{ fontWeight: 800, color: '#0f172a' }}>Approved By:</div>
                   <div style={{ color: '#475569', marginTop: '0.2rem' }}>Sales Operations Manager</div>
+                  <div style={{ color: '#64748b', marginTop: '1.25rem' }}>Sign: __________________</div>
+                </div>
+                <div style={{ border: '1px dashed #94a3b8', borderRadius: '4px', textAlign: 'center', padding: '0.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b' }}>OFFICIAL STAMP</span>
+                  <span style={{ fontSize: '0.58rem', color: '#94a3b8' }}>KANAB MOTORS PLC</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRE-ADVANCE SLIP MODAL (Story E16, E17, E18) */}
+      {selectedSlip && (
+        <div className="modal-backdrop print-clean-backdrop" style={{ zIndex: 1200 }}>
+          <div
+            className="modal-content print-clean-sheet"
+            style={{
+              maxWidth: '820px',
+              width: '95%',
+              background: '#ffffff',
+              color: '#0f172a',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              padding: 0,
+            }}
+          >
+            {/* Top Toolbar (Hidden during print) */}
+            <div
+              className="no-print"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0.75rem 1.5rem',
+                background: '#0f172a',
+                color: '#f8fafc',
+                borderTopLeftRadius: '12px',
+                borderTopRightRadius: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                <FileText size={16} color="#38bdf8" />
+                <span style={{ fontWeight: 700 }}>
+                  Pre-Advance Slip — <span style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{selectedSlip.slipNumber}</span>
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    background:
+                      selectedSlip.status === 'ACTIVE'
+                        ? 'rgba(16, 185, 129, 0.2)'
+                        : selectedSlip.status === 'EXPIRED'
+                        ? 'rgba(239, 68, 68, 0.2)'
+                        : 'rgba(99, 102, 241, 0.2)',
+                    color:
+                      selectedSlip.status === 'ACTIVE'
+                        ? '#10b981'
+                        : selectedSlip.status === 'EXPIRED'
+                        ? '#ef4444'
+                        : '#818cf8',
+                  }}
+                >
+                  {selectedSlip.status}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem' }}
+                  onClick={() => window.print()}
+                >
+                  <Printer size={13} /> Print Slip
+                </button>
+                <button
+                  onClick={() => setSelectedSlip(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.2rem' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Slip Paper */}
+            <div style={{ padding: '2rem 2.25rem', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              {/* Header with Letterhead */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <h1 style={{ fontSize: '1.4rem', fontWeight: 900, margin: 0, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    KANAB MOTORS PLC
+                  </h1>
+                  <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: '0.2rem', lineHeight: 1.4 }}>
+                    Automotive Assembly, Commercial Fleet & Spare Parts Division<br />
+                    Bole Subcity · Addis Ababa, Ethiopia · Tel: +251 11 661 2233
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#4f46e5', letterSpacing: '0.04em' }}>
+                    OFFICIAL PRE-ADVANCE SLIP
+                  </div>
+                  <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', fontWeight: 700, color: '#0f172a', marginTop: '0.2rem' }}>
+                    Slip Ref: {selectedSlip.slipNumber}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#475569', marginTop: '0.2rem' }}>
+                    Enquiry Ref: <strong style={{ color: '#0f172a' }}>{selectedSlip.enquiry?.enquiryNumber || 'N/A'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3-Day Expiry Notice Card (Story E18) */}
+              <div
+                style={{
+                  background: 'rgba(99, 102, 241, 0.06)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#4338ca' }}>
+                    ⏳ Reservation Validity: 3 Calendar Days (Configurable Policy)
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.1rem' }}>
+                    Issued: {new Date(selectedSlip.issuedAt).toLocaleDateString()} · Expiration Date: <strong>{new Date(selectedSlip.expiresAt).toLocaleDateString()} (23:59 EAT)</strong>
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '0.25rem 0.6rem',
+                    borderRadius: '6px',
+                    background: selectedSlip.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                    color: selectedSlip.status === 'ACTIVE' ? '#15803d' : '#b91c1c',
+                  }}
+                >
+                  {selectedSlip.status === 'ACTIVE' ? '✓ Valid for Deposit' : selectedSlip.status}
+                </span>
+              </div>
+
+              {/* Customer and Commercial Details */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', marginBottom: '1.25rem', fontSize: '0.75rem' }}>
+                <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Customer Particulars</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginTop: '0.25rem' }}>{selectedSlip.customer?.fullName}</div>
+                  <div style={{ color: '#475569', marginTop: '0.2rem' }}>Code: <strong>{selectedSlip.customer?.customerCode}</strong> · TIN: <strong>{selectedSlip.customer?.tinNumber || 'N/A'}</strong></div>
+                  <div style={{ color: '#475569', marginTop: '0.1rem' }}>Mobile: {selectedSlip.customer?.mobileNumber}</div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Commercial Terms</div>
+                  <div style={{ color: '#0f172a', marginTop: '0.25rem' }}>Full Price Advance Rule: <strong>100% Required (Story B4)</strong></div>
+                  <div style={{ color: '#475569', marginTop: '0.2rem' }}>Payment Mode: Bank Deposit / Wire Transfer</div>
+                  <div style={{ color: '#475569', marginTop: '0.1rem' }}>Next Step: Bank Receipt Voucher (BRV) Intake</div>
+                </div>
+              </div>
+
+              {/* Vehicle Particulars Table */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr style={{ background: '#0f172a', color: '#ffffff' }}>
+                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left' }}>Item / Model Description</th>
+                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Specifications</th>
+                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Qty</th>
+                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Unit Price (ETB)</th>
+                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>VAT (15%)</th>
+                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Total (ETB)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '0.75rem' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{selectedSlip.item?.itemName}</div>
+                        <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Code: {selectedSlip.item?.itemCode} · Brand: {selectedSlip.item?.brand?.brandName}</div>
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        {selectedSlip.item?.colour && <div>🎨 {selectedSlip.item.colour}</div>}
+                        {selectedSlip.item?.engineCapacityCc && <div>⚡ {selectedSlip.item.engineCapacityCc}</div>}
+                        {selectedSlip.item?.batteryPowerKwh && <div>🔋 {selectedSlip.item.batteryPowerKwh} kWh</div>}
+                        {!selectedSlip.item?.colour && !selectedSlip.item?.engineCapacityCc && !selectedSlip.item?.batteryPowerKwh && <div>Standard</div>}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 700 }}>{selectedSlip.quantity}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>{Number(selectedSlip.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>{Number(selectedSlip.vatAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800 }}>{Number(selectedSlip.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Total & Advance Payment Required Banner (Story B4) */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%)',
+                  border: '2px solid #4f46e5',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase' }}>
+                    Required Advance Amount (Story B4 Rule)
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>
+                    Advance is 100% of full current price (ETB {Number(selectedSlip.totalAmount).toLocaleString()})
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#4f46e5' }}>
+                    ETB {Number(selectedSlip.requiredAdvanceAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#16a34a', fontWeight: 700 }}>
+                    100% Full Payment Mandate
+                  </div>
+                </div>
+              </div>
+
+              {/* Authorized Bank Account Information */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem', marginBottom: '1.25rem', fontSize: '0.72rem' }}>
+                <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem' }}>
+                  Authorized KANAB Motors PLC Bank Deposit Accounts:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', color: '#334155' }}>
+                  <div><strong>CBE (Commercial Bank):</strong><br />1000123456789</div>
+                  <div><strong>Awash Bank:</strong><br />01320876543200</div>
+                  <div><strong>Dashen Bank:</strong><br />5041009876543</div>
+                </div>
+                <div style={{ marginTop: '0.5rem', color: '#64748b', fontStyle: 'italic', fontSize: '0.68rem' }}>
+                  * Please mention Slip Number <strong>{selectedSlip.slipNumber}</strong> on bank deposit slip or transfer description.
+                </div>
+              </div>
+
+              {/* Signatures */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', borderTop: '1px solid #cbd5e1', paddingTop: '1rem', fontSize: '0.7rem' }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>Issued By:</div>
+                  <div style={{ color: '#475569', marginTop: '0.2rem' }}>Sales Operations Desk</div>
+                  <div style={{ color: '#64748b', marginTop: '1.25rem' }}>Sign: __________________</div>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f172a' }}>Customer Acceptance:</div>
+                  <div style={{ color: '#475569', marginTop: '0.2rem' }}>{selectedSlip.customer?.fullName}</div>
                   <div style={{ color: '#64748b', marginTop: '1.25rem' }}>Sign: __________________</div>
                 </div>
                 <div style={{ border: '1px dashed #94a3b8', borderRadius: '4px', textAlign: 'center', padding: '0.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

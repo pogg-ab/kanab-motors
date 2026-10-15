@@ -17,6 +17,7 @@ import {
   Booking,
   Customer,
   ProductItem,
+  PreAdvanceSlip,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { formatApiError } from '../../utils/error';
@@ -30,6 +31,7 @@ export const BookingsPage: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [activeSlips, setActiveSlips] = useState<PreAdvanceSlip[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -44,6 +46,8 @@ export const BookingsPage: React.FC = () => {
   const [newBooking, setNewBooking] = useState<{
     customerId: string;
     itemId: string;
+    enquiryId?: string;
+    slipId?: string;
     quantity: number;
     unitPrice: number;
     requiredAdvanceAmount: number;
@@ -99,18 +103,45 @@ export const BookingsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [bookingsRes, custRes, prodRes] = await Promise.all([
+      const [bookingsRes, custRes, prodRes, slipsRes] = await Promise.all([
         api.getBookings(),
         api.getCustomers(),
         api.getItems(),
+        api.getPreAdvanceSlips({ status: 'ACTIVE' }).catch(() => [] as PreAdvanceSlip[]),
       ]);
       setBookings(bookingsRes.items || []);
       setCustomers(custRes.items || []);
       setProducts(prodRes.items || []);
+      setActiveSlips(slipsRes || []);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to fetch bookings'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectSlip = (slipId: string) => {
+    const slip = activeSlips.find((s) => s.slipId === slipId);
+    if (slip) {
+      const unitPrice = Number(slip.unitPrice) || 0;
+      const qty = slip.quantity || 1;
+      const totalGross = Number(slip.totalAmount) || Math.round(unitPrice * qty * 1.15);
+      setNewBooking({
+        ...newBooking,
+        slipId: slip.slipId,
+        enquiryId: slip.enquiryId,
+        customerId: slip.customerId,
+        itemId: slip.itemId,
+        quantity: qty,
+        unitPrice,
+        requiredAdvanceAmount: totalGross, // Story B4: advance is full current price
+      });
+    } else {
+      setNewBooking({
+        ...newBooking,
+        slipId: undefined,
+        enquiryId: undefined,
+      });
     }
   };
 
@@ -119,9 +150,9 @@ export const BookingsPage: React.FC = () => {
     if (prod) {
       const unitPrice = Number(prod.sellingPrice) || 0;
       const subtotal = unitPrice * (newBooking.quantity || 1);
-      const vat = subtotal * 0.15;
-      const gross = subtotal + vat;
-      const advReq = Math.round(gross * 0.2); // 20% standard advance
+      const gross = Math.round(subtotal * 1.15);
+      // Story B4: advance is the full current price
+      const advReq = gross;
       setNewBooking({
         ...newBooking,
         itemId,
@@ -135,8 +166,9 @@ export const BookingsPage: React.FC = () => {
 
   const handleQuantityChange = (qty: number) => {
     const subtotal = (newBooking.unitPrice || 0) * qty;
-    const gross = subtotal * 1.15;
-    const advReq = Math.round(gross * 0.2);
+    const gross = Math.round(subtotal * 1.15);
+    // Story B4: advance is the full current price
+    const advReq = gross;
     setNewBooking({
       ...newBooking,
       quantity: qty,
@@ -157,6 +189,8 @@ export const BookingsPage: React.FC = () => {
       await api.createBooking({
         customerId: newBooking.customerId,
         itemId: newBooking.itemId,
+        enquiryId: newBooking.enquiryId,
+        slipId: newBooking.slipId,
         quantity: newBooking.quantity,
         unitPrice: newBooking.unitPrice,
         requiredAdvanceAmount: newBooking.requiredAdvanceAmount,
@@ -614,6 +648,37 @@ export const BookingsPage: React.FC = () => {
             <form onSubmit={handleCreateBooking}>
               <div className="modal-body">
                 <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
+
+                {/* Story B3 Rule Card */}
+                <div
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem',
+                  }}
+                >
+                  <label className="form-label" style={{ color: '#818cf8', fontWeight: 700, marginBottom: '0.35rem' }}>
+                    Originating Pre-Advance Slip (Story B3: Enquiry → Slip → Payment Mandate)
+                  </label>
+                  <select
+                    className="input"
+                    value={newBooking.slipId || ''}
+                    onChange={(e) => handleSelectSlip(e.target.value)}
+                  >
+                    <option value="">Select Approved Pre-Advance Slip (Recommended)...</option>
+                    {activeSlips.map((s) => (
+                      <option key={s.slipId} value={s.slipId}>
+                        {s.slipNumber} — {s.customer?.fullName} ({s.item?.itemName}) · ETB {Number(s.totalAmount).toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.3rem' }}>
+                    * Every booking officially stems from an approved enquiry, generated slip, and deposit payment voucher.
+                  </span>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label className="form-label">Customer *</label>

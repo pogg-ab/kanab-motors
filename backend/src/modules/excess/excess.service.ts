@@ -121,4 +121,136 @@ export class ExcessService {
       .orderBy('s.available_credit', 'DESC')
       .getMany();
   }
+
+  /**
+   * Credit transfer between customers (Story X9: two-sided atomic ledger posting)
+   * A customer credit can be transferred to a different customer, or used against a different vehicle order.
+   */
+  async transferCreditBetweenCustomers(
+    sourceCustomerId: string,
+    body: {
+      targetCustomerId: string;
+      amount: number;
+      reason?: string;
+      targetBookingId?: string;
+    },
+    userId: number = 1,
+  ) {
+    if (!body.targetCustomerId) {
+      throw new BadRequestException('Recipient target customer ID is required');
+    }
+    if (sourceCustomerId === body.targetCustomerId) {
+      throw new BadRequestException('Cannot transfer credit to the same customer account');
+    }
+
+    const transferAmount = Number(body.amount);
+    if (!transferAmount || transferAmount <= 0) {
+      throw new BadRequestException('Transfer amount must be greater than zero');
+    }
+
+    // Load source customer summary
+    const sourceSummary = await this.dataSource
+      .getRepository(CustomerAccountSummary)
+      .findOne({
+        where: { customerId: sourceCustomerId },
+        relations: ['customer'],
+      });
+    if (!sourceSummary) {
+      throw new NotFoundException(`Source customer #${sourceCustomerId} account summary not found`);
+    }
+
+    const availableCredit = Number(sourceSummary.availableCredit || 0);
+    if (transferAmount > availableCredit) {
+      throw new BadRequestException(
+        `Insufficient customer credit. Requested ETB ${transferAmount.toLocaleString()}, but available credit is ETB ${availableCredit.toLocaleString()}`,
+      );
+    }
+
+    // Load target customer summary (or initialize if not existing)
+    let targetSummary = await this.dataSource
+      .getRepository(CustomerAccountSummary)
+      .findOne({
+        where: { customerId: body.targetCustomerId },
+        relations: ['customer'],
+      });
+    if (!targetSummary) {
+      const targetCustomer = await this.dataSource.getRepository('Customer').findOne({
+        where: { customerId: body.targetCustomerId },
+      });
+      if (!targetCustomer) {
+        throw new NotFoundException(`Recipient customer #${body.targetCustomerId} not found`);
+      }
+      targetSummary = this.dataSource.getRepository(CustomerAccountSummary).create({
+        customerId: body.targetCustomerId,
+        totalDeposits: 0,
+        allocatedToBookings: 0,
+        outstandingBalance: 0,
+        availableCredit: 0,
+        excessPayments: 0,
+        refundableBalance: 0,
+      });
+      await this.dataSource.getRepository(CustomerAccountSummary).save(targetSummary);
+    }
+
+    const ref = `CR-XFER-${Date.now().toString().slice(-6)}`;
+    const sourceName = sourceSummary.customer?.fullName || `Customer #${sourceCustomerId}`;
+    const targetName = targetSummary.customer?.fullName || `Customer #${body.targetCustomerId}`;
+
+    // Two-sided atomic ledger posting (Story X9)
+    // Side 1: Debit source customer's available credit
+    await this.ledgerService.postTransaction({
+      customerId: sourceCustomerId,
+      transactionType: LedgerTransactionType.CREDIT_TRANSFER,
+      referenceNumber: ref,
+      description: `Credit Transfer Out to ${targetName}. ${body.reason || ''}`.trim(),
+      debitAmount: transferAmount,
+      creditAmount: 0,
+      processedBy: userId,
+      summaryDelta: {
+        availableCredit: -transferAmount,
+      },
+    });
+
+    // Side 2: Credit recipient customer's available credit
+    await this.ledgerService.postTransaction({
+      customerId: body.targetCustomerId,
+      transactionType: LedgerTransactionType.CREDIT_TRANSFER,
+      referenceNumber: ref,
+      description: `Credit Transfer In from ${sourceName}. ${body.reason || ''}`.trim(),
+      debitAmount: 0,
+      creditAmount: transferAmount,
+      relatedBookingId: body.targetBookingId || undefined,
+      processedBy: userId,
+      summaryDelta: {
+        availableCredit: transferAmount,
+      },
+    });
+
+    await this.auditService.log({
+      entityType: 'customer_account_summary',
+      entityId: sourceCustomerId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        action: 'CREDIT_TRANSFERRED',
+        referenceNumber: ref,
+        fromCustomerId: sourceCustomerId,
+        toCustomerId: body.targetCustomerId,
+        amount: transferAmount,
+        reason: body.reason,
+      },
+    });
+
+    return {
+      success: true,
+      referenceNumber: ref,
+      message: `Successfully transferred ETB ${transferAmount.toLocaleString()} credit from ${sourceName} to ${targetName}`,
+      sourceSummary: await this.dataSource
+        .getRepository(CustomerAccountSummary)
+        .findOne({ where: { customerId: sourceCustomerId } }),
+      targetSummary: await this.dataSource
+        .getRepository(CustomerAccountSummary)
+        .findOne({ where: { customerId: body.targetCustomerId } }),
+    };
+  }
 }

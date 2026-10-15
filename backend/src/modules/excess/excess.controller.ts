@@ -27,6 +27,22 @@ export class ExcessController {
     return this.excessService.getExcessPaymentReport();
   }
 
+  @RequirePermissions('EXCESS_ROUTE')
+  @Post('customers/:customerId/transfer-credit')
+  @ApiOperation({ summary: 'Credit transfer between customers with two-sided atomic ledger posting (Story X9)' })
+  transferCredit(
+    @Param('customerId', PositiveBigIntIdPipe) customerId: string,
+    @Body()
+    body: {
+      targetCustomerId: string;
+      amount: number;
+      reason?: string;
+      targetBookingId?: string;
+    },
+  ) {
+    return this.excessService.transferCreditBetweenCustomers(customerId, body);
+  }
+
   @RequirePermissions('EXCESS_VIEW')
   @Get('reports/credit-balances')
   @ApiOperation({ summary: 'Customer Credit Balance Report (Story X5)' })

@@ -86,6 +86,7 @@ export const PaymentsPage: React.FC = () => {
     bankName: string;
     referenceNumber: string;
     referenceDate: string;
+    isInstallment: boolean;
     notes?: string;
   }>({
     customerId: '',
@@ -95,8 +96,15 @@ export const PaymentsPage: React.FC = () => {
     bankName: 'Commercial Bank of Ethiopia (CBE)',
     referenceNumber: '',
     referenceDate: new Date().toISOString().split('T')[0],
+    isInstallment: false,
     notes: '',
   });
+
+  // Story P14: CEO Installment Approval State
+  const [showCeoModal, setShowCeoModal] = useState<boolean>(false);
+  const [ceoPayment, setCeoPayment] = useState<CustomerPayment | null>(null);
+  const [ceoReason, setCeoReason] = useState<string>('');
+  const [decidingCeo, setDecidingCeo] = useState<boolean>(false);
 
   const [saving, setSaving] = useState<boolean>(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -154,6 +162,7 @@ export const PaymentsPage: React.FC = () => {
         bankName: resolvedBank,
         referenceNumber: newPayment.referenceNumber.trim(),
         referenceDate: newPayment.referenceDate,
+        isInstallment: newPayment.isInstallment,
       };
       if (newPayment.bookingId) {
         payload.bookingId = String(newPayment.bookingId);
@@ -175,6 +184,7 @@ export const PaymentsPage: React.FC = () => {
         bankName: 'Commercial Bank of Ethiopia (CBE)',
         referenceNumber: '',
         referenceDate: new Date().toISOString().split('T')[0],
+        isInstallment: false,
         notes: '',
       });
       loadData();
@@ -455,18 +465,97 @@ export const PaymentsPage: React.FC = () => {
                         >
                           {p.status}
                         </span>
+                        {p.isInstallment && (
+                          <div style={{ marginTop: '0.3rem' }}>
+                            <span
+                              style={{
+                                fontSize: '0.65rem',
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                                background:
+                                  p.installmentApprovalStatus === 'APPROVED'
+                                    ? 'rgba(16, 185, 129, 0.15)'
+                                    : p.installmentApprovalStatus === 'REJECTED'
+                                    ? 'rgba(239, 68, 68, 0.15)'
+                                    : 'rgba(245, 158, 11, 0.15)',
+                                color:
+                                  p.installmentApprovalStatus === 'APPROVED'
+                                    ? '#10b981'
+                                    : p.installmentApprovalStatus === 'REJECTED'
+                                    ? '#ef4444'
+                                    : '#f59e0b',
+                                border:
+                                  p.installmentApprovalStatus === 'APPROVED'
+                                    ? '1px solid rgba(16, 185, 129, 0.3)'
+                                    : p.installmentApprovalStatus === 'REJECTED'
+                                    ? '1px solid rgba(239, 68, 68, 0.3)'
+                                    : '1px solid rgba(245, 158, 11, 0.3)',
+                              }}
+                            >
+                              {p.installmentApprovalStatus === 'APPROVED'
+                                ? '✓ CEO Approved'
+                                : p.installmentApprovalStatus === 'REJECTED'
+                                ? '✕ CEO Rejected'
+                                : '⏳ CEO Approval Req'}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
                           {p.status === 'SUBMITTED' && (canConfirmPayment || canRejectPayment) && (
                             <>
+                              {/* Story P14: CEO Approval Gate Button for Installment Payments */}
+                              {p.isInstallment && p.installmentApprovalStatus === 'PENDING_CEO' && (
+                                <button
+                                  onClick={() => {
+                                    setCeoPayment(p);
+                                    setCeoReason('');
+                                    setShowCeoModal(true);
+                                  }}
+                                  className="btn btn-primary btn-sm"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    fontSize: '0.72rem',
+                                    padding: '0.35rem 0.6rem',
+                                    background: '#d97706',
+                                    borderColor: '#b45309',
+                                  }}
+                                  title="Review Installment (Story P14: CEO Approval Gate)"
+                                >
+                                  <AlertTriangle size={12} />
+                                  CEO Gate
+                                </button>
+                              )}
                               {canConfirmPayment && (
                               <button
                                 onClick={() => handleConfirmPayment(p.paymentId)}
-                                disabled={confirmingId === p.paymentId}
+                                disabled={
+                                  confirmingId === p.paymentId ||
+                                  (p.isInstallment && p.installmentApprovalStatus !== 'APPROVED')
+                                }
                                 className="btn btn-cyan btn-sm"
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                                title="Finance Confirm & Post to Ledger"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  opacity:
+                                    p.isInstallment && p.installmentApprovalStatus !== 'APPROVED'
+                                      ? 0.45
+                                      : 1,
+                                  cursor:
+                                    p.isInstallment && p.installmentApprovalStatus !== 'APPROVED'
+                                      ? 'not-allowed'
+                                      : 'pointer',
+                                }}
+                                title={
+                                  p.isInstallment && p.installmentApprovalStatus !== 'APPROVED'
+                                    ? 'Story P14: Requires CEO approval before ledger confirmation'
+                                    : 'Finance Confirm & Post to Ledger'
+                                }
                               >
                                 <FileCheck size={13} />
                                 {confirmingId === p.paymentId ? 'Posting...' : 'Confirm'}
@@ -606,6 +695,35 @@ export const PaymentsPage: React.FC = () => {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Story P14: Installment Deposit Toggle Card */}
+                <div
+                  style={{
+                    background: newPayment.isInstallment ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                    border: newPayment.isInstallment ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: newPayment.isInstallment ? '#f59e0b' : 'var(--text-primary)' }}>
+                        Split / Installment Deposit Plan (Story P14)
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        Customer is paying in installments. Requires mandatory <strong>CEO Approval Gate</strong> before ledger confirmation.
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={newPayment.isInstallment}
+                      onChange={(e) => setNewPayment({ ...newPayment, isInstallment: e.target.checked })}
+                      style={{ width: '18px', height: '18px', accentColor: '#f59e0b', cursor: 'pointer' }}
+                    />
+                  </label>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -856,6 +974,124 @@ export const PaymentsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal: Story P14 CEO Installment Approval Gate */}
+      {showCeoModal && ceoPayment && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#f59e0b',
+                  }}
+                >
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    CEO Installment Approval Gate
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Policy Story P14: Executive sign-off for partial deposits
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowCeoModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '0.85rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Receipt #:</span>
+                  <strong style={{ fontFamily: 'monospace', color: 'var(--accent-cyan)' }}>{ceoPayment.receiptNumber}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                  <strong>{ceoPayment.customer?.fullName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Installment Amount:</span>
+                  <strong style={{ color: 'var(--accent-emerald)', fontSize: '0.95rem' }}>
+                    ETB {Number(ceoPayment.amount).toLocaleString()}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Bank Reference:</span>
+                  <span>{ceoPayment.bankName} · {ceoPayment.referenceNumber}</span>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Approval Notes / Decision Remarks</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  value={ceoReason}
+                  onChange={(e) => setCeoReason(e.target.value)}
+                  placeholder="Optional justification or decision remarks..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={decidingCeo}
+                  onClick={async () => {
+                    setDecidingCeo(true);
+                    try {
+                      await api.decideCeoInstallmentApproval(ceoPayment.paymentId, {
+                        approved: false,
+                        reason: ceoReason || 'Installment rejected by CEO',
+                      });
+                      showToast('success', 'Installment payment rejected by CEO.');
+                      setShowCeoModal(false);
+                      loadData();
+                    } catch (err: any) {
+                      showToast('error', formatApiError(err, 'Failed to reject installment'));
+                    } finally {
+                      setDecidingCeo(false);
+                    }
+                  }}
+                  style={{ color: 'var(--accent-rose)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                >
+                  ✕ Reject Installment
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={decidingCeo}
+                  onClick={async () => {
+                    setDecidingCeo(true);
+                    try {
+                      await api.decideCeoInstallmentApproval(ceoPayment.paymentId, {
+                        approved: true,
+                        reason: ceoReason || 'Approved by CEO under executive discretion',
+                      });
+                      showToast('success', 'Installment payment approved by CEO! Ready for ledger confirmation.');
+                      setShowCeoModal(false);
+                      loadData();
+                    } catch (err: any) {
+                      showToast('error', formatApiError(err, 'Failed to approve installment'));
+                    } finally {
+                      setDecidingCeo(false);
+                    }
+                  }}
+                  style={{ background: '#10b981', borderColor: '#059669' }}
+                >
+                  ✓ Approve Installment (CEO)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

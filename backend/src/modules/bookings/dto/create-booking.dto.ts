@@ -21,6 +21,10 @@ export class CreateBookingDto {
   @IsOptional()
   enquiryId?: string;
 
+  @ApiPropertyOptional({ example: '1' })
+  @IsOptional()
+  slipId?: string;
+
   @ApiProperty({ example: 1, default: 1 })
   @IsNumber()
   @Min(1)

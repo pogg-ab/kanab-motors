@@ -57,4 +57,14 @@ export class PaymentsController {
   rejectPayment(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: RejectPaymentDto) {
     return this.paymentsService.rejectPayment(id, dto.reason);
   }
+
+  @RequirePermissions('PAYMENTS_CONFIRM')
+  @Patch(':id/ceo-approval')
+  @ApiOperation({ summary: 'CEO approval gate for installment payments (Story P14)' })
+  decideCeoApproval(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() body: { approved: boolean; reason?: string },
+  ) {
+    return this.paymentsService.decideCeoInstallmentApproval(id, body.approved, body.reason);
+  }
 }

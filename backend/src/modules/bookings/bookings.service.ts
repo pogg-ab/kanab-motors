@@ -15,6 +15,8 @@ import { LedgerService } from '../ledger/ledger.service';
 import { LedgerTransactionType } from '../ledger/entities/customer-ledger-transaction.entity';
 import { AuditService } from '../audit/audit.service';
 
+import { PreAdvanceSlip, PreAdvanceSlipStatus } from '../enquiries/entities/pre-advance-slip.entity';
+
 @Injectable()
 export class BookingsService {
   constructor(
@@ -22,6 +24,8 @@ export class BookingsService {
     private readonly bookingRepo: Repository<Booking>,
     @InjectRepository(SalesEnquiry)
     private readonly enquiryRepo: Repository<SalesEnquiry>,
+    @InjectRepository(PreAdvanceSlip)
+    private readonly slipRepo: Repository<PreAdvanceSlip>,
     @InjectRepository(ProductItem)
     private readonly itemRepo: Repository<ProductItem>,
     @InjectRepository(Customer)
@@ -48,19 +52,37 @@ export class BookingsService {
     const vatAmount = Number(((subtotal * taxRatePct) / 100).toFixed(2));
     const grossTotal = Number((subtotal + vatAmount).toFixed(2));
 
-    // Default required advance: 20% if not explicitly entered (Story B2)
+    // Story B4: advance is the full current price, so the percentage-versus-fixed question disappears
     const requiredAdvance =
       dto.requiredAdvanceAmount !== undefined && dto.requiredAdvanceAmount !== null
         ? Number(dto.requiredAdvanceAmount)
-        : Number((grossTotal * 0.20).toFixed(2));
+        : grossTotal;
 
     const deliveryDate = dto.targetDeliveryDate
       ? new Date(dto.targetDeliveryDate)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 calendar days (Story B9)
 
-    let enquiry: SalesEnquiry | null = null;
-    if (dto.enquiryId) {
-      enquiry = await this.enquiryRepo.findOne({ where: { enquiryId: dto.enquiryId } });
+    // Story B3: Every booking comes from an approved enquiry, a slip and a payment
+    let slip: PreAdvanceSlip | null = null;
+    let enquiryId = dto.enquiryId;
+
+    if (dto.slipId) {
+      slip = await this.slipRepo.findOne({ where: { slipId: dto.slipId } });
+      if (slip) {
+        enquiryId = slip.enquiryId;
+        slip.status = PreAdvanceSlipStatus.CONVERTED;
+        await this.slipRepo.save(slip);
+      }
+    } else if (enquiryId) {
+      slip = await this.slipRepo.findOne({ where: { enquiryId } });
+      if (slip) {
+        slip.status = PreAdvanceSlipStatus.CONVERTED;
+        await this.slipRepo.save(slip);
+      }
+    }
+
+    if (enquiryId) {
+      const enquiry = await this.enquiryRepo.findOne({ where: { enquiryId } });
       if (enquiry) {
         enquiry.status = EnquiryStatus.CONVERTED;
         await this.enquiryRepo.save(enquiry);
@@ -69,7 +91,8 @@ export class BookingsService {
 
     const booking = this.bookingRepo.create({
       customerId: dto.customerId,
-      enquiryId: dto.enquiryId || null,
+      enquiryId: enquiryId || null,
+      slipId: slip ? slip.slipId : null,
       itemId: dto.itemId,
       quantity: qty,
       unitPrice,

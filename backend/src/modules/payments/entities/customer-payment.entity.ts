@@ -96,6 +96,31 @@ export class CustomerPayment {
   @Column({ name: 'rejection_reason', type: 'text', nullable: true })
   rejectionReason: string;
 
+  // Story P14: Instalment Approval gate (CEO)
+  @Column({ name: 'is_installment', type: 'boolean', default: false })
+  isInstallment: boolean;
+
+  @Column({
+    name: 'installment_approval_status',
+    type: 'varchar',
+    length: 30,
+    default: 'NONE',
+  })
+  installmentApprovalStatus: 'NONE' | 'PENDING_CEO' | 'APPROVED' | 'REJECTED';
+
+  @Column({ name: 'ceo_approved_by', type: 'int', nullable: true })
+  ceoApprovedBy: number;
+
+  @ManyToOne(() => AppUser, { nullable: true })
+  @JoinColumn({ name: 'ceo_approved_by' })
+  ceoApprover: AppUser;
+
+  @Column({ name: 'ceo_approved_at', type: 'timestamptz', nullable: true })
+  ceoApprovedAt: Date;
+
+  @Column({ name: 'ceo_rejection_reason', type: 'text', nullable: true })
+  ceoRejectionReason: string;
+
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy: number;
 

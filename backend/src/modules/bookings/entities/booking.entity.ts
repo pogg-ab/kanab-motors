@@ -53,6 +53,9 @@ export class Booking {
   @JoinColumn({ name: 'enquiry_id' })
   enquiry: SalesEnquiry;
 
+  @Column({ name: 'slip_id', type: 'bigint', nullable: true })
+  slipId: string;
+
   @Column({ name: 'item_id', type: 'bigint' })
   itemId: string;
 
