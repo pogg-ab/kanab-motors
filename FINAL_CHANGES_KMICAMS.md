@@ -14,25 +14,54 @@
 
 ---
 
-## Executive Summary of Tested Changes
+## 🗺️ 4-Round Implementation & Testing Roadmap
 
-This testing walkthrough specifically validates all **bold red additions** across the project SRS:
+To easily track, differentiate, and verify all delivered features across the 4 review cycles, this guide is structured into 4 distinct Rounds:
 
-| Story # | Jira / SRS Ref | Scope / Description | Implementation Details |
+| Round | Focus / Scope | Stories Covered | Test Suites |
 |---|---|---|---|
-| **1.1** | **Customer WHT Flag** | Customers require a Withholding Tax (WHT) flag depending on legal/tax standing | Added `withholdingTaxFlag` to Customer entity, DB column, create/edit modals, directory table badge, and profile view |
-| **2.1** | **Vehicle Attributes** | Vehicles require Colour, Engine/Motor Capacity (cc), and Battery Power (kWh) | Added `colour`, `engine_capacity_cc`, `battery_power_kwh` to Product Items, tables, and lifecycle tracking |
-| **2.2** | **Reference Data Lookups** | Lookups for vehicle colours and units of measure | Added `vehicle_color` lookup table with 7 seeded colors, plus REST endpoints `/api/lookups/colors` and `/api/lookups/uoms` |
-| **2.3** | **Multi-Tax Configuration** | Multi-tax tiers for VAT (15%), Excise duty, and WHT (2%) with customer and vehicle applicability | Added `tax_type`, `applicable_customer_type`, `applicable_vehicle_type`, `description` to Tax Configuration modal & backend |
-| **E16-E18**| **Pre-Advance Slip** | Slip model, auto-generation on approval, printable slip UI, 3-day expiry | Auto-generated upon enquiry approval with sequence `PAS-YYYY-NNNNN`, 3-day expiry indicator, and printable modal |
-| **B3 & B4**| **100% Advance Booking**| Originating from approved enquiry/slip & 100% full gross advance | Advance booking slip selector, converts slip, and calculates 100% full gross vehicle advance requirement |
-| **P14** | **CEO Installment Gate**| Split / Installment deposit plan requires CEO approval gate | Installment toggle in payment intake, status badge, CEO Gate modal, and payment confirmation lockdown |
-| **X9 & X10**| **Credit Transfer** | Customer credit transfer between customers with two-sided atomic ledger | Atomic posting of balancing debit and credit entries with row-level safety and transfer UI modal |
-| **IV14** | **Non-Cash WHT Settlement**| Tax withheld by customer, recorded as non-cash settlement (non-refundable) | Atomic `WHT_SETTLEMENT` credit ledger posting, certificate tracking, and Finance WHT Hub |
-| **DL5** | **Two Printed Documents**| Two printed documents: Delivery Voucher (Gate Pass) & Handover Form with Declaration & Pack | Official printable Delivery Voucher (Gate Pass) + Handover Form with 6-item Handover Pack & legal declaration |
-| **IV1-IV13**| **KMSICAMS-11: Sales Invoice & Settlement** | Complete Sales Invoice & Multi-Tax Settlement Suite (IV1-IV13) | Multi-tax engine (VAT 15%, Excise 5%/10%, WHT 2%), Net Payable formula, deposit bounds, vehicle SOLD transition, booking SETTLED, idempotent INVOICE_CHARGE ledger |
+| **🔵 ROUND 1** | **Core Master Data & Tax Flags** | Stories 1.1, 2.1, 2.2, 2.3 | **Test Suites 1, 2, 3, 4** |
+| **🟣 ROUND 2** | **Pre-Advance Slip & 100% Advance Booking** | Stories E16–E18, B3–B4 | **Test Suites 5, 6** |
+| **🟠 ROUND 3** | **Financial Controls, Credit Transfer, Non-Cash WHT & Dual Delivery Docs** | Stories P14, X9–X10, IV14, DL5 | **Test Suites 7, 8, 9, 10** |
+| **🟢 ROUND 4** | **Sales Invoice & Multi-Tax Settlement Suite (Jira KMSICAMS-11)** | Stories IV1–IV13 | **Test Suite 11** |
 
 ---
+
+## Executive Summary of Tested Changes (by Round)
+
+### 🔵 Round 1: Customer Compliance & Vehicle Master Data Attributes
+| Story # | Scope / Description | Implementation Details |
+|---|---|---|
+| **Story 1.1** | **Customer WHT Flag** | Added `withholdingTaxFlag` to Customer entity, DB column, create/edit modals, directory table badge, and profile view |
+| **Story 2.1** | **Vehicle Attributes** | Added `colour`, `engine_capacity_cc`, `battery_power_kwh` to Product Items, tables, and lifecycle tracking |
+| **Story 2.2** | **Reference Data Lookups** | Added `vehicle_color` lookup table with 7 seeded colors, plus REST endpoints `/api/lookups/colors` and `/api/lookups/uoms` |
+| **Story 2.3** | **Multi-Tax Configuration** | Multi-tax tiers for VAT (15%), Excise duty, and WHT (2%) with customer and vehicle applicability |
+
+### 🟣 Round 2: Pre-Advance Slip & 100% Advance Booking Mandate
+| Story # | Scope / Description | Implementation Details |
+|---|---|---|
+| **Stories E16–E18**| **Pre-Advance Slip Model & Expiry** | Auto-generated upon enquiry approval with sequence `PAS-YYYY-NNNNN`, 3-day expiry indicator, and printable modal |
+| **Stories B3 & B4**| **100% Advance Booking Origin** | Advance booking slip selector, converts slip, and calculates 100% full gross vehicle advance requirement |
+
+### 🟠 Round 3: Financial Risk Controls, Credit Transfer & Delivery Documentation
+| Story # | Scope / Description | Implementation Details |
+|---|---|---|
+| **Story P14** | **CEO Installment Gate** | Split / Installment deposit plan requires CEO approval gate modal before payment confirmation |
+| **Stories X9 & X10**| **Customer Credit Transfer** | Atomic two-sided ledger posting of balancing debit and credit entries with row-level concurrency safety and transfer UI modal |
+| **Story IV14** | **Non-Cash WHT Settlement** | Atomic `WHT_SETTLEMENT` credit ledger posting, physical certificate tracking, and Finance WHT Hub |
+| **Story DL5** | **Two Printed Delivery Documents** | Official printable Delivery Voucher (Gate Pass) + Handover Form with 6-item Handover Pack & customer legal declaration |
+
+### 🟢 Round 4: Jira KMSICAMS-11 (Sales Invoice and Settlement Management)
+| Story # | Scope / Description | Implementation Details |
+|---|---|---|
+| **Stories IV1–IV13**| **Sales Invoice & Multi-Tax Settlement Suite** | Complete multi-tax evaluation engine (VAT 15%, Three-Wheeler Excise 5%, Motorcycle Excise 10%, WHT 2%), Net Customer Payable formula, deposit allocation, excess deposit identification, vehicle transition to SOLD, booking SETTLED, idempotent INVOICE_CHARGE customer ledger postings, and 7 automated unit tests |
+
+---
+
+# 🔵 ==========================================================================
+# 🔵 ROUND 1: Customer Compliance & Vehicle Master Data Attributes
+# 🔵 Stories: 1.1, 2.1, 2.2, 2.3 | Test Suites: 1, 2, 3, 4
+# 🔵 ==========================================================================
 
 ## Test Suite 1: Customer Withholding Tax (WHT) Flag (Story 1.1)
 
@@ -241,7 +270,10 @@ This testing walkthrough specifically validates all **bold red additions** acros
 
 ---
 
----
+# 🟣 ==========================================================================
+# 🟣 ROUND 2: Pre-Advance Slip & 100% Full Gross Advance Booking Mandate
+# 🟣 Stories: E16, E17, E18, B3, B4 | Test Suites: 5, 6
+# 🟣 ==========================================================================
 
 ## Test Suite 5: Pre-Advance Slip (Stories E16, E17, E18)
 
@@ -298,6 +330,11 @@ This testing walkthrough specifically validates all **bold red additions** acros
    - On the Bookings table, the required deposit matches 100% of the vehicle total.
 
 ---
+
+# 🟠 ==========================================================================
+# 🟠 ROUND 3: Financial Risk Controls, Credit Transfer & Delivery Docs
+# 🟠 Stories: P14, X9, X10, IV14, DL5 | Test Suites: 7, 8, 9, 10
+# 🟠 ==========================================================================
 
 ## Test Suite 7: Customer Deposit & CEO Installment Approval Gate (Story P14)
 
@@ -499,6 +536,11 @@ This testing walkthrough specifically validates all **bold red additions** acros
 
 ---
 
+# 🟢 ==========================================================================
+# 🟢 ROUND 4: Sales Invoice & Multi-Tax Settlement Suite (Jira KMSICAMS-11)
+# 🟢 Stories: IV1, IV2, IV3, IV4, IV5, IV6, IV7, IV8, IV9, IV10, IV11, IV12, IV13 | Test Suite: 11
+# 🟢 ==========================================================================
+
 ## Test Suite 11: Sales Invoice and Settlement Management (Jira: KMSICAMS-11)
 
 ### Overview of Stories Implemented:
@@ -628,8 +670,9 @@ Tests:       7 passed, 7 total
 
 ---
 
-## Verification & Sign-off Checklist
+## Verification & Sign-off Checklist (Structured by Round)
 
+### 🔵 Round 1 Verification Checklist: Customer Compliance & Vehicle Master Data Attributes
 | Requirement | Acceptance Criteria | Verified (Yes/No) | Notes |
 |---|---|---|---|
 | **Story 1.1** | Customer has Withholding Tax Flag toggle in UI | [ ] | Stored as `withholding_tax_flag` in PostgreSQL |
@@ -642,11 +685,19 @@ Tests:       7 passed, 7 total
 | **Story 2.2** | Unit of Measure lookup available | [ ] | PIECE, SET, KG, LTR via `/api/lookups/uoms` |
 | **Story 2.3** | Tax config supports VAT, Excise Duty, and WHT | [ ] | Definable rate with tax type selection |
 | **Story 2.3** | Tax config supports Customer and Vehicle applicability | [ ] | Rules by customer and vehicle classifications |
+
+### 🟣 Round 2 Verification Checklist: Pre-Advance Slip & 100% Advance Booking
+| Requirement | Acceptance Criteria | Verified (Yes/No) | Notes |
+|---|---|---|---|
 | **Story E16** | Pre-advance slip model & auto-generation on approval | [ ] | Generated with sequence `pre_advance_slip_seq` |
 | **Story E17** | Pre-advance slip UI (printable modal) | [ ] | Letterhead, specs, full advance, bank accounts |
 | **Story E18** | Slip expiry (3 days, configurable) | [ ] | Expiry indicator & status transition to EXPIRED |
 | **Story B3** | Originating from approved enquiry, slip & payment | [ ] | Slip picker & booking slip linkage |
 | **Story B4** | Advance is full current price (100%) | [ ] | Full gross advance calculated |
+
+### 🟠 Round 3 Verification Checklist: Financial Controls, Credit Transfer & Delivery Docs
+| Requirement | Acceptance Criteria | Verified (Yes/No) | Notes |
+|---|---|---|---|
 | **Story P14** | Instalment Approval gate (CEO) | [ ] | CEO review gate & confirm button restriction |
 | **Story X9** | Credit transfer between customers (two-sided atomic ledger) | [ ] | Concurrency-safe atomic two-sided posting |
 | **Story X10** | Credit transfer UI and tests | [ ] | Interactive modal with live ledger preview |
@@ -655,6 +706,10 @@ Tests:       7 passed, 7 total
 | **Story IV14**| Finance tracks WHT certificates & missing list | [ ] | Dedicated WHT Tracking Hub & certificate status |
 | **Story DL5** | Document 1: Delivery Voucher (Gate Pass) | [ ] | Official printable voucher with security signatures |
 | **Story DL5** | Document 2: Handover Form with Declaration & Pack | [ ] | Customer legal declaration + 6-item pack checklist |
+
+### 🟢 Round 4 Verification Checklist: Sales Invoice and Settlement Suite (Jira KMSICAMS-11)
+| Requirement | Acceptance Criteria | Verified (Yes/No) | Notes |
+|---|---|---|---|
 | **Story IV1** | Sales invoice data model with multi-tax & snapshot | [ ] | Vehicle price, VAT, Excise, WHT, Gross, Net, audit `tax_details` |
 | **Story IV2** | VAT, WHT and Excise Tax calculation engine | [ ] | Priority sequence (1: Excise, 2: VAT, 3: WHT), configurable bases |
 | **Story IV3** | Retrieve customer's available deposits & credits | [ ] | Combines booking deposit and available customer ledger credits |
