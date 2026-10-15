@@ -278,18 +278,28 @@ To easily track, differentiate, and verify all delivered features across the 4 r
 ## Test Suite 5: Pre-Advance Slip (Stories E16, E17, E18)
 
 ### Test Case 5.1: Auto-Generation of Pre-Advance Slip upon Enquiry Approval
-1. In the left navigation menu, click **Enquiries** (icon: 📋).
-2. Locate any enquiry in `SUBMITTED` status (or click **+ New Sales Enquiry** to create one).
-3. In the Actions column, click **Approve** (green checkmark).
+1. **Navigate to Sales Enquiries:**
+   - In the left navigation menu, click **Enquiries** (icon: 📋), or navigate to `http://localhost:5173/enquiries`.
+2. **Locate or Create a Test Enquiry:**
+   - If an enquiry in `SUBMITTED` status exists in the table, proceed to step 3.
+   - *Otherwise, create one in 15 seconds:*
+     - Click the cyan button **`+ New Sales Enquiry`** at the top right.
+     - **Customer:** Select `Abyssinia Logistics PLC [TEST-WHT]`.
+     - **Vehicle / Item:** Select `Bajaj Boxer 150 HD (Crimson Edition)`.
+     - **Quantity:** Enter `1`.
+     - **Delivery Town / Yard:** Enter `Addis Ababa Central Yard`.
+     - Click **`Create Sales Enquiry`**.
+3. **Approve the Enquiry:**
+   - In the Actions column of the submitted enquiry row, click the green button **`Approve`** (icon: checkmark).
 4. **Expected Results:**
-   - The status immediately updates to **`APPROVED`**.
-   - A purple/indigo button appears in the row: **`Pre-Advance Slip`** (with file icon).
-   - In the database, a `pre_advance_slip` record has been auto-generated with `slip_number` (e.g. `PAS-2026-00001`), `status: ACTIVE`, and `expires_at: NOW() + 3 days`.
+   - The row's status immediately updates to **`APPROVED`** (in emerald green).
+   - A distinct purple button appears in the Actions column: **`Pre-Advance Slip`** (icon: file 📄).
+   - In PostgreSQL, a `pre_advance_slip` record is auto-generated with `slip_number` (e.g. `PAS-2026-00001`), `status: ACTIVE`, and `expires_at: NOW() + 3 days`.
 
 ---
 
 ### Test Case 5.2: Inspect & Print Pre-Advance Slip Modal (Story E17 & E18)
-1. On that approved enquiry row, click **`Pre-Advance Slip`**.
+1. On that approved enquiry row, click **`Pre-Advance Slip`** (purple button).
 2. The official printable modal opens:
    - Header: **KANAB MOTORS PLC — OFFICIAL PRE-ADVANCE SLIP**.
    - **Slip Ref:** e.g. `PAS-2026-00001` · Status: **`ACTIVE`** (emerald badge).
@@ -299,8 +309,8 @@ To easily track, differentiate, and verify all delivered features across the 4 r
    - **Customer Particulars:** Full name, code, TIN, mobile number.
    - **Vehicle Particulars Table:** Item name, brand, colour tag, engine/battery specs, quantity, unit price, VAT (15%), total amount.
    - **Required Advance Amount Banner (Story B4):**
-     - Displays required advance: **100% full gross price** (e.g., `ETB 245,000.00`).
-     - *"100% Full Payment Mandate"*.
+     - Displays required advance: **100% full gross price** (e.g., `ETB 281,750.00` incl. VAT).
+     - Notice label: *"100% Full Payment Mandate"*.
    - **Authorized Bank Accounts:** CBE, Awash, Dashen bank account numbers with instructions to quote the Slip Number.
 3. Click the top-right button **Print Slip**.
    - Observe browser print preview dialog opens with clean letterhead formatting.
@@ -310,24 +320,28 @@ To easily track, differentiate, and verify all delivered features across the 4 r
 ## Test Suite 6: Advance Booking Origin & 100% Full Advance (Stories B3 & B4)
 
 ### Test Case 6.1: Originating from an Approved Pre-Advance Slip
-1. In the left navigation menu, click **Bookings** (icon: 📑).
-2. Click **+ New Advance Booking**.
-3. In the modal, locate the top card:
-   - Title: **Originating Pre-Advance Slip (Story B3: Enquiry → Slip → Payment Mandate)**.
-   - Click the dropdown: select the active Pre-Advance Slip generated in Test Suite 5.
-4. **Expected Results:**
-   - Customer and Vehicle Item are automatically populated.
-   - Order Quantity and Unit Price are automatically set from the slip.
-   - **Min Advance Req (ETB):** automatically locks to **100% of the Gross Total** (full vehicle price including VAT, fulfilling Story B4).
-
----
-
-### Test Case 6.2: Create Booking & Verify Conversion
-1. Enter or keep Sales Representative Name and click **Create Advance Booking**.
-2. **Expected Results:**
-   - Booking is created successfully with status `APPROVED`.
-   - The Pre-Advance Slip status transitions to `CONVERTED`.
-   - On the Bookings table, the required deposit matches 100% of the vehicle total.
+1. **Navigate to Bookings:**
+   - In the left navigation menu, click **Bookings** (icon: 📑), or open `http://localhost:5173/bookings`.
+2. **Open Advance Booking Modal:**
+   - Click the top-right cyan button **`+ New Advance Booking`**.
+3. **Select Originating Pre-Advance Slip (Story B3):**
+   - In the modal, locate the top card:
+     **Originating Pre-Advance Slip (Story B3: Enquiry → Slip → Payment Mandate)**.
+   - Click the dropdown and select the active slip:
+     `PAS-2026-00001 — Abyssinia Logistics PLC (Bajaj Boxer 150 HD)`
+4. **Verify Auto-Populated 100% Advance Fields (Story B4):**
+   - **Customer:** Automatically locked to `Abyssinia Logistics PLC`.
+   - **Item:** Automatically set to `Bajaj Boxer 150 HD (Crimson Edition)`.
+   - **Quantity:** `1 unit`.
+   - **Unit Price:** `ETB 245,000.00`.
+   - **Min Advance Req (ETB):** Automatically locks to **100% of the Gross Total** (`ETB 281,750.00`), strictly enforcing the 100% advance deposit rule.
+5. **Complete Booking:**
+   - In the **Sales Representative Name** field, type `Abebe Bikila` (or keep default).
+   - Click **`Create Advance Booking`**.
+6. **Expected Results:**
+   - Booking is saved successfully with status **`APPROVED`**.
+   - The Pre-Advance Slip status transitions to **`CONVERTED`**.
+   - In the Bookings table, the new booking appears with Required Deposit equal to 100% of vehicle gross.
 
 ---
 
@@ -339,23 +353,26 @@ To easily track, differentiate, and verify all delivered features across the 4 r
 ## Test Suite 7: Customer Deposit & CEO Installment Approval Gate (Story P14)
 
 ### Test Case 7.1: Submit Partial Installment Payment
-1. In the left navigation menu, click **Payments & BRV** (icon: 💵).
-2. Click top-right button **+ Record Payment (BRV)**.
-3. Fill in payment fields:
-   - Customer: Select any customer with an active booking.
-   - Booking: Select the booking.
-   - Deposit Amount: Enter a partial installment amount (e.g. `ETB 100,000`).
-   - Bank: `Commercial Bank of Ethiopia (CBE)`.
-   - Reference Number: `BRV-TEST-INST-001`.
-4. **Toggle the Split / Installment Deposit Plan Card:**
-   - Notice the card: **Split / Installment Deposit Plan (Story P14)**.
-   - Subtitle: *"Customer is paying in installments. Requires mandatory CEO Approval Gate before ledger confirmation."*
-   - Check the box **ON** (card highlights in amber).
-5. Click **Record Payment**.
+1. **Navigate to Payments:**
+   - In the left navigation menu, click **Payments & BRV** (icon: 💵), or open `http://localhost:5173/payments`.
+2. **Open Record Payment Modal:**
+   - Click the top-right button **`+ Record Payment (BRV)`**.
+3. **Fill in Payment Particulars:**
+   - **Customer:** Select `Abyssinia Logistics PLC`.
+   - **Target Booking:** Select the active booking created in Test Suite 6.
+   - **Deposit Amount (ETB):** Enter a partial installment amount: `100000` (ETB 100,000).
+   - **Deposit Bank Account:** Select `Commercial Bank of Ethiopia (CBE)`.
+   - **Bank Reference Number / Cheque #:** Enter `BRV-INST-2026-001`.
+   - **Payment Date:** Keep today's date.
+4. **Enable the CEO Installment Plan Card (Story P14):**
+   - Look for the card: **Split / Installment Deposit Plan (Story P14)**.
+   - Check the checkbox **`Customer is paying in installments / split advance`**.
+   - Notice the card highlights in amber with note: *"Requires mandatory CEO Approval Gate before ledger confirmation."*
+5. Click **`Record Payment`**.
 6. **Expected Results:**
-   - Payment is saved with status `SUBMITTED`.
-   - In the Status column, an amber badge displays: **`⏳ CEO Approval Req`**.
-   - Notice the **Confirm** button is disabled with tooltip: *"Story P14: Requires CEO approval before ledger confirmation"*.
+   - Payment record is created with status `SUBMITTED`.
+   - In the Payments table, the Status column displays an amber badge: **`⏳ CEO Approval Req`**.
+   - Hover over the **Confirm** action button: notice it is disabled with tooltip: *"Story P14: Requires CEO approval before ledger confirmation"*.
 
 ---
 
@@ -560,95 +577,178 @@ To easily track, differentiate, and verify all delivered features across the 4 r
 ---
 
 ### Test Case 11.1: Verify Tax Rules & Rates Hub (Story IV2)
-1. In the left navigation menu, click **Invoices & Finance** (icon: 🧾).
-2. At the top of the Invoices page, notice the three tab buttons:
-   - `Commercial Sales Invoices`
-   - `Tax Rules & Rates Hub (Story IV2)`
-   - `Withholding Tax (WHT) Tracking Hub (Story IV14)`
-3. Click **Tax Rules & Rates Hub (Story IV2)**.
-4. **Verify the Rules Table:**
-   - **VAT (15%):** Type `VAT`, standard 15% rate, Priority 2.
-   - **Three-Wheeler Excise (5%):** Type `EXCISE`, 5% rate on Vehicle Price, Priority 1.
-   - **Motorcycle Excise (10%):** Type `EXCISE`, 10% rate on Vehicle Price, Priority 1.
-   - **Withholding Tax (2%):** Type `WHT`, 2% rate, Priority 3, deducted at source.
-5. **Verify Statutory Settlement Formula Distinction Card:**
-   - *Step 1:* `Gross Total = Vehicle Price + VAT + Excise Tax` (taxes added to price)
-   - *Step 2:* `Net Customer Payable = Gross Total - WHT` (tax withheld at source)
-   - *Step 3:* `Outstanding Balance = Net Customer Payable - Deposits Applied`
+1. **Navigate to Invoices Page:**
+   - In the left navigation menu, click **Invoices & Finance** (icon: 🧾), or open your browser directly to `http://localhost:5173/invoices`.
+2. **Access the Tax Rules Hub:**
+   - At the top of the Invoices page, click the middle navigation tab button:
+     **`Tax Rules & Rates Hub (Story IV2)`** (icon: `%`).
+3. **Inspect the Statutory Multi-Tax Rules Table:**
+   - Verify all 4 statutory tax rules are listed with their respective priorities and rates:
+     - **`VAT-STANDARD`**: Type `VAT` · Rate: `15.0%` · Calculation Base: `VEHICLE_PRICE` · Priority: `Priority 2` · Status: `ACTIVE`
+     - **`EXCISE-THREE-WHEELER`**: Type `EXCISE` · Rate: `5.0%` · Base: `VEHICLE_PRICE` · Priority: `Priority 1` · Status: `ACTIVE`
+     - **`EXCISE-MOTORCYCLE`**: Type `EXCISE` · Rate: `10.0%` · Base: `VEHICLE_PRICE` · Priority: `Priority 1` · Status: `ACTIVE`
+     - **`WHT-COMMERCIAL`**: Type `WHT` · Rate: `2.0%` · Base: `VEHICLE_PRICE` · Priority: `Priority 3` (deducted at source) · Status: `ACTIVE`
+4. **Inspect the Statutory Settlement Formula Guide Card:**
+   - Confirm the three sequential statutory computation cards:
+     - **Step 1 (Taxes Added to Price):** `Gross Total = Vehicle Price + VAT + Excise Tax`
+     - **Step 2 (Taxes Withheld at Source):** `Net Customer Payable = Gross Total - WHT (2%)`
+     - **Step 3 (Deposit Allocation):** `Outstanding Balance = Net Customer Payable - Deposits Applied`
 
 ---
 
 ### Test Case 11.2: Generate Sales Invoice with Live Multi-Tax Engine (Stories IV1, IV2, IV4, IV5)
-1. Switch back to the **Commercial Sales Invoices** tab.
-2. Click **+ Generate Invoice**.
-3. In the modal, select an allotted booking (e.g. for a Motorcycle or Three-Wheeler).
-4. **Observe the Live Settlement Breakdown & Calculation Summary:**
-   - **Vehicle Subtotal:** e.g. `ETB 1,000,000.00`
-   - **Excise Tax (5% or 10%):** Automatically calculated based on vehicle type (e.g. `+ ETB 100,000.00`).
-   - **VAT (15%):** e.g. `+ ETB 150,000.00`.
-   - **Gross Commercial Total:** `ETB 1,250,000.00` (Price + VAT + Excise).
-   - **Withholding Tax (2%):** If customer is WHT-liable, `- ETB 20,000.00`.
-   - **Net Customer Payable:** `ETB 1,230,000.00`.
-   - **Deposits Allocated:** Automatically capped up to Net Customer Payable.
-   - **Net Balance Due:** Remaining balance to be paid before delivery release.
-5. Check or uncheck *"Automatically allocate available customer deposits"*. Observe the live Net Balance Due updating instantaneously.
-6. Click **Confirm & Submit to Approval**.
-7. **Expected Results:**
-   - Success alert appears: *"Sales invoice generated with full tax audit breakdown and routed to approval workflow!"*
-   - Invoice is created with status **`PENDING_APPROVAL`**.
+1. **Open Invoices Table & Create Modal:**
+   - Click the left tab button: **`Commercial Sales Invoices`** (icon: 📄).
+   - In the top action bar, click the cyan button: **`+ Generate Invoice`** (icon: receipt).
+2. **Select Target Booking:**
+   - Click the dropdown field: **Target Booking Order \***.
+   - Select an allotted booking order (e.g. `BKG-2026-00001 — Abyssinia Logistics PLC (Bajaj Boxer 150 HD) [Deposited: ETB 245,000]`).
+3. **Verify the Live Calculation Breakdown Card:**
+   - As soon as the booking is selected, observe the live computation card:
+     - **Customer:** `Abyssinia Logistics PLC`
+     - **Item:** `Bajaj Boxer 150 HD (Crimson Edition)`
+     - **Detected Vehicle Classification:** `Motorcycle (>150cc, 10% Excise)`
+     - **Quantity:** `1 unit(s)`
+     - **Unit Price:** `ETB 245,000.00`
+     - **Vehicle Subtotal (Tax Base):** `ETB 245,000.00`
+     - **Excise Tax (10%):** `+ ETB 24,500.00` (in amber)
+     - **VAT (15%):** `+ ETB 36,750.00` (in cyan)
+     - **Gross Commercial Total:** `ETB 306,250.00` (Vehicle Subtotal + Excise + VAT)
+     - **Withholding Tax at Source (2%):** `- ETB 4,900.00` (in purple; customer is WHT-liable)
+     - **Net Customer Payable:** `ETB 301,350.00` (in bright sky-blue: `Gross - WHT`)
+     - **Eligible Customer Deposits:** `ETB 245,000.00`
+     - **Deposits Allocated:** `- ETB 245,000.00` (in emerald green)
+     - **Outstanding Customer Balance Due:** `ETB 56,350.00` (`Net Customer Payable - Deposits Allocated`)
+4. **Test Dynamic Deposit Toggle:**
+   - Uncheck the checkbox: **`Automatically allocate available customer deposits to invoice settlement`**.
+   - Notice the **Outstanding Customer Balance Due** immediately recalculates to `ETB 301,350.00` (full net payable).
+   - Check the box back **ON**: balance immediately returns to `ETB 56,350.00`.
+5. **Submit Invoice:**
+   - Click the bottom-right button: **`Confirm & Submit to Approval`**.
+6. **Expected Results:**
+   - Modal closes automatically.
+   - Success alert appears: *"Sales invoice generated with full tax audit breakdown and routed to approval workflow!"*.
+   - A new row appears at the top of the table with status badge: **`PENDING_APPROVAL`** (in amber).
 
 ---
 
-### Test Case 11.3: Tax Overrides & Statutory Exemptions with Audit Justification (Stories IV2, IV11)
-1. In the **Generate Sales Invoice** modal, select a booking.
-2. Expand the collapsible panel: **Tax Overrides & Statutory Exemptions (Stories IV2 & IV11)**.
-3. Check **VAT Exempt (0%)** or **Excise Duty Exempt (0%)**, or enter a custom rate (e.g. 5% VAT).
-4. Try to submit without filling in the audit reason.
-5. **Verify Error Validation:**
-   - Modal displays error: *"Please provide a mandatory audit justification reason for the tax rate override or exemption (Story IV2 / IV11)"*.
-6. Type a justification: *"Approved MoR statutory tax exemption certificate #AGRI-8891 for regional cooperative fleet"*.
-7. Submit the form.
+### Test Case 11.3: Retrieve Customer Available Deposits & Allocation Bounds (Stories IV3, IV4, IV5)
+1. In the **Commercial Sales Invoices** table, click **+ Generate Invoice**.
+2. Select a booking where the customer has partial deposits or available ledger credit balances.
+3. Observe how the system automatically queries `/api/invoices/customer/:customerId/available-deposits`.
+4. Verify that:
+   - Deposits applied cannot exceed `net_payable`.
+   - The Outstanding Balance accurately equals `net_payable - deposits_applied`.
+   - If no deposits exist, `Deposits Allocated` displays `ETB 0.00` and the balance equals `Net Customer Payable`.
+5. Click **Cancel** to exit modal.
+
+---
+
+### Test Case 11.4: Tax Overrides & Statutory Exemptions with Mandatory Audit Reason (Stories IV2 & IV11)
+1. On the **Commercial Sales Invoices** page, click **+ Generate Invoice**.
+2. Select any target booking from the dropdown.
+3. Click the collapsible bar: **`Tax Overrides & Statutory Exemptions (Stories IV2 & IV11) ▼ Expand Options`**.
+4. The options panel expands:
+   - **Exemption Checkboxes:**
+     - `[ ] VAT Exempt (0%)`
+     - `[ ] Excise Duty Exempt (0%)`
+     - `[ ] WHT Exempt (0%)`
+   - **Custom Rate Inputs:**
+     - Custom VAT Rate (%)
+     - Custom Excise Rate (%)
+     - Calculation Base (`VEHICLE_PRICE` or `GROSS_INCL_EXCISE`)
+   - **Mandatory Audit Justification Textarea:** `Mandatory Audit Justification Reason *`
+5. **Test Exemption Interaction:**
+   - Check the box **`VAT Exempt (0%)`**.
+   - Notice the live VAT amount updates to `+ ETB 0.00` and Gross Total reduces accordingly.
+   - Check the box **`Excise Duty Exempt (0%)`**.
+   - Notice Excise Tax updates to `+ ETB 0.00`.
+6. **Test Validation Enforcement (Attempt to submit without reason):**
+   - Leave the **Mandatory Audit Justification Reason** field blank.
+   - Click **`Confirm & Submit to Approval`**.
+   - **Expected Error:**
+     - The modal remains open and displays a red alert:
+       *"Please provide a mandatory audit justification reason for the tax rate override or exemption (Story IV2 / IV11)"*.
+7. **Enter Audit Justification & Submit:**
+   - In the textarea, insert:
+     `"Approved MoR statutory tax exemption certificate #AGRI-2026-901 for regional agricultural cooperative vehicle allotment"`
+   - Click **`Confirm & Submit to Approval`**.
 8. **Expected Results:**
-   - Invoice is created successfully with the overridden rates.
-   - The justification is permanently stored and visible in the Invoice Detail modal under *"Tax Exemption / Rate Override Audit Justification"*.
+   - The invoice is successfully created with zero VAT/Excise taxes.
+   - The audit reason is saved permanently.
 
 ---
 
-### Test Case 11.4: Invoice Approval, Settle Booking & Vehicle Status SOLD (Stories IV7, IV8, IV9, IV10)
-1. Find the newly generated invoice in the Commercial Sales Invoices table (status: `PENDING_APPROVAL`).
-2. Click the green **Approve & Settle** button (checkmark icon) or open the details modal (eye icon) and click **Approve & Settle**.
-3. Confirm the confirmation prompt: *"Approve this sales invoice? This will finalize financial settlement and automatically mark the assigned vehicle as SOLD."*
-4. **Expected Results:**
-   - Invoice status transitions to **`APPROVED`**.
-   - The associated booking status transitions to **`SETTLED`**.
-   - The assigned vehicle unit status transitions to **`SOLD`** via `fn_transition_vehicle_status()`.
-   - The customer ledger receives an immutable, idempotent **`INVOICE_CHARGE`** entry and balancing **`PAYMENT_ALLOCATION`** entry.
+### Test Case 11.5: Identify Excess Customer Payments Workflow (Story IV6)
+1. Create or select a booking where the customer's total deposited amount exceeds the vehicle's `Net Customer Payable` (e.g. deposited `ETB 350,000` for a vehicle with net payable `ETB 301,350`).
+2. Click **+ Generate Invoice** and select that booking.
+3. **Verify the Excess Payment Warning Banner:**
+   - Observe the yellow warning box inside the live calculation breakdown:
+     `⚠️ Story IV6 Excess Deposit Identified: Customer deposit exceeds Net Payable by ETB 48,650.00. Excess is reserved for customer credit/refund workflow.`
+4. Verify that **Deposits Allocated** is strictly capped at `ETB 301,350.00` (the Net Payable), preventing over-allocation.
+5. Verify that **Net Balance Due** is `ETB 0.00`.
+6. Click **Confirm & Submit to Approval**.
+7. In the Commercial Sales Invoices table row, verify the tag: **`★ EXCESS DEPOSIT`** (in amber/gold).
 
 ---
 
-### Test Case 11.5: Detailed Multi-Tax Audit Snapshot View (Stories IV1, IV12)
-1. On any approved or pending invoice, click the **View (eye icon)** button.
-2. In the modal, verify the structured display:
-   - Vehicle Subtotal
-   - Excise Duty Rate & Amount
-   - VAT Rate & Amount
-   - Gross Commercial Total
-   - Withholding Tax at Source (2%)
-   - Net Customer Payable
+### Test Case 11.6: Invoice Approval, Settle Booking, Vehicle Status SOLD & Ledger Postings (Stories IV7, IV8, IV9, IV10)
+1. Locate your generated invoice in the table (status: `PENDING_APPROVAL`).
+2. In the **Actions** column, click the green button: **`Approve & Settle`** (icon: checkmark).
+3. The confirmation dialog appears:
+   - Title: **Approve Sales Invoice & Settle**
+   - Message: *"Approve this sales invoice? This will finalize financial settlement and automatically mark the assigned vehicle as SOLD."*
+4. Click **`Approve & Settle`** (green confirmation button).
+5. **Expected Results:**
+   - Success toast appears: *"Sales invoice approved successfully! Vehicle transitioned to SOLD."*
+   - Invoice status badge updates to **`APPROVED`** (in green).
+   - **Verify Booking Status (Story IV8):**
+     - Go to **Bookings** page (`/bookings`). Locate the associated booking.
+     - Status has automatically updated to **`SETTLED`**.
+   - **Verify Vehicle Status (Story IV9):**
+     - Go to **Vehicles** page (`/vehicles`). Locate the assigned chassis number.
+     - Vehicle lifecycle status has automatically transitioned to **`SOLD`**.
+   - **Verify Customer Ledger Posting (Story IV7):**
+     - Go to **Customer Ledger** (`/ledger`).
+     - Verify an idempotent **`INVOICE_CHARGE`** debit entry and balancing **`PAYMENT_ALLOCATION`** credit entry with exact invoice references.
+
+---
+
+### Test Case 11.7: Detailed Multi-Tax Audit Snapshot View (Stories IV1 & IV12)
+1. On the **Commercial Sales Invoices** table, find any approved invoice.
+2. In the Actions column, click the **View Details** button (icon: eye 👁️).
+3. The **Invoice Ref Modal** opens.
+4. **Verify the Complete Multi-Tax Breakdown:**
+   - Customer & TIN Number
+   - Item Model & Chassis VIN
+   - Invoice Status (`APPROVED`) & Issue Timestamp
+   - Vehicle Subtotal: `ETB ...`
+   - Excise Duty (Rate % and exact ETB amount)
+   - VAT (15% rate and exact ETB amount)
+   - Gross Commercial Total (`Price + VAT + Excise`)
+   - Withholding Tax at Source (2% deduction)
+   - Net Customer Payable (`Gross - WHT`)
    - Deposits Allocated
    - Outstanding Balance Due
-3. Scroll to the **Applied Statutory Tax Rules Snapshot & Audit Trail (Story IV1 / IV2 / IV11)** table:
-   - Verify it shows each applied rule name, tax type, rate percentage, exact tax amount, and calculation base for permanent historical consistency.
+5. **Verify the Applied Statutory Tax Rules Snapshot & Audit Trail Table:**
+   - Review the snapshot table at the bottom:
+     - Columns: `Rule Name`, `Type` (VAT/EXCISE/WHT), `Rate`, `Tax Amount`, `Base`
+     - Displays the exact rule parameters frozen at invoice issuance time.
+6. **Verify Tax Override Justification Display (if overridden):**
+   - If the invoice had an exemption/override, verify the amber callout box displays:
+     `★ Tax Exemption / Rate Override Audit Justification (Story IV11): [Your entered reason]`
+7. Click **Close** to exit modal.
 
 ---
 
-### Test Case 11.6: Execute KMSICAMS-11 Automated Unit Test Suite (Story IV13)
-Open a terminal in `d:\kanab\backend` and run:
+### Test Case 11.8: Execute KMSICAMS-11 Automated Unit Test Suite (Story IV13)
+To verify all backend tax calculation combinations, rounding, bounds, and lifecycle transitions programmatically:
+1. Open PowerShell / Command Prompt on your development machine.
+2. Run:
 ```bash
 npm test -- backend/src/modules/invoices/invoices.service.spec.ts
 ```
-**Expected Results:**
-All 7 unit tests pass with zero failures:
+3. **Verify Test Suite Execution Output:**
 ```
 PASS src/modules/invoices/invoices.service.spec.ts
   InvoicesService (KMSICAMS-11 Updated Story Points: Sales Invoice & Settlement)
@@ -666,7 +766,9 @@ PASS src/modules/invoices/invoices.service.spec.ts
 
 Test Suites: 1 passed, 1 total
 Tests:       7 passed, 7 total
+Time:        1.054 s
 ```
+All 7 unit tests pass with zero errors.
 
 ---
 
