@@ -76,12 +76,16 @@ async function ensureSequences() {
       ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS applicable_customer_type VARCHAR(30) DEFAULT 'ALL';
       ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS applicable_vehicle_type VARCHAR(50) DEFAULT 'ALL';
       ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS description TEXT;
-      INSERT INTO tax_configuration (tax_name, tax_rate_pct, is_active, tax_type, applicable_customer_type, applicable_vehicle_type, description)
+      ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS calculation_base VARCHAR(50) DEFAULT 'VEHICLE_PRICE';
+      ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS priority INT DEFAULT 1;
+      ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS effective_from DATE DEFAULT '2026-01-01';
+      ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS effective_to DATE;
+      INSERT INTO tax_configuration (tax_name, tax_rate_pct, is_active, tax_type, applicable_customer_type, applicable_vehicle_type, calculation_base, priority, effective_from, description)
       VALUES
-        ('Standard VAT (15%)', 15.00, true, 'VAT', 'ALL', 'ALL', 'Standard 15% VAT on all vehicles and spare parts'),
-        ('Withholding Tax (2%)', 2.00, true, 'WHT', 'WHT_ONLY', 'ALL', '2% Withholding Tax applied for WHT-liable / Government customers'),
-        ('Excise Tax Three-Wheeler (5%)', 5.00, true, 'EXCISE', 'ALL', 'THREE_WHEELER', '5% Excise Duty on Three-Wheeler commercial units'),
-        ('Excise Tax Motorcycle (10%)', 10.00, true, 'EXCISE', 'ALL', 'MOTORCYCLE', '10% Excise Duty on High-Capacity Motorcycles (>150cc)')
+        ('Excise Tax Motorcycle (10%)', 10.00, true, 'EXCISE', 'ALL', 'MOTORCYCLE', 'VEHICLE_PRICE', 1, '2026-01-01', '10% Excise Duty on High-Capacity Motorcycles (>150cc)'),
+        ('Excise Tax Three-Wheeler (5%)', 5.00, true, 'EXCISE', 'ALL', 'THREE_WHEELER', 'VEHICLE_PRICE', 1, '2026-01-01', '5% Excise Duty on Three-Wheeler commercial units'),
+        ('Standard VAT (15%)', 15.00, true, 'VAT', 'ALL', 'ALL', 'VEHICLE_PRICE', 2, '2026-01-01', 'Standard 15% VAT on all vehicles and spare parts'),
+        ('Withholding Tax (2%)', 2.00, true, 'WHT', 'WHT_ONLY', 'ALL', 'VEHICLE_PRICE', 3, '2026-01-01', '2% Withholding Tax applied for WHT-liable / Government customers')
       ON CONFLICT DO NOTHING;
       DO $$
       BEGIN
@@ -136,7 +140,27 @@ async function ensureSequences() {
         END IF;
       END $$;
 
-      -- Story IV14: Tax withheld by customer (Non-cash settlement)
+      -- Story IV1 & IV2: Sales Invoice Data Model & Tax Engine Enhancements
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE sales_invoice ALTER COLUMN gross_total DROP EXPRESSION;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+        BEGIN
+          ALTER TABLE sales_invoice ALTER COLUMN outstanding_balance DROP EXPRESSION;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+      END $$;
+
+      -- Story IV14 & IV1 & IV2: Taxes (VAT, Excise, WHT) and Audit Details
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS excise_tax_rate NUMERIC(5, 4) DEFAULT 0;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS excise_tax_amount NUMERIC(18, 2) DEFAULT 0;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS total_tax_amount NUMERIC(18, 2) DEFAULT 0;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS net_payable NUMERIC(18, 2) DEFAULT 0;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS tax_details JSONB DEFAULT '{}'::jsonb;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS tax_override_reason TEXT;
+      ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS tax_override_by INT;
       ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_applicable BOOLEAN DEFAULT FALSE;
       ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_rate NUMERIC(5, 4) DEFAULT 0.02;
       ALTER TABLE sales_invoice ADD COLUMN IF NOT EXISTS wht_amount NUMERIC(18, 2) DEFAULT 0;

@@ -74,17 +74,32 @@ export class SalesInvoice {
   @Column({ name: 'vat_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
   vatAmount: number;
 
+  @Column({ name: 'excise_tax_rate', type: 'numeric', precision: 5, scale: 4, default: 0 })
+  exciseTaxRate: number;
+
+  @Column({ name: 'excise_tax_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  exciseTaxAmount: number;
+
+  @Column({ name: 'total_tax_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  totalTaxAmount: number;
+
   @Column({
     name: 'gross_total',
     type: 'numeric',
     precision: 18,
     scale: 2,
-    insert: false,
-    update: false,
-    asExpression: 'quantity * unit_price + vat_amount',
-    generatedType: 'STORED',
+    default: 0,
   })
   grossTotal: number;
+
+  @Column({
+    name: 'net_payable',
+    type: 'numeric',
+    precision: 18,
+    scale: 2,
+    default: 0,
+  })
+  netPayable: number;
 
   @Column({ name: 'deposits_applied', type: 'numeric', precision: 18, scale: 2, default: 0 })
   depositsApplied: number;
@@ -94,15 +109,21 @@ export class SalesInvoice {
     type: 'numeric',
     precision: 18,
     scale: 2,
-    insert: false,
-    update: false,
-    asExpression: 'quantity * unit_price + vat_amount - deposits_applied',
-    generatedType: 'STORED',
+    default: 0,
   })
   outstandingBalance: number;
 
   @Column({ name: 'excess_payment_flag', type: 'boolean', default: false })
   excessPaymentFlag: boolean;
+
+  @Column({ name: 'tax_details', type: 'jsonb', nullable: true })
+  taxDetails?: Record<string, any>;
+
+  @Column({ name: 'tax_override_reason', type: 'text', nullable: true })
+  taxOverrideReason?: string;
+
+  @Column({ name: 'tax_override_by', type: 'int', nullable: true })
+  taxOverrideBy?: number;
 
   @Column({ name: 'wht_applicable', type: 'boolean', default: false })
   whtApplicable: boolean;

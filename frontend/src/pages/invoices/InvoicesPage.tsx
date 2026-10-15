@@ -18,8 +18,12 @@ import {
   Percent,
   ClipboardCheck,
   FileCheck2,
+  Calculator,
+  Sliders,
+  Settings2,
+  Info,
 } from 'lucide-react';
-import { api, SalesInvoice, Booking } from '../../api/client';
+import { api, SalesInvoice, Booking, TaxConfiguration } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
 import { formatApiError } from '../../utils/error';
@@ -33,12 +37,13 @@ export const InvoicesPage: React.FC = () => {
   const canRejectInvoice = can('PAYMENTS_REJECT');
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [taxConfigs, setTaxConfigs] = useState<TaxConfiguration[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
-  // Story IV14: Module Tabs & WHT Hub state
-  const [activeTab, setActiveTab] = useState<'INVOICES' | 'WHT_HUB'>('INVOICES');
+  // Story IV14 & IV2: Module Tabs state
+  const [activeTab, setActiveTab] = useState<'INVOICES' | 'TAX_RULES' | 'WHT_HUB'>('INVOICES');
   const [whtCertificates, setWhtCertificates] = useState<any[]>([]);
   const [whtCertSearch, setWhtCertSearch] = useState('');
   const [whtStatusFilter, setWhtStatusFilter] = useState<string>('ALL');
@@ -72,10 +77,18 @@ export const InvoicesPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState<string>('');
   const [rejectError, setRejectError] = useState<string | null>(null);
 
-  // Form states for Invoice generation
+  // Form states for Invoice generation (Stories IV1, IV2, IV3, IV4, IV5, IV6)
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
-  const [taxRate, setTaxRate] = useState<number>(0.15); // 15% Ethiopian standard VAT
   const [applyDeposits, setApplyDeposits] = useState<boolean>(true);
+  const [isVatExempt, setIsVatExempt] = useState<boolean>(false);
+  const [isExciseExempt, setIsExciseExempt] = useState<boolean>(false);
+  const [isWhtExempt, setIsWhtExempt] = useState<boolean>(false);
+  const [customVatRate, setCustomVatRate] = useState<number | string>(15);
+  const [customExciseRate, setCustomExciseRate] = useState<number | string>('');
+  const [calcBase, setCalcBase] = useState<'VEHICLE_PRICE' | 'GROSS_INCL_EXCISE'>('VEHICLE_PRICE');
+  const [taxOverrideReason, setTaxOverrideReason] = useState<string>('');
+  const [showOverridePanel, setShowOverridePanel] = useState<boolean>(false);
+  const [availableDepositsData, setAvailableDepositsData] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -85,16 +98,18 @@ export const InvoicesPage: React.FC = () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const [invRes, bkgRes, whtRes] = await Promise.all([
+      const [invRes, bkgRes, whtRes, taxRes] = await Promise.all([
         api.getInvoices(),
         api.getBookings ? api.getBookings() : Promise.resolve([]),
         api.getWhtCertificates ? api.getWhtCertificates() : Promise.resolve([]),
+        api.getTaxConfigs ? api.getTaxConfigs() : Promise.resolve([]),
       ]);
       setInvoices(invRes || []);
       setBookings(Array.isArray(bkgRes) ? bkgRes : (bkgRes as any)?.items || []);
       setWhtCertificates(whtRes || []);
+      setTaxConfigs(taxRes || []);
     } catch (err: any) {
-      setErrorMsg(formatApiError(err, 'Failed to load sales invoices and bookings'));
+      setErrorMsg(formatApiError(err, 'Failed to load sales invoices, bookings, and tax configurations'));
     } finally {
       setLoading(false);
     }
@@ -167,6 +182,42 @@ export const InvoicesPage: React.FC = () => {
     }
   };
 
+  const handleBookingChange = async (bkgId: string) => {
+    setSelectedBookingId(bkgId);
+    setCreateError(null);
+    if (!bkgId) {
+      setAvailableDepositsData(null);
+      setCustomExciseRate('');
+      return;
+    }
+    const bkg = bookings.find((b) => String(b.bookingId) === bkgId);
+    if (bkg) {
+      const itemName = (bkg.item?.itemName || '').toUpperCase();
+      const usageType = ((bkg.item as any)?.usageType || '').toUpperCase();
+      if (itemName.includes('MOTORCYCLE') || usageType.includes('MOTORCYCLE')) {
+        setCustomExciseRate(10);
+      } else if (itemName.includes('THREE') || itemName.includes('TUK') || itemName.includes('BAJAJ') || usageType.includes('THREE_WHEELER')) {
+        setCustomExciseRate(5);
+      } else {
+        setCustomExciseRate(0);
+      }
+      setCustomVatRate(15);
+      setIsVatExempt(false);
+      setIsExciseExempt(false);
+      setIsWhtExempt(false);
+      setTaxOverrideReason('');
+
+      if (api.getCustomerAvailableDeposits && bkg.customerId) {
+        try {
+          const depData = await api.getCustomerAvailableDeposits(bkg.customerId, bkg.bookingId);
+          setAvailableDepositsData(depData);
+        } catch {
+          setAvailableDepositsData(null);
+        }
+      }
+    }
+  };
+
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateInvoice) return;
@@ -176,18 +227,40 @@ export const InvoicesPage: React.FC = () => {
       return;
     }
 
+    const hasOverrideOrExemption =
+      isVatExempt ||
+      isExciseExempt ||
+      isWhtExempt ||
+      Number(customVatRate) !== 15 ||
+      (customExciseRate !== '' && Number(customExciseRate) !== defaultExcisePct) ||
+      calcBase !== 'VEHICLE_PRICE';
+
+    if (hasOverrideOrExemption && !taxOverrideReason.trim()) {
+      setCreateError('Please provide a mandatory audit justification reason for the tax rate override or exemption (Story IV2 / IV11)');
+      return;
+    }
+
     try {
       setActionLoading(true);
       setCreateError(null);
       await api.createInvoice({
         bookingId: selectedBookingId,
-        taxRate,
+        vatRate: effVatPct / 100,
+        exciseRate: effExcisePct / 100,
+        whtRate: effWhtPct / 100,
         applyDeposits,
+        whtApplicable: effWhtPct > 0,
+        isVatExempt,
+        isExciseExempt,
+        isWhtExempt,
+        calculationBase: calcBase,
+        taxOverrideReason: taxOverrideReason.trim() || undefined,
       });
-      setSuccessMsg('Sales invoice generated and submitted to approval workflow successfully!');
+      setSuccessMsg('Sales invoice generated with full tax audit breakdown and routed to approval workflow!');
       setShowCreateModal(false);
       setCreateError(null);
       setSelectedBookingId('');
+      setAvailableDepositsData(null);
       await loadData();
     } catch (err: any) {
       setCreateError(formatApiError(err, 'Failed to generate sales invoice'));
@@ -263,19 +336,48 @@ export const InvoicesPage: React.FC = () => {
     }
   };
 
-  // Selected booking preview for modal
+  // Selected booking preview for modal (Story IV2 Live Engine)
   const selectedBooking = bookings.find((b) => String(b.bookingId) === selectedBookingId);
   const previewQuantity = selectedBooking ? Number(selectedBooking.quantity) || 1 : 1;
   const previewUnitPrice = selectedBooking
     ? Number(selectedBooking.unitPrice) || Number(selectedBooking.grossTotal) / previewQuantity
     : 0;
   const previewSubtotal = previewQuantity * previewUnitPrice;
-  const previewVat = Math.round(previewSubtotal * taxRate * 100) / 100;
-  const previewGross = previewSubtotal + previewVat;
-  const previewDeposits = selectedBooking ? Number(selectedBooking.totalAmountDeposited) || 0 : 0;
-  const previewApplied = applyDeposits ? Math.min(previewDeposits, previewGross) : 0;
-  const previewBalance = previewGross - previewApplied;
-  const previewExcess = previewDeposits > previewGross;
+
+  // Detect vehicle classification
+  const bkgItemName = (selectedBooking?.item?.itemName || '').toUpperCase();
+  const bkgUsageType = ((selectedBooking?.item as any)?.usageType || '').toUpperCase();
+  let detectedVehicleType = 'Standard Vehicle (0% Excise)';
+  let defaultExcisePct = 0;
+  if (bkgItemName.includes('MOTORCYCLE') || bkgUsageType.includes('MOTORCYCLE')) {
+    detectedVehicleType = 'Motorcycle (>150cc, 10% Excise)';
+    defaultExcisePct = 10;
+  } else if (bkgItemName.includes('THREE') || bkgItemName.includes('TUK') || bkgItemName.includes('BAJAJ') || bkgUsageType.includes('THREE_WHEELER')) {
+    detectedVehicleType = 'Three-Wheeler Commercial Unit (5% Excise)';
+    defaultExcisePct = 5;
+  }
+
+  // WHT Standing
+  const isWhtCustomer = Boolean((selectedBooking?.customer as any)?.withholdingTaxFlag);
+
+  // Live Effective Rates & Calculations (Stories IV1, IV2, IV4, IV5, IV6)
+  const effExcisePct = isExciseExempt ? 0 : (customExciseRate !== '' ? Number(customExciseRate) : defaultExcisePct);
+  const effVatPct = isVatExempt ? 0 : (customVatRate !== '' ? Number(customVatRate) : 15);
+  const effWhtPct = isWhtExempt ? 0 : (isWhtCustomer ? 2 : 0);
+
+  const previewExcise = Math.round(previewSubtotal * (effExcisePct / 100) * 100) / 100;
+  const vatBase = calcBase === 'GROSS_INCL_EXCISE' ? (previewSubtotal + previewExcise) : previewSubtotal;
+  const previewVat = Math.round(vatBase * (effVatPct / 100) * 100) / 100;
+  const previewTotalAddedTax = previewVat + previewExcise;
+  const previewGross = previewSubtotal + previewTotalAddedTax;
+  const previewWht = Math.round(previewSubtotal * (effWhtPct / 100) * 100) / 100;
+  const previewNetPayable = Math.max(0, previewGross - previewWht);
+
+  const previewDeposits = availableDepositsData?.totalEligibleDeposits ?? (selectedBooking ? Number(selectedBooking.totalAmountDeposited) || 0 : 0);
+  const previewApplied = applyDeposits ? Math.min(previewDeposits, previewNetPayable) : 0;
+  const previewBalance = Math.max(0, previewNetPayable - previewApplied);
+  const previewExcess = previewDeposits > previewNetPayable;
+  const previewExcessAmount = Math.max(0, previewDeposits - previewNetPayable);
 
   // Filtered invoices
   const filteredInvoices = invoices.filter((inv) => {
@@ -342,8 +444,8 @@ export const InvoicesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Module Navigation Tabs (Story IV14) */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+      {/* Module Navigation Tabs (Stories IV1, IV2, IV14) */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => setActiveTab('INVOICES')}
           className="btn"
@@ -361,6 +463,25 @@ export const InvoicesPage: React.FC = () => {
         >
           <FileText size={16} />
           Commercial Sales Invoices ({invoices.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('TAX_RULES')}
+          className="btn"
+          style={{
+            background: activeTab === 'TAX_RULES' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+            color: activeTab === 'TAX_RULES' ? '#38bdf8' : 'var(--text-secondary)',
+            border: activeTab === 'TAX_RULES' ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '8px',
+          }}
+        >
+          <Percent size={16} />
+          Tax Rules & Rates Hub (Story IV2) ({taxConfigs.length})
         </button>
 
         <button
@@ -562,20 +683,22 @@ export const InvoicesPage: React.FC = () => {
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice #</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item & Chassis</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Gross Total (ETB)</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Deposits Applied</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Balance Due</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
-                <th style={{ padding: '0.9rem 1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice #</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer & TIN</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item Model & Chassis</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Taxes (VAT / Excise / WHT)</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Gross Total (ETB)</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Net Payable (ETB)</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Deposits Applied</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Balance Due</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
+                <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={10} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     {loading ? 'Loading invoices...' : 'No sales invoices found matching your criteria.'}
                   </td>
                 </tr>
@@ -590,6 +713,9 @@ export const InvoicesPage: React.FC = () => {
                   >
                     <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
                       <div>{inv.invoiceNumber}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        {new Date(inv.createdAt).toLocaleDateString()}
+                      </div>
                       {inv.whtCertificateNumber ? (
                         <div style={{ marginTop: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#c084fc', fontSize: '0.7rem', fontWeight: 700 }}>
                           ✓ WHT Cert: {inv.whtCertificateNumber}
@@ -605,22 +731,51 @@ export const InvoicesPage: React.FC = () => {
                         {inv.customer?.fullName || 'N/A'}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {inv.customer?.mobileNumber}
+                        TIN: {inv.customer?.tinNumber || '0012345678'}
                       </div>
                     </td>
                     <td style={{ padding: '1rem' }}>
-                      <div style={{ color: 'var(--text-primary)' }}>{inv.item?.itemName || 'Vehicle Item'}</div>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{inv.item?.itemName || 'Vehicle Item'}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
                         Chassis: {inv.vehicleUnit?.chassisNumber || 'Direct Allotted'}
                       </div>
                     </td>
-                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>
-                      ETB {Number(inv.grossTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        VAT: ETB {Number(inv.vatAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem' }}>
+                        <div style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                          VAT: ETB {Number(inv.vatAmount).toLocaleString()} (15%)
+                        </div>
+                        {Number(inv.exciseTaxAmount || 0) > 0 ? (
+                          <div style={{ color: '#f59e0b', fontWeight: 600 }}>
+                            Excise: ETB {Number(inv.exciseTaxAmount).toLocaleString()} ({Number(inv.exciseTaxRate || 0) * 100}%)
+                          </div>
+                        ) : (
+                          <div style={{ color: 'var(--text-muted)' }}>Excise: N/A (0%)</div>
+                        )}
+                        {Number(inv.whtAmount || 0) > 0 ? (
+                          <div style={{ color: '#c084fc', fontWeight: 700 }}>
+                            WHT: -ETB {Number(inv.whtAmount).toLocaleString()} ({Number(inv.whtRate || 0.02) * 100}%)
+                          </div>
+                        ) : inv.whtApplicable ? (
+                          <div style={{ color: '#c084fc', fontWeight: 700 }}>
+                            WHT: 2% at Settlement
+                          </div>
+                        ) : null}
                       </div>
                     </td>
-                    <td style={{ padding: '1rem', textAlign: 'right', color: '#10b981', fontWeight: 500 }}>
+                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      ETB {Number(inv.grossTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                        Price + VAT + Excise
+                      </div>
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700, color: '#38bdf8' }}>
+                      ETB {Number(inv.netPayable ?? (Number(inv.grossTotal) - Number(inv.whtAmount || 0))).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                        Gross - WHT
+                      </div>
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>
                       ETB {Number(inv.depositsApplied).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       {Number(inv.whtAmount || 0) > 0 && (
                         <div style={{ fontSize: '0.7rem', color: '#c084fc', fontWeight: 700, marginTop: '0.2rem' }}>
@@ -633,7 +788,7 @@ export const InvoicesPage: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 600 }}>
+                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700 }}>
                       <span style={{ color: Number(inv.outstandingBalance) > 0 ? '#f59e0b' : '#10b981' }}>
                         ETB {Number(inv.outstandingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
@@ -995,10 +1150,188 @@ export const InvoicesPage: React.FC = () => {
         </>
       )}
 
+      {/* STORY IV2: TAX RULES & RATES HUB */}
+      {activeTab === 'TAX_RULES' && (
+        <>
+          {/* Statutory Tax Configuration Header Banner */}
+          <div
+            style={{
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              marginBottom: '1.75rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '1rem',
+            }}
+          >
+            <div style={{ padding: '0.5rem', background: 'rgba(56, 189, 248, 0.2)', borderRadius: '8px', color: '#38bdf8' }}>
+              <Percent size={24} />
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }}>
+                SRS Story IV2: Multi-Tax Evaluation Engine & Statutory Rule Configuration
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Evaluates each commercial transaction independently according to Ethiopian Revenue Authority (MoR) statutory rules. 
+                Taxes are evaluated sequentially with configurable bases, vehicle-type conditions, and historical audit snapshots.
+              </p>
+              <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', fontSize: '0.75rem', fontWeight: 700 }}>
+                  Priority 1: Excise Tax (5% Three-Wheeler / 10% Motorcycle)
+                </span>
+                <span style={{ padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(6, 182, 212, 0.15)', border: '1px solid rgba(6, 182, 212, 0.3)', color: 'var(--accent-cyan)', fontSize: '0.75rem', fontWeight: 700 }}>
+                  Priority 2: VAT (15% Standard)
+                </span>
+                <span style={{ padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#c084fc', fontSize: '0.75rem', fontWeight: 700 }}>
+                  Priority 3: WHT (2% Withheld at Source)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Statutory Tax Formula Guide Card */}
+          <div
+            className="card"
+            style={{
+              padding: '1.25rem',
+              marginBottom: '1.75rem',
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.6))',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--accent-cyan)' }}>
+              <Calculator size={18} />
+              <span style={{ fontWeight: 800, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Statutory Settlement Formula Distinction (Story IV2)
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', fontSize: '0.85rem' }}>
+              <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700 }}>STEP 1: TAXES ADDED TO PRICE</div>
+                <div style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.35rem' }}>
+                  Gross Total = Vehicle Price + VAT + Excise Tax
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Excise and VAT are statutory levies added onto the vehicle selling price.
+                </div>
+              </div>
+
+              <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ color: '#c084fc', fontSize: '0.75rem', fontWeight: 700 }}>STEP 2: TAXES WITHHELD AT SOURCE</div>
+                <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c084fc', marginTop: '0.35rem' }}>
+                  Net Customer Payable = Gross Total - WHT (2%)
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  WHT is deducted from customer payment by withholding agents, never treated as a discount.
+                </div>
+              </div>
+
+              <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 700 }}>STEP 3: DEPOSIT ALLOCATION</div>
+                <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#10b981', marginTop: '0.35rem' }}>
+                  Outstanding Balance = Net Customer Payable - Deposits Applied
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Customer booking deposits are allocated directly against the net customer payable.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Configured Tax Rules Table */}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', background: 'rgba(15, 23, 42, 0.4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Sliders size={16} style={{ color: '#38bdf8' }} />
+                <span>Active Statutory Tax Rules & Calculation Bases ({taxConfigs.length})</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Configured in Products & Inventory Statutory Module
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Tax Code</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Rule Description</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Type</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'right' }}>Standard Rate</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Calculation Base</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Priority</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Effective Period</th>
+                    <th style={{ padding: '0.9rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {taxConfigs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No tax configurations loaded. Default rules apply (VAT 15%, Excise 5%/10%, WHT 2%).
+                      </td>
+                    </tr>
+                  ) : (
+                    taxConfigs.map((tc) => (
+                      <tr key={tc.taxConfigId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '1rem', fontWeight: 700, fontFamily: 'monospace', color: '#38bdf8' }}>
+                          {tc.taxCode || tc.taxName}
+                        </td>
+                        <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {tc.description || tc.taxName || tc.taxCode}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            background: tc.taxType === 'VAT' ? 'rgba(6, 182, 212, 0.15)' : tc.taxType === 'EXCISE' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(168, 85, 247, 0.15)',
+                            color: tc.taxType === 'VAT' ? 'var(--accent-cyan)' : tc.taxType === 'EXCISE' ? '#f59e0b' : '#c084fc',
+                          }}>
+                            {tc.taxType}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                          {Number(tc.taxRatePct ?? (Number(tc.taxRate || 0) * 100)).toFixed(1)}%
+                        </td>
+                        <td style={{ padding: '1rem', fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {tc.calculationBase || 'VEHICLE_PRICE'}
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          Priority {tc.priority ?? 1}
+                        </td>
+                        <td style={{ padding: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {tc.effectiveFrom ? new Date(tc.effectiveFrom).toLocaleDateString() : 'Active'} — {tc.effectiveTo ? new Date(tc.effectiveTo).toLocaleDateString() : 'Permanent'}
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                          <span style={{
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '20px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            background: tc.isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: tc.isActive ? '#10b981' : '#ef4444',
+                          }}>
+                            {tc.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* CREATE INVOICE MODAL */}
       {showCreateModal && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '680px' }}>
+          <div className="modal-content" style={{ maxWidth: '780px', maxHeight: '92vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
@@ -1006,10 +1339,10 @@ export const InvoicesPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                    Generate Sales Invoice
+                    Generate Sales Invoice & Settlement
                   </h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
-                    Calculate automated 15% VAT, apply booking deposit & route to approval
+                    Multi-tax statutory evaluation (VAT 15%, Excise, WHT 2%), deposit allocation & approval routing
                   </span>
                 </div>
               </div>
@@ -1026,100 +1359,277 @@ export const InvoicesPage: React.FC = () => {
             <form onSubmit={handleCreateInvoice}>
               <div className="modal-body">
                 <ModalErrorAlert error={createError} onDismiss={() => setCreateError(null)} />
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Target Booking Order *
-                </label>
-                <select
-                  value={selectedBookingId}
-                  onChange={(e) => setSelectedBookingId(e.target.value)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <option value="">-- Select Confirmed / Allotted Booking --</option>
-                  {bookings.map((b) => (
-                    <option key={b.bookingId} value={b.bookingId}>
-                      {b.bookingNumber} — {b.customer?.fullName} ({b.item?.itemName}) [Deposited: ETB {Number(b.totalAmountDeposited || 0).toLocaleString()}]
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              {selectedBooking && (
-                <div
-                  style={{
-                    background: 'rgba(0, 210, 211, 0.05)',
-                    border: '1px solid rgba(0, 210, 211, 0.2)',
-                    borderRadius: '12px',
-                    padding: '1.25rem',
-                    marginBottom: '1.5rem',
-                  }}
-                >
-                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--accent-cyan)' }}>
-                    Live Settlement Breakdown & Calculation Summary
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-                    <div>Customer: <strong>{selectedBooking.customer?.fullName}</strong></div>
-                    <div>Item: <strong>{selectedBooking.item?.itemName}</strong></div>
-                    <div>Quantity: <strong>{previewQuantity} unit(s)</strong></div>
-                    <div>Unit Price: <strong>ETB {previewUnitPrice.toLocaleString()}</strong></div>
-                    <div>Subtotal: <strong>ETB {previewSubtotal.toLocaleString()}</strong></div>
-                    <div>VAT Rate (15%): <strong style={{ color: 'var(--accent-cyan)' }}>+ ETB {previewVat.toLocaleString()}</strong></div>
-                    <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 700 }}>
-                        <span>Total Gross Amount:</span>
-                        <span style={{ color: 'var(--accent-cyan)' }}>ETB {previewGross.toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <div>Customer Deposited on Booking: <strong>ETB {previewDeposits.toLocaleString()}</strong></div>
-                    <div>Deposits Allocated to Invoice: <strong style={{ color: '#10b981' }}>- ETB {previewApplied.toLocaleString()}</strong></div>
-                    <div style={{ gridColumn: '1 / -1', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                        <span>Net Balance Due:</span>
-                        <span style={{ color: previewBalance > 0 ? '#f59e0b' : '#10b981' }}>
-                          ETB {previewBalance.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                    {previewExcess && (
-                      <div
-                        style={{
-                          gridColumn: '1 / -1',
-                          padding: '0.5rem',
-                          background: 'rgba(245, 158, 11, 0.15)',
-                          borderRadius: '6px',
-                          color: '#f59e0b',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        ⚠️ Notice: Customer deposit exceeds invoice gross amount. Excess funds can be routed in Customer Excess Module.
-                      </div>
-                    )}
-                  </div>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Target Booking Order *
+                  </label>
+                  <select
+                    value={selectedBookingId}
+                    onChange={(e) => handleBookingChange(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    <option value="">-- Select Confirmed / Allotted Booking --</option>
+                    {bookings.map((b) => (
+                      <option key={b.bookingId} value={b.bookingId}>
+                        {b.bookingNumber} — {b.customer?.fullName} ({b.item?.itemName}) [Deposited: ETB {Number(b.totalAmountDeposited || 0).toLocaleString()}]
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                <input
-                  type="checkbox"
-                  id="applyDep"
-                  checked={applyDeposits}
-                  onChange={(e) => setApplyDeposits(e.target.checked)}
-                  style={{ width: '18px', height: '18px', accentColor: 'var(--accent-cyan)' }}
-                />
-                <label htmlFor="applyDep" style={{ fontSize: '0.875rem', cursor: 'pointer' }}>
-                  Automatically apply booking deposits to invoice settlement
-                </label>
-              </div>
+                {selectedBooking && (
+                  <div
+                    style={{
+                      background: 'rgba(0, 210, 211, 0.05)',
+                      border: '1px solid rgba(0, 210, 211, 0.2)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      marginBottom: '1.5rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Calculator size={16} />
+                        Live Multi-Tax Settlement & Calculation Engine (Story IV2)
+                      </h4>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {detectedVehicleType}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+                      <div>Customer: <strong>{selectedBooking.customer?.fullName}</strong></div>
+                      <div>Item: <strong>{selectedBooking.item?.itemName}</strong></div>
+                      <div>Quantity: <strong>{previewQuantity} unit(s)</strong></div>
+                      <div>Unit Price: <strong>ETB {previewUnitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                      <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.03)', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                          <span>Vehicle Subtotal (Tax Base):</span>
+                          <span>ETB {previewSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+
+                      {/* Tax Breakdown */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b' }}>
+                        <span>Excise Tax ({effExcisePct}%):</span>
+                        <strong>+ ETB {previewExcise.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--accent-cyan)' }}>
+                        <span>VAT ({effVatPct}% on {calcBase === 'GROSS_INCL_EXCISE' ? 'Price + Excise' : 'Price'}):</span>
+                        <strong>+ ETB {previewVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+
+                      <div style={{ gridColumn: '1 / -1', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', fontWeight: 700 }}>
+                          <span>Gross Commercial Total (Price + Taxes Added):</span>
+                          <span style={{ color: 'var(--text-primary)' }}>ETB {previewGross.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+
+                      {/* WHT Deduction */}
+                      <div style={{ gridColumn: '1 / -1', background: 'rgba(168, 85, 247, 0.08)', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#c084fc', fontWeight: 600 }}>
+                          <span>Withholding Tax at Source ({effWhtPct}%):</span>
+                          <strong>- ETB {previewWht.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          {isWhtCustomer ? 'Customer is registered withholding agent; 2% withheld at source.' : 'Customer is regular retail buyer (0% WHT).' }
+                        </div>
+                      </div>
+
+                      {/* Net Customer Payable */}
+                      <div style={{ gridColumn: '1 / -1', background: 'rgba(56, 189, 248, 0.12)', padding: '0.65rem 0.75rem', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: 800 }}>
+                          <span style={{ color: '#38bdf8' }}>Net Customer Payable (Gross - WHT):</span>
+                          <span style={{ color: '#38bdf8' }}>ETB {previewNetPayable.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+
+                      <div>Eligible Customer Deposits (Story IV3): <strong>ETB {previewDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                      <div>Deposits Allocated (Story IV4): <strong style={{ color: '#10b981' }}>- ETB {previewApplied.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+
+                      <div style={{ gridColumn: '1 / -1', background: 'rgba(0,0,0,0.3)', padding: '0.65rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1rem' }}>
+                          <span>Outstanding Customer Balance Due (Story IV5):</span>
+                          <span style={{ color: previewBalance > 0 ? '#f59e0b' : '#10b981' }}>
+                            ETB {previewBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {previewExcess && (
+                        <div
+                          style={{
+                            gridColumn: '1 / -1',
+                            padding: '0.65rem 0.75rem',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            border: '1px solid rgba(245, 158, 11, 0.4)',
+                            borderRadius: '6px',
+                            color: '#f59e0b',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          ⚠️ Story IV6 Excess Deposit Identified: Customer deposit exceeds Net Payable by ETB {previewExcessAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Excess is reserved for customer credit/refund workflow.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  <input
+                    type="checkbox"
+                    id="applyDep"
+                    checked={applyDeposits}
+                    onChange={(e) => setApplyDeposits(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--accent-cyan)' }}
+                  />
+                  <label htmlFor="applyDep" style={{ fontSize: '0.875rem', cursor: 'pointer', fontWeight: 600 }}>
+                    Automatically allocate available customer deposits to invoice settlement (Story IV4)
+                  </label>
+                </div>
+
+                {/* Collapsible Tax Overrides & Statutory Exemptions (Stories IV2 & IV11) */}
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', marginBottom: '1.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowOverridePanel(!showOverridePanel)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: 'none',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Settings2 size={16} style={{ color: 'var(--accent-cyan)' }} />
+                      Tax Overrides & Statutory Exemptions (Stories IV2 & IV11)
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                      {showOverridePanel ? '▲ Hide' : '▼ Expand Options'}
+                    </span>
+                  </button>
+
+                  {showOverridePanel && (
+                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderTop: '1px solid var(--border-color)' }}>
+                      <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Apply statutory exemptions or approved tax rate overrides. Any deviation from standard rates requires mandatory audit justification under Story IV11.
+                      </p>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                        <div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
+                            <input
+                              type="checkbox"
+                              checked={isVatExempt}
+                              onChange={(e) => setIsVatExempt(e.target.checked)}
+                              style={{ accentColor: 'var(--accent-cyan)' }}
+                            />
+                            <span>VAT Exempt (0%)</span>
+                          </label>
+                          {!isVatExempt && (
+                            <div>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Custom VAT Rate (%):</span>
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={customVatRate}
+                                onChange={(e) => setCustomVatRate(e.target.value === '' ? '' : Number(e.target.value))}
+                                style={{ width: '100%', padding: '0.4rem 0.6rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.85rem', marginTop: '0.25rem' }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
+                            <input
+                              type="checkbox"
+                              checked={isExciseExempt}
+                              onChange={(e) => setIsExciseExempt(e.target.checked)}
+                              style={{ accentColor: '#f59e0b' }}
+                            />
+                            <span>Excise Duty Exempt (0%)</span>
+                          </label>
+                          {!isExciseExempt && (
+                            <div>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Custom Excise Rate (%):</span>
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={customExciseRate}
+                                onChange={(e) => setCustomExciseRate(e.target.value === '' ? '' : Number(e.target.value))}
+                                style={{ width: '100%', padding: '0.4rem 0.6rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.85rem', marginTop: '0.25rem' }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
+                            <input
+                              type="checkbox"
+                              checked={isWhtExempt}
+                              onChange={(e) => setIsWhtExempt(e.target.checked)}
+                              style={{ accentColor: '#c084fc' }}
+                            />
+                            <span>WHT Exempt (0%)</span>
+                          </label>
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Calculation Base:</span>
+                            <select
+                              value={calcBase}
+                              onChange={(e) => setCalcBase(e.target.value as any)}
+                              style={{ width: '100%', padding: '0.4rem 0.6rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '0.85rem', marginTop: '0.25rem' }}
+                            >
+                              <option value="VEHICLE_PRICE">VEHICLE_PRICE (Standard)</option>
+                              <option value="GROSS_INCL_EXCISE">GROSS_INCL_EXCISE (VAT on Price + Excise)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+                          Mandatory Audit Justification Reason (Required for any tax override/exemption) *
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="e.g., Statutory MoR tax-exempt certificate #10928 for government agricultural fleet or approved ministerial incentive"
+                          value={taxOverrideReason}
+                          onChange={(e) => setTaxOverrideReason(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem 0.75rem',
+                            background: 'var(--bg-primary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
 
               </div>
 
@@ -1144,10 +1654,10 @@ export const InvoicesPage: React.FC = () => {
         </div>
       )}
 
-      {/* DETAIL MODAL */}
+      {/* DETAIL MODAL WITH MULTI-TAX AUDIT BREAKDOWN */}
       {selectedInvoice && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '640px' }}>
+          <div className="modal-content" style={{ maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
@@ -1158,7 +1668,7 @@ export const InvoicesPage: React.FC = () => {
                     Invoice Ref: {selectedInvoice.invoiceNumber}
                   </h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
-                    Customer settlement breakdown, VAT audit & approval status
+                    Customer settlement breakdown, multi-tax audit snapshot & approval workflow
                   </span>
                 </div>
               </div>
@@ -1173,54 +1683,129 @@ export const InvoicesPage: React.FC = () => {
             </div>
 
             <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.875rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Customer & TIN:</span>
                   <div style={{ fontWeight: 600 }}>{selectedInvoice.customer?.fullName}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>TIN: {selectedInvoice.customer?.tinNumber || '0012345678'}</div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Item:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Item & Chassis VIN:</span>
                   <div style={{ fontWeight: 600 }}>{selectedInvoice.item?.itemName}</div>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Chassis / VIN:</span>
-                  <div style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                    {selectedInvoice.vehicleUnit?.chassisNumber || 'Direct Allotted Unit'}
+                  <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
+                    Chassis: {selectedInvoice.vehicleUnit?.chassisNumber || 'Direct Allotted Unit'}
                   </div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Status:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Invoice Status:</span>
                   <div><strong>{selectedInvoice.status}</strong></div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Unit Price:</span>
-                  <div>ETB {Number(selectedInvoice.unitPrice).toLocaleString()}</div>
+                  <span style={{ color: 'var(--text-muted)' }}>Issue Date:</span>
+                  <div>{new Date(selectedInvoice.createdAt).toLocaleString()}</div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>VAT (15%):</span>
-                  <div style={{ color: 'var(--accent-cyan)' }}>ETB {Number(selectedInvoice.vatAmount).toLocaleString()}</div>
+                  <span style={{ color: 'var(--text-muted)' }}>Vehicle Subtotal:</span>
+                  <div style={{ fontWeight: 600 }}>ETB {Number(selectedInvoice.unitPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Gross Total:</span>
-                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                    ETB {Number(selectedInvoice.grossTotal).toLocaleString()}
+                  <span style={{ color: 'var(--text-muted)' }}>Excise Duty ({Number(selectedInvoice.exciseTaxRate || 0) * 100}%):</span>
+                  <div style={{ color: '#f59e0b', fontWeight: 600 }}>
+                    + ETB {Number(selectedInvoice.exciseTaxAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Deposits Applied:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>VAT ({Number(selectedInvoice.vatRate || 0.15) * 100}%):</span>
+                  <div style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                    + ETB {Number(selectedInvoice.vatAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Gross Commercial Total:</span>
+                  <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                    ETB {Number(selectedInvoice.grossTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>WHT at Source ({Number(selectedInvoice.whtRate || 0.02) * 100}%):</span>
+                  <div style={{ color: '#c084fc', fontWeight: 600 }}>
+                    - ETB {Number(selectedInvoice.whtAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Net Customer Payable:</span>
+                  <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#38bdf8' }}>
+                    ETB {Number(selectedInvoice.netPayable ?? (Number(selectedInvoice.grossTotal) - Number(selectedInvoice.whtAmount || 0))).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Deposits Allocated:</span>
                   <div style={{ fontWeight: 600, color: '#10b981' }}>
-                    ETB {Number(selectedInvoice.depositsApplied).toLocaleString()}
+                    ETB {Number(selectedInvoice.depositsApplied).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                    <span>Outstanding Balance:</span>
-                    <span style={{ color: Number(selectedInvoice.outstandingBalance) > 0 ? '#f59e0b' : '#10b981' }}>
-                      ETB {Number(selectedInvoice.outstandingBalance).toLocaleString()}
-                    </span>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Outstanding Balance Due:</span>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: Number(selectedInvoice.outstandingBalance) > 0 ? '#f59e0b' : '#10b981' }}>
+                    ETB {Number(selectedInvoice.outstandingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
+
+              {/* Tax Details Snapshot Audit Trail (Stories IV1, IV2, IV11) */}
+              {selectedInvoice.taxDetails && Array.isArray((selectedInvoice.taxDetails as any)?.appliedRules) && (
+                <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <ShieldCheck size={15} />
+                    Applied Statutory Tax Rules Snapshot & Audit Trail (Story IV1 / IV2 / IV11)
+                  </div>
+                  <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                        <th style={{ padding: '0.35rem' }}>Rule Name</th>
+                        <th style={{ padding: '0.35rem' }}>Type</th>
+                        <th style={{ padding: '0.35rem', textAlign: 'right' }}>Rate</th>
+                        <th style={{ padding: '0.35rem', textAlign: 'right' }}>Tax Amount</th>
+                        <th style={{ padding: '0.35rem' }}>Base</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedInvoice.taxDetails as any).appliedRules.map((rule: any, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.4rem 0.35rem', fontWeight: 600 }}>{rule.ruleName}</td>
+                          <td style={{ padding: '0.4rem 0.35rem' }}>
+                            <span style={{
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '3px',
+                              fontWeight: 700,
+                              background: rule.taxType === 'VAT' ? 'rgba(6, 182, 212, 0.15)' : rule.taxType === 'EXCISE' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(168, 85, 247, 0.15)',
+                              color: rule.taxType === 'VAT' ? 'var(--accent-cyan)' : rule.taxType === 'EXCISE' ? '#f59e0b' : '#c084fc',
+                            }}>
+                              {rule.taxType}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontFamily: 'monospace' }}>{(rule.rate * 100).toFixed(1)}%</td>
+                          <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>
+                            ETB {Number(rule.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '0.4rem 0.35rem', color: 'var(--text-muted)' }}>{rule.calculationBase}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Tax Override Justification if any */}
+              {selectedInvoice.taxOverrideReason && (
+                <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.8rem' }}>
+                  <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    ★ Tax Exemption / Rate Override Audit Justification (Story IV11):
+                  </div>
+                  <div style={{ color: 'var(--text-primary)' }}>{selectedInvoice.taxOverrideReason}</div>
+                </div>
+              )}
+
             </div>
 
             <div className="modal-footer">

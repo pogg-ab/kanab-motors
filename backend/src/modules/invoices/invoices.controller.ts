@@ -31,6 +31,47 @@ export class InvoicesController {
   }
 
   @RequirePermissions('PAYMENTS_VIEW')
+  @Get('preview-tax-calculation')
+  @ApiOperation({ summary: 'Story IV2: Live rule evaluation and calculation engine preview for VAT, WHT, and Excise Duty' })
+  previewTaxCalculation(
+    @Query('subtotal') subtotal: string,
+    @Query('vehicleType') vehicleType?: string,
+    @Query('isWhtCustomer') isWhtCustomer?: string,
+    @Query('vatRateOverride') vatRateOverride?: string,
+    @Query('exciseRateOverride') exciseRateOverride?: string,
+    @Query('whtRateOverride') whtRateOverride?: string,
+    @Query('isVatExempt') isVatExempt?: string,
+    @Query('isExciseExempt') isExciseExempt?: string,
+    @Query('isWhtExempt') isWhtExempt?: string,
+    @Query('calculationBase') calculationBase?: string,
+    @Query('transactionDate') transactionDate?: string,
+  ) {
+    return this.invoicesService.evaluateTaxes({
+      subtotal: Number(subtotal) || 0,
+      vehicleType,
+      isWhtCustomer: isWhtCustomer === 'true',
+      vatRateOverride: vatRateOverride !== undefined ? Number(vatRateOverride) : undefined,
+      exciseRateOverride: exciseRateOverride !== undefined ? Number(exciseRateOverride) : undefined,
+      whtRateOverride: whtRateOverride !== undefined ? Number(whtRateOverride) : undefined,
+      isVatExempt: isVatExempt === 'true',
+      isExciseExempt: isExciseExempt === 'true',
+      isWhtExempt: isWhtExempt === 'true',
+      calculationBase,
+      transactionDate,
+    });
+  }
+
+  @RequirePermissions('PAYMENTS_VIEW')
+  @Get('customer/:customerId/available-deposits')
+  @ApiOperation({ summary: 'Story IV3: Retrieve eligible customer deposits and available credits from booking & customer ledger' })
+  getCustomerAvailableDeposits(
+    @Param('customerId', PositiveBigIntIdPipe) customerId: string,
+    @Query('bookingId') bookingId?: string,
+  ) {
+    return this.invoicesService.getCustomerAvailableDeposits(customerId, bookingId);
+  }
+
+  @RequirePermissions('PAYMENTS_VIEW')
   @Get('wht/certificates')
   @ApiOperation({ summary: 'Story IV14: Track customer withholding tax certificates & missing list for finance' })
   getWhtCertificates() {

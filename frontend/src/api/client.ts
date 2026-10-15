@@ -175,10 +175,16 @@ export interface VehicleColor {
 export interface TaxConfiguration {
   taxConfigId: number;
   taxName: string;
+  taxCode?: string;
   taxRatePct: number | string;
+  taxRate?: number | string;
   taxType?: 'VAT' | 'EXCISE' | 'WHT';
   applicableCustomerType?: string;
   applicableVehicleType?: string;
+  calculationBase?: string;
+  priority?: number;
+  effectiveFrom?: string;
+  effectiveTo?: string;
   description?: string;
   isActive: boolean;
 }
@@ -613,11 +619,19 @@ export interface SalesInvoice {
   vehicleUnit?: VehicleUnit;
   quantity: number;
   unitPrice: number;
+  vatRate?: number;
   vatAmount: number;
+  exciseTaxRate?: number;
+  exciseTaxAmount?: number;
+  totalTaxAmount?: number;
   grossTotal: number;
+  netPayable?: number;
   depositsApplied: number;
   outstandingBalance: number;
   excessPaymentFlag: boolean;
+  taxDetails?: any;
+  taxOverrideReason?: string;
+  taxOverrideBy?: number;
   whtApplicable?: boolean;
   whtRate?: number;
   whtAmount?: number;
@@ -1071,6 +1085,9 @@ export const api = {
   // Sales Invoices
   getInvoices: (params?: any) => apiClient.get<SalesInvoice[]>('/invoices', { params }).then((r) => r.data),
   getInvoice: (id: string) => apiClient.get<SalesInvoice>(`/invoices/${id}`).then((r) => r.data),
+  previewTaxCalculation: (params: any) => apiClient.get<any>('/invoices/preview-tax-calculation', { params }).then((r) => r.data),
+  getCustomerAvailableDeposits: (customerId: string, bookingId?: string) =>
+    apiClient.get<any>(`/invoices/customer/${customerId}/available-deposits`, { params: { bookingId } }).then((r) => r.data),
   createInvoice: (data: any) => apiClient.post<SalesInvoice>('/invoices', data).then((r) => r.data),
   approveInvoice: (id: string, comments?: string) =>
     apiClient.patch<SalesInvoice>(`/invoices/${id}/approve`, { comments }).then((r) => r.data),

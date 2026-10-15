@@ -27,6 +27,16 @@ export class CreateInvoiceDto {
   @IsNumber()
   taxRate?: number;
 
+  @ApiPropertyOptional({ description: 'VAT rate alias (e.g. 0.15)', example: 0.15 })
+  @IsOptional()
+  @IsNumber()
+  vatRate?: number;
+
+  @ApiPropertyOptional({ description: 'Excise tax rate (e.g. 0.05 for 5% Three-Wheeler, 0.10 for 10% Motorcycle)', example: 0.05 })
+  @IsOptional()
+  @IsNumber()
+  exciseRate?: number;
+
   @ApiPropertyOptional({ description: 'Automatically apply booking deposits to invoice balance', example: true, default: true })
   @IsOptional()
   @IsBoolean()
@@ -41,4 +51,27 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsNumber()
   whtRate?: number;
+
+  @ApiPropertyOptional({ description: 'Exempt VAT on this invoice', example: false })
+  @IsOptional()
+  @IsBoolean()
+  isVatExempt?: boolean;
+
+  @ApiPropertyOptional({ description: 'Exempt Excise tax on this invoice', example: false })
+  @IsOptional()
+  @IsBoolean()
+  isExciseExempt?: boolean;
+
+  @ApiPropertyOptional({ description: 'Exempt Withholding tax on this invoice', example: false })
+  @IsOptional()
+  @IsBoolean()
+  isWhtExempt?: boolean;
+
+  @ApiPropertyOptional({ description: 'Tax calculation base rule', example: 'VEHICLE_PRICE' })
+  @IsOptional()
+  calculationBase?: string;
+
+  @ApiPropertyOptional({ description: 'Audit reason for tax override or exemption' })
+  @IsOptional()
+  taxOverrideReason?: string;
 }

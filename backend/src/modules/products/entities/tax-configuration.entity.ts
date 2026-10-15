@@ -21,6 +21,18 @@ export class TaxConfiguration {
   @Column({ name: 'applicable_vehicle_type', length: 50, default: 'ALL' })
   applicableVehicleType: string; // 'ALL' | 'MOTORCYCLE' | 'THREE_WHEELER' | 'IMPORTED_VEHICLE'
 
+  @Column({ name: 'calculation_base', length: 50, default: 'VEHICLE_PRICE' })
+  calculationBase: string; // 'VEHICLE_PRICE' | 'GROSS_INCL_EXCISE'
+
+  @Column({ type: 'int', default: 1 })
+  priority: number;
+
+  @Column({ name: 'effective_from', type: 'date', default: '2026-01-01' })
+  effectiveFrom: string;
+
+  @Column({ name: 'effective_to', type: 'date', nullable: true })
+  effectiveTo?: string;
+
   @Column({ type: 'text', nullable: true })
   description?: string;
 

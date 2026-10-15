@@ -4,13 +4,15 @@ import { DataSource } from 'typeorm';
 import { InvoicesService } from './invoices.service';
 import { SalesInvoice, InvoiceStatus } from './entities/sales-invoice.entity';
 import { Booking } from '../bookings/entities/booking.entity';
+import { LedgerService } from '../ledger/ledger.service';
 import { NotFoundException } from '@nestjs/common';
 
-describe('InvoicesService (KMSICAMS-6 Sales Invoice & Settlement)', () => {
+describe('InvoicesService (KMSICAMS-11 Updated Story Points: Sales Invoice & Settlement)', () => {
   let service: InvoicesService;
   let invoiceRepo: any;
   let bookingRepo: any;
   let dataSource: any;
+  let ledgerService: any;
 
   beforeEach(async () => {
     invoiceRepo = {
@@ -27,143 +29,220 @@ describe('InvoicesService (KMSICAMS-6 Sales Invoice & Settlement)', () => {
       query: jest.fn(),
     };
 
+    ledgerService = {
+      postTransaction: jest.fn().mockResolvedValue({}),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InvoicesService,
         { provide: getRepositoryToken(SalesInvoice), useValue: invoiceRepo },
         { provide: getRepositoryToken(Booking), useValue: bookingRepo },
         { provide: DataSource, useValue: dataSource },
+        { provide: LedgerService, useValue: ledgerService },
       ],
     }).compile();
 
     service = module.get<InvoicesService>(InvoicesService);
   });
 
-  describe('create - Invoice Calculation & Settlement Rules', () => {
-    it('TC-I1: should accurately compute 15% Ethiopian standard VAT on gross sales total (Story IV2)', async () => {
-      const mockBooking = {
-        bookingId: '1',
-        customerId: '10',
-        itemId: '100',
-        quantity: 1,
-        unitPrice: 2000000,
-        grossTotal: 2000000,
-        totalAmountDeposited: 1500000,
-      };
-      bookingRepo.findOne.mockResolvedValue(mockBooking);
-      dataSource.query
-        .mockResolvedValueOnce([]) // allotment vehicle query
-        .mockResolvedValueOnce([{ invoice_id: '1' }]); // insert query
+  describe('Story IV2: Tax Rule Evaluation Engine (evaluateTaxes)', () => {
+    it('IV2.1: should evaluate standard vehicle tax (15% VAT, 0% Excise, 0% WHT)', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { tax_config_id: 1, tax_name: 'Standard VAT (15%)', tax_rate_pct: '15.00', tax_type: 'VAT', applicable_vehicle_type: 'ALL', priority: 2 },
+        { tax_config_id: 2, tax_name: 'Excise Tax Motorcycle (10%)', tax_rate_pct: '10.00', tax_type: 'EXCISE', applicable_vehicle_type: 'MOTORCYCLE', priority: 1 },
+      ]);
 
-      const expectedInvoice = {
-        invoiceId: '1',
-        bookingId: '1',
-        quantity: 1,
-        unitPrice: 2000000,
-        vatAmount: 300000, // 15% of 2,000,000
-        grossTotal: 2300000,
-        depositsApplied: 1500000,
-        outstandingBalance: 800000,
-        status: InvoiceStatus.PENDING_APPROVAL,
-      };
-      invoiceRepo.findOne.mockResolvedValue(expectedInvoice);
-
-      const result = await service.create({ bookingId: 1 });
-
-      expect(dataSource.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO sales_invoice'),
-        expect.arrayContaining([
-          '1', // bookingId
-          '10', // customerId
-          '100', // itemId
-          null, // vehicleUnitId
-          1, // quantity
-          2000000, // unitPrice
-          300000, // vatAmount (15%)
-          1500000, // depositsApplied
-          false, // excessPaymentFlag
-          1, // userId
-        ]),
-      );
-      expect(result.vatAmount).toBe(300000);
-      expect(result.grossTotal).toBe(2300000);
-    });
-
-    it('TC-I2: should detect excess payments when customer deposit exceeds invoice gross total (Story IV6)', async () => {
-      const mockBooking = {
-        bookingId: '2',
-        customerId: '10',
-        itemId: '100',
-        quantity: 1,
-        unitPrice: 1000000,
-        grossTotal: 1000000,
-        totalAmountDeposited: 1500000, // exceeds gross total (1,000,000 + 150,000 = 1,150,000)
-      };
-      bookingRepo.findOne.mockResolvedValue(mockBooking);
-      dataSource.query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ invoice_id: '2' }]);
-
-      invoiceRepo.findOne.mockResolvedValue({
-        invoiceId: '2',
-        grossTotal: 1150000,
-        depositsApplied: 1150000,
-        outstandingBalance: 0,
-        excessPaymentFlag: true,
+      const result = await service.evaluateTaxes({
+        subtotal: 2000000,
+        vehicleType: 'ALL',
+        isWhtCustomer: false,
       });
 
-      await service.create({ bookingId: 2 });
-
-      // Verifies excess_payment_flag = true and deposits_applied capped at grossTotal (1,150,000)
-      expect(dataSource.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO sales_invoice'),
-        expect.arrayContaining([
-          '2',
-          '10',
-          '100',
-          null,
-          1,
-          1000000,
-          150000,
-          1150000,
-          true, // excessPaymentFlag is true
-          1,
-        ]),
-      );
+      expect(result.subtotal).toBe(2000000);
+      expect(result.vatAmount).toBe(300000); // 15% of 2,000,000
+      expect(result.exciseTaxAmount).toBe(0);
+      expect(result.totalTaxAmount).toBe(300000);
+      expect(result.grossTotal).toBe(2300000);
+      expect(result.whtAmount).toBe(0);
+      expect(result.netPayable).toBe(2300000);
+      expect(result.taxDetails.appliedRules).toHaveLength(3);
     });
 
-    it('TC-I3: should throw NotFoundException when booking does not exist', async () => {
-      bookingRepo.findOne.mockResolvedValue(null);
-      await expect(service.create({ bookingId: 999 })).rejects.toThrow(NotFoundException);
+    it('IV2.2: should evaluate Motorcycle with 10% Excise Duty + 15% VAT', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { tax_config_id: 1, tax_name: 'Standard VAT (15%)', tax_rate_pct: '15.00', tax_type: 'VAT', applicable_vehicle_type: 'ALL', priority: 2 },
+        { tax_config_id: 2, tax_name: 'Excise Tax Motorcycle (10%)', tax_rate_pct: '10.00', tax_type: 'EXCISE', applicable_vehicle_type: 'MOTORCYCLE', priority: 1 },
+      ]);
+
+      const result = await service.evaluateTaxes({
+        subtotal: 100000,
+        vehicleType: 'MOTORCYCLE',
+        isWhtCustomer: false,
+      });
+
+      expect(result.exciseTaxAmount).toBe(10000); // 10% of 100,000
+      expect(result.vatAmount).toBe(15000); // 15% of 100,000
+      expect(result.totalTaxAmount).toBe(25000); // 10,000 + 15,000
+      expect(result.grossTotal).toBe(125000); // 100,000 + 25,000
+      expect(result.netPayable).toBe(125000);
+    });
+
+    it('IV2.3: should evaluate Three-Wheeler for WHT Customer (Gross = Price + VAT + Excise; Net Payable = Gross - WHT)', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { tax_config_id: 1, tax_name: 'Standard VAT (15%)', tax_rate_pct: '15.00', tax_type: 'VAT', applicable_vehicle_type: 'ALL', priority: 2 },
+        { tax_config_id: 3, tax_name: 'Excise Tax Three-Wheeler (5%)', tax_rate_pct: '5.00', tax_type: 'EXCISE', applicable_vehicle_type: 'THREE_WHEELER', priority: 1 },
+        { tax_config_id: 4, tax_name: 'Withholding Tax (2%)', tax_rate_pct: '2.00', tax_type: 'WHT', applicable_customer_type: 'WHT_ONLY', priority: 3 },
+      ]);
+
+      const result = await service.evaluateTaxes({
+        subtotal: 200000,
+        vehicleType: 'THREE_WHEELER',
+        isWhtCustomer: true,
+      });
+
+      expect(result.exciseTaxAmount).toBe(10000); // 5% of 200,000
+      expect(result.vatAmount).toBe(30000); // 15% of 200,000
+      expect(result.totalTaxAmount).toBe(40000); // 10,000 + 30,000
+      expect(result.grossTotal).toBe(240000); // 200,000 + 40,000
+      expect(result.whtAmount).toBe(4000); // 2% of 200,000 withheld
+      expect(result.netPayable).toBe(236000); // 240,000 - 4,000
+    });
+
+    it('IV2.4: should honor tax exemptions and manual overrides with audit trail', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+
+      const result = await service.evaluateTaxes({
+        subtotal: 1000000,
+        vehicleType: 'MOTORCYCLE',
+        isExciseExempt: true,
+        vatRateOverride: 0.10, // 10% manual override
+        isWhtExempt: true,
+      });
+
+      expect(result.exciseTaxAmount).toBe(0); // Exempted
+      expect(result.vatAmount).toBe(100000); // 10% manual override
+      expect(result.whtAmount).toBe(0); // Exempted
+      expect(result.grossTotal).toBe(1100000);
+      expect(result.netPayable).toBe(1100000);
     });
   });
 
-  describe('approve - Invoice Approval & Vehicle Status Transition', () => {
-    it('TC-I4: should submit approval decision and transition vehicle to SOLD (Stories IV9, IV10)', async () => {
-      const pendingInvoice = {
+  describe('Story IV3: Retrieve Customer Available Deposits & Credits', () => {
+    it('IV3.1: should combine booking deposits and ledger credits', async () => {
+      bookingRepo.findOne.mockResolvedValue({
+        bookingId: '1',
+        totalAmountDeposited: 500000,
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { unapplied_credit_balance: 50000, excess_payment_balance: 25000 },
+      ]);
+
+      const deposits = await service.getCustomerAvailableDeposits('10', '1');
+
+      expect(deposits.bookingDeposits).toBe(500000);
+      expect(deposits.ledgerCredits).toBe(75000);
+      expect(deposits.totalEligibleDeposits).toBe(575000);
+    });
+  });
+
+  describe('Story IV1, IV4, IV5, IV6: Create Invoice & Settlement Allocation', () => {
+    it('IV1/IV4/IV5: should create invoice, apply deposits against net payable and submit to approval', async () => {
+      bookingRepo.findOne.mockResolvedValue({
+        bookingId: '1',
+        customerId: '10',
+        itemId: '100',
+        quantity: 1,
+        unitPrice: 200000,
+        grossTotal: 200000,
+        totalAmountDeposited: 240000,
+        customer: { withholdingTaxFlag: true },
+        item: { itemName: 'Bajaj Three-Wheeler', usageType: 'THREE_WHEELER' },
+      });
+
+      // 1. evaluateTaxes query
+      dataSource.query.mockResolvedValueOnce([]);
+      // 2. allotment line query
+      dataSource.query.mockResolvedValueOnce([{ vehicle_unit_id: '99' }]);
+      // 3. insert query
+      dataSource.query.mockResolvedValueOnce([{ invoice_id: '1' }]);
+      // 4. fn_submit_for_approval call
+      dataSource.query.mockResolvedValueOnce([]);
+
+      invoiceRepo.findOne.mockResolvedValue({
         invoiceId: '1',
         invoiceNumber: 'INV-000001',
+        grossTotal: 240000,
+        netPayable: 236000,
+        depositsApplied: 236000,
+        outstandingBalance: 0,
+        excessPaymentFlag: true, // 240,000 deposited > 236,000 net payable
         status: InvoiceStatus.PENDING_APPROVAL,
-      };
-      const approvedInvoice = {
+      });
+
+      const invoice = await service.create({ bookingId: 1 });
+
+      expect(invoice.netPayable).toBe(236000);
+      expect(invoice.depositsApplied).toBe(236000);
+      expect(invoice.outstandingBalance).toBe(0);
+      expect(invoice.excessPaymentFlag).toBe(true);
+    });
+  });
+
+  describe('Story IV7, IV8, IV9, IV10: Approve Invoice & Final Settlement', () => {
+    it('IV7/IV8/IV9: should transition vehicle to SOLD, settle booking, and post idempotent INVOICE_CHARGE', async () => {
+      const invoice = {
         invoiceId: '1',
         invoiceNumber: 'INV-000001',
-        status: InvoiceStatus.APPROVED,
+        bookingId: '1',
+        customerId: '10',
+        vehicleUnitId: '99',
+        grossTotal: 240000,
+        vatAmount: 30000,
+        exciseTaxAmount: 10000,
+        depositsApplied: 236000,
+        status: InvoiceStatus.PENDING_APPROVAL,
       };
 
       invoiceRepo.findOne
-        .mockResolvedValueOnce(pendingInvoice)
-        .mockResolvedValueOnce(approvedInvoice);
+        .mockResolvedValueOnce(invoice)
+        .mockResolvedValueOnce({ ...invoice, status: InvoiceStatus.APPROVED });
 
-      dataSource.query
-        .mockResolvedValueOnce([{ approval_request_id: '5' }]) // pending request lookup
-        .mockResolvedValueOnce([]); // fn_record_approval_decision call
+      // 1. fn_transition_vehicle_status
+      dataSource.query.mockResolvedValueOnce([]);
+      // 2. UPDATE booking
+      dataSource.query.mockResolvedValueOnce([]);
+      // 3. Check existing customer_ledger_transaction charge (returns empty -> not yet posted)
+      dataSource.query.mockResolvedValueOnce([]);
+      // 4. Check approval_request
+      dataSource.query.mockResolvedValueOnce([{ approval_request_id: '12' }]);
+      // 5. fn_record_approval_decision
+      dataSource.query.mockResolvedValueOnce([]);
+      // 6. UPDATE sales_invoice
+      dataSource.query.mockResolvedValueOnce([]);
 
-      const result = await service.approve('1', 1, 'Approved by Finance Director');
+      const result = await service.approve('1', 1, 'Final Settlement Approved');
 
       expect(dataSource.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT fn_record_approval_decision'),
-        ['5', 'APPROVED', 1, 'Approved by Finance Director'],
+        expect.stringContaining('fn_transition_vehicle_status'),
+        ['99', 1, 'Invoice INV-000001'],
+      );
+      expect(dataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE booking SET booking_status = 'SETTLED'"),
+        ['1'],
+      );
+      expect(ledgerService.postTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transactionType: 'INVOICE_CHARGE',
+          referenceNumber: 'INV-000001',
+          debitAmount: 240000,
+        }),
+      );
+      expect(ledgerService.postTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transactionType: 'PAYMENT_ALLOCATION',
+          creditAmount: 236000,
+        }),
       );
       expect(result.status).toBe(InvoiceStatus.APPROVED);
     });

@@ -258,6 +258,10 @@ export class ProductsService {
         taxType: dto.taxType || 'VAT',
         applicableCustomerType: dto.applicableCustomerType || 'ALL',
         applicableVehicleType: dto.applicableVehicleType || 'ALL',
+        calculationBase: dto.calculationBase || 'VEHICLE_PRICE',
+        priority: dto.priority !== undefined ? dto.priority : 1,
+        effectiveFrom: dto.effectiveFrom || new Date().toISOString().split('T')[0],
+        effectiveTo: dto.effectiveTo || undefined,
         description: dto.description || null,
         isActive: true,
       }),
@@ -272,6 +276,10 @@ export class ProductsService {
     if (dto.taxType !== undefined) tax.taxType = dto.taxType;
     if (dto.applicableCustomerType !== undefined) tax.applicableCustomerType = dto.applicableCustomerType;
     if (dto.applicableVehicleType !== undefined) tax.applicableVehicleType = dto.applicableVehicleType;
+    if (dto.calculationBase !== undefined) tax.calculationBase = dto.calculationBase;
+    if (dto.priority !== undefined) tax.priority = dto.priority;
+    if (dto.effectiveFrom !== undefined) tax.effectiveFrom = dto.effectiveFrom;
+    if (dto.effectiveTo !== undefined) tax.effectiveTo = dto.effectiveTo;
     if (dto.description !== undefined) tax.description = dto.description;
     return this.taxRepo.save(tax);
   }

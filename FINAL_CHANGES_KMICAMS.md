@@ -30,6 +30,7 @@ This testing walkthrough specifically validates all **bold red additions** acros
 | **X9 & X10**| **Credit Transfer** | Customer credit transfer between customers with two-sided atomic ledger | Atomic posting of balancing debit and credit entries with row-level safety and transfer UI modal |
 | **IV14** | **Non-Cash WHT Settlement**| Tax withheld by customer, recorded as non-cash settlement (non-refundable) | Atomic `WHT_SETTLEMENT` credit ledger posting, certificate tracking, and Finance WHT Hub |
 | **DL5** | **Two Printed Documents**| Two printed documents: Delivery Voucher (Gate Pass) & Handover Form with Declaration & Pack | Official printable Delivery Voucher (Gate Pass) + Handover Form with 6-item Handover Pack & legal declaration |
+| **IV1-IV13**| **KMSICAMS-11: Sales Invoice & Settlement** | Complete Sales Invoice & Multi-Tax Settlement Suite (IV1-IV13) | Multi-tax engine (VAT 15%, Excise 5%/10%, WHT 2%), Net Payable formula, deposit bounds, vehicle SOLD transition, booking SETTLED, idempotent INVOICE_CHARGE ledger |
 
 ---
 
@@ -498,6 +499,135 @@ This testing walkthrough specifically validates all **bold red additions** acros
 
 ---
 
+## Test Suite 11: Sales Invoice and Settlement Management (Jira: KMSICAMS-11)
+
+### Overview of Stories Implemented:
+- **Story IV1 (Sales Invoice Data Model):** Persists `invoice_number`, `booking_id`, `customer_id`, `item_id`, `vehicle_unit_id`, `quantity`, `unit_price`, `vat_rate`, `vat_amount`, `excise_tax_rate`, `excise_tax_amount`, `total_tax_amount`, `gross_total`, `wht_rate`, `wht_amount`, `net_payable`, `deposits_applied`, `outstanding_balance`, `status`, and complete audit snapshot `tax_details` with applied rule references.
+- **Story IV2 (Multi-Tax Evaluation Engine):** Multi-tier independent evaluation, configurable calculation bases (`VEHICLE_PRICE` vs `GROSS_INCL_EXCISE`), priority sequence (Priority 1: Excise, Priority 2: VAT, Priority 3: WHT), effective date rules, and audit trail for exemptions/overrides.
+- **Story IV3 (Retrieve Customer Available Deposits):** Queries both booking deposits and general customer ledger available credits (`/api/invoices/customer/:customerId/available-deposits`).
+- **Story IV4 & IV5 (Apply Payments & Calculate Outstanding Balance):** Allocates eligible deposits directly against `net_payable` (`outstanding_balance = net_payable - deposits_applied`).
+- **Story IV6 (Identify Excess Customer Payments):** Identifies when total customer deposits exceed `net_payable` and flags invoice with `excessPaymentFlag` to route remaining balance to credit/refunds.
+- **Story IV7 (Update Customer Ledger INVOICE_CHARGE):** Posts idempotent `INVOICE_CHARGE` entry with full multi-tax breakdown references and applied deposit `PAYMENT_ALLOCATION`.
+- **Story IV8 (Update Booking Status):** Settle booking (`SETTLED`) upon invoice approval.
+- **Story IV9 (Update Vehicle Status to SOLD):** Calls Inventory's `fn_transition_vehicle_status(vehicleUnitId, 'SOLD', userId, 'SALES_INVOICE')`.
+- **Story IV10 (Invoice Approval Workflow):** Integrates with generic `approval_request` (`SALES_INVOICE`).
+- **Story IV11 (RBAC & Audit):** Mandatory justification reason for tax overrides and exemptions (`tax_override_reason`, `tax_override_by`).
+- **Story IV12 (UI Screens):** Interactive live multi-tax calculator, Tax Rules & Rates Hub tab, and tax breakdown audit tables in detail view.
+- **Story IV13 (Tests/QA):** Comprehensive unit tests in `invoices.service.spec.ts` covering IV1 through IV11.
+
+---
+
+### Test Case 11.1: Verify Tax Rules & Rates Hub (Story IV2)
+1. In the left navigation menu, click **Invoices & Finance** (icon: 🧾).
+2. At the top of the Invoices page, notice the three tab buttons:
+   - `Commercial Sales Invoices`
+   - `Tax Rules & Rates Hub (Story IV2)`
+   - `Withholding Tax (WHT) Tracking Hub (Story IV14)`
+3. Click **Tax Rules & Rates Hub (Story IV2)**.
+4. **Verify the Rules Table:**
+   - **VAT (15%):** Type `VAT`, standard 15% rate, Priority 2.
+   - **Three-Wheeler Excise (5%):** Type `EXCISE`, 5% rate on Vehicle Price, Priority 1.
+   - **Motorcycle Excise (10%):** Type `EXCISE`, 10% rate on Vehicle Price, Priority 1.
+   - **Withholding Tax (2%):** Type `WHT`, 2% rate, Priority 3, deducted at source.
+5. **Verify Statutory Settlement Formula Distinction Card:**
+   - *Step 1:* `Gross Total = Vehicle Price + VAT + Excise Tax` (taxes added to price)
+   - *Step 2:* `Net Customer Payable = Gross Total - WHT` (tax withheld at source)
+   - *Step 3:* `Outstanding Balance = Net Customer Payable - Deposits Applied`
+
+---
+
+### Test Case 11.2: Generate Sales Invoice with Live Multi-Tax Engine (Stories IV1, IV2, IV4, IV5)
+1. Switch back to the **Commercial Sales Invoices** tab.
+2. Click **+ Generate Invoice**.
+3. In the modal, select an allotted booking (e.g. for a Motorcycle or Three-Wheeler).
+4. **Observe the Live Settlement Breakdown & Calculation Summary:**
+   - **Vehicle Subtotal:** e.g. `ETB 1,000,000.00`
+   - **Excise Tax (5% or 10%):** Automatically calculated based on vehicle type (e.g. `+ ETB 100,000.00`).
+   - **VAT (15%):** e.g. `+ ETB 150,000.00`.
+   - **Gross Commercial Total:** `ETB 1,250,000.00` (Price + VAT + Excise).
+   - **Withholding Tax (2%):** If customer is WHT-liable, `- ETB 20,000.00`.
+   - **Net Customer Payable:** `ETB 1,230,000.00`.
+   - **Deposits Allocated:** Automatically capped up to Net Customer Payable.
+   - **Net Balance Due:** Remaining balance to be paid before delivery release.
+5. Check or uncheck *"Automatically allocate available customer deposits"*. Observe the live Net Balance Due updating instantaneously.
+6. Click **Confirm & Submit to Approval**.
+7. **Expected Results:**
+   - Success alert appears: *"Sales invoice generated with full tax audit breakdown and routed to approval workflow!"*
+   - Invoice is created with status **`PENDING_APPROVAL`**.
+
+---
+
+### Test Case 11.3: Tax Overrides & Statutory Exemptions with Audit Justification (Stories IV2, IV11)
+1. In the **Generate Sales Invoice** modal, select a booking.
+2. Expand the collapsible panel: **Tax Overrides & Statutory Exemptions (Stories IV2 & IV11)**.
+3. Check **VAT Exempt (0%)** or **Excise Duty Exempt (0%)**, or enter a custom rate (e.g. 5% VAT).
+4. Try to submit without filling in the audit reason.
+5. **Verify Error Validation:**
+   - Modal displays error: *"Please provide a mandatory audit justification reason for the tax rate override or exemption (Story IV2 / IV11)"*.
+6. Type a justification: *"Approved MoR statutory tax exemption certificate #AGRI-8891 for regional cooperative fleet"*.
+7. Submit the form.
+8. **Expected Results:**
+   - Invoice is created successfully with the overridden rates.
+   - The justification is permanently stored and visible in the Invoice Detail modal under *"Tax Exemption / Rate Override Audit Justification"*.
+
+---
+
+### Test Case 11.4: Invoice Approval, Settle Booking & Vehicle Status SOLD (Stories IV7, IV8, IV9, IV10)
+1. Find the newly generated invoice in the Commercial Sales Invoices table (status: `PENDING_APPROVAL`).
+2. Click the green **Approve & Settle** button (checkmark icon) or open the details modal (eye icon) and click **Approve & Settle**.
+3. Confirm the confirmation prompt: *"Approve this sales invoice? This will finalize financial settlement and automatically mark the assigned vehicle as SOLD."*
+4. **Expected Results:**
+   - Invoice status transitions to **`APPROVED`**.
+   - The associated booking status transitions to **`SETTLED`**.
+   - The assigned vehicle unit status transitions to **`SOLD`** via `fn_transition_vehicle_status()`.
+   - The customer ledger receives an immutable, idempotent **`INVOICE_CHARGE`** entry and balancing **`PAYMENT_ALLOCATION`** entry.
+
+---
+
+### Test Case 11.5: Detailed Multi-Tax Audit Snapshot View (Stories IV1, IV12)
+1. On any approved or pending invoice, click the **View (eye icon)** button.
+2. In the modal, verify the structured display:
+   - Vehicle Subtotal
+   - Excise Duty Rate & Amount
+   - VAT Rate & Amount
+   - Gross Commercial Total
+   - Withholding Tax at Source (2%)
+   - Net Customer Payable
+   - Deposits Allocated
+   - Outstanding Balance Due
+3. Scroll to the **Applied Statutory Tax Rules Snapshot & Audit Trail (Story IV1 / IV2 / IV11)** table:
+   - Verify it shows each applied rule name, tax type, rate percentage, exact tax amount, and calculation base for permanent historical consistency.
+
+---
+
+### Test Case 11.6: Execute KMSICAMS-11 Automated Unit Test Suite (Story IV13)
+Open a terminal in `d:\kanab\backend` and run:
+```bash
+npm test -- backend/src/modules/invoices/invoices.service.spec.ts
+```
+**Expected Results:**
+All 7 unit tests pass with zero failures:
+```
+PASS src/modules/invoices/invoices.service.spec.ts
+  InvoicesService (KMSICAMS-11 Updated Story Points: Sales Invoice & Settlement)
+    Story IV2: Tax Rule Evaluation Engine (evaluateTaxes)
+      √ IV2.1: should evaluate standard vehicle tax (15% VAT, 0% Excise, 0% WHT)
+      √ IV2.2: should evaluate Motorcycle with 10% Excise Duty + 15% VAT
+      √ IV2.3: should evaluate Three-Wheeler for WHT Customer (Gross = Price + VAT + Excise; Net Payable = Gross - WHT)
+      √ IV2.4: should honor tax exemptions and manual overrides with audit trail
+    Story IV3: Retrieve Customer Available Deposits & Credits
+      √ IV3.1: should combine booking deposits and ledger credits
+    Story IV1, IV4, IV5, IV6: Create Invoice & Settlement Allocation
+      √ IV1/IV4/IV5: should create invoice, apply deposits against net payable and submit to approval
+    Story IV7, IV8, IV9, IV10: Approve Invoice & Final Settlement
+      √ IV7/IV8/IV9: should transition vehicle to SOLD, settle booking, and post idempotent INVOICE_CHARGE
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+```
+
+---
+
 ## Verification & Sign-off Checklist
 
 | Requirement | Acceptance Criteria | Verified (Yes/No) | Notes |
@@ -525,6 +655,19 @@ This testing walkthrough specifically validates all **bold red additions** acros
 | **Story IV14**| Finance tracks WHT certificates & missing list | [ ] | Dedicated WHT Tracking Hub & certificate status |
 | **Story DL5** | Document 1: Delivery Voucher (Gate Pass) | [ ] | Official printable voucher with security signatures |
 | **Story DL5** | Document 2: Handover Form with Declaration & Pack | [ ] | Customer legal declaration + 6-item pack checklist |
+| **Story IV1** | Sales invoice data model with multi-tax & snapshot | [ ] | Vehicle price, VAT, Excise, WHT, Gross, Net, audit `tax_details` |
+| **Story IV2** | VAT, WHT and Excise Tax calculation engine | [ ] | Priority sequence (1: Excise, 2: VAT, 3: WHT), configurable bases |
+| **Story IV3** | Retrieve customer's available deposits & credits | [ ] | Combines booking deposit and available customer ledger credits |
+| **Story IV4** | Apply eligible payments to invoice settlement | [ ] | Capped against `net_payable` to prevent duplicate/over-allocation |
+| **Story IV5** | Calculate outstanding customer balance | [ ] | `Outstanding Balance = Net Customer Payable - Deposits Applied` |
+| **Story IV6** | Identify excess customer payments | [ ] | Distinguishes unapplied credits & flags excess for customer ledger |
+| **Story IV7** | Update customer ledger (`INVOICE_CHARGE` entry) | [ ] | Idempotent ledger charge with tax breakdown and deposit allocation |
+| **Story IV8** | Update booking status (`SETTLED`) | [ ] | Booking marked `SETTLED` upon invoice approval |
+| **Story IV9** | Update vehicle status (`READY_FOR_DELIVERY` -> `SOLD`) | [ ] | Invokes `fn_transition_vehicle_status('SOLD')` |
+| **Story IV10**| Invoice approval workflow integration | [ ] | Dispatches `approval_request` (`SALES_INVOICE`) and settles on approval |
+| **Story IV11**| RBAC and tax override audit justification | [ ] | Restricts access & requires audit reason for exemptions/overrides |
+| **Story IV12**| UI: invoice generation and detail screens | [ ] | Interactive multi-tax live calculator & Tax Rules Hub tab |
+| **Story IV13**| Tests/QA test suite | [ ] | Unit & regression tests covering IV1-IV11 (7/7 tests passed) |
 
 ---
 
