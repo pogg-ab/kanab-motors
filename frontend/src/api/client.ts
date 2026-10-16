@@ -716,6 +716,10 @@ export const api = {
   getColors: () => apiClient.get<VehicleColor[]>('/lookups/colors').then((r) => r.data),
   createColor: (colorName: string, hexCode?: string) =>
     apiClient.post<VehicleColor>('/lookups/colors', { colorName, hexCode }).then((r) => r.data),
+  updateColor: (id: number, colorName: string, hexCode?: string) =>
+    apiClient.put<VehicleColor>(`/lookups/colors/${id}`, { colorName, hexCode }).then((r) => r.data),
+  deleteColor: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>(`/lookups/colors/${id}`).then((r) => r.data),
   getWarehouses: () => apiClient.get<Warehouse[]>('/lookups/warehouses').then((r) => r.data),
   createWarehouse: (name: string, location?: string) =>
     apiClient.post<Warehouse>('/lookups/warehouses', { name, location }).then((r) => r.data),

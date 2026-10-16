@@ -36,6 +36,19 @@ export class LookupsService {
     return rows[0];
   }
 
+  async updateColor(id: number, colorName: string, hexCode?: string): Promise<any> {
+    const rows = await this.dataSource.query(
+      `UPDATE vehicle_color SET color_name = $1, hex_code = COALESCE($2, hex_code) WHERE color_id = $3 RETURNING color_id AS "colorId", color_name AS "colorName", hex_code AS "hexCode"`,
+      [colorName.trim(), hexCode?.trim() || null, id],
+    );
+    return rows[0];
+  }
+
+  async deleteColor(id: number): Promise<{ success: boolean; message: string }> {
+    await this.dataSource.query('DELETE FROM vehicle_color WHERE color_id = $1', [id]);
+    return { success: true, message: 'Vehicle color deleted successfully' };
+  }
+
   async getUnits(): Promise<any[]> {
     return this.dataSource.query(
       'SELECT uom_id AS "uomId", uom_name AS "uomName" FROM unit_of_measure ORDER BY uom_name ASC',

@@ -42,6 +42,23 @@ export class LookupsController {
     return this.lookupsService.createColor(body.colorName, body.hexCode);
   }
 
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Put('colors/:id')
+  @ApiOperation({ summary: 'Update a vehicle color' })
+  updateColor(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { colorName: string; hexCode?: string },
+  ) {
+    return this.lookupsService.updateColor(id, body.colorName, body.hexCode);
+  }
+
+  @RequirePermissions('PRODUCTS_CATEGORIES_MANAGE')
+  @Delete('colors/:id')
+  @ApiOperation({ summary: 'Delete a vehicle color' })
+  deleteColor(@Param('id', ParseIntPipe) id: number) {
+    return this.lookupsService.deleteColor(id);
+  }
+
   @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW')
   @Get('uoms')
   @ApiOperation({ summary: 'Get list of units of measure' })

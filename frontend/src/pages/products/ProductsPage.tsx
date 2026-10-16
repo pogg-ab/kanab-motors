@@ -15,6 +15,7 @@ import {
   Trash2,
   Check,
   RotateCcw,
+  Palette,
 } from 'lucide-react';
 import {
   api,
@@ -85,6 +86,16 @@ export const ProductsPage: React.FC = () => {
   const [editingBrandName, setEditingBrandName] = useState('');
   const [brandActionError, setBrandActionError] = useState<string | null>(null);
   const [brandSaving, setBrandSaving] = useState(false);
+
+  // Color Management State
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [newColorName, setNewColorName] = useState('');
+  const [newColorHex, setNewColorHex] = useState('#DC2626');
+  const [editingColorId, setEditingColorId] = useState<number | null>(null);
+  const [editingColorName, setEditingColorName] = useState('');
+  const [editingColorHex, setEditingColorHex] = useState('#000000');
+  const [colorActionError, setColorActionError] = useState<string | null>(null);
+  const [colorSaving, setColorSaving] = useState(false);
 
   // Tax Rate Management State
   const [isTaxModalOpen, setIsTaxModalOpen] = useState(false);
@@ -173,16 +184,18 @@ export const ProductsPage: React.FC = () => {
     let currentUoms = uoms;
 
     try {
-      const [cats, brs, uomList, taxes] = await Promise.all([
+      const [cats, brs, uomList, taxes, colList] = await Promise.all([
         api.getCategories(),
         api.getBrands(),
         api.getUoms(),
         api.getTaxConfigs(),
+        api.getColors().catch(() => []),
       ]);
       setCategories(cats);
       setBrands(brs);
       setUoms(uomList);
       setTaxConfigs(taxes);
+      setColors(colList);
       currentTaxes = taxes;
       currentCats = cats;
       currentBrands = brs;
@@ -248,6 +261,7 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleOpenEditProduct = (item: ProductItem) => {
+    api.getColors().then(setColors).catch(() => {});
     setEditingProduct(item);
     setEditFormData({
       itemCode: item.itemCode,
@@ -436,6 +450,87 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  // --- Color CRUD Handlers ---
+  const handleOpenColorModal = async () => {
+    setIsColorModalOpen(true);
+    setColorActionError(null);
+    try {
+      const colList = await api.getColors();
+      setColors(colList);
+    } catch (e: any) {
+      console.error('Failed refreshing colors on open:', e);
+    }
+  };
+
+  const handleCreateColor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageCategories) return;
+    if (!newColorName.trim()) return;
+    setColorSaving(true);
+    setColorActionError(null);
+    try {
+      await api.createColor(newColorName.trim(), newColorHex);
+      setNewColorName('');
+      setNewColorHex('#DC2626');
+      const colList = await api.getColors();
+      setColors(colList);
+    } catch (err: any) {
+      setColorActionError(formatApiError(err, 'Failed to create vehicle color'));
+    } finally {
+      setColorSaving(false);
+    }
+  };
+
+  const handleStartEditColor = (color: VehicleColor) => {
+    setEditingColorId(color.colorId);
+    setEditingColorName(color.colorName);
+    setEditingColorHex(color.hexCode || '#000000');
+    setColorActionError(null);
+  };
+
+  const handleCancelEditColor = () => {
+    setEditingColorId(null);
+    setEditingColorName('');
+    setEditingColorHex('#000000');
+    setColorActionError(null);
+  };
+
+  const handleSaveEditColor = async (id: number) => {
+    if (!editingColorName.trim()) return;
+    setColorSaving(true);
+    setColorActionError(null);
+    try {
+      await api.updateColor(id, editingColorName.trim(), editingColorHex);
+      setEditingColorId(null);
+      setEditingColorName('');
+      setEditingColorHex('#000000');
+      const colList = await api.getColors();
+      setColors(colList);
+    } catch (err: any) {
+      setColorActionError(formatApiError(err, 'Failed to update vehicle color'));
+    } finally {
+      setColorSaving(false);
+    }
+  };
+
+  const handleDeleteColor = async (color: VehicleColor) => {
+    const confirmed = await showConfirm({
+      title: 'Delete Vehicle Color',
+      message: `Are you sure you want to delete color "${color.colorName}"?`,
+      confirmText: 'Delete Color',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    setColorActionError(null);
+    try {
+      await api.deleteColor(color.colorId);
+      const colList = await api.getColors();
+      setColors(colList);
+    } catch (err: any) {
+      setColorActionError(formatApiError(err, 'Failed to delete vehicle color'));
+    }
+  };
+
   // --- Tax Configuration CRUD Handlers ---
   const handleCreateTax = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -578,6 +673,9 @@ export const ProductsPage: React.FC = () => {
                 </button>
                 <button className="btn btn-secondary" onClick={() => setIsBrandModalOpen(true)}>
                   + Brand
+                </button>
+                <button className="btn btn-secondary" onClick={handleOpenColorModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Palette size={14} /> + Color
                 </button>
                 <button className="btn btn-secondary" onClick={handleOpenTaxModal}>
                   + Tax Rate
@@ -1733,6 +1831,231 @@ export const ProductsPage: React.FC = () => {
                   setIsBrandModalOpen(false);
                   setEditingBrandId(null);
                   setBrandActionError(null);
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VEHICLE COLOURS MANAGER MODAL */}
+      {isColorModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#a855f7',
+                  }}
+                >
+                  <Palette size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Vehicle Colours Manager</h3>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {colors.length} registered vehicle finishes & shades
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsColorModalOpen(false);
+                  setEditingColorId(null);
+                  setColorActionError(null);
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <ModalErrorAlert error={colorActionError} onDismiss={() => setColorActionError(null)} />
+
+              {/* Add New Color Card */}
+              <div
+                style={{
+                  padding: '1rem',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+                  + ADD NEW VEHICLE COLOUR
+                </div>
+                <form onSubmit={handleCreateColor} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.6rem', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. Matte Charcoal, Electric Orange"
+                    required
+                    value={newColorName}
+                    onChange={(e) => setNewColorName(e.target.value)}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-table)', padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                    <input
+                      type="color"
+                      value={newColorHex}
+                      onChange={(e) => setNewColorHex(e.target.value)}
+                      style={{ width: '26px', height: '26px', border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: '4px' }}
+                      title="Select Color Swatch"
+                    />
+                    <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                      {newColorHex.toUpperCase()}
+                    </span>
+                  </div>
+                  <button type="submit" className="btn btn-cyan" disabled={colorSaving} style={{ whiteSpace: 'nowrap' }}>
+                    {colorSaving ? 'Adding...' : '+ Add Color'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Existing Colors List */}
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+                  EXISTING COLOURS ({colors.length})
+                </div>
+                <div
+                  style={{
+                    maxHeight: '280px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-table)',
+                  }}
+                >
+                  {colors.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      No colors found. Create one above.
+                    </div>
+                  ) : (
+                    colors.map((color, idx) => (
+                      <div
+                        key={color.colorId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.75rem 1rem',
+                          borderBottom: idx < colors.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+                          background: editingColorId === color.colorId ? 'rgba(168, 85, 247, 0.08)' : 'transparent',
+                        }}
+                      >
+                        {editingColorId === color.colorId ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+                            <input
+                              type="text"
+                              className="input-field"
+                              value={editingColorName}
+                              onChange={(e) => setEditingColorName(e.target.value)}
+                              style={{ flex: 1, padding: '0.4rem 0.65rem', fontSize: '0.85rem' }}
+                              autoFocus
+                            />
+                            <input
+                              type="color"
+                              value={editingColorHex}
+                              onChange={(e) => setEditingColorHex(e.target.value)}
+                              style={{ width: '28px', height: '28px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-cyan btn-sm"
+                              onClick={() => handleSaveEditColor(color.colorId)}
+                              disabled={colorSaving}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                            >
+                              <Check size={13} /> Save
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={handleCancelEditColor}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                            >
+                              <RotateCcw size={13} /> Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <span
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  borderRadius: '50%',
+                                  backgroundColor: color.hexCode || '#666',
+                                  border: '2px solid rgba(255, 255, 255, 0.2)',
+                                  boxShadow: '0 0 6px rgba(0,0,0,0.3)',
+                                  display: 'inline-block',
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                {color.colorName}
+                              </span>
+                              {color.hexCode && (
+                                <span className="mono-code" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>
+                                  {color.hexCode.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleStartEditColor(color)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', padding: '0.35rem 0.6rem' }}
+                                title="Edit Color"
+                              >
+                                <Edit2 size={12} /> Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleDeleteColor(color)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  fontSize: '0.75rem',
+                                  padding: '0.35rem 0.6rem',
+                                  color: '#f87171',
+                                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                                }}
+                                title="Delete Color"
+                              >
+                                <Trash2 size={12} /> Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setIsColorModalOpen(false);
+                  setEditingColorId(null);
+                  setColorActionError(null);
                 }}
               >
                 Done
