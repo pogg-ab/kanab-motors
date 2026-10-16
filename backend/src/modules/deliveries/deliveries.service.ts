@@ -228,6 +228,17 @@ export class DeliveriesService {
     const declarationText = delivery.customerDeclarationText ||
       `I, the undersigned ${customerName}, hereby declare and confirm that I have physically inspected and taken formal delivery of the vehicle specified above in satisfactory, roadworthy condition, complete with all specified accessories, tools, and the Handover Pack listed herein. I acknowledge receipt of all official keys, user manuals, warranty terms, and accept full operational custody and responsibility from this timestamp.`;
 
+    let resolvedHandoverPack = defaultHandoverPack;
+    if (Array.isArray(delivery.handoverPackItems)) {
+      resolvedHandoverPack = delivery.handoverPackItems;
+    } else if (delivery.handoverPackItems && typeof delivery.handoverPackItems === 'object') {
+      resolvedHandoverPack = defaultHandoverPack.map((item) => ({
+        ...item,
+        verified: delivery.handoverPackItems[item.id] !== undefined ? Boolean(delivery.handoverPackItems[item.id]) : true,
+        quantity: typeof delivery.handoverPackItems[item.id] === 'number' ? `${delivery.handoverPackItems[item.id]} Sets` : item.quantity,
+      }));
+    }
+
     return {
       voucherNumber: `DV-${delivery.deliveryNumber}`,
       gatePassNumber: `GP-${delivery.deliveryNumber}`,
@@ -272,7 +283,7 @@ export class DeliveriesService {
             passedChecks: pdi.results?.filter((r) => r.passed).length,
           }
         : null,
-      handoverPack: delivery.handoverPackItems || defaultHandoverPack,
+      handoverPack: resolvedHandoverPack,
       declarationText,
       releasingOfficer: delivery.responsibleStaff?.fullName || 'Dispatch / Yard Storekeeper',
       securityOfficer: 'Security Gate Clearance Officer',

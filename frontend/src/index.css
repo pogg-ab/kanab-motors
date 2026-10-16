@@ -1715,15 +1715,18 @@ body[data-theme="light"],
     display: none !important;
   }
 
-  /* When printing proforma quotation or pre-advance slip, isolate document and hide background dashboard */
+  /* When printing proforma quotation, pre-advance slip, or delivery documents, isolate document and hide background dashboard */
   body.printing-proforma .enquiries-dashboard,
   body.printing-slip .enquiries-dashboard,
+  body.printing-gatepass .deliveries-dashboard,
   body:has(.proforma-modal-backdrop) .enquiries-dashboard,
-  body:has(.print-clean-backdrop) .enquiries-dashboard {
+  body:has(.print-clean-backdrop) .enquiries-dashboard,
+  body:has(.gatepass-modal-backdrop) .deliveries-dashboard {
     display: none !important;
   }
 
   .proforma-modal-backdrop,
+  .gatepass-modal-backdrop,
   .print-clean-backdrop {
     display: block !important;
     position: static !important;
@@ -1734,6 +1737,16 @@ body[data-theme="light"],
     min-height: auto !important;
     overflow: visible !important;
     z-index: auto !important;
+  }
+
+  #printable-gate-pass,
+  #printable-handover-form {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
   }
 
   .proforma-modal-content,

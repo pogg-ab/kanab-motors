@@ -194,7 +194,11 @@ export const DeliveriesPage: React.FC = () => {
   };
 
   const printGatePass = () => {
+    document.body.classList.add('printing-gatepass');
     window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-gatepass');
+    }, 1000);
   };
 
   // Filtered deliveries
@@ -208,7 +212,7 @@ export const DeliveriesPage: React.FC = () => {
   });
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+    <div className="deliveries-dashboard" style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
       {/* Breadcrumbs & Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -868,11 +872,11 @@ export const DeliveriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* STORY DL5: TWO PRINTED DOCUMENTS (DELIVERY VOUCHER & HANDOVER FORM WITH DECLARATION & HANDOVER PACK) */}
+      {/* TWO PRINTED DOCUMENTS (DELIVERY VOUCHER & HANDOVER FORM WITH DECLARATION & HANDOVER PACK) */}
       {gatePassData && (
-        <div className="modal-backdrop" onClick={() => setGatePassData(null)}>
+        <div className="modal-backdrop gatepass-modal-backdrop print-clean-backdrop" onClick={() => setGatePassData(null)}>
           <div
-            className="modal-content"
+            className="modal-content proforma-modal-content print-clean-sheet"
             style={{
               maxWidth: '820px',
               width: '100%',
@@ -886,6 +890,7 @@ export const DeliveriesPage: React.FC = () => {
           >
             {/* Document Switcher Tab Header */}
             <div
+              className="no-print"
               style={{
                 display: 'flex',
                 background: '#f8fafc',
@@ -1138,14 +1143,17 @@ export const DeliveriesPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(gatePassData.handoverPack || [
-                        { name: 'Ignition Keys (Original & Spare Sets)', quantity: '2 Sets' },
-                        { name: 'Spare Wheel & Pneumatic Tyre (100% Tread)', quantity: '1 Unit' },
-                        { name: 'Vehicle Tool Kit (Jack, Handle & Wheel Spanner)', quantity: '1 Set' },
-                        { name: "Owner's Operational & Maintenance Manual", quantity: '1 Copy' },
-                        { name: 'Manufacturer Warranty Booklet & Service Schedule', quantity: '1 Booklet' },
-                        { name: 'Temporary Vehicle Transit Permit / Official Plates', quantity: '1 Set' },
-                      ]).map((item: any, idx: number) => (
+                      {(Array.isArray(gatePassData.handoverPack)
+                        ? gatePassData.handoverPack
+                        : [
+                            { name: 'Ignition Keys (Original & Spare Sets)', quantity: '2 Sets' },
+                            { name: 'Spare Wheel & Pneumatic Tyre (100% Tread)', quantity: '1 Unit' },
+                            { name: 'Vehicle Tool Kit (Jack, Handle & Wheel Spanner)', quantity: '1 Set' },
+                            { name: "Owner's Operational & Maintenance Manual", quantity: '1 Copy' },
+                            { name: 'Manufacturer Warranty Booklet & Service Schedule', quantity: '1 Booklet' },
+                            { name: 'Temporary Vehicle Transit Permit / Official Plates', quantity: '1 Set' },
+                          ]
+                      ).map((item: any, idx: number) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '0.45rem 0.6rem', fontWeight: 600 }}>{item.name}</td>
                           <td style={{ padding: '0.45rem 0.6rem', textAlign: 'center', color: '#64748b' }}>{item.quantity}</td>
@@ -1158,7 +1166,7 @@ export const DeliveriesPage: React.FC = () => {
                   </table>
                 </div>
 
-                {/* Customer Legal Acceptance Declaration (Story DL5) */}
+                {/* Customer Legal Acceptance Declaration */}
                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
                   <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#166534', marginBottom: '0.35rem' }}>
                     CUSTOMER STATUTORY HANDOVER DECLARATION
@@ -1175,7 +1183,9 @@ export const DeliveriesPage: React.FC = () => {
                     <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.25rem', fontWeight: 700 }}>
                       Customer / Authorized Recipient Signature
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Date: {gatePassData.deliveryDate}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      Date: {gatePassData.deliveryDate ? String(gatePassData.deliveryDate).split('T')[0] : new Date().toISOString().split('T')[0]}
+                    </div>
                   </div>
                   <div>
                     <div style={{ height: '35px' }}></div>
@@ -1189,7 +1199,7 @@ export const DeliveriesPage: React.FC = () => {
             )}
 
             {/* Modal Actions */}
-            <div className="modal-footer" style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', margin: 0, padding: '1rem 2.5rem' }}>
+            <div className="modal-footer no-print" style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', margin: 0, padding: '1rem 2.5rem' }}>
               <button
                 type="button"
                 onClick={() => setGatePassData(null)}
