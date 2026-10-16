@@ -899,43 +899,49 @@ export const DeliveriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setDocTab('DELIVERY_VOUCHER')}
+                  className={docTab === 'DELIVERY_VOUCHER' ? 'keep-white' : ''}
                   style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '6px',
+                    padding: '0.6rem 1.25rem',
+                    borderRadius: '8px',
                     border: '1px solid',
                     borderColor: docTab === 'DELIVERY_VOUCHER' ? '#0f172a' : '#cbd5e1',
-                    background: docTab === 'DELIVERY_VOUCHER' ? '#0f172a' : '#ffffff',
+                    background: docTab === 'DELIVERY_VOUCHER' ? 'linear-gradient(135deg, #1e293b, #0f172a)' : '#ffffff',
                     color: docTab === 'DELIVERY_VOUCHER' ? '#ffffff' : '#475569',
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
+                    gap: '0.45rem',
+                    boxShadow: docTab === 'DELIVERY_VOUCHER' ? '0 2px 6px rgba(15, 23, 42, 0.25)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <Car size={15} />
+                  <Car size={16} style={{ color: docTab === 'DELIVERY_VOUCHER' ? '#ffffff' : '#64748b' }} />
                   1. Delivery Voucher (Gate Pass)
                 </button>
                 <button
                   type="button"
                   onClick={() => setDocTab('HANDOVER_FORM')}
+                  className={docTab === 'HANDOVER_FORM' ? 'keep-white' : ''}
                   style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '6px',
+                    padding: '0.6rem 1.25rem',
+                    borderRadius: '8px',
                     border: '1px solid',
                     borderColor: docTab === 'HANDOVER_FORM' ? '#0f172a' : '#cbd5e1',
-                    background: docTab === 'HANDOVER_FORM' ? '#0f172a' : '#ffffff',
+                    background: docTab === 'HANDOVER_FORM' ? 'linear-gradient(135deg, #1e293b, #0f172a)' : '#ffffff',
                     color: docTab === 'HANDOVER_FORM' ? '#ffffff' : '#475569',
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
+                    gap: '0.45rem',
+                    boxShadow: docTab === 'HANDOVER_FORM' ? '0 2px 6px rgba(15, 23, 42, 0.25)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  <FileCheck2 size={15} />
+                  <FileCheck2 size={16} style={{ color: docTab === 'HANDOVER_FORM' ? '#ffffff' : '#64748b' }} />
                   2. Handover Form & Declaration (Handover Pack)
                 </button>
               </div>
@@ -959,7 +965,19 @@ export const DeliveriesPage: React.FC = () => {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0f172a', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
+                    <span
+                      className="keep-white gatepass-badge"
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.35rem 0.85rem',
+                        background: '#0f172a',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        fontSize: '0.8rem',
+                        borderRadius: '6px',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
                       DELIVERY VOUCHER & GATE PASS
                     </span>
                     <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem', fontFamily: 'monospace' }}>
@@ -1064,7 +1082,19 @@ export const DeliveriesPage: React.FC = () => {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: '#0284c7', color: '#fff', fontWeight: 800, fontSize: '0.85rem', borderRadius: '4px' }}>
+                    <span
+                      className="keep-white gatepass-badge"
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.35rem 0.85rem',
+                        background: '#0284c7',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        fontSize: '0.8rem',
+                        borderRadius: '6px',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
                       HANDOVER & DECLARATION
                     </span>
                     <div style={{ fontSize: '0.9rem', fontWeight: 700, marginTop: '0.25rem', fontFamily: 'monospace' }}>
@@ -1178,20 +1208,23 @@ export const DeliveriesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={printGatePass}
+                className="btn btn-primary keep-white btn-print-gatepass"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  padding: '0.5rem 1.25rem',
-                  borderRadius: '6px',
+                  padding: '0.6rem 1.4rem',
+                  borderRadius: '8px',
                   border: 'none',
-                  background: '#0f172a',
-                  color: '#fff',
+                  background: 'linear-gradient(135deg, #4f46e5, #4338ca)',
+                  color: '#ffffff',
                   fontWeight: 700,
+                  fontSize: '0.88rem',
                   cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(79, 70, 229, 0.35)',
                 }}
               >
-                <Printer size={16} />
+                <Printer size={16} style={{ color: '#ffffff' }} />
                 Print {docTab === 'DELIVERY_VOUCHER' ? 'Delivery Voucher' : 'Handover Form & Pack'}
               </button>
             </div>

@@ -772,36 +772,37 @@ body[data-theme="light"],
   color: #0f172a !important;
 }
 
-/* Override inline white text in light mode (matching both hex, rgb, and named white formats) */
-[data-theme="light"] [style*="rgb(255, 255, 255)"]:not(.btn-indigo):not(.btn-emerald):not(.btn-accent):not(.btn-rose):not(.keep-white),
-[data-theme="light"] [style*="rgb(255,255,255)"]:not(.btn-indigo):not(.btn-emerald):not(.btn-accent):not(.btn-rose):not(.keep-white),
-[data-theme="light"] [style*="#ffffff"]:not(.btn-indigo):not(.btn-emerald):not(.btn-accent):not(.btn-rose):not(.keep-white),
-[data-theme="light"] [style*="#fff"]:not(.btn-indigo):not(.btn-emerald):not(.btn-accent):not(.btn-rose):not(.keep-white),
-[data-theme="light"] [style*="color: white"]:not(.btn-indigo):not(.btn-emerald):not(.btn-accent):not(.btn-rose):not(.keep-white),
-[data-theme="light"] [style*="color:white"]:not(.btn-indigo):not(.btn-emerald):not(.btn-accent):not(.btn-rose):not(.keep-white),
-[data-theme="light"] span[style*="color: #ffffff"],
-[data-theme="light"] span[style*="color:#ffffff"],
-[data-theme="light"] div[style*="color: #ffffff"],
-[data-theme="light"] div[style*="color:#ffffff"],
-[data-theme="light"] strong[style*="color: #ffffff"],
-[data-theme="light"] strong[style*="color:#ffffff"],
-[data-theme="light"] p[style*="color: #ffffff"],
-[data-theme="light"] td[style*="color: #ffffff"],
-[data-theme="light"] td[style*="color:#ffffff"] {
-  color: var(--text-primary) !important;
-}
-
-/* Retain white text on saturated gradient buttons */
+/* Retain white text on saturated gradient buttons, dark badges, and keep-white elements */
+.keep-white,
+.keep-white *,
+.gatepass-badge,
+.gatepass-badge *,
+.btn-print-gatepass,
+.btn-print-gatepass *,
+[data-theme="light"] .keep-white,
+[data-theme="light"] .keep-white *,
+[data-theme="light"] .gatepass-badge,
+[data-theme="light"] .gatepass-badge *,
+[data-theme="light"] .btn-print-gatepass,
+[data-theme="light"] .btn-print-gatepass *,
 [data-theme="light"] .btn-indigo,
 [data-theme="light"] .btn-emerald,
 [data-theme="light"] .btn-accent,
 [data-theme="light"] .btn-rose,
 [data-theme="light"] .btn-primary:not(.btn-cyan),
-[data-theme="light"] .gatepass-badge,
-[data-theme="light"] .gatepass-badge *,
-[data-theme="light"] .btn-print-gatepass,
-[data-theme="light"] .btn-print-gatepass * {
+[data-theme="light"] [style*="background: #0f172a"]:not([style*="color: #0f172a"]):not([style*="color:#0f172a"]),
+[data-theme="light"] [style*="background:#0f172a"]:not([style*="color: #0f172a"]):not([style*="color:#0f172a"]),
+[data-theme="light"] [style*="background: #1e293b"]:not([style*="color: #0f172a"]):not([style*="color:#0f172a"]),
+[data-theme="light"] [style*="background:#1e293b"]:not([style*="color: #0f172a"]):not([style*="color:#0f172a"]) {
   color: #ffffff !important;
+}
+
+[data-theme="light"] .keep-white svg,
+[data-theme="light"] .btn-print-gatepass svg,
+[data-theme="light"] [style*="background: #0f172a"] svg,
+[data-theme="light"] [style*="background:#0f172a"] svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
 }
 
 /* Dedicated Gate Pass Document styling */
