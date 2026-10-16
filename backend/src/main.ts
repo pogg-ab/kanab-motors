@@ -80,13 +80,14 @@ async function ensureSequences() {
       ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS priority INT DEFAULT 1;
       ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS effective_from DATE DEFAULT '2026-01-01';
       ALTER TABLE tax_configuration ADD COLUMN IF NOT EXISTS effective_to DATE;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_tax_configuration_tax_name ON tax_configuration (tax_name);
       INSERT INTO tax_configuration (tax_name, tax_rate_pct, is_active, tax_type, applicable_customer_type, applicable_vehicle_type, calculation_base, priority, effective_from, description)
       VALUES
         ('Excise Tax Motorcycle (10%)', 10.00, true, 'EXCISE', 'ALL', 'MOTORCYCLE', 'VEHICLE_PRICE', 1, '2026-01-01', '10% Excise Duty on High-Capacity Motorcycles (>150cc)'),
         ('Excise Tax Three-Wheeler (5%)', 5.00, true, 'EXCISE', 'ALL', 'THREE_WHEELER', 'VEHICLE_PRICE', 1, '2026-01-01', '5% Excise Duty on Three-Wheeler commercial units'),
         ('Standard VAT (15%)', 15.00, true, 'VAT', 'ALL', 'ALL', 'VEHICLE_PRICE', 2, '2026-01-01', 'Standard 15% VAT on all vehicles and spare parts'),
         ('Withholding Tax (2%)', 2.00, true, 'WHT', 'WHT_ONLY', 'ALL', 'VEHICLE_PRICE', 3, '2026-01-01', '2% Withholding Tax applied for WHT-liable / Government customers')
-      ON CONFLICT DO NOTHING;
+      ON CONFLICT (tax_name) DO NOTHING;
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_receipt_source_enum') THEN
