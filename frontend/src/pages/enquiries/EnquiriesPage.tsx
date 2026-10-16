@@ -92,9 +92,9 @@ export const EnquiriesPage: React.FC = () => {
     }
   };
 
-  // Proforma Print Isolation Effect
+  // Print Isolation Effect (Proforma Quotation and Pre-Advance Slip)
   useEffect(() => {
-    if (selectedQuote) {
+    if (selectedQuote || selectedSlip) {
       document.body.classList.add('printing-proforma');
     } else {
       document.body.classList.remove('printing-proforma');
@@ -102,7 +102,7 @@ export const EnquiriesPage: React.FC = () => {
     return () => {
       document.body.classList.remove('printing-proforma');
     };
-  }, [selectedQuote]);
+  }, [selectedQuote, selectedSlip]);
 
   const fetchDependencies = async () => {
     try {
@@ -1103,9 +1103,9 @@ export const EnquiriesPage: React.FC = () => {
 
       {/* PRE-ADVANCE SLIP MODAL (Story E16, E17, E18) */}
       {selectedSlip && (
-        <div className="modal-backdrop print-clean-backdrop" style={{ zIndex: 1200 }}>
+        <div className="modal-backdrop proforma-modal-backdrop print-clean-backdrop" style={{ zIndex: 1200 }}>
           <div
-            className="modal-content print-clean-sheet"
+            className="modal-content proforma-modal-content print-clean-sheet"
             style={{
               maxWidth: '820px',
               width: '95%',
@@ -1178,7 +1178,7 @@ export const EnquiriesPage: React.FC = () => {
             </div>
 
             {/* Printable Slip Paper */}
-            <div style={{ padding: '2rem 2.25rem', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+            <div className="proforma-document print-clean-paper" style={{ padding: '2rem 2.25rem', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
               {/* Header with Letterhead */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
                 <div>
