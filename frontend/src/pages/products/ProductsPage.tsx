@@ -1701,7 +1701,7 @@ export const ProductsPage: React.FC = () => {
       {/* VAT / TAX CONFIGURATIONS MANAGER MODAL */}
       {isTaxModalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '620px' }}>
+          <div className="modal-content" style={{ maxWidth: '780px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <div
@@ -1744,69 +1744,113 @@ export const ProductsPage: React.FC = () => {
               {/* Add New Tax Config Card */}
               <div
                 style={{
-                  padding: '1rem',
+                  padding: '1.15rem',
                   background: 'rgba(255, 255, 255, 0.02)',
                   border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
                 }}
               >
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
                   + ADD NEW TAX CONFIGURATION
                 </div>
-                <form onSubmit={handleCreateTax} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr auto', gap: '0.6rem', alignItems: 'end' }}>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Tax Name *</label>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="e.g. Excise Tax Three-Wheeler"
-                      required
-                      value={newTaxName}
-                      onChange={(e) => setNewTaxName(e.target.value)}
-                    />
+                <form onSubmit={handleCreateTax} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {/* Row 1: Tax Name, Rate %, Tax Type */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Tax Name *</label>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="e.g. Electric Vehicle Green Incentive VAT"
+                        required
+                        value={newTaxName}
+                        onChange={(e) => setNewTaxName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Rate % *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        className="input-field"
+                        placeholder="e.g. 5.00"
+                        required
+                        value={newTaxRate}
+                        onChange={(e) => setNewTaxRate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Tax Type *</label>
+                      <select
+                        className="select-field"
+                        value={newTaxType}
+                        onChange={(e) => setNewTaxType(e.target.value as any)}
+                      >
+                        <option value="VAT">VAT (Value Added)</option>
+                        <option value="EXCISE">Excise Duty</option>
+                        <option value="WHT">WHT (Withholding)</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Rate % *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      className="input-field"
-                      placeholder="e.g. 5"
-                      required
-                      value={newTaxRate}
-                      onChange={(e) => setNewTaxRate(e.target.value)}
-                    />
+
+                  {/* Row 2: Applicable Vehicle / Category, Customer Type, Description, Add Button */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1.6fr auto', gap: '0.75rem', alignItems: 'end' }}>
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Applicable Category / Vehicle</label>
+                      <select
+                        className="select-field"
+                        value={newTaxVehicleType}
+                        onChange={(e) => setNewTaxVehicleType(e.target.value)}
+                      >
+                        <option value="ALL">ALL (All Products / Models)</option>
+                        {Array.from(new Set([
+                          ...categories.map((c) => c.categoryName),
+                          'MOTORCYCLE',
+                          'THREE_WHEELER',
+                          'ELECTRIC_VEHICLE',
+                          'IMPORTED_VEHICLE',
+                          'SPARE_PARTS',
+                          'ACCESSORIES',
+                        ])).map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Applicable Customer Type</label>
+                      <select
+                        className="select-field"
+                        value={newTaxCustomerType}
+                        onChange={(e) => setNewTaxCustomerType(e.target.value)}
+                      >
+                        <option value="ALL">ALL (All Customers)</option>
+                        <option value="DEALER">DEALER (Authorized Dealers)</option>
+                        <option value="DIRECT_POS">DIRECT_POS (Retail & Walk-in)</option>
+                        <option value="GOVERNMENT">GOVERNMENT (Institutions & Fleet)</option>
+                        <option value="WHT_ONLY">WHT_ONLY (WHT Liable)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Description</label>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="e.g. Subsidized VAT for green transport initiatives"
+                        value={newTaxDescription}
+                        onChange={(e) => setNewTaxDescription(e.target.value)}
+                      />
+                    </div>
+
+                    <button type="submit" className="btn btn-cyan" disabled={taxSaving} style={{ whiteSpace: 'nowrap', height: '38px', padding: '0 1.15rem' }}>
+                      {taxSaving ? 'Adding...' : '+ Add Tax'}
+                    </button>
                   </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Tax Type *</label>
-                    <select
-                      className="select-field"
-                      value={newTaxType}
-                      onChange={(e) => setNewTaxType(e.target.value as any)}
-                    >
-                      <option value="VAT">VAT (Value Added)</option>
-                      <option value="EXCISE">Excise Duty</option>
-                      <option value="WHT">WHT (Withholding)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Applicable To</label>
-                    <select
-                      className="select-field"
-                      value={newTaxVehicleType}
-                      onChange={(e) => setNewTaxVehicleType(e.target.value)}
-                    >
-                      <option value="ALL">All Products</option>
-                      <option value="MOTORCYCLE">Motorcycles</option>
-                      <option value="THREE_WHEELER">Three-Wheelers</option>
-                      <option value="IMPORTED_VEHICLE">Imported Vehicles</option>
-                    </select>
-                  </div>
-                  <button type="submit" className="btn btn-cyan" disabled={taxSaving} style={{ whiteSpace: 'nowrap', height: '38px' }}>
-                    {taxSaving ? 'Adding...' : '+ Add Tax'}
-                  </button>
                 </form>
               </div>
 
@@ -1881,25 +1925,32 @@ export const ProductsPage: React.FC = () => {
                           </div>
                         ) : (
                           <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                                {tax.taxName}
-                              </span>
-                              <span className="badge badge-amber" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
-                                {tax.taxRatePct}%
-                              </span>
-                              <span className={`badge ${tax.taxType === 'WHT' ? 'badge-rose' : tax.taxType === 'EXCISE' ? 'badge-cyan' : 'badge-emerald'}`} style={{ fontSize: '0.7rem' }}>
-                                {tax.taxType || 'VAT'}
-                              </span>
-                              {tax.applicableVehicleType && tax.applicableVehicleType !== 'ALL' && (
-                                <span className="badge badge-indigo" style={{ fontSize: '0.68rem' }}>
-                                  {tax.applicableVehicleType}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                  {tax.taxName}
                                 </span>
-                              )}
-                              {tax.applicableCustomerType && tax.applicableCustomerType !== 'ALL' && (
-                                <span className="badge badge-amber" style={{ fontSize: '0.68rem' }}>
-                                  {tax.applicableCustomerType}
+                                <span className="badge badge-amber" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                                  {tax.taxRatePct}%
                                 </span>
+                                <span className={`badge ${tax.taxType === 'WHT' ? 'badge-rose' : tax.taxType === 'EXCISE' ? 'badge-cyan' : 'badge-emerald'}`} style={{ fontSize: '0.7rem' }}>
+                                  {tax.taxType || 'VAT'}
+                                </span>
+                                {tax.applicableVehicleType && tax.applicableVehicleType !== 'ALL' && (
+                                  <span className="badge badge-indigo" style={{ fontSize: '0.68rem' }}>
+                                    Vehicles: {tax.applicableVehicleType}
+                                  </span>
+                                )}
+                                {tax.applicableCustomerType && tax.applicableCustomerType !== 'ALL' && (
+                                  <span className="badge badge-amber" style={{ fontSize: '0.68rem' }}>
+                                    Customer: {tax.applicableCustomerType}
+                                  </span>
+                                )}
+                              </div>
+                              {tax.description && (
+                                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                                  {tax.description}
+                                </div>
                               )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
