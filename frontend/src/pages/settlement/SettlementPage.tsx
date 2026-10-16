@@ -886,7 +886,7 @@ export const SettlementPage: React.FC = () => {
                               border: 'none',
                               color: credit > 0 ? '#ffffff' : undefined,
                             }}
-                            title="Transfer customer credit to another customer or order (Story X9/X10)"
+                            title="Transfer customer credit to another customer or destination order"
                           >
                             Transfer Credit
                           </button>
@@ -1801,8 +1801,8 @@ export const SettlementPage: React.FC = () => {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                     Customer Credit Transfer
                   </h3>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
-                    Story X9: Two-sided atomic ledger posting between customer balances
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Two-sided atomic ledger posting between customer balances
                   </span>
                 </div>
               </div>

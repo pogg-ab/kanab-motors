@@ -236,7 +236,7 @@ export const InvoicesPage: React.FC = () => {
       calcBase !== 'VEHICLE_PRICE';
 
     if (hasOverrideOrExemption && !taxOverrideReason.trim()) {
-      setCreateError('Please provide a mandatory audit justification reason for the tax rate override or exemption (Story IV2 / IV11)');
+      setCreateError('Please provide a mandatory audit justification reason for the tax rate override or exemption');
       return;
     }
 
@@ -481,7 +481,7 @@ export const InvoicesPage: React.FC = () => {
           }}
         >
           <Percent size={16} />
-          Tax Rules & Rates Hub (Story IV2) ({taxConfigs.length})
+          Tax Rules & Rates Hub ({taxConfigs.length})
         </button>
 
         <button
@@ -500,7 +500,7 @@ export const InvoicesPage: React.FC = () => {
           }}
         >
           <Tag size={16} />
-          Withholding Tax (WHT) Tracking Hub (Story IV14)
+          Withholding Tax (WHT) Tracking Hub
           {whtCertificates.filter((w) => !w.whtCertificateNumber || w.whtStatus === 'PENDING_CERTIFICATE').length > 0 && (
             <span style={{ padding: '0.15rem 0.45rem', borderRadius: '10px', background: '#f59e0b', color: '#000', fontSize: '0.7rem', fontWeight: 800 }}>
               {whtCertificates.filter((w) => !w.whtCertificateNumber || w.whtStatus === 'PENDING_CERTIFICATE').length} Missing
@@ -849,7 +849,7 @@ export const InvoicesPage: React.FC = () => {
                         {canCreateInvoice && (
                           <button
                             onClick={() => handleOpenWhtModal(inv)}
-                            title="Story IV14: Record Non-Cash Withholding Tax (WHT) Settlement"
+                            title="Record Non-Cash Withholding Tax (WHT) Settlement"
                             style={{
                               padding: '0.4rem',
                               borderRadius: '6px',
@@ -932,7 +932,7 @@ export const InvoicesPage: React.FC = () => {
             </div>
             <div>
               <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: '#c084fc' }}>
-                SRS Story IV14: Customer Withholding Tax Compliance & Certificate Ledger
+                Customer Withholding Tax Compliance & Certificate Ledger
               </h3>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 Customers designated as withholding agents remit net cash to KANAB and withhold commercial tax (2%) at source. 
@@ -1171,7 +1171,7 @@ export const InvoicesPage: React.FC = () => {
             </div>
             <div>
               <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }}>
-                SRS Story IV2: Multi-Tax Evaluation Engine & Statutory Rule Configuration
+                Multi-Tax Evaluation Engine & Statutory Rule Configuration
               </h3>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 Evaluates each commercial transaction independently according to Ethiopian Revenue Authority (MoR) statutory rules. 
@@ -1204,7 +1204,7 @@ export const InvoicesPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--accent-cyan)' }}>
               <Calculator size={18} />
               <span style={{ fontWeight: 800, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Statutory Settlement Formula Distinction (Story IV2)
+                Statutory Settlement Formula Distinction
               </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', fontSize: '0.85rem' }}>
@@ -1400,7 +1400,7 @@ export const InvoicesPage: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                       <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <Calculator size={16} />
-                        Live Multi-Tax Settlement & Calculation Engine (Story IV2)
+                        Live Multi-Tax Settlement & Calculation Engine
                       </h4>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                         {detectedVehicleType}
@@ -1455,12 +1455,12 @@ export const InvoicesPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div>Eligible Customer Deposits (Story IV3): <strong>ETB {previewDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
-                      <div>Deposits Allocated (Story IV4): <strong style={{ color: '#10b981' }}>- ETB {previewApplied.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                      <div>Eligible Customer Deposits: <strong>ETB {previewDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                      <div>Deposits Allocated: <strong style={{ color: '#10b981' }}>- ETB {previewApplied.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
 
                       <div style={{ gridColumn: '1 / -1', background: 'rgba(0,0,0,0.3)', padding: '0.65rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1rem' }}>
-                          <span>Outstanding Customer Balance Due (Story IV5):</span>
+                          <span>Outstanding Customer Balance Due:</span>
                           <span style={{ color: previewBalance > 0 ? '#f59e0b' : '#10b981' }}>
                             ETB {previewBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </span>
@@ -1480,7 +1480,7 @@ export const InvoicesPage: React.FC = () => {
                             fontWeight: 600,
                           }}
                         >
-                          ⚠️ Story IV6 Excess Deposit Identified: Customer deposit exceeds Net Payable by ETB {previewExcessAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Excess is reserved for customer credit/refund workflow.
+                          ⚠️ Excess Deposit Identified: Customer deposit exceeds Net Payable by ETB {previewExcessAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Excess is reserved for customer credit/refund workflow.
                         </div>
                       )}
                     </div>
@@ -1496,7 +1496,7 @@ export const InvoicesPage: React.FC = () => {
                     style={{ width: '18px', height: '18px', accentColor: 'var(--accent-cyan)' }}
                   />
                   <label htmlFor="applyDep" style={{ fontSize: '0.875rem', cursor: 'pointer', fontWeight: 600 }}>
-                    Automatically allocate available customer deposits to invoice settlement (Story IV4)
+                    Automatically allocate available customer deposits to invoice settlement
                   </label>
                 </div>
 
@@ -1521,7 +1521,7 @@ export const InvoicesPage: React.FC = () => {
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Settings2 size={16} style={{ color: 'var(--accent-cyan)' }} />
-                      Tax Overrides & Statutory Exemptions (Stories IV2 & IV11)
+                      Tax Overrides & Statutory Exemptions
                     </span>
                     <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
                       {showOverridePanel ? '▲ Hide' : '▼ Expand Options'}
@@ -1531,7 +1531,7 @@ export const InvoicesPage: React.FC = () => {
                   {showOverridePanel && (
                     <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderTop: '1px solid var(--border-color)' }}>
                       <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        Apply statutory exemptions or approved tax rate overrides. Any deviation from standard rates requires mandatory audit justification under Story IV11.
+                        Apply statutory exemptions or approved tax rate overrides. Any deviation from standard rates requires mandatory audit justification.
                       </p>
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
@@ -1757,7 +1757,7 @@ export const InvoicesPage: React.FC = () => {
                 <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
                   <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <ShieldCheck size={15} />
-                    Applied Statutory Tax Rules Snapshot & Audit Trail (Story IV1 / IV2 / IV11)
+                    Applied Statutory Tax Rules Snapshot & Audit Trail
                   </div>
                   <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
@@ -1800,7 +1800,7 @@ export const InvoicesPage: React.FC = () => {
               {selectedInvoice.taxOverrideReason && (
                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.8rem' }}>
                   <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: '0.25rem' }}>
-                    ★ Tax Exemption / Rate Override Audit Justification (Story IV11):
+                    ★ Tax Exemption / Rate Override Audit Justification:
                   </div>
                   <div style={{ color: 'var(--text-primary)' }}>{selectedInvoice.taxOverrideReason}</div>
                 </div>
@@ -1932,7 +1932,7 @@ export const InvoicesPage: React.FC = () => {
                     Record Customer WHT Non-Cash Settlement
                   </h3>
                   <span style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 600 }}>
-                    Story IV14: Atomic WHT_SETTLEMENT credit posting & non-refundable deduction
+                    Non-cash settlement credit posting & non-refundable deduction
                   </span>
                 </div>
               </div>
@@ -1954,7 +1954,7 @@ export const InvoicesPage: React.FC = () => {
                 <div style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
                   <div style={{ fontWeight: 700, color: '#c084fc', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <ShieldCheck size={16} />
-                    SRS §IV14 Non-Cash Settlement Mandate
+                    Withholding Tax Non-Cash Settlement Mandate
                   </div>
                   <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     The customer is a designated withholding tax agent who withheld tax at source. This posts a <strong>WHT_SETTLEMENT</strong> credit linked to invoice <strong>{whtTargetInvoice.invoiceNumber}</strong> and booking. No cash reached KANAB.
@@ -2086,7 +2086,7 @@ export const InvoicesPage: React.FC = () => {
                 {/* Atomic Ledger Posting Preview */}
                 <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '0.85rem' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                    Live Customer Ledger Atomic Posting Preview (Story IV14)
+                    Customer Ledger Atomic Posting Preview
                   </div>
                   <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                     <thead>

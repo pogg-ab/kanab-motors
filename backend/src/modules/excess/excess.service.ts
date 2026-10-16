@@ -211,6 +211,21 @@ export class ExcessService {
       },
     });
 
+    let resolvedBookingId: string | undefined = undefined;
+    if (body.targetBookingId && body.targetBookingId.trim() !== '') {
+      const bRef = body.targetBookingId.trim();
+      if (/^\d+$/.test(bRef)) {
+        resolvedBookingId = bRef;
+      } else {
+        const foundB = await this.dataSource.getRepository(Booking).findOne({
+          where: { bookingNumber: bRef },
+        });
+        if (foundB) {
+          resolvedBookingId = foundB.bookingId;
+        }
+      }
+    }
+
     // Side 2: Credit recipient customer's available credit
     await this.ledgerService.postTransaction({
       customerId: body.targetCustomerId,
@@ -219,7 +234,7 @@ export class ExcessService {
       description: `Credit Transfer In from ${sourceName}. ${body.reason || ''}`.trim(),
       debitAmount: 0,
       creditAmount: transferAmount,
-      relatedBookingId: body.targetBookingId || undefined,
+      relatedBookingId: resolvedBookingId,
       processedBy: userId,
       summaryDelta: {
         availableCredit: transferAmount,

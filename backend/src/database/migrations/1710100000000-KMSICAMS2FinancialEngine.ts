@@ -17,11 +17,15 @@ export class KMSICAMS2FinancialEngine1710100000000 implements MigrationInterface
           'REFUND',
           'ADJUSTMENT',
           'BOOKING_CANCELLATION',
-          'BOOKING_TRANSFER'
+          'BOOKING_TRANSFER',
+          'CREDIT_TRANSFER',
+          'WHT_SETTLEMENT'
         );
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$;
+      ALTER TYPE ledger_transaction_type_enum ADD VALUE IF NOT EXISTS 'CREDIT_TRANSFER';
+      ALTER TYPE ledger_transaction_type_enum ADD VALUE IF NOT EXISTS 'WHT_SETTLEMENT';
     `);
 
     // 2. Sales Enquiry Table & Sequences

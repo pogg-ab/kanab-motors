@@ -941,7 +941,7 @@ export const DeliveriesPage: React.FC = () => {
               </div>
 
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-                Story DL5 Dual-Document Pack
+                Dual-Document Handover Pack
               </span>
             </div>
 
@@ -1097,7 +1097,7 @@ export const DeliveriesPage: React.FC = () => {
                 {/* Handover Pack Checklist (Story DL5) */}
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
                   <div style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.5rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span>📦 OFFICIAL HANDOVER PACK CHECKLIST (Story DL5 Requirement)</span>
+                    <span>📦 OFFICIAL HANDOVER PACK CHECKLIST</span>
                   </div>
                   <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                     <thead>

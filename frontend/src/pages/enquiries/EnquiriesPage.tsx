@@ -545,7 +545,7 @@ export const EnquiriesPage: React.FC = () => {
                               alignItems: 'center',
                               gap: '0.35rem',
                             }}
-                            title="View & Print Official Pre-Advance Slip (Story E16/E17)"
+                            title="View & Print Official Pre-Advance Slip"
                             onClick={() => handleOpenSlip(enq)}
                             disabled={loadingSlip}
                           >
@@ -1249,7 +1249,7 @@ export const EnquiriesPage: React.FC = () => {
 
                 <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Commercial Terms</div>
-                  <div style={{ color: '#0f172a', marginTop: '0.25rem' }}>Full Price Advance Rule: <strong>100% Required (Story B4)</strong></div>
+                  <div style={{ color: '#0f172a', marginTop: '0.25rem' }}>Full Price Advance Rule: <strong>100% Required</strong></div>
                   <div style={{ color: '#475569', marginTop: '0.2rem' }}>Payment Mode: Bank Deposit / Wire Transfer</div>
                   <div style={{ color: '#475569', marginTop: '0.1rem' }}>Next Step: Bank Receipt Voucher (BRV) Intake</div>
                 </div>
@@ -1304,7 +1304,7 @@ export const EnquiriesPage: React.FC = () => {
               >
                 <div>
                   <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase' }}>
-                    Required Advance Amount (Story B4 Rule)
+                    Required Advance Amount
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>
                     Advance is 100% of full current price (ETB {Number(selectedSlip.totalAmount).toLocaleString()})

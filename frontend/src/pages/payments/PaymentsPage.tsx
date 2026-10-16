@@ -524,7 +524,7 @@ export const PaymentsPage: React.FC = () => {
                                     background: '#d97706',
                                     borderColor: '#b45309',
                                   }}
-                                  title="Review Installment (Story P14: CEO Approval Gate)"
+                                  title="Review Installment (CEO Approval Gate)"
                                 >
                                   <AlertTriangle size={12} />
                                   CEO Gate
@@ -553,7 +553,7 @@ export const PaymentsPage: React.FC = () => {
                                 }}
                                 title={
                                   p.isInstallment && p.installmentApprovalStatus !== 'APPROVED'
-                                    ? 'Story P14: Requires CEO approval before ledger confirmation'
+                                    ? 'Requires CEO approval before ledger confirmation'
                                     : 'Finance Confirm & Post to Ledger'
                                 }
                               >
@@ -711,7 +711,7 @@ export const PaymentsPage: React.FC = () => {
                   <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '0.88rem', color: newPayment.isInstallment ? '#f59e0b' : 'var(--text-primary)' }}>
-                        Split / Installment Deposit Plan (Story P14)
+                        Split / Installment Deposit Plan
                       </div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                         Customer is paying in installments. Requires mandatory <strong>CEO Approval Gate</strong> before ledger confirmation.
@@ -999,7 +999,7 @@ export const PaymentsPage: React.FC = () => {
                     CEO Installment Approval Gate
                   </h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Policy Story P14: Executive sign-off for partial deposits
+                    Executive sign-off for partial deposits
                   </span>
                 </div>
               </div>

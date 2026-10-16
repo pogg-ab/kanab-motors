@@ -660,7 +660,7 @@ export const BookingsPage: React.FC = () => {
                   }}
                 >
                   <label className="form-label" style={{ color: '#818cf8', fontWeight: 700, marginBottom: '0.35rem' }}>
-                    Originating Pre-Advance Slip (Story B3: Enquiry → Slip → Payment Mandate)
+                    Originating Pre-Advance Slip (Enquiry → Slip → Payment Mandate)
                   </label>
                   <select
                     className="input"
