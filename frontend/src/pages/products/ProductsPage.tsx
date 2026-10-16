@@ -758,11 +758,55 @@ export const ProductsPage: React.FC = () => {
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                         {item.itemName}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        Model: {item.model || 'Standard'} · UoM: {item.uom?.uomName || 'UNIT'}
-                        {item.colour && ` · Color: ${item.colour}`}
-                        {item.engineCapacityCc && ` · Engine: ${item.engineCapacityCc}`}
-                        {item.batteryPowerKwh && ` · Battery: ${item.batteryPowerKwh} kWh`}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                          Model: {item.model || 'Standard'} · UoM: {item.uom?.uomName || 'UNIT'}
+                        </span>
+                        {item.colour && (
+                          <span
+                            className="badge badge-indigo"
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.15rem 0.5rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <span>🎨</span> {item.colour}
+                          </span>
+                        )}
+                        {item.engineCapacityCc && (
+                          <span
+                            className="badge badge-emerald"
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.15rem 0.5rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <span>⚡</span> {item.engineCapacityCc}
+                          </span>
+                        )}
+                        {item.batteryPowerKwh && (
+                          <span
+                            className="badge badge-cyan"
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.15rem 0.5rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <span>🔋</span> {item.batteryPowerKwh} kWh
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
