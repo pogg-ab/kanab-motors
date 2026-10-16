@@ -212,8 +212,10 @@ export const DeliveriesPage: React.FC = () => {
   });
 
   return (
-    <div className="deliveries-dashboard" style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
-      {/* Breadcrumbs & Header */}
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Deliveries Main Dashboard (Hidden during print) */}
+      <div className="deliveries-dashboard">
+        {/* Breadcrumbs & Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-cyan)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span>★ Operations & Fulfillment</span>
@@ -871,12 +873,13 @@ export const DeliveriesPage: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* TWO PRINTED DOCUMENTS (DELIVERY VOUCHER & HANDOVER FORM WITH DECLARATION & HANDOVER PACK) */}
       {gatePassData && (
         <div className="modal-backdrop gatepass-modal-backdrop print-clean-backdrop" onClick={() => setGatePassData(null)}>
           <div
-            className="modal-content proforma-modal-content print-clean-sheet"
+            className="modal-content proforma-modal-content gatepass-modal-content print-clean-sheet"
             style={{
               maxWidth: '820px',
               width: '100%',
@@ -958,7 +961,7 @@ export const DeliveriesPage: React.FC = () => {
 
             {/* PRINTABLE DOCUMENT 1: DELIVERY VOUCHER & GATE PASS */}
             {docTab === 'DELIVERY_VOUCHER' && (
-              <div id="printable-gate-pass" style={{ padding: '2.5rem' }}>
+              <div id="printable-gate-pass" className="gatepass-document print-clean-paper" style={{ padding: '2.5rem' }}>
                 {/* Voucher header */}
                 <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -1075,7 +1078,7 @@ export const DeliveriesPage: React.FC = () => {
 
             {/* PRINTABLE DOCUMENT 2: HANDOVER FORM & ACCEPTANCE DECLARATION WITH HANDOVER PACK */}
             {docTab === 'HANDOVER_FORM' && (
-              <div id="printable-handover-form" style={{ padding: '2.5rem' }}>
+              <div id="printable-handover-form" className="gatepass-document print-clean-paper" style={{ padding: '2.5rem' }}>
                 {/* Handover header */}
                 <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
