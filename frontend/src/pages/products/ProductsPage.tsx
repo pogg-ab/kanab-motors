@@ -519,6 +519,17 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleOpenTaxModal = async () => {
+    setIsTaxModalOpen(true);
+    setTaxActionError(null);
+    try {
+      const taxes = await api.getTaxConfigs();
+      setTaxConfigs(taxes);
+    } catch (e: any) {
+      console.error('Failed refreshing tax configs on open:', e);
+    }
+  };
+
   // Metrics
   const totalModels = items.length;
   const motorcycles = items.filter((i) => i.category?.categoryName === 'MOTORCYCLE').length;
@@ -568,7 +579,7 @@ export const ProductsPage: React.FC = () => {
                 <button className="btn btn-secondary" onClick={() => setIsBrandModalOpen(true)}>
                   + Brand
                 </button>
-                <button className="btn btn-secondary" onClick={() => setIsTaxModalOpen(true)}>
+                <button className="btn btn-secondary" onClick={handleOpenTaxModal}>
                   + Tax Rate
                 </button>
               </>
@@ -1708,7 +1719,7 @@ export const ProductsPage: React.FC = () => {
                   <Percent size={18} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>VAT & Tax Configurations</h3>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Multi-Tax Rate Configuration & Applicability</h3>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {taxConfigs.length} configured tax tiers
                   </div>

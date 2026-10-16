@@ -83,10 +83,10 @@ async function ensureSequences() {
       CREATE UNIQUE INDEX IF NOT EXISTS uq_tax_configuration_tax_name ON tax_configuration (tax_name);
       INSERT INTO tax_configuration (tax_name, tax_rate_pct, is_active, tax_type, applicable_customer_type, applicable_vehicle_type, calculation_base, priority, effective_from, description)
       VALUES
-        ('Excise Tax Motorcycle (10%)', 10.00, true, 'EXCISE', 'ALL', 'MOTORCYCLE', 'VEHICLE_PRICE', 1, '2026-01-01', '10% Excise Duty on High-Capacity Motorcycles (>150cc)'),
-        ('Excise Tax Three-Wheeler (5%)', 5.00, true, 'EXCISE', 'ALL', 'THREE_WHEELER', 'VEHICLE_PRICE', 1, '2026-01-01', '5% Excise Duty on Three-Wheeler commercial units'),
-        ('Standard VAT (15%)', 15.00, true, 'VAT', 'ALL', 'ALL', 'VEHICLE_PRICE', 2, '2026-01-01', 'Standard 15% VAT on all vehicles and spare parts'),
-        ('Withholding Tax (2%)', 2.00, true, 'WHT', 'WHT_ONLY', 'ALL', 'VEHICLE_PRICE', 3, '2026-01-01', '2% Withholding Tax applied for WHT-liable / Government customers')
+        ('Standard Ethiopian VAT', 15.00, true, 'VAT', 'ALL', 'ALL', 'VEHICLE_PRICE', 1, '2026-01-01', 'Standard 15% statutory Ethiopian Value Added Tax (VAT)'),
+        ('Standard Commercial WHT', 2.00, true, 'WHT', 'ALL', 'ALL', 'VEHICLE_PRICE', 1, '2026-01-01', 'Standard 2% Commercial Withholding Tax deducted at source'),
+        ('Automotive Excise Duty Tier 1', 10.00, true, 'EXCISE', 'ALL', 'THREE_WHEELER', 'VEHICLE_PRICE', 1, '2026-01-01', 'Automotive statutory excise duty tier for three-wheelers and commercial units'),
+        ('Zero-Rated Tax Tier', 0.00, true, 'VAT', 'ALL', 'ALL', 'VEHICLE_PRICE', 1, '2026-01-01', 'Zero-rated VAT tier for qualifying exempt transactions and diplomatic sales')
       ON CONFLICT (tax_name) DO NOTHING;
       DO $$
       BEGIN

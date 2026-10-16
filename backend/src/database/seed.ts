@@ -291,13 +291,18 @@ export async function seedDatabase(dataSource?: DataSource) {
 
   // 8. Tax Configuration
   const taxRepo = ds.getRepository(TaxConfiguration);
-  const defaultTax = await taxRepo.findOne({ where: { taxName: 'Standard VAT 15%' } });
+  const defaultTax = await taxRepo.findOne({ where: { taxName: 'Standard Ethiopian VAT' } });
   let vat15 = defaultTax;
   if (!defaultTax) {
     vat15 = await taxRepo.save(
       taxRepo.create({
-        taxName: 'Standard VAT 15%',
+        taxName: 'Standard Ethiopian VAT',
         taxRatePct: 15.0,
+        taxType: 'VAT',
+        applicableCustomerType: 'ALL',
+        applicableVehicleType: 'ALL',
+        calculationBase: 'VEHICLE_PRICE',
+        description: 'Standard 15% statutory Ethiopian Value Added Tax (VAT)',
         isActive: true,
       }),
     );
