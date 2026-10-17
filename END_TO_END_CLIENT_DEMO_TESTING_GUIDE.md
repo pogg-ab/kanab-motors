@@ -1,10 +1,10 @@
 # KANAB MOTORS ENTERPRISE SIMS
 ## End-to-End Client Demonstration & UAT Testing Guide
 
-**Last updated:** October 9, 2026  
-**Aligned with:** `WORKFLOW_CHANGES.md`, current backend DTOs, and current UI behavior  
+**Last updated:** October 17, 2026  
+**Aligned with:** `FINAL_CHANGES_KMICAMS.md` (Rounds 1–4 SRS Updates & Jira KMSICAMS-11 Multi-Tax Suite), `WORKFLOW_CHANGES.md`, current backend DTOs, and active UI behavior  
 **Target environment:** Local (`http://localhost:5173`) or deployed Kanab UAT environment  
-**Purpose:** One clean end-to-end script with the flows, required inputs, validation values, and expected results.
+**Purpose:** One comprehensive, client-ready end-to-end testing script detailing exact screens, navigation, test values, validation rules, negative checks, and expected results.
 
 ---
 
@@ -13,8 +13,8 @@
 Use one unique suffix for each full run.
 
 ```text
-RUN_SUFFIX: 20261009-02
-SHORT_SUFFIX: 100902
+RUN_SUFFIX: 20261017-01
+SHORT_SUFFIX: 101701
 ```
 
 Rules:
@@ -24,6 +24,8 @@ Rules:
 - For deployed testing, confirm the latest backend is deployed and restarted, and migrations are applied.
 - For every table screen, test search, at least one status/category filter, refresh, and CSV export if available.
 - For every upload screen, test upload progress, view attached file, and replace file.
+- Verify both **Standard Non-WHT** and **WHT 2% Liable** customer paths to validate withholding tax deduction rules.
+- Test print previews on **Pre-Advance Slip**, **Delivery Voucher (Gate Pass)**, and **Handover Form & Declaration** to verify isolated A4 sheets without page elements or double print triggers.
 
 ---
 
@@ -31,75 +33,161 @@ Rules:
 
 | Persona | Username / Email | Password | Main Scope |
 |---|---|---|---|
-| Admin | `admin` or `admin@kanabmotors.com` | `Admin@123` | Full access, users, permissions, reports, approvals |
-| Finance Manager | `finance` or `finance@kanabmotors.com` | `Finance@123` | Payments, ledger, excess, refunds |
+| Admin / CEO | `admin` or `admin@kanabmotors.com` | `Admin@123` | Full access, governance, CEO installment approval gate, reports, policies |
+| Finance Manager | `finance` or `finance@kanabmotors.com` | `Finance@123` | Payments, BRV confirmation, multi-tax invoicing, WHT hub, credit transfers, excess & refunds |
 | Procurement | `procurement` or `procurement@kanabmotors.com` | `Procure@123` | Suppliers, purchase orders, shipments, landed cost, exchange rates |
-| Inventory Lead | `inventory` or `inventory@kanabmotors.com` | `Inventory@123` | Warehouses, stock, vehicle intake, transfers, adjustments |
-| Sales Manager | `sales` or `sales@kanabmotors.com` | `Sales@123` | Customers, enquiries, bookings, allotments, delivery |
+| Inventory Lead | `inventory` or `inventory@kanabmotors.com` | `Inventory@123` | Warehouses, stock, vehicle intake, PDI station, gate pass dispatch, reports |
+| Sales Manager | `sales` or `sales@kanabmotors.com` | `Sales@123` | Customers, enquiries, pre-advance slips (PAS), 100% advance bookings, allotments, handover |
 
 Expected result: login succeeds, role access is correct, unauthorized modules are hidden or blocked.
 
 ---
 
-## 2. Full Workflow Map
+## 2. Full Workflow Map (Rounds 1–4 Aligned)
 
-1. Governance: users, roles, permissions, audit logs.
-2. Master data: customers, bank accounts, products, vehicles, warehouses.
-3. Procurement: suppliers, dynamic exchange rates, purchase orders.
-4. Shipment and landed cost: shipment creation, documents, stages, cost components, allocation, receiving.
-5. Inventory and warehouse: stock balances, movement history, transfers, adjustments, local assembly, reports.
-6. Sales: enquiries, quotations, bookings.
-7. Payments and ledger: BRV receipt, confirmation, SOA.
-8. Allotment: select live vehicle inventory, post allotment, print advice slip, reverse if needed.
-9. Delivery: invoice, PDI, handover, gate pass.
-10. Settlement: excess deposit routing, refund request, approval, payout.
-11. Dashboards and reports: date filters, search, charts, flip/table views, CSV export.
+1. **Governance & Audit:** Users, roles, permissions, audit logs.
+2. **Master Data & Compliance:** 
+   - Customers & Dealers with **Withholding Tax (WHT) Liable** toggle and bank accounts.
+   - Products & Vehicles with **Color lookups**, **Engine Capacity CC**, **Battery Power kWh**, and **Tax Configuration Hub** (VAT 15%, Excise duty tiers, Commercial WHT 2%).
+   - Warehouses, bank accounts, and supplier registries.
+3. **Procurement & Import:** Suppliers, dynamic exchange rates, purchase orders.
+4. **Shipment & Landed Cost:** Shipment creation, mandatory customs declaration, stages, cost components, zero-drift allocation, receiving with chassis & engine numbers.
+5. **Inventory & Local Assembly:** Stock balances, movement history, transfers, adjustments, local motorcycle assembly intake, 11 inventory reports.
+6. **Sales Pipeline & Advance Mandate:** 
+   - Sales Enquiries & Quotations with automatic **Pre-Advance Slip (`PAS-YYYY-NNNNN`)** generation and 3-day statutory expiry countdown.
+   - **100% Full Current Price Advance Payment Mandate** and conversion from Pre-Advance Slip to Advance Booking.
+7. **Payments, Installment Controls & Ledger:** 
+   - BRV Receipts & Deposits with **Split / Installment Deposit Plan** toggle.
+   - **CEO Installment Approval Gate Modal** required before Finance confirmation for split payment plans.
+   - Customer Ledger & Statement of Account (SOA).
+8. **Vehicle Allotment:** Select live vehicle inventory (`AVAILABLE_FOR_SALE`), post 12-step atomic allotment, print allotment advice slip, reverse if needed.
+9. **Jira KMSICAMS-11 Multi-Tax Invoicing & Settlement:**
+   - Multi-tax calculation engine: Vehicle Subtotal + Excise Duty (5% Three-Wheeler / 10% Motorcycle) + VAT (15%) = Gross Commercial Total.
+   - Commercial Withholding Tax (2%) deduction at source for WHT-liable customers = Net Customer Payable.
+   - Automatic customer deposit allocation to invoice settlement.
+   - Real-time `⚠️ Excess Deposit Identified` detection with credit reserve.
+   - Statutory tax overrides with mandatory audit justification.
+   - **Non-Cash Withholding Tax (WHT) Tracking Hub** (`WHT_SETTLEMENT`).
+10. **Delivery, Inspection & Dual Documentation:**
+    - PDI station inspection (7/7 critical checks verified).
+    - Delivery clearance and **Dual-Document Pack Dialog**:
+      - **Document 1: Delivery Voucher (Gate Pass)** with dual clearance signatures (*Security Officer* & *Storekeeper*).
+      - **Document 2: Handover Form & Declaration** with 6-item Handover Pack checklist, Customer Statutory Handover Declaration, and customer acceptance signature.
+11. **Excess Funds, Credit Transfers & Refunds:**
+    - **Two-Sided Atomic Customer Credit Transfer** (balancing debit/credit ledger posting with concurrency safety).
+    - Excess deposit routing (`CUSTOMER_CREDIT`, `BOOKING_TRANSFER`, `REFUNDABLE`).
+    - 4-Tier statutory refund approval ladder and payout confirmation.
+12. **Dashboards & Intelligence Reports:** Date filters, search, charts, flip/table views, CSV export.
 
 ---
 
 ## 3. Reusable Test Data
 
-### Customer
+### Customer 1: WHT-Liable Commercial Client (Abyssinia Logistics PLC)
 
 | Field | Value |
 |---|---|
 | Customer Type | `DEALER` |
-| Full Name | `KANAB Fresh UAT Dealer 20261009-02` |
-| Mobile Number | `+251911100902` |
-| TIN Number | `TIN100902` or any unique 10-digit TIN accepted by the UI |
+| Full Name / Business Name | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
+| Mobile Number | `+251911101701` |
+| TIN Number | `TIN101701` or unique 10-digit TIN |
 | Region | `Addis Ababa` |
 | Address / Town | `Bole Subcity, Addis Ababa` |
+| **Withholding Tax (WHT) Liable** | **`Yes` (Toggle ON — displays `WHT 2% Liable` badge)** |
 | Bank Name | `Commercial Bank of Ethiopia` |
-| Account Number | `100010090201` |
-| Account Holder | `KANAB Fresh UAT Dealer 20261009-02` |
+| Account Number | `100010170101` |
+| Account Holder | `Abyssinia Logistics PLC` |
 | Branch | `Bole Branch` |
 | Primary Account | `Yes` |
 
-### Product / Vehicle Model
+### Customer 2: Standard Retail Client (Dawit Haile)
 
 | Field | Value |
 |---|---|
-| Item Code | `UAT-HILUX-100902` |
+| Customer Type | `DIRECT_POS` |
+| Full Name | `Dawit Haile [TEST-NOWHT-101701]` |
+| Mobile Number | `+251922101701` |
+| TIN Number | `TIN101702` or unique 10-digit TIN |
+| Region | `Sidama` |
+| Address / Town | `Hawassa City` |
+| **Withholding Tax (WHT) Liable** | **`No` (Toggle OFF — Standard Non-WHT)** |
+| Bank Name | `Awash Bank` |
+| Account Number | `200010170102` |
+| Account Holder | `Dawit Haile` |
+| Branch | `Hawassa Main Branch` |
+| Primary Account | `Yes` |
+
+### Product / Vehicle Model (Imported Vehicle)
+
+| Field | Value |
+|---|---|
+| Item Code | `UAT-HILUX-101701` |
 | Item Name | `Toyota Hilux Double Cab 4x4 Fresh UAT` |
 | Category | `IMPORTED_VEHICLE` |
 | Brand | `Toyota` |
 | Model | `Hilux Double Cab 4x4` |
-| UOM | `UNIT` |
-| Selling Price | `212750` |
+| Unit of Measure | `UNIT` |
+| Selling Price | `212,750.00 ETB` |
+| **Colour** | `Silver Metallic` (from lookup) |
+| **Engine Capacity CC** | `2400cc` |
+| **Vehicle Usage Type** | `COMMERCIAL` |
 | Reorder Level | `0` |
 | Weight Kg | `1850` |
-| Individually Tracked | `Yes` for vehicles |
+| Individually Tracked | `Yes` |
 | Active | `Yes` |
+
+### Product / Vehicle Model (Locally Assembled / Three-Wheeler)
+
+| Field | Value |
+|---|---|
+| Item Code | `UAT-BAJAJ-101701` |
+| Item Name | `Kanab Passenger Three-Wheeler 200cc UAT` |
+| Category | `LOCAL_ASSEMBLY` |
+| Brand | `Kanab Motors` |
+| Model | `KM-TukTuk-200` |
+| Unit of Measure | `UNIT` |
+| Selling Price | `350,000.00 ETB` |
+| **Colour** | `White` (or custom lookup) |
+| **Engine Capacity CC** | `200cc` |
+| **Vehicle Usage Type** | `PASSENGER` |
+| Individually Tracked | `Yes` |
+| Active | `Yes` |
+
+### Product / Vehicle Model (Electric Vehicle / EV)
+
+| Field | Value |
+|---|---|
+| Item Code | `UAT-EV-101701` |
+| Item Name | `Kanab Eco-Volt Electric Scooter UAT` |
+| Category | `LOCAL_ASSEMBLY` |
+| Brand | `Kanab Eco` |
+| Model | `Volt-1` |
+| Unit of Measure | `UNIT` |
+| Selling Price | `180,000.00 ETB` |
+| **Colour** | `Matte Black` |
+| **Battery Power kWh** | `4.8 kWh` |
+| **Vehicle Usage Type** | `COMMERCIAL` |
+| Active | `Yes` |
+
+### Tax Rates Configuration Hub
+
+| Tax Name | Tax Type | Rate (%) | Applicable Customer | Applicable Vehicle |
+|---|---|---:|---|---|
+| Standard Ethiopian VAT | `VAT` | `15.00%` | `ALL` | `ALL` |
+| Standard Commercial WHT | `WHT` | `2.00%` | `ALL` (deducted if customer is WHT-liable) | `ALL` |
+| Automotive Excise Duty (Three-Wheeler) | `EXCISE` | `5.00%` | `ALL` | `THREE_WHEELER` |
+| Automotive Excise Duty (Motorcycle) | `EXCISE` | `10.00%` | `ALL` | `MOTORCYCLE` |
+| Zero-Rated Tax Tier | `VAT` | `0.00%` | Special Exemptions | `ALL` |
 
 ### Supplier
 
 | Field | Value |
 |---|---|
-| Supplier Name | `Fresh UAT Toyota Export Supplier 20261009-02` |
+| Supplier Name | `Fresh UAT Toyota Export Supplier 101701` |
 | Country / Region | `Japan` |
 | Contact Person | `Fresh UAT Import Contact` |
-| Phone | `+8190100902` |
-| Email | `supplier2026100902@example.com` |
+| Phone | `+8190101701` |
+| Email | `supplier101701@example.com` |
 | Address | `Nagoya Export Hub, Japan` |
 | Status | `Active` |
 
@@ -192,61 +280,111 @@ Expected result: logs show timestamp, user, entity, action, before/after values 
 
 ## Screen 3: Customers & Dealers
 
-**Navigation:** `Core Masters → Customers & Dealers`
+**Navigation:** `Core Masters → Customers & Dealers` (or left menu `Customers`)
 
 | Field | Required | Test value |
 |---|---:|---|
-| Customer Type | Yes | `DEALER` |
-| Full Name / Organization | Yes | `KANAB Fresh UAT Dealer 20261009-02` |
-| Mobile Number | Yes | `+251911100902` |
-| TIN Number | Required for `DEALER` and `GOVERNMENT` | `TIN100902` or accepted unique 10-digit TIN |
+| Customer Type | Yes | `DEALER` (for commercial) or `DIRECT_POS` (for retail) |
+| Full Name / Organization | Yes | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
+| Mobile Number | Yes | `+251911101701` |
+| TIN Number | Required for `DEALER` and `GOVERNMENT` | `TIN101701` or accepted unique 10-digit TIN |
 | Region | Optional | `Addis Ababa` |
 | Address / Town | Optional | `Bole Subcity, Addis Ababa` |
+| **Withholding Tax (WHT) Liable** | **Optional (Boolean Toggle)** | **Toggle ON for Commercial / Corporate; OFF for Retail** |
 | Bank Name | Optional but needed for refunds | `Commercial Bank of Ethiopia` |
-| Account Number | Optional but needed for refunds | `100010090201` |
-| Account Holder Name | Optional but needed for refunds | `KANAB Fresh UAT Dealer 20261009-02` |
+| Account Number | Optional but needed for refunds | `100010170101` |
+| Account Holder Name | Optional but needed for refunds | `Abyssinia Logistics PLC` |
 | Branch | Optional | `Bole Branch` |
 | Primary Account | Optional | `Yes` |
 
-Expected result:
+### Specific Test Cases for Screen 3:
 
-- Customer is created with a customer code.
-- Bank account appears under customer profile.
-- Financial cards start at zero for deposits, allocated, outstanding, credit, unallocated excess, and refundable balance.
+1. **Test Case 3.1: Register WHT-Liable Customer (Story 1.1)**
+   - Click **+ New Customer**.
+   - Fill in `Abyssinia Logistics PLC [TEST-WHT-101701]`, TIN `TIN101701`.
+   - Locate the **Withholding Tax (WHT) Liable** toggle card:
+     - Subtitle reads: *"Customer holds legal exemption or is designated to deduct/pay Withholding Tax (2% commercial WHT rules)"*.
+     - Toggle switch **ON**.
+   - Click **Save Customer**.
+   - **Expected Result:** Table refreshes displaying `Abyssinia Logistics PLC`. Under the **Tax / Financial Profile** column, verify the distinct badge: **`WHT 2% Liable`**.
+
+2. **Test Case 3.2: Register Standard Non-WHT Customer**
+   - Click **+ New Customer**.
+   - Fill in `Dawit Haile [TEST-NOWHT-101701]`. Leave the WHT toggle **OFF** (default).
+   - Click **Save Customer**.
+   - **Expected Result:** Table displays customer with **`Standard (Non-WHT)`** profile badge.
+
+3. **Test Case 3.3: Edit Customer WHT Status & Profile Drawer Verification**
+   - Click the **Edit** icon on `Dawit Haile`, toggle WHT **ON**, save, and verify badge updates to **`WHT 2% Liable`**.
+   - Click the **View Profile** (eye icon) on `Abyssinia Logistics PLC`:
+     - In the slide-over profile drawer, locate **Financial & Tax Compliance**.
+     - Verify **Withholding Tax Status** displays **`WHT Liable (Deductible)`**.
+     - Financial summary cards start at `0.00 ETB` for Total Deposits, Allocated, Outstanding, Credit, and Refundable.
 
 Negative checks:
-
 - Duplicate mobile number is rejected.
 - Duplicate TIN is rejected.
 - Dealer/Government without TIN is blocked.
 
-## Screen 4: Product Master Data
+---
 
-**Navigation:** `Product Master Data`
+## Screen 4: Product Master Data & Tax Configuration Hub
+
+**Navigation:** `Core Masters → Product Master Data` (or left menu `Products & Catalog`)
+
+### Product Item Specifications
 
 | Field | Required | Test value |
 |---|---:|---|
-| Item Code | Yes | `UAT-HILUX-100902` |
+| Item Code | Yes | `UAT-HILUX-101701` |
 | Item Name | Yes | `Toyota Hilux Double Cab 4x4 Fresh UAT` |
-| Category | Yes | `IMPORTED_VEHICLE` |
-| Brand | Optional | `Toyota` |
+| Category | Yes | `IMPORTED_VEHICLE` (or `LOCAL_ASSEMBLY`) |
+| Brand | Optional | `Toyota` (or `Kanab Motors`) |
 | Model | Optional | `Hilux Double Cab 4x4` |
-| Unit of Measure | Yes | `UNIT` |
-| Selling Price | Yes | `212750` |
-| Tax Config | Optional | `Standard VAT 15%` |
+| Unit of Measure | Yes | `UNIT` (from lookup `/api/lookups/uoms`) |
+| Selling Price | Yes | `212,750.00 ETB` |
+| **Colour** | Optional | Select `Silver Metallic` from dropdown (linked to `vehicle_color` lookups or add custom color) |
+| **Engine Capacity CC** | Optional | `2400cc` (for fuel vehicles, e.g. `150cc`, `200cc`) |
+| **Battery Power kWh** | Optional | `4.8 kWh` (for electric vehicles; leave blank for ICE) |
+| **Vehicle Usage Type** | Optional | `COMMERCIAL`, `PASSENGER`, or `CARGO` |
 | Reorder Level | Optional | `0` |
-| Weight Kg | Optional, needed for weight allocation | `1850` |
-| Active | Optional | `Yes` |
+| Weight Kg | Optional | `1850` (needed for weight allocation) |
+| Individually Tracked | Yes | Checkbox checked (for vehicle VIN tracking) |
+| Active | Yes | `Yes` |
 
 Expected result:
-
 - Product appears in product lists, PO item dropdowns, booking dropdowns, and inventory screens.
-- Weight is available for landed-cost `BY_WEIGHT` allocation tests.
+- Vehicle attributes (`Colour`, `CC`, `kWh`, `Usage`) are displayed in product cards and inventory details.
 
 Negative checks:
-
 - Duplicate item code is rejected.
 - Selling price less than or equal to zero is rejected.
+
+---
+
+### Tax Configuration Hub (Story 2.3)
+
+**Navigation:** Top action bar in Products or Invoices: **`Tax Configuration`** (or `Manage Taxes`)
+
+1. **Verify Default Active Tax Rules:**
+   - `Standard Ethiopian VAT` → Type: **`VAT`** (15.00%) · Customer: `ALL` · Vehicle: `ALL`
+   - `Standard Commercial WHT` → Type: **`WHT`** (2.00%) · Customer: `ALL` · Vehicle: `ALL`
+   - `Automotive Excise Duty (Three-Wheeler)` → Type: **`EXCISE`** (5.00%) · Vehicle: `THREE_WHEELER`
+   - `Automotive Excise Duty (Motorcycle)` → Type: **`EXCISE`** (10.00%) · Vehicle: `MOTORCYCLE`
+   - `Zero-Rated Tax Tier` → Type: **`VAT`** (0.00%)
+
+2. **Test Custom Tax Rule Creation:**
+   - In the modal, fill in:
+     - Tax Name: `Electric Vehicle Green Incentive VAT`
+     - Tax Type: `VAT`
+     - Rate (%): `5.00`
+     - Applicable Customer: `ALL`
+     - Applicable Vehicle: `ELECTRIC_VEHICLE`
+     - Description: `Subsidized VAT for green transport initiatives & electric fleet operators`
+   - Click **Save Tax Rule**.
+   - Verify new tier is saved and active.
+
+---
 
 ## Screen 5: Vehicle Units & Chassis
 
@@ -613,58 +751,76 @@ Expected result:
 
 # PHASE 5 — Sales Pipeline
 
-## Screen 15: Sales Enquiries & Quotes
+# PHASE 5 — Sales Pipeline & Advance Mandate
 
-**Navigation:** `Sales Enquiries & Quotes`
+## Screen 15: Sales Enquiries, Quotes & Pre-Advance Slips (Stories E16–E18)
+
+**Navigation:** `Sales Enquiries & Quotes` (or left menu `Sales Pipeline → Enquiries`)
 
 | Field | Required | Test value |
 |---|---:|---|
-| Customer | Yes | `KANAB Fresh UAT Dealer 20261009-02` |
-| Product / Model | Yes | Product from this run or available sales product |
+| Customer | Yes | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
+| Product / Model | Yes | `Toyota Hilux Double Cab 4x4 Fresh UAT` (or Bajaj Three-Wheeler) |
 | Quantity | Yes | `1` |
-| Unit Price | Optional | `212750` |
+| Unit Price | Optional | `212,750.00 ETB` |
 | Salesperson Name | Yes | `Demo Salesperson` |
 | Payment Mode | Optional | `BANK_DEPOSIT` |
 
-Expected result:
+### Workflow & Pre-Advance Slip Generation (PAS-YYYY-NNNNN):
 
-- Enquiry is created.
-- Quote value includes price and VAT where applicable.
-- Status can move to approved/converted according to UI.
-- Enquiry appears in reports.
+1. **Submit & Approve Enquiry:**
+   - Create enquiry and click **Approve Enquiry**.
+   - Upon approval, the system automatically provisions an official **Pre-Advance Slip** with sequence `PAS-YYYY-NNNNN` (e.g. `PAS-2026-00001`).
+2. **Review & Print Pre-Advance Slip:**
+   - In the enquiry action column, click the **`Pre-Advance Slip`** button (printer icon).
+   - Observe the Pre-Advance Slip modal:
+     - **Slip Reference:** Displays sequential number `PAS-YYYY-NNNNN`.
+     - **Statutory Expiry Banner:** Displays high-visibility amber/emerald countdown banner:  
+       `⏳ Valid for 3 Calendar Days (Expires in 72 Hours: [Date/Time 3 days out])`
+     - **100% Full Gross Advance Mandate (Story B4):** Required deposit is calculated as **100% of Current Vehicle Price** (`212,750.00 ETB` + VAT = `244,662.50 ETB`).
+     - **Bank Deposit Instructions:** Commercial Bank of Ethiopia (Account: `100010170101`).
+   - Click **`Print Pre-Advance Slip`**:
+     - Verify print isolation: Only the official A4 slip renders in print preview; web navigation, buttons, and backgrounds are hidden.
+     - Verify no unwanted page duplicate or secondary dialog.
 
-Negative checks: quantity less than 1, missing customer, or missing item is blocked.
+Negative checks:
+- Quantity less than 1, missing customer, or missing item is blocked.
+- Expired Pre-Advance Slip (>72 hours without payment) triggers expiry warning during booking conversion.
 
-## Screen 16: Advance Bookings
+---
 
-**Navigation:** `Advance Bookings`
+## Screen 16: Advance Bookings & 100% Advance Mandate (Stories B3 & B4)
+
+**Navigation:** `Sales Pipeline → Advance Bookings`
 
 | Field | Required | Test value |
 |---|---:|---|
-| Customer | Yes | `KANAB Fresh UAT Dealer 20261009-02` |
-| Product / Model | Yes | Same model used for enquiry |
-| Enquiry | Optional | Select approved enquiry if using conversion path |
+| Customer | Yes | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
+| **Originating Pre-Advance Slip** | **Optional (Recommended)** | **Select `PAS-2026-00001 — Abyssinia Logistics PLC — Hilux 4x4 — 244,662.50 ETB`** |
+| Product / Model | Yes | `Toyota Hilux Double Cab 4x4 Fresh UAT` (auto-filled by slip) |
 | Quantity | Yes | `1` |
-| Unit Price | Optional | `212750` |
-| Required Advance Amount | Optional | `75000` |
+| Unit Price | Yes | `212,750.00 ETB` |
+| **Required Advance Amount** | **System Mandated (100%)** | **`244,662.50 ETB` (Enforces 100% Full Current Price Mandate)** |
 | Salesperson Name | Yes | `Demo Salesperson` |
-| Target Delivery Date | Optional | Future date |
+| Target Delivery Date | Optional | Future date (e.g. 14 days out) |
 
-Expected result:
+### Key Booking Validation Rules:
 
-- Booking is created.
-- Booking status reflects payment state.
-- Booking appears in eligible queues after payment threshold is met.
+1. **Pre-Advance Slip Conversion:**
+   - Selecting an approved `Originating Pre-Advance Slip` locks in customer and product specifications and auto-sets the required advance amount to 100% of vehicle gross value.
+   - Saving booking marks originating slip as `CONVERTED`.
+2. **100% Advance Payment Mandate:**
+   - The default statutory rule requires 100% full advance payment for booking confirmation.
+   - If a user attempts to manually enter a partial advance (e.g. `50,000 ETB`) without selecting an approved installment plan, the system alerts:  
+     `⚠️ Advance booking requires 100% of current vehicle gross price unless Split / Installment Deposit Plan is authorized.`
 
-Deposit transfer inputs:
+Deposit transfer inputs (Existing Booking to Booking):
 
 | Field | Required | Test value |
 |---|---:|---|
 | Source Booking | Yes | Booking with excess/available amount |
 | Target Booking | Yes | Another active booking |
-| Amount | Yes | `10000` |
-
-Expected result: ledger and audit trail show the transfer.
+| Amount | Yes | `10,000.00 ETB` |
 
 Cancel booking inputs:
 
@@ -677,51 +833,78 @@ Expected result: booking cancels and excess/refundable/customer credit updates a
 
 ---
 
-# PHASE 6 — Payments and Ledger
+# PHASE 6 — Payments, Installment Controls & Ledger
 
-## Screen 17: BRV Receipts & Deposits
+## Screen 17: BRV Receipts, Deposits & CEO Installment Gate (Story P14)
 
-**Navigation:** `BRV Receipts & Deposits`
+**Navigation:** `Finance & Accounts → BRV Receipts & Deposits` (or left menu `Payments`)
 
 | Field | Required | Test value |
 |---|---:|---|
-| Customer | Required if not linked to booking | `KANAB Fresh UAT Dealer 20261009-02` |
-| Booking | Optional recommended | Booking from this run |
+| Customer | Required if not linked to booking | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
+| Booking | Recommended | Select active booking from Screen 16 |
 | Instrument Type | Yes | `BANK_DEPOSIT` |
 | Bank Name | Yes | `Commercial Bank of Ethiopia` |
-| Amount | Yes | `100000` |
-| Reference Number | Yes | `BRV-E2E-100902` |
+| Amount | Yes | `244,662.50 ETB` (or split installment amount `120,000.00 ETB`) |
+| Reference Number | Yes | `BRV-E2E-101701` |
 | Reference Date | Optional | Current date |
-| Notes | Optional | `Fresh UAT advance deposit` |
+| **Split / Installment Deposit Plan** | **Conditional Toggle** | **Toggle ON if customer is paying in partial tranches** |
+| Notes | Optional | `Fresh UAT advance deposit payment 101701` |
 
-Confirmation:
+### CEO Installment Approval Gate Workflow (Story P14):
 
-- Confirm payment as Finance Manager/Admin.
-- Optional rejection branch reason: `Invalid bank reference for negative test`.
+1. **When Full 100% Payment is Received:**
+   - Toggle `Split / Installment Deposit Plan` is **OFF**.
+   - Payment status is `PENDING`.
+   - Finance Manager clicks **Confirm Payment**.
+   - Payment status transitions immediately to `CONFIRMED`.
+   - Booking `paid_amount` increments to 100%, unlocking vehicle allotment eligibility.
 
-Expected result:
+2. **When Split / Installment Deposit is Selected:**
+   - Toggle **`Split / Installment Deposit Plan` ON**.
+   - System displays warning banner:  
+     `🔒 Split Installment Deposit Plan Detected: CEO Approval Gate required before Finance can confirm payment.`
+   - In the payment action column, observe the button: **`Review Installment (CEO Approval Gate)`**.
+   - Finance Manager attempts to click **Confirm Payment**:
+     - **Negative Check:** Confirmation is blocked with message: *"CEO approval required for installment deposit plan before confirmation."*
+   - Log in as **Admin / CEO** (or open gate modal):
+     - Click **`Review Installment (CEO Approval Gate)`**.
+     - Review Customer Name, Booking ID, Proposed Deposit Amount, and Remaining Balance.
+     - Select Decision: **`APPROVE`**.
+     - Enter Mandatory Justification: *"Approved by CEO: 50% advance received, balance guaranteed prior to PDI clearance."*
+     - Click **Submit CEO Decision**.
+   - Now, Finance Manager can click **Confirm Payment**:
+     - Payment confirms successfully.
+     - Audit log records CEO approval details, timestamp, and approver identity.
 
-- Payment records as pending then confirmed.
-- Customer ledger credits customer/booking.
-- Booking paid amount and allotment eligibility update.
-- Duplicate reference is blocked.
+---
 
-## Screen 18: Customer Ledger & SOA
+## Screen 18: Customer Ledger & Statement of Account (SOA)
 
-**Navigation:** `Customer Ledger & SOA`
+**Navigation:** `Finance & Accounts → Customer Ledger & SOA`
 
 | Field | Test value |
 |---|---|
-| Customer | `KANAB Fresh UAT Dealer 20261009-02` |
+| Customer | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
 | Date Range | Current test month |
-| Export | CSV/PDF if available |
+| Export | CSV / PDF |
+
+### Verification of Transaction Types:
+
+Verify that the ledger displays chronological entries with proper debit/credit balance tracking:
+
+| Transaction Type | Nature | Description |
+|---|---|---|
+| `PAYMENT_DEPOSIT` | **Credit** | Bank deposit confirmed from Screen 17 (`BRV-E2E-101701`) |
+| `INVOICE_CHARGE` | **Debit** | Generated when Sales Invoice is finalized (Screen 20) |
+| `CREDIT_TRANSFER` | **Debit / Credit** | Atomic two-sided transfer between customers (Screen 22) |
+| `WHT_SETTLEMENT` | **Credit** | Non-cash settlement credit recorded via WHT Hub (Screen 20) |
+| `REFUND_PAYOUT` | **Debit** | Payout of excess funds back to customer bank account (Screen 22) |
 
 Expected result:
-
-- Payment credit appears.
-- Booking allocation appears.
-- Balance, outstanding, excess, and refundable values are correct.
-- Statement export works.
+- Ledger reflects exact running balance.
+- Summary cards (Total Deposits, Total Invoiced, Outstanding, Unallocated Excess, Available Credit) calculate accurately without rounding drift.
+- Statement PDF / CSV download contains complete audit trails.
 
 ---
 # PHASE 7 — Vehicle Allotment, Invoice, Delivery
@@ -770,110 +953,189 @@ Reason: Customer requested model change during E2E test
 
 Expected result: vehicle status returns according to allowed transition, audit/movement history records reversal, and posted history is not deleted.
 
-## Screen 20: Sales Invoices & VAT
+## Screen 20: Sales Invoices & Multi-Tax Settlement Suite (Jira KMSICAMS-11)
 
-**Navigation:** `Sales Invoices & VAT`
+**Navigation:** `Finance & Accounts → Sales Invoices & VAT` (or left menu `Invoices`)
 
-| Field | Required | Test value |
-|---|---:|---|
-| Booking | Yes | Fully/partially allotted booking from this run |
-| Vehicle / Allotment | Yes | Selected allotted vehicle |
-| Invoice Date | Optional | Current date |
-| VAT | System-calculated | 15% if standard VAT product |
-| Notes | Optional | `Fresh UAT invoice test 20261009-02` |
+### Multi-Tax Calculation & Settlement Engine:
 
-Expected result:
+1. **Create Invoice for Allotted Vehicle:**
+   - Click **+ New Sales Invoice**.
+   - Select Customer: `Abyssinia Logistics PLC [TEST-WHT-101701]` (WHT-liable client) or `Dawit Haile [TEST-NOWHT-101701]`.
+   - Select Booking / Allotted Vehicle: Choose the allotted vehicle from Screen 19 (`UAT-HILUX-101701` or Bajaj Three-Wheeler).
 
-- Invoice is created with invoice number.
-- VAT and totals are correct.
-- Ledger reflects invoice debit.
-- Invoice can be approved if approval flow is enabled.
+2. **Live Multi-Tax Formula Breakdown:**
+   Observe the automated tax engine calculating in real time:
 
-## Screen 21: PDI, Delivery & Gate Pass
+   | Line Item / Tax Tier | Calculation Rule | Example Hilux (ETB) | Example Three-Wheeler (ETB) |
+   |---|---|---:|---:|
+   | **Vehicle Subtotal** | Base List Price × Quantity | `212,750.00` | `350,000.00` |
+   | **Automotive Excise Duty** | 0% ICE / 5% Three-Wheeler / 10% Motorcycle | `0.00` | `17,500.00` (5%) |
+   | **Value Added Tax (VAT)** | 15% on `(Subtotal + Excise)` | `31,912.50` | `55,125.00` (15%) |
+   | **Gross Commercial Total** | `Subtotal + Excise + VAT` | **`244,662.50`** | **`422,625.00`** |
+   | **Withholding Tax (WHT 2%)** | 2% on Subtotal (if Customer is WHT Liable) | `-4,255.00` | `-7,000.00` |
+   | **Net Customer Payable** | **`Gross Commercial Total - Commercial WHT`** | **`240,407.50`** | **`415,625.00`** |
 
-**Navigation:** `PDI Station & Gate Pass Dispatch` / `Deliveries & Handover`
+3. **Deposit Settlement & Excess Allocation:**
+   - Check the box: **`☑ Automatically allocate available customer deposits to invoice settlement`**.
+   - System calculates applied deposit vs Net Customer Payable:
+     - If deposit matches or exceeds Net Customer Payable, invoice settlement status displays `PAID / SETTLED`.
+     - **Story IV6 Excess Alert:** If deposit > Net Customer Payable, system displays:  
+       `⚠️ Excess Deposit Identified: Remaining funds of [ETB Amount] are preserved in customer account and available for credit transfer or refund.`
 
-PDI inputs:
+4. **Tax Overrides & Statutory Audit Justification (Story IV11):**
+   - If an exemption applies (e.g. Diplomatic or Government Zero-VAT), user toggles Tax Override.
+   - **Validation Rule:** System mandates entering a **Statutory Exemption Reason & Legal Reference Number**. Leaving justification blank blocks invoice creation.
 
-| Field | Required | Test value |
-|---|---:|---|
-| Vehicle Unit | Yes | Allotted vehicle from this run |
-| Checklist Items | Yes | Mark all critical checks `Passed` |
-| Notes | Optional | `Verified during E2E test` |
+5. **Invoice Finalization & Lifecycle Transitions:**
+   - Click **Finalize & Issue Sales Invoice**.
+   - **Expected Status Updates:**
+     - Invoice status becomes `FINALIZED` / `ISSUED`.
+     - Vehicle status transitions to `SOLD`.
+     - Booking status transitions to `SETTLED`.
+     - Customer ledger posts idempotent `INVOICE_CHARGE` debit.
 
-Delivery inputs:
-
-| Field | Required | Test value |
-|---|---:|---|
-| Booking | Yes | Booking from this run |
-| Vehicle Unit | Yes | PDI-passed vehicle |
-| Delivery Date | Optional | Current date |
-| Responsible Employee | Optional | Admin/current user |
-| Customer Acknowledged | Required for handover | `Yes` |
-| Financial Settlement Validated | Required for delivery | `Yes` |
-
-Expected result:
-
-- PDI saves and can be reviewed.
-- Delivery handover is created only after settlement/PDI rules are met.
-- Vehicle status moves to ready/sold/delivered according to configured flow.
-- Gate pass document is generated or shown.
-- Reports show delivered unit.
-
-Negative checks:
-
-- Delivery without PDI is blocked.
-- Delivery without financial settlement validation is blocked.
+6. **Withholding Tax (WHT) Tracking Hub (Story IV14):**
+   - Click the sub-tab: **Withholding Tax (WHT) Tracking Hub**.
+   - Click **Record WHT Certificate**:
+     - Select Invoice / Customer: `Abyssinia Logistics PLC`.
+     - Withholding Amount: `4,255.00 ETB` (2% Commercial WHT).
+     - Enter Certificate Number: `WHT-CERT-2026-101701`.
+     - Issue Date: Current date.
+     - Tax Authority Office: `ERCA / Ministry of Revenue Large Taxpayers Office`.
+     - Upload scanned copy of physical WHT certificate.
+   - Click **Submit WHT Settlement**:
+     - System posts atomic non-cash `WHT_SETTLEMENT` credit to customer ledger.
+     - Status is set to `PENDING_VERIFICATION` until verified by Finance Lead.
 
 ---
 
-# PHASE 8 — Excess Funds, Refunds, Documents, Approvals
+## Screen 21: PDI, Delivery & Dual Delivery Documents (Story DL5)
 
-## Screen 22: Excess Funds & Refund Management
+**Navigation:** `Vehicle Fleet & Inventory → PDI Station & Gate Pass Dispatch` (or `Deliveries & Handover`)
 
-**Navigation:** `Excess & Refund Payouts`
+### 1. Pre-Delivery Inspection (PDI) Station:
+- Locate the vehicle unit in PDI Queue.
+- Complete the 7-Point PDI Quality Inspection:
+  1. Engine oil, coolant & fluid levels checked
+  2. Battery voltage & terminal security verified
+  3. Brake fluid & braking response tested
+  4. Tire pressure & torque on wheel nuts checked
+  5. Lights, indicators, horn & electrical accessories functional
+  6. Paint finish, bodywork & chassis inspection clear
+  7. Road safety test completed
+- Mark all items **`Passed`** and click **Submit PDI Inspection**.
+- **Expected Result:** Vehicle status advances to `PDI_PASSED` / `READY_FOR_DELIVERY`.
 
-Create or use a payment amount greater than booking/invoice requirement.
+### 2. Delivery Clearance & Dual-Document Pack Dialog:
+- Click **Initiate Delivery Handover**.
+- Validate Financial Settlement clearance: System confirms full settlement or authorized credit.
+- Click **Confirm Delivery & Generate Documents**.
+- In the Delivery Actions column, click **`Gate Pass / Release Documents`**.
+- The **Dual-Document Pack Dialog** opens with two dedicated document tabs:
 
-Example:
+#### 📄 Tab 1: Delivery Voucher (Gate Pass)
+- **Header:** Kanab Motors Delivery Voucher & Gate Pass Dispatch Authorization.
+- **Vehicle & Customer Specifications:**
+  - Customer Full Name & Code: `Abyssinia Logistics PLC [TEST-WHT-101701]`
+  - Vehicle Model & Color: `Toyota Hilux Double Cab 4x4` / `Silver Metallic`
+  - Chassis / VIN Number: `KANAB-2026-CHAS-E2E-101701`
+  - Engine Number: `KANAB-2026-ENG-E2E-101701`
+  - PDI Quality Inspection: `PASSED (7/7 Checks Verified)`
+  - Financial Clearance: `SETTLED & VERIFIED BY FINANCE`
+- **Dual Clearance Signatures:**
+  - Signature block 1: *Security Officer / Dispatch Gate Guard*
+  - Signature block 2: *Storekeeper / Warehouse Lead*
+- **Action Button:** Click **`Print Delivery Voucher`**:
+  - Verify clean isolated A4 print preview; sidebars, header navigation, and modal backdrops are excluded.
 
-```text
-Payment amount: ETB 300,000
-Booking required/allocated amount: ETB 212,750
-Expected excess: ETB 87,250
-```
+#### 📋 Tab 2: Handover Form & Declaration (Handover Pack)
+- **Official 6-Item Handover Pack Checklist:**
+  1. ☑ Ignition Key & Spare Key Set
+  2. ☑ Manufacturer Owner's Manual & Service Warranty Booklet
+  3. ☑ Standard Tool Kit & Jack
+  4. ☑ Spare Wheel / Tire
+  5. ☑ Customs Clearance / Sales Invoice Copy
+  6. ☑ Temporary Plate / Transit Permit
+- **Customer Statutory Handover Declaration:**
+  - Standard statutory legal text: *"I hereby acknowledge receipt of the vehicle described above in good condition, complete with all accompanying accessories, tools, and statutory documentation."*
+- **Acceptance Signatures:**
+  - Customer Acceptance Signature block (Customer / Authorized Rep).
+  - Kanab Motors Handover Officer Signature block.
+- **Action Button:** Click **`Print Handover Form`**:
+  - Verify clean isolated A4 print preview with all 6 checklist items and declaration.
 
-Excess routing inputs:
+Negative checks:
+- Delivery handover without completed PDI (7/7 passed) is blocked.
+- Delivery dispatch without financial settlement clearance is blocked.
+
+---
+
+# PHASE 8 — Excess Funds, Refunds & Customer Credit Transfer
+
+## Screen 22: Excess Funds, Credit Transfer & Refunds (Stories X9 & X10)
+
+**Navigation:** `Finance & Accounts → Excess & Refund Payouts` (or left menu `Excess & Refunds`)
+
+### 1. Two-Sided Atomic Customer Credit Transfer (Stories X9 & X10):
+
+Test the transfer of available customer credit from one customer to another:
 
 | Field | Required | Test value |
 |---|---:|---|
-| Customer | Yes | `KANAB Fresh UAT Dealer 20261009-02` |
-| Excess Source | Yes | Confirmed BRV/payment from this run |
+| **Source Customer** | Yes | `Abyssinia Logistics PLC [TEST-WHT-101701]` (has excess/credit balance) |
+| **Destination Customer** | Yes | Select `Dawit Haile [TEST-NOWHT-101701]` from dropdown |
+| **Transfer Amount** | Yes | `15,000.00 ETB` |
+| **Destination Booking ID** | Optional | Select active booking for Dawit Haile |
+| **Transfer Reason / Notes** | Yes | `Authorized commercial credit re-allocation test 101701` |
+
+**Execution Steps & Live Atomic Ledger Preview:**
+1. In the **Customer Balances Table**, locate `Abyssinia Logistics PLC`.
+2. Click the action button: **`Transfer Credit`**.
+3. In the transfer modal, select `Dawit Haile` as recipient and enter `15000`.
+4. Observe the **Live Two-Sided Atomic Ledger Preview**:
+   - Source Customer: `DEBIT 15,000.00 ETB — Credit Transfer Out to Dawit Haile`
+   - Destination Customer: `CREDIT 15,000.00 ETB — Credit Transfer In from Abyssinia Logistics PLC`
+5. Click **`Confirm & Post Credit Transfer`**:
+   - **Expected Result:**
+     - Both ledger entries commit inside a single atomic database transaction with pessimistic row-locking (`FOR UPDATE`).
+     - Source customer available credit decreases by `15,000.00 ETB`.
+     - Destination customer available credit increases by `15,000.00 ETB`.
+     - Transaction audit record created under entity `CREDIT_TRANSFER`.
+
+---
+
+### 2. Excess Deposit Routing:
+
+Route remaining unallocated deposit funds:
+
+| Field | Required | Test value |
+|---|---:|---|
+| Customer | Yes | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
+| Excess Source | Yes | Confirmed BRV / Payment reference |
 | Route Type | Yes | `CUSTOMER_CREDIT`, `BOOKING_TRANSFER`, or `REFUNDABLE` |
-| Amount | Yes | `10000` or available excess |
-| Target Booking | Required for booking transfer | Target booking if used |
-| Notes | Optional | `E2E excess routing test` |
+| Amount | Yes | `10,000.00 ETB` |
+| Notes | Optional | `E2E excess routing test 101701` |
 
-Expected result:
+Expected result: Excess balance decreases and routed account balance increases accurately.
 
-- Excess amount decreases by routed amount.
-- Customer credit/refundable/target booking balance increases correctly.
-- Ledger and audit record the route.
+---
+
+### 3. Statutory Refund Request & 4-Tier Approval Ladder:
 
 Refund request inputs:
 
 | Field | Required | Test value |
 |---|---:|---|
-| Customer | Yes | `KANAB Fresh UAT Dealer 20261009-02` |
+| Customer | Yes | `Abyssinia Logistics PLC [TEST-WHT-101701]` |
 | Booking | Optional | Booking from this run |
-| Original Payment Reference | Optional | `BRV-E2E-100902` |
-| Refund Reason | Yes | `EXCESS_PAYMENT - Fresh UAT refund test 20261009-02` |
-| Refund Amount | Yes | Amount less than or equal to available refundable balance |
-| Refund Method | Optional | `BANK_TRANSFER` |
-| Bank Account | Recommended | Primary customer bank account |
+| Original Payment Reference | Optional | `BRV-E2E-101701` |
+| Refund Reason | Yes | `EXCESS_PAYMENT - Fresh UAT refund test 101701` |
+| Refund Amount | Yes | `25,000.00 ETB` (within available refundable balance) |
+| Refund Method | Yes | `BANK_TRANSFER` |
+| Bank Account | Yes | Primary customer bank account (`100010170101`) |
 
 Expected formula enforced:
-
 ```text
 Available Refundable Balance = Total Received - Invoiced Amount - Already Refunded - Pending In-Review Refunds
 ```
@@ -891,22 +1153,21 @@ Payout confirmation inputs:
 
 | Field | Required | Test value |
 |---|---:|---|
-| Payment Reference | Optional | `CBE-PAYOUT-100902` |
-| Actual Amount Paid | Optional | Same as approved amount |
+| Payment Reference | Optional | `CBE-PAYOUT-101701` |
+| Actual Amount Paid | Optional | `25,000.00 ETB` |
 | Payment Method | Optional | `BANK_TRANSFER` |
 | Notes | Optional | `Wire transfer confirmed during E2E test` |
 
 Expected result:
-
 - Approved refund can be paid out.
-- Ledger updates without double-refund.
-- Refund status and audit trail show full lifecycle.
+- Ledger posts `REFUND_PAYOUT` debit.
+- Available refundable balance updates without double-refund.
 
 Negative checks:
-
 - Refund greater than available balance is blocked.
 - Duplicate pending refund that exceeds available refundable balance is blocked.
 - Payout before approval is blocked.
+
 
 ## Screen 23: Approval Queue & Policies
 
@@ -1056,37 +1317,39 @@ Expected result:
 
 ---
 
-# Final UAT Checklist
+# Final UAT Checklist (Aligned with Rounds 1–4)
 
-| Area | Pass Criteria | Status |
+| Round / Area | Specific Pass Criteria | Status |
 |---|---|---|
-| Login and RBAC | Correct module access by role | ☐ |
-| Customers/KYC | Customer and bank account create successfully | ☐ |
-| Products | Product/model available in PO/booking dropdowns | ☐ |
-| Suppliers | Active/inactive status works; KPI cards dynamic | ☐ |
-| Exchange Rates | Add/update currencies; dropdowns update | ☐ |
-| Purchase Orders | PO create/confirm; lines available for shipment | ☐ |
-| Shipments | Shipment create, documents upload, stage flow works | ☐ |
-| Landed Cost | Cost component + zero-drift allocation works | ☐ |
-| Receiving | Warehouse, chassis, engine, notes save; vehicle created | ☐ |
-| Inventory | Stock/vehicle reports and movement history update | ☐ |
-| Sales | Enquiry and booking create successfully | ☐ |
-| Payments | BRV record/confirm updates ledger | ☐ |
-| Allotment | Vehicle selected from live inventory and posted | ☐ |
-| Delivery | PDI, invoice, handover, gate pass complete | ☐ |
-| Excess/Refund | Routing, refund request, approval, payout complete | ☐ |
-| Dashboards | Date filters, KPIs, charts update | ☐ |
-| Reports | Search/filter/flip/export works across report tabs | ☐ |
-| Audit | Key actions visible and immutable | ☐ |
+| **RBAC & Governance** | Role-based menu isolation; permission overrides; immutable audit trail | ☐ |
+| **🔵 Round 1: Customer WHT Flag (Story 1.1)** | Toggle ON displays `WHT 2% Liable` badge in table and profile drawer | ☐ |
+| **🔵 Round 1: Vehicle Attributes (Story 2.1)** | Colour, Engine Capacity CC, Battery Power kWh, and Usage Type save & display | ☐ |
+| **🔵 Round 1: Lookups (Story 2.2)** | Vehicle color dropdown loads from `/api/lookups/colors` (7 seeded colors) | ☐ |
+| **🔵 Round 1: Tax Hub (Story 2.3)** | Tax Configuration Hub displays VAT (15%), WHT (2%), and Excise tiers | ☐ |
+| **Logistics & Landed Cost** | PO creation, exchange rates, shipment stages, zero-drift landed cost | ☐ |
+| **Vehicle Receiving & Stock** | VIN/Chassis & Engine intake; vehicle created as `AVAILABLE_FOR_SALE` | ☐ |
+| **🟣 Round 2: Pre-Advance Slip (Stories E16–E18)** | Sequence `PAS-YYYY-NNNNN`, 3-day countdown banner, isolated A4 print | ☐ |
+| **🟣 Round 2: 100% Advance Mandate (Stories B3–B4)** | Booking auto-populates from slip and enforces 100% gross advance requirement | ☐ |
+| **🟠 Round 3: CEO Installment Gate (Story P14)** | Partial installment deposit requires CEO approval modal before Finance confirmation | ☐ |
+| **🟠 Round 3: Credit Transfer (Stories X9–X10)** | Two-sided atomic ledger debit/credit preview and commit with concurrency locking | ☐ |
+| **🟠 Round 3: Non-Cash WHT Hub (Story IV14)** | `WHT_SETTLEMENT` credit ledger posting, certificate tracking & verification | ☐ |
+| **🟠 Round 3: Dual Delivery Docs (Story DL5)** | Delivery Voucher (Gate Pass) & Handover Form (6-pack + declaration) with isolated A4 print | ☐ |
+| **🟢 Round 4: Multi-Tax Invoicing (Stories IV1–IV13)** | Live breakdown: Subtotal + Excise (5%/10%) + VAT (15%) - WHT (2%) = Net Payable | ☐ |
+| **🟢 Round 4: Settlement Allocation (Story IV5–IV6)** | Auto-deposit settlement, excess deposit alert, transitions vehicle to `SOLD` & booking `SETTLED` | ☐ |
+| **🟢 Round 4: Tax Exemption Justification (Story IV11)**| Statutory tax overrides mandate legal reason and reference number | ☐ |
+| **Excess Funds & Refunds** | Routing (`CUSTOMER_CREDIT`, `BOOKING_TRANSFER`, `REFUNDABLE`), 4-tier approval, payout | ☐ |
+| **Dashboards & Intelligence Reports** | Live KPI calculations, graph/table flip, search, and CSV exports across all tabs | ☐ |
 
 ---
 
 # Known Tester Notes
 
-- If receiving fails with a `shipment_line_id null` error, the deployed backend does not include the latest receiving fix in `shipments.service.ts`; redeploy/restart backend.
-- If `Receipt Notes` fails, the database is missing the `shipment_receipt.notes` migration.
-- If new currencies do not appear in PO or shipment cost dropdowns, confirm the exchange rate was added on the Baseline Exchange Rates page and refresh the page.
-- If a shipment cannot advance to customs/received, upload the mandatory Customs Declaration document first.
-- If a vehicle does not appear for allotment, confirm it is `AVAILABLE_FOR_SALE`, matches the booking model, and is not already allotted/reserved.
+- **Pre-Advance Slip Print Isolation:** Pre-Advance Slips, Delivery Vouchers, and Handover Forms use CSS print isolation (`@media print`). When printing, browser print preview will render only the official A4 document without sidebar navigation, headers, or modal action buttons.
+- **WHT Deduction Rule:** Commercial Withholding Tax (2%) is only subtracted on the Sales Invoice when the customer's **Withholding Tax Liable** toggle is set to `ON`. For standard retail customers, Net Payable equals Gross Commercial Total.
+- **CEO Approval Requirement:** If `Split / Installment Deposit Plan` is checked on a BRV payment, Finance confirmation is blocked until an Admin or CEO completes the **`Review Installment (CEO Approval Gate)`** modal.
+- **Delivery Document Verification:** The **`Gate Pass / Release Documents`** button in Deliveries opens a dual-tab modal containing both the **Delivery Voucher (Gate Pass)** and the **Handover Form & Declaration** (with the 6-item Handover Pack checklist).
+- **Receiving & Chassis Uniqueness:** Do not reuse chassis or engine numbers. If a vehicle unit does not appear in allotment, verify that its status is `AVAILABLE_FOR_SALE` and matches the booked vehicle model.
+- **Exchange Rates:** If a new currency does not immediately appear in PO dropdowns, confirm it was added in the dynamic exchange rates tab and refresh the screen.
+
 
 
