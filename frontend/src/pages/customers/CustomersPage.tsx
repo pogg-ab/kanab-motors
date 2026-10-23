@@ -204,12 +204,26 @@ export const CustomersPage: React.FC = () => {
     if (!canCreateCustomer) return;
     setFormError(null);
 
-    // Conditional Validation Rule Check
+    // Mobile Number Format Check
+    const trimmedMobile = formData.mobileNumber.trim();
+    const mobileRegex = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/;
+    if (!mobileRegex.test(trimmedMobile)) {
+      setFormError('Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).');
+      return;
+    }
+
+    // Conditional Validation Rule Check & TIN Format Check
+    const trimmedTin = formData.tinNumber.trim();
     if (
       (formData.customerType === 'DEALER' || formData.customerType === 'GOVERNMENT') &&
-      (!formData.tinNumber || formData.tinNumber.trim() === '')
+      (!trimmedTin || trimmedTin === '')
     ) {
       setFormError('TIN Number is mandatory for Dealer and Government customers.');
+      return;
+    }
+
+    if (trimmedTin && !/^\d{10}$/.test(trimmedTin)) {
+      setFormError('Invalid TIN number format. TIN must be exactly 10 numeric digits (e.g. 0012345678).');
       return;
     }
 
@@ -297,12 +311,26 @@ export const CustomersPage: React.FC = () => {
     if (!editingCustomer) return;
     setEditError(null);
 
-    // Conditional Validation Rule Check
+    // Mobile Number Format Check
+    const trimmedMobile = editFormData.mobileNumber.trim();
+    const mobileRegex = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/;
+    if (!mobileRegex.test(trimmedMobile)) {
+      setEditError('Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).');
+      return;
+    }
+
+    // Conditional Validation Rule Check & TIN Format Check
+    const trimmedTin = editFormData.tinNumber.trim();
     if (
       (editFormData.customerType === 'DEALER' || editFormData.customerType === 'GOVERNMENT') &&
-      (!editFormData.tinNumber || editFormData.tinNumber.trim() === '')
+      (!trimmedTin || trimmedTin === '')
     ) {
       setEditError('TIN Number is mandatory for Dealer and Government customers.');
+      return;
+    }
+
+    if (trimmedTin && !/^\d{10}$/.test(trimmedTin)) {
+      setEditError('Invalid TIN number format. TIN must be exactly 10 numeric digits (e.g. 0012345678).');
       return;
     }
 
@@ -861,6 +889,9 @@ export const CustomersPage: React.FC = () => {
                       value={formData.mobileNumber}
                       onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
                     />
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                      Format: +2519XXXXXXXX or 09XXXXXXXX (10-13 digits)
+                    </span>
                   </div>
                 </div>
 
@@ -877,6 +908,9 @@ export const CustomersPage: React.FC = () => {
                       value={formData.tinNumber}
                       onChange={(e) => setFormData({ ...formData, tinNumber: e.target.value })}
                     />
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                      Format: Exactly 10 digits (e.g. 0012345678)
+                    </span>
                   </div>
 
                   <div className="form-group">
@@ -1165,6 +1199,9 @@ export const CustomersPage: React.FC = () => {
                       value={editFormData.mobileNumber}
                       onChange={(e) => setEditFormData({ ...editFormData, mobileNumber: e.target.value })}
                     />
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                      Format: +2519XXXXXXXX or 09XXXXXXXX (10-13 digits)
+                    </span>
                   </div>
                 </div>
 
@@ -1182,6 +1219,9 @@ export const CustomersPage: React.FC = () => {
                       onChange={(e) => setEditFormData({ ...editFormData, tinNumber: e.target.value })}
                       required={editFormData.customerType !== 'DIRECT_POS'}
                     />
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                      Format: Exactly 10 digits (e.g. 0012345678)
+                    </span>
                   </div>
 
                   <div className="form-group">

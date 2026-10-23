@@ -298,16 +298,22 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
       setReceiptError('Select receiving warehouse');
       return;
     }
+    const maxRemaining = Number(selectedLineForReceipt.quantityShipped) - Number(selectedLineForReceipt.quantityReceived);
+    const parsedQty = parseInt(String(receiptQty), 10);
+    if (isNaN(parsedQty) || parsedQty < 1 || parsedQty > maxRemaining) {
+      setReceiptError(`Quantity to receive must be between 1 and ${maxRemaining} unit(s).`);
+      return;
+    }
     setSaving(true);
     try {
       await api.receiveShipmentLine(shipmentId, {
         shipmentLineId: selectedLineForReceipt.shipmentLineId,
-        quantityReceived: receiptQty,
+        quantityReceived: parsedQty,
         warehouseId: Number(warehouseId),
         notes: receiptNotes,
         vehicles: receiptVehicles.filter((v) => v.chassisNumber.trim()),
       });
-      showToast('success', `Receipt of ${receiptQty} unit(s) recorded! Vehicle units created in inventory.`);
+      showToast('success', `Receipt of ${parsedQty} unit(s) recorded! Vehicle units created in inventory.`);
       setShowReceiptModal(false);
       setSelectedLineForReceipt(null);
       setReceiptNotes('');
@@ -1757,7 +1763,12 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
               <ModalErrorAlert error={receiptError} onDismiss={() => setReceiptError(null)} />
 
               <div className="form-group">
-                <label className="form-label">Quantity to Receive *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Quantity to Receive *</label>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                    Remaining Limit: {Number(selectedLineForReceipt.quantityShipped) - Number(selectedLineForReceipt.quantityReceived)} unit(s)
+                  </span>
+                </div>
                 <input
                   type="number"
                   min="1"
@@ -1765,9 +1776,29 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   className="input-field"
                   value={receiptQty}
                   onChange={(e) => {
-                    const q = parseInt(e.target.value) || 1;
+                    const maxRemaining = Number(selectedLineForReceipt.quantityShipped) - Number(selectedLineForReceipt.quantityReceived);
+                    const val = e.target.value;
+                    if (val === '') {
+                      setReceiptQty('' as any);
+                      return;
+                    }
+                    let q = parseInt(val, 10);
+                    if (isNaN(q)) q = 1;
+                    if (q > maxRemaining) q = maxRemaining;
+                    if (q < 1) q = 1;
                     setReceiptQty(q);
                     setReceiptVehicles(Array.from({ length: q }, (_, i) => receiptVehicles[i] || { chassisNumber: '', engineNumber: '' }));
+                  }}
+                  onBlur={() => {
+                    const maxRemaining = Number(selectedLineForReceipt.quantityShipped) - Number(selectedLineForReceipt.quantityReceived);
+                    const q = parseInt(String(receiptQty), 10);
+                    if (isNaN(q) || q < 1) {
+                      setReceiptQty(1);
+                      setReceiptVehicles(Array.from({ length: 1 }, (_, i) => receiptVehicles[i] || { chassisNumber: '', engineNumber: '' }));
+                    } else if (q > maxRemaining) {
+                      setReceiptQty(maxRemaining);
+                      setReceiptVehicles(Array.from({ length: maxRemaining }, (_, i) => receiptVehicles[i] || { chassisNumber: '', engineNumber: '' }));
+                    }
                   }}
                   required
                 />

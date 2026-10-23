@@ -19,13 +19,13 @@ export class CreatePOLineDto {
   itemId: string;
 
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
+  @IsInt({ message: 'Quantity ordered must be a whole positive integer' })
+  @Min(1, { message: 'Quantity ordered must be at least 1' })
   quantityOrdered: number;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0.0001)
+  @Min(0.01, { message: 'Unit price must be greater than 0' })
   unitPrice: number;
 }
 

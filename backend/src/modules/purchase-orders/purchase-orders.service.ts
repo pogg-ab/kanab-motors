@@ -38,6 +38,18 @@ export class PurchaseOrdersService {
     if (!dto.lines || dto.lines.length === 0) {
       throw new BadRequestException('Purchase Order must have at least one line item');
     }
+    for (const l of dto.lines) {
+      const qty = Number(l.quantityOrdered);
+      const price = Number(l.unitPrice);
+      if (!Number.isInteger(qty) || qty < 1) {
+        throw new BadRequestException(
+          `Line item quantity must be a whole positive integer (minimum 1). Fractional quantities like ${l.quantityOrdered} are not permitted.`,
+        );
+      }
+      if (isNaN(price) || price <= 0) {
+        throw new BadRequestException(`Line item unit price must be greater than 0.`);
+      }
+    }
     const configuredCurrency = await this.assertConfiguredCurrency(dto.currency);
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -165,6 +177,18 @@ export class PurchaseOrdersService {
       if (dto.lines) {
         if (dto.lines.length === 0) {
           throw new BadRequestException('Purchase Order must have at least one line item');
+        }
+        for (const l of dto.lines) {
+          const qty = Number(l.quantityOrdered);
+          const price = Number(l.unitPrice);
+          if (!Number.isInteger(qty) || qty < 1) {
+            throw new BadRequestException(
+              `Line item quantity must be a whole positive integer (minimum 1). Fractional quantities like ${l.quantityOrdered} are not permitted.`,
+            );
+          }
+          if (isNaN(price) || price <= 0) {
+            throw new BadRequestException(`Line item unit price must be greater than 0.`);
+          }
         }
 
         await queryRunner.manager.delete(PurchaseOrderLine, { poId: id });

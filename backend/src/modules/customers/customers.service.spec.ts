@@ -108,4 +108,42 @@ describe('CustomersService', () => {
       }),
     ).rejects.toThrow(ConflictException);
   });
+
+  it('FTC-03: should reject invalid mobile number format', async () => {
+    await expect(
+      service.create({
+        customerType: CustomerType.DIRECT_POS,
+        fullName: 'Invalid Mobile User',
+        mobileNumber: '12345',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.create({
+        customerType: CustomerType.DIRECT_POS,
+        fullName: 'Invalid Mobile User',
+        mobileNumber: 'invalid-phone',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('FTC-03: should reject invalid TIN format (must be 10 digits)', async () => {
+    await expect(
+      service.create({
+        customerType: CustomerType.DEALER,
+        fullName: 'Invalid TIN Dealer',
+        mobileNumber: '+251911000001',
+        tinNumber: '123',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.create({
+        customerType: CustomerType.DEALER,
+        fullName: 'Invalid TIN Dealer',
+        mobileNumber: '+251911000001',
+        tinNumber: 'TIN-00123456',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
 });

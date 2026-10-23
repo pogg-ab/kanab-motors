@@ -186,17 +186,34 @@ export const PurchaseOrdersPage: React.FC = () => {
       setPoError('Supplier partner is required');
       return;
     }
-    const validLines = lines
-      .filter((l) => l.itemId && Number(l.quantityOrdered) > 0 && Number(l.unitPrice) > 0)
-      .map((line) => ({
-        itemId: String(line.itemId),
-        quantityOrdered: Number(line.quantityOrdered),
-        unitPrice: Number(line.unitPrice),
-      }));
-    if (validLines.length === 0) {
-      setPoError('Please enter at least one valid line item with quantity and unit price greater than 0');
+    if (lines.length === 0) {
+      setPoError('Please add at least one line item');
       return;
     }
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.itemId) {
+        setPoError(`Please select a product item for line #${i + 1}`);
+        return;
+      }
+      const qty = Number(l.quantityOrdered);
+      if (!Number.isInteger(qty) || qty < 1) {
+        setPoError(
+          `Line #${i + 1}: Quantity ordered must be a whole positive integer (minimum 1). Fractional quantities like ${l.quantityOrdered} are not permitted.`,
+        );
+        return;
+      }
+      const price = Number(l.unitPrice);
+      if (isNaN(price) || price <= 0) {
+        setPoError(`Line #${i + 1}: Unit price must be greater than 0.`);
+        return;
+      }
+    }
+    const validLines = lines.map((line) => ({
+      itemId: String(line.itemId),
+      quantityOrdered: Math.floor(Number(line.quantityOrdered)),
+      unitPrice: Number(line.unitPrice),
+    }));
 
     setSaving(true);
     try {

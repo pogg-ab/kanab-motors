@@ -301,10 +301,11 @@ export class AuthService {
     // Update last_login_at timestamp
     await this.userRepo.update(user.userId, { lastLoginAt: new Date() });
 
-    // Determine effective permissions: combine role default + user custom overrides
-    const effectivePermissions = Array.from(
-      new Set([...(user.role?.permissions || []), ...(user.permissions || [])]),
-    );
+    // Determine effective permissions: user custom permissions override role defaults
+    const effectivePermissions =
+      user.permissions && user.permissions.length > 0
+        ? user.permissions
+        : (user.role?.permissions || []);
 
     const payload = {
       sub: user.userId,

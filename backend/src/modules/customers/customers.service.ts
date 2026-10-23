@@ -15,6 +15,9 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
 import { AuditService } from '../audit/audit.service';
 
+const ETH_OR_INTL_MOBILE_REGEX = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/;
+const TIN_REGEX = /^\d{10}$/;
+
 @Injectable()
 export class CustomersService {
   constructor(
@@ -30,20 +33,35 @@ export class CustomersService {
   ) {}
 
   async create(dto: CreateCustomerDto, userId: number = 1): Promise<Customer> {
-    // 1. Conditional validation: TIN mandatory for DEALER and GOVERNMENT
+    // 0. Format validation for Mobile Number
+    const trimmedMobile = (dto.mobileNumber || '').trim();
+    if (!ETH_OR_INTL_MOBILE_REGEX.test(trimmedMobile)) {
+      throw new BadRequestException(
+        'Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).',
+      );
+    }
+
+    // 1. Conditional validation & format: TIN mandatory for DEALER and GOVERNMENT
+    const trimmedTin = dto.tinNumber?.trim();
     if (
       (dto.customerType === CustomerType.DEALER ||
         dto.customerType === CustomerType.GOVERNMENT) &&
-      (!dto.tinNumber || dto.tinNumber.trim() === '')
+      (!trimmedTin || trimmedTin === '')
     ) {
       throw new BadRequestException(
         'TIN Number is mandatory for Dealer and Government customers',
       );
     }
 
+    if (trimmedTin && !TIN_REGEX.test(trimmedTin)) {
+      throw new BadRequestException(
+        'Invalid TIN number format. TIN must be exactly 10 numeric digits (e.g. 0012345678).',
+      );
+    }
+
     // 2. Duplicate detection on Mobile Number
     const existingMobile = await this.customerRepo.findOne({
-      where: { mobileNumber: dto.mobileNumber.trim() },
+      where: { mobileNumber: trimmedMobile },
     });
     if (existingMobile) {
       throw new ConflictException(
@@ -52,9 +70,9 @@ export class CustomersService {
     }
 
     // 3. Duplicate detection on TIN Number (if provided)
-    if (dto.tinNumber && dto.tinNumber.trim() !== '') {
+    if (trimmedTin && trimmedTin !== '') {
       const existingTin = await this.customerRepo.findOne({
-        where: { tinNumber: dto.tinNumber.trim() },
+        where: { tinNumber: trimmedTin },
       });
       if (existingTin) {
         throw new ConflictException(
@@ -199,8 +217,14 @@ export class CustomersService {
 
     // Check duplicate mobile if changing
     if (dto.mobileNumber && dto.mobileNumber.trim() !== customer.mobileNumber) {
+      const trimmedMobile = dto.mobileNumber.trim();
+      if (!ETH_OR_INTL_MOBILE_REGEX.test(trimmedMobile)) {
+        throw new BadRequestException(
+          'Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).',
+        );
+      }
       const existingMobile = await this.customerRepo.findOne({
-        where: { mobileNumber: dto.mobileNumber.trim() },
+        where: { mobileNumber: trimmedMobile },
       });
       if (existingMobile && existingMobile.customerId !== id) {
         throw new ConflictException(
@@ -230,6 +254,12 @@ export class CustomersService {
     ) {
       throw new BadRequestException(
         'TIN Number is mandatory for Dealer and Government customers',
+      );
+    }
+
+    if (finalTin && finalTin.trim() !== '' && !TIN_REGEX.test(finalTin.trim())) {
+      throw new BadRequestException(
+        'Invalid TIN number format. TIN must be exactly 10 numeric digits (e.g. 0012345678).',
       );
     }
 

@@ -71,11 +71,12 @@ export class PermissionGuard implements CanActivate {
       throw new UnauthorizedException('User is inactive or does not exist');
     }
 
-    const permissions = new Set<string>([
-      ...(user.role_permissions || []),
-      ...(user.user_permissions || []),
-      ...(payload.permissions || []),
-    ]);
+    const effectivePerms =
+      user.user_permissions && Array.isArray(user.user_permissions) && user.user_permissions.length > 0
+        ? user.user_permissions
+        : (user.role_permissions || []);
+
+    const permissions = new Set<string>(effectivePerms);
 
     if (user.role_name === 'ADMIN' || permissions.has('ALL_PERMISSIONS')) {
       request.user = { userId, roleName: user.role_name, permissions: Array.from(permissions) };

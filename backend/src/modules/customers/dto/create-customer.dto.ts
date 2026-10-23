@@ -8,6 +8,7 @@ import {
   IsArray,
   ValidateNested,
   IsBoolean,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -65,13 +66,19 @@ export class CreateCustomerDto {
   @ApiProperty({ example: '+251911223344' })
   @IsString()
   @IsNotEmpty({ message: 'Mobile number is required' })
+  @Matches(/^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/, {
+    message: 'Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).',
+  })
   mobileNumber: string;
 
   // Conditional validation rule: TIN is mandatory for DEALER and GOVERNMENT
   @ApiPropertyOptional({ example: '0012345678' })
-  @ValidateIf((o: CreateCustomerDto) => o.customerType === CustomerType.DEALER || o.customerType === CustomerType.GOVERNMENT)
+  @ValidateIf((o: CreateCustomerDto) => o.customerType === CustomerType.DEALER || o.customerType === CustomerType.GOVERNMENT || (!!o.tinNumber && o.tinNumber.trim() !== ''))
   @IsNotEmpty({ message: 'TIN Number is mandatory for Dealer and Government customers' })
   @IsString()
+  @Matches(/^\d{10}$/, {
+    message: 'Invalid TIN number format. TIN must be exactly 10 numeric digits (e.g. 0012345678).',
+  })
   tinNumber?: string;
 
   @ApiPropertyOptional({ example: false, default: false })

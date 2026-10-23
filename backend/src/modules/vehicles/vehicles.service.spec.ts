@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConflictException } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { VehiclesService } from './vehicles.service';
 import { VehicleUnit, VehicleStatus } from './entities/vehicle-unit.entity';
 import { ProductItem } from '../products/entities/product-item.entity';
@@ -11,6 +12,7 @@ describe('VehiclesService', () => {
   let unitRepo: any;
   let itemRepo: any;
   let auditService: any;
+  let dataSource: any;
 
   beforeEach(async () => {
     unitRepo = {
@@ -26,6 +28,9 @@ describe('VehiclesService', () => {
     auditService = {
       log: jest.fn().mockResolvedValue({}),
     };
+    dataSource = {
+      query: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -33,6 +38,7 @@ describe('VehiclesService', () => {
         { provide: getRepositoryToken(VehicleUnit), useValue: unitRepo },
         { provide: getRepositoryToken(ProductItem), useValue: itemRepo },
         { provide: AuditService, useValue: auditService },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 

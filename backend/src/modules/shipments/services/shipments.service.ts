@@ -278,11 +278,8 @@ export class ShipmentsService {
     }
 
     // Document Completeness Check (Story D2):
-    // If advancing to ETHIOPIAN_CUSTOMS_CLEARANCE or RECEIVED, check if customs declaration document exists
-    if (
-      targetStage === ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE ||
-      targetStage === ShipmentStage.RECEIVED
-    ) {
+    // 1. Advancing to ETHIOPIAN_CUSTOMS_CLEARANCE requires verified Customs Declaration
+    if (targetStage === ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE) {
       const customsDoc = await this.attachmentRepo.findOne({
         where: {
           entityType: 'shipment',
@@ -291,9 +288,36 @@ export class ShipmentsService {
         },
       });
 
-      if (!customsDoc) {
+      if (!customsDoc || !customsDoc.filePath) {
         throw new BadRequestException(
-          `Document Completeness Check Failed (Story D2): Cannot advance to ${targetStage} without attaching a verified 'CUSTOMS_DECLARATION' document in the Document Centre.`,
+          `Document Completeness Check Failed: Mandatory Customs Declaration document ('CUSTOMS_DECLARATION') is missing or has no attached file. Please upload the physical/scanned document in the Document Centre before advancing to ${targetStage}.`,
+        );
+      }
+    }
+
+    // 2. Advancing to RECEIVED (closure) requires full mandatory import document packet
+    if (targetStage === ShipmentStage.RECEIVED) {
+      const requiredDocs = ['CUSTOMS_DECLARATION', 'COMMERCIAL_INVOICE', 'BILL_OF_LADING'];
+      const attached = await this.attachmentRepo.find({
+        where: {
+          entityType: 'shipment',
+          entityId: String(id),
+        },
+      });
+
+      const missing = requiredDocs.filter(
+        (docType) => !attached.some((a) => a.documentType === docType && a.filePath),
+      );
+
+      if (missing.length > 0) {
+        const labels: Record<string, string> = {
+          CUSTOMS_DECLARATION: 'Customs Declaration',
+          COMMERCIAL_INVOICE: 'Commercial Invoice',
+          BILL_OF_LADING: 'Bill of Lading',
+        };
+        const missingLabels = missing.map((m) => labels[m] || m).join(', ');
+        throw new BadRequestException(
+          `Document Completeness Check Failed: Cannot advance to RECEIVED stage. The following mandatory import documents are missing: ${missingLabels}. Please upload all required files in the Document Centre.`,
         );
       }
     }
