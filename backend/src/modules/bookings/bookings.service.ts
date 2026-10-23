@@ -62,10 +62,17 @@ export class BookingsService {
       'representative',
       'demo salesperson',
       'sales rep',
+      'n/a',
+      'na',
+      'none',
+      'test',
+      'unknown',
+      'admin',
+      'user',
     ];
     if (!spName || spName.length < 2 || genericPlaceholders.includes(spName.toLowerCase())) {
       throw new BadRequestException(
-        'Please provide an actual salesperson full name. Generic placeholders like "Sales Specialist" or "Salesperson" are not permitted.',
+        'Salesperson name is mandatory. Please provide an actual salesperson full name (generic terms like "Sales Specialist" or "Salesperson" are not permitted).',
       );
     }
 
@@ -120,7 +127,7 @@ export class BookingsService {
       outstandingBalance: grossTotal,
       targetDeliveryDate: deliveryDate,
       bookingStatus: BookingStatus.APPROVED, // auto-approved on creation
-      salespersonName: dto.salespersonName,
+      salespersonName: spName,
       createdBy: userId,
     });
 
@@ -149,6 +156,13 @@ export class BookingsService {
     });
     if (!enquiry) throw new NotFoundException(`Enquiry ${enquiryId} not found`);
 
+    const spName = (enquiry.salespersonName || '').trim();
+    if (!spName || spName.length < 2) {
+      throw new BadRequestException(
+        'Salesperson name is mandatory on the sales enquiry before converting to an advance booking.',
+      );
+    }
+
     return this.create(
       {
         customerId: enquiry.customerId,
@@ -156,7 +170,7 @@ export class BookingsService {
         enquiryId: enquiry.enquiryId,
         quantity: enquiry.quantity,
         unitPrice: Number(enquiry.unitPrice),
-        salespersonName: enquiry.salespersonName,
+        salespersonName: spName,
       },
       userId,
     );

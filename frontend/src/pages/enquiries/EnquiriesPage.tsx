@@ -190,7 +190,23 @@ export const EnquiriesPage: React.FC = () => {
       setFormError("Salesperson full name is mandatory. Please enter the salesperson's actual name.");
       return;
     }
-    const genericPlaceholders = ['sales person', 'salesperson', 'sales', 'sales specialist', 'rep', 'representative', 'demo salesperson', 'sales rep'];
+    const genericPlaceholders = [
+      'sales person',
+      'salesperson',
+      'sales',
+      'sales specialist',
+      'rep',
+      'representative',
+      'demo salesperson',
+      'sales rep',
+      'n/a',
+      'na',
+      'none',
+      'test',
+      'unknown',
+      'admin',
+      'user',
+    ];
     if (genericPlaceholders.includes(trimmedSp.toLowerCase())) {
       setFormError('Generic names like "Sales Person" or "Salesperson" are not allowed. Please enter the actual salesperson\'s full name.');
       return;
@@ -228,6 +244,30 @@ export const EnquiriesPage: React.FC = () => {
   const handleConfirmConvert = async () => {
     if (!canCreateBooking) return;
     if (!convertTarget) return;
+
+    const trimmedSp = (convertTarget.salespersonName || '').trim();
+    const genericPlaceholders = [
+      'sales person',
+      'salesperson',
+      'sales',
+      'sales specialist',
+      'rep',
+      'representative',
+      'demo salesperson',
+      'sales rep',
+      'n/a',
+      'na',
+      'none',
+      'test',
+      'unknown',
+      'admin',
+      'user',
+    ];
+    if (!trimmedSp || trimmedSp.length < 2 || genericPlaceholders.includes(trimmedSp.toLowerCase())) {
+      setConvertError("Salesperson full name is mandatory on the enquiry before converting to booking. Please ensure an actual salesperson name is assigned.");
+      return;
+    }
+
     setConverting(true);
     setConvertError(null);
     try {
@@ -847,6 +887,12 @@ export const EnquiriesPage: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Vehicle Model:</span>
                   <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>{convertTarget.item?.itemName}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Assigned Salesperson:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {convertTarget.salespersonName || <span style={{ color: 'var(--accent-rose)' }}>Missing (Mandatory)</span>}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.85rem' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Order Quantity:</span>

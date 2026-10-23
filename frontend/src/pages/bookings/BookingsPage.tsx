@@ -137,6 +137,7 @@ export const BookingsPage: React.FC = () => {
         quantity: qty,
         unitPrice,
         requiredAdvanceAmount: totalGross, // Story B4: advance is full current price
+        salespersonName: slip.enquiry?.salespersonName?.trim() || newBooking.salespersonName?.trim() || user?.fullName || '',
       });
     } else {
       setNewBooking({
@@ -189,10 +190,26 @@ export const BookingsPage: React.FC = () => {
 
     const trimmedSp = (newBooking.salespersonName || '').trim();
     if (!trimmedSp || trimmedSp.length < 2) {
-      setCreateError("Sales representative full name is mandatory. Please enter an actual salesperson's name.");
+      setCreateError("Salesperson full name is mandatory. Please enter an actual salesperson's name.");
       return;
     }
-    const genericPlaceholders = ['sales person', 'salesperson', 'sales', 'sales specialist', 'rep', 'representative', 'demo salesperson', 'sales rep'];
+    const genericPlaceholders = [
+      'sales person',
+      'salesperson',
+      'sales',
+      'sales specialist',
+      'rep',
+      'representative',
+      'demo salesperson',
+      'sales rep',
+      'n/a',
+      'na',
+      'none',
+      'test',
+      'unknown',
+      'admin',
+      'user',
+    ];
     if (genericPlaceholders.includes(trimmedSp.toLowerCase())) {
       setCreateError('Generic names like "Sales Specialist" or "Salesperson" are not allowed. Please enter the actual salesperson\'s full name.');
       return;
@@ -867,7 +884,7 @@ export const BookingsPage: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label className="form-label">Sales Representative Name *</label>
+                    <label className="form-label">Salesperson Full Name *</label>
                     <input
                       type="text"
                       className="input"

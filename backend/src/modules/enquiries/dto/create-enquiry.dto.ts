@@ -5,6 +5,7 @@ import {
   IsPositive,
   IsOptional,
   Min,
+  MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -28,9 +29,10 @@ export class CreateEnquiryDto {
   @IsOptional()
   unitPrice?: number;
 
-  @ApiProperty({ example: 'Sales Person' })
+  @ApiProperty({ example: 'Yared Tadesse' })
   @IsString()
-  @IsNotEmpty({ message: 'Salesperson name is required' })
+  @IsNotEmpty({ message: 'Salesperson full name is mandatory' })
+  @MinLength(2, { message: 'Salesperson full name must be at least 2 characters' })
   salespersonName: string;
 
   @ApiPropertyOptional({ example: 'BANK_DEPOSIT', default: 'BANK_DEPOSIT' })

@@ -45,10 +45,17 @@ export class EnquiriesService {
       'representative',
       'demo salesperson',
       'sales rep',
+      'n/a',
+      'na',
+      'none',
+      'test',
+      'unknown',
+      'admin',
+      'user',
     ];
     if (!spName || spName.length < 2 || genericPlaceholders.includes(spName.toLowerCase())) {
       throw new BadRequestException(
-        'Please provide an actual salesperson full name. Generic placeholders like "Sales Person" or "Salesperson" are not permitted.',
+        'Salesperson name is mandatory. Please provide an actual salesperson full name (generic terms like "Sales Person" or "Salesperson" are not permitted).',
       );
     }
 
@@ -68,7 +75,7 @@ export class EnquiriesService {
       unitPrice,
       vatAmount,
       estimatedSalesValue: estimatedValue,
-      salespersonName: dto.salespersonName,
+      salespersonName: spName,
       paymentMode: dto.paymentMode || 'BANK_DEPOSIT',
       status: EnquiryStatus.SUBMITTED,
       createdBy: userId,
