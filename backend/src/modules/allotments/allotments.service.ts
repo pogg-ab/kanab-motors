@@ -52,17 +52,19 @@ export class AllotmentsService {
         continue;
       }
 
-      // Count active allotted units for this booking across all approved allotments
+      // Count active allotted units for this booking across all active (APPROVED and REQUESTED) allotments
       const activeCount = await this.lineRepo
         .createQueryBuilder('al')
         .innerJoin('al.allotment', 'a')
         .where('a.bookingId = :bId', { bId: b.bookingId })
         .andWhere('al.isActive = true')
-        .andWhere('a.status = :status', { status: AllotmentStatus.APPROVED })
+        .andWhere('a.status IN (:...statuses)', {
+          statuses: [AllotmentStatus.APPROVED, AllotmentStatus.REQUESTED],
+        })
         .getCount();
 
       const requiredQty = Number(b.quantity || 1);
-      const remainingQty = requiredQty - activeCount;
+      const remainingQty = Math.max(0, requiredQty - activeCount);
 
       if (remainingQty > 0) {
         eligible.push({
@@ -80,7 +82,7 @@ export class AllotmentsService {
 
   /**
    * Story IN1 & AL4: Query vehicle units available for allotment matching item model.
-   * Only AVAILABLE_FOR_SALE or RESERVED units not already active in any allotment.
+   * Only AVAILABLE_FOR_SALE units not already active in ANY allotment line.
    */
   async findAvailableUnits(itemId?: string) {
     const qb = this.vehicleRepo
@@ -89,23 +91,50 @@ export class AllotmentsService {
       .leftJoinAndSelect('item.brand', 'brand')
       .leftJoinAndSelect('item.category', 'category')
       .leftJoinAndSelect('v.currentWarehouse', 'warehouse')
-      .where('v.currentStatus IN (:...statuses)', {
-        statuses: [VehicleStatus.AVAILABLE_FOR_SALE, VehicleStatus.RESERVED],
+      .where('v.currentStatus = :status', {
+        status: VehicleStatus.AVAILABLE_FOR_SALE,
       });
 
     if (itemId) {
       qb.andWhere('v.itemId = :itemId', { itemId });
     }
 
-    // Exclude vehicles currently active in ANY allotment line (Layer 1 Double-Allocation check)
-    const activeSubquery = this.lineRepo
-      .createQueryBuilder('al')
-      .select('al.vehicleUnitId')
-      .where('al.isActive = true');
-
-    qb.andWhere(`v.vehicleUnitId NOT IN (${activeSubquery.getQuery()})`);
+    // Exclude vehicles currently active in ANY allotment line (Strict Layer 1 Double-Allocation defense)
+    qb.andWhere(
+      `v.vehicle_unit_id NOT IN (
+        SELECT al.vehicle_unit_id 
+        FROM allotment_line al 
+        WHERE al.is_active = true
+      )`
+    );
 
     return qb.orderBy('v.chassisNumber', 'ASC').getMany();
+  }
+
+  private async syncStockBalances(manager: any): Promise<void> {
+    try {
+      await manager.query(`
+        INSERT INTO stock_balance (warehouse_id, item_id, quantity_on_hand, quantity_reserved)
+        SELECT 
+          vu.current_warehouse_id, 
+          vu.item_id, 
+          COUNT(*) FILTER (WHERE vu.current_status IN ('RECEIVED', 'PDI_PASSED', 'AVAILABLE_FOR_SALE', 'RESERVED', 'ALLOTTED'))::numeric AS on_hand,
+          COUNT(*) FILTER (WHERE vu.current_status IN ('RESERVED', 'ALLOTTED'))::numeric AS reserved
+        FROM vehicle_unit vu
+        JOIN product_item pi ON pi.item_id = vu.item_id
+        WHERE vu.current_warehouse_id IS NOT NULL 
+          AND vu.item_id IS NOT NULL
+          AND pi.is_individually_tracked = true
+        GROUP BY vu.current_warehouse_id, vu.item_id
+        ON CONFLICT (warehouse_id, item_id)
+        DO UPDATE SET 
+          quantity_on_hand = EXCLUDED.quantity_on_hand,
+          quantity_reserved = EXCLUDED.quantity_reserved,
+          updated_at = now();
+      `);
+    } catch (e) {
+      // Graceful fallback
+    }
   }
 
   /**
@@ -147,7 +176,7 @@ export class AllotmentsService {
     const requiredQty = Number(booking.quantity || 1);
     if (activeCount + dto.vehicleUnitIds.length > requiredQty) {
       throw new BadRequestException(
-        `Allotting ${dto.vehicleUnitIds.length} vehicle(s) exceeds booking ${booking.bookingNumber}'s required quantity (Ordered: ${requiredQty}, Active/Requested: ${activeCount})`,
+        `Allotting ${dto.vehicleUnitIds.length} vehicle(s) exceeds booking ${booking.bookingNumber}'s required quantity (Ordered: ${requiredQty}, Active/Requested: ${activeCount}, Remaining: ${Math.max(0, requiredQty - activeCount)})`,
       );
     }
 
@@ -168,11 +197,8 @@ export class AllotmentsService {
         );
       }
 
-      // Status check
-      if (
-        unit.currentStatus !== VehicleStatus.AVAILABLE_FOR_SALE &&
-        unit.currentStatus !== VehicleStatus.RESERVED
-      ) {
+      // Status check - only AVAILABLE_FOR_SALE units can be allotted
+      if (unit.currentStatus !== VehicleStatus.AVAILABLE_FOR_SALE) {
         throw new BadRequestException(
           `Vehicle unit ${unit.chassisNumber} is not available for sale (Current status: ${unit.currentStatus})`,
         );
@@ -210,6 +236,23 @@ export class AllotmentsService {
       );
 
       await manager.save(lines);
+
+      // Immediately reserve vehicle units so they cannot be selected by any concurrent allotment
+      for (const vId of dto.vehicleUnitIds) {
+        await manager.query(
+          `UPDATE vehicle_unit SET current_status = 'RESERVED', updated_at = now() WHERE vehicle_unit_id = $1`,
+          [vId],
+        );
+        try {
+          await manager.query(
+            `SELECT fn_transition_vehicle_status($1, 'RESERVED', $2, 'ALLOTMENT_RESERVATION', $3)`,
+            [vId, userId, `Reserved for Allotment ${savedAllotment.allotmentNumber || savedAllotment.allotmentId}`],
+          );
+        } catch (ignored) {}
+      }
+
+      // Sync stock balance so reserved count immediately reflects the reservation
+      await this.syncStockBalances(manager);
 
       await this.auditService.log({
         entityType: 'allotment',
@@ -271,6 +314,9 @@ export class AllotmentsService {
         }
       }
 
+      // Sync stock balance to reflect ALLOTTED state
+      await this.syncStockBalances(manager);
+
       await this.auditService.log({
         entityType: 'allotment',
         entityId: id,
@@ -296,6 +342,22 @@ export class AllotmentsService {
     }
 
     await this.dataSource.transaction(async (manager) => {
+      // Revert reserved vehicles back to AVAILABLE_FOR_SALE
+      for (const line of allotment.lines) {
+        if (line.isActive) {
+          await manager.query(
+            `UPDATE vehicle_unit SET current_status = 'AVAILABLE_FOR_SALE', updated_at = now() WHERE vehicle_unit_id = $1`,
+            [line.vehicleUnitId],
+          );
+          try {
+            await manager.query(
+              `SELECT fn_transition_vehicle_status($1, 'AVAILABLE_FOR_SALE', $2, 'ALLOTMENT_REJECTED', $3)`,
+              [line.vehicleUnitId, userId, reason],
+            );
+          } catch (ignored) {}
+        }
+      }
+
       // Deactivate all lines
       await manager.query(
         `UPDATE allotment_line SET is_active = false, deactivated_at = now(), deactivated_by = $1 WHERE allotment_id = $2`,
@@ -307,6 +369,9 @@ export class AllotmentsService {
         { allotmentId: id },
         { status: AllotmentStatus.REJECTED, rejectionReason: reason.trim() },
       );
+
+      // Sync stock balance after releasing reservations
+      await this.syncStockBalances(manager);
 
       await this.auditService.log({
         entityType: 'allotment',
@@ -367,6 +432,9 @@ export class AllotmentsService {
         { allotmentId: id },
         { status: AllotmentStatus.CANCELLED },
       );
+
+      // 4. Sync stock balance after releasing allotted units
+      await this.syncStockBalances(manager);
 
       await this.auditService.log({
         entityType: 'allotment',

@@ -11,18 +11,24 @@ export function formatApiError(err: any, fallback = 'An unexpected error occurre
 
     // NestJS ValidationPipe returning array of validation messages
     if (Array.isArray(data.message) && data.message.length > 0) {
-      return data.message
-        .map((m: any) => (typeof m === 'string' ? m : JSON.stringify(m)))
-        .join(' · ');
+      const msgs = data.message.map((m: any) => (typeof m === 'string' ? m : JSON.stringify(m)));
+      return `Validation Error: ${msgs.join(' · ')}`;
     }
 
     // Direct string message from HttpException
     if (typeof data.message === 'string' && data.message.trim().length > 0) {
-      return data.message.trim();
+      const msg = data.message.trim();
+      if (err.response?.status === 403) {
+        return `Permission Denied: ${msg}`;
+      }
+      return msg;
     }
 
     // Nested error string
     if (typeof data.error === 'string' && data.error.trim().length > 0) {
+      if (err.response?.status === 403) {
+        return `Permission Denied: ${data.error.trim()}`;
+      }
       return data.error.trim();
     }
 

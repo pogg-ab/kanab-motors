@@ -723,7 +723,11 @@ export const SettlementPage: React.FC = () => {
                                 className="btn btn-secondary"
                                 style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', color: 'var(--accent-cyan)', borderColor: 'rgba(6, 182, 212, 0.4)' }}
                               >
-                                {actioningId === r.refundId ? 'Approving...' : 'Manager Approve'}
+                                {actioningId === r.refundId
+                                  ? 'Approving...'
+                                  : Number(r.refundAmount || 0) <= 10000
+                                  ? 'Officer Approve (Tier 1)'
+                                  : 'Manager Approve (Tier 2/3)'}
                               </button>
                             )}
 
@@ -1043,31 +1047,69 @@ export const SettlementPage: React.FC = () => {
                       </div>
 
                       <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                           <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
                             Refund Amount (ETB) *
                           </label>
-                          {selCust && availRefundable > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setNewRefund({ ...newRefund, refundAmount: availRefundable })}
-                              className="btn btn-secondary"
-                              style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem', height: 'auto', color: 'var(--accent-cyan)' }}
-                            >
-                              Max Available (ETB {availRefundable.toLocaleString()})
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {selCust && availRefundable >= 5000 && (
+                              <button
+                                type="button"
+                                onClick={() => setNewRefund({ ...newRefund, refundAmount: 5000 })}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.15rem 0.45rem', fontSize: '0.68rem', height: 'auto', color: 'var(--accent-cyan)' }}
+                              >
+                                ETB 5,000
+                              </button>
+                            )}
+                            {selCust && availRefundable >= 10000 && (
+                              <button
+                                type="button"
+                                onClick={() => setNewRefund({ ...newRefund, refundAmount: 10000 })}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.15rem 0.45rem', fontSize: '0.68rem', height: 'auto', color: 'var(--accent-cyan)' }}
+                              >
+                                ETB 10,000
+                              </button>
+                            )}
+                            {selCust && availRefundable >= 30000 && (
+                              <button
+                                type="button"
+                                onClick={() => setNewRefund({ ...newRefund, refundAmount: 30000 })}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.15rem 0.45rem', fontSize: '0.68rem', height: 'auto', color: 'var(--accent-amber)' }}
+                              >
+                                ETB 30,000
+                              </button>
+                            )}
+                            {selCust && availRefundable > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setNewRefund({ ...newRefund, refundAmount: availRefundable })}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.15rem 0.45rem', fontSize: '0.68rem', height: 'auto', color: 'var(--accent-emerald)' }}
+                              >
+                                Max (ETB {availRefundable.toLocaleString()})
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <input
-                          type="number"
-                          step="0.01"
-                          min="1"
+                          type="text"
+                          inputMode="decimal"
                           className="input"
-                          value={newRefund.refundAmount || ''}
-                          onChange={(e) => setNewRefund({ ...newRefund, refundAmount: parseFloat(e.target.value) || 0 })}
-                          placeholder="Amount to disburse"
+                          value={newRefund.refundAmount ? newRefund.refundAmount.toLocaleString() : ''}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/,/g, '').trim();
+                            const parsed = parseFloat(raw);
+                            setNewRefund({ ...newRefund, refundAmount: isNaN(parsed) ? 0 : parsed });
+                          }}
+                          placeholder="Enter refund amount (e.g. 10,000 or 30,000)"
                           required
                         />
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                          Accepts any positive amount from ETB 1 up to available balance (≤ ETB 10,000: Tier 1 Finance Officer; ETB 10,001–50,000: Tier 2 Finance Manager; &gt; ETB 50,000: Tier 3 Senior Management).
+                        </div>
                         {selCust && isOverLimit && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--accent-rose)' }}>
                             <AlertTriangle size={14} />

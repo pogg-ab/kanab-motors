@@ -44,6 +44,14 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     desc: 'Ledger adjustments & refunds',
   },
   {
+    roleName: 'FINANCE_OFFICER',
+    badgeClass: 'badge-cyan',
+    name: 'Hana Finance Officer',
+    email: 'financeofficer@kanabmotors.com',
+    pass: 'Finance@123',
+    desc: 'Deposit verification & Tier 1 refunds',
+  },
+  {
     roleName: 'PROCUREMENT',
     badgeClass: 'badge-blue',
     name: 'Tewodros Import Logistics',

@@ -556,8 +556,17 @@ export const BookingsPage: React.FC = () => {
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                           {b.item?.itemName || 'Vehicle Item'}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          Qty: {b.quantity} unit(s) • ETB {Number(b.unitPrice || 0).toLocaleString()}/unit
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          Ordered: <strong>{b.quantity}</strong> unit(s) • ETB {Number(b.unitPrice || 0).toLocaleString()}/unit
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem', fontSize: '0.7rem' }}>
+                          <span style={{ color: (b.allottedQuantity || 0) > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)', fontWeight: 600 }}>
+                            Allotted: {b.allottedQuantity || 0}
+                          </span>
+                          <span style={{ color: 'var(--border-color)' }}>•</span>
+                          <span style={{ color: (b.remainingQuantity !== undefined ? b.remainingQuantity : b.quantity) > 0 ? 'var(--accent-cyan)' : 'var(--accent-emerald)', fontWeight: 600 }}>
+                            Remaining: {b.remainingQuantity !== undefined ? b.remainingQuantity : b.quantity}
+                          </span>
                         </div>
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>

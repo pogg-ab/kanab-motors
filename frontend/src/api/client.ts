@@ -327,6 +327,8 @@ export interface Booking {
   | 'CANCELLED';
   salespersonName: string;
   cancellationReason?: string;
+  allottedQuantity?: number;
+  remainingQuantity?: number;
   createdAt: string;
 }
 

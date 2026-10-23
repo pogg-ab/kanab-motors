@@ -41,7 +41,7 @@ export async function seedDatabase(dataSource?: DataSource) {
         'SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD', 'SPARE_PARTS_SALES_CANCEL',
         'ENQUIRIES_VIEW', 'ENQUIRIES_CREATE', 'ENQUIRIES_APPROVE', 'ENQUIRIES_REJECT',
         'BOOKINGS_VIEW', 'BOOKINGS_CREATE', 'BOOKINGS_ALLOCATE', 'BOOKINGS_CANCEL', 'BOOKINGS_TRANSFER_FUNDS',
-        'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW', 'REPORTS_VIEW',
+        'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW', 'EXCESS_VIEW', 'REFUNDS_VIEW', 'REFUNDS_CREATE', 'REPORTS_VIEW',
       ],
     },
     {
@@ -73,7 +73,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       description: 'Finance Officer: deposit slip verification & ledger inspections',
       permissions: [
         'CUSTOMERS_VIEW', 'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'PAYMENTS_CONFIRM',
-        'LEDGER_VIEW', 'EXCESS_VIEW', 'REFUNDS_VIEW', 'REFUNDS_CREATE', 'REFUNDS_REVIEW',
+        'LEDGER_VIEW', 'EXCESS_VIEW', 'REFUNDS_VIEW', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'REFUNDS_APPROVE',
       ],
     },
     {
@@ -163,6 +163,13 @@ export async function seedDatabase(dataSource?: DataSource) {
       email: 'finance@kanabmotors.com',
       fullName: 'Dawit Finance Director',
       roleName: 'FINANCE_MANAGER',
+      password: 'Finance@123',
+    },
+    {
+      username: 'financeofficer',
+      email: 'financeofficer@kanabmotors.com',
+      fullName: 'Hana Finance Officer',
+      roleName: 'FINANCE_OFFICER',
       password: 'Finance@123',
     },
     {

@@ -191,8 +191,36 @@ export class BookingsService {
 
     const [items, total] = await qb.getManyAndCount();
 
+    const bookingIds = items.map((b) => b.bookingId);
+    const allotmentCounts: Record<string, number> = {};
+    if (bookingIds.length > 0) {
+      try {
+        const counts = await this.bookingRepo.query(
+          `SELECT a.booking_id, COUNT(al.allotment_line_id)::int as count
+           FROM allotment a
+           JOIN allotment_line al ON al.allotment_id = a.allotment_id
+           WHERE a.booking_id = ANY($1) AND al.is_active = true AND a.status IN ('APPROVED', 'REQUESTED')
+           GROUP BY a.booking_id`,
+          [bookingIds],
+        );
+        for (const c of counts) {
+          allotmentCounts[String(c.booking_id)] = Number(c.count);
+        }
+      } catch (err) {}
+    }
+
+    const itemsWithAllotments = items.map((b) => {
+      const allottedQty = allotmentCounts[String(b.bookingId)] || 0;
+      const requiredQty = Number(b.quantity || 1);
+      return {
+        ...b,
+        allottedQuantity: allottedQty,
+        remainingQuantity: Math.max(0, requiredQty - allottedQty),
+      };
+    });
+
     return {
-      items,
+      items: itemsWithAllotments,
       total,
       page,
       limit,
@@ -206,7 +234,25 @@ export class BookingsService {
       relations: ['customer', 'item', 'item.brand', 'item.category', 'enquiry', 'payments'],
     });
     if (!booking) throw new NotFoundException(`Booking with ID ${id} not found`);
-    return booking;
+
+    let allottedQty = 0;
+    try {
+      const countRes = await this.bookingRepo.query(
+        `SELECT COUNT(al.allotment_line_id)::int as count
+         FROM allotment a
+         JOIN allotment_line al ON al.allotment_id = a.allotment_id
+         WHERE a.booking_id = $1 AND al.is_active = true AND a.status IN ('APPROVED', 'REQUESTED')`,
+        [id],
+      );
+      allottedQty = Number(countRes[0]?.count || 0);
+    } catch (e) {}
+
+    const requiredQty = Number(booking.quantity || 1);
+    return {
+      ...booking,
+      allottedQuantity: allottedQty,
+      remainingQuantity: Math.max(0, requiredQty - allottedQty),
+    } as any;
   }
 
   /**

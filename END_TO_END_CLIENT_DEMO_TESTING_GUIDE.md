@@ -929,11 +929,13 @@ Allotment inputs:
 
 Expected result:
 
-- Eligible booking appears in queue.
-- Available vehicle table shows chassis, engine, model, warehouse, and status.
-- Selected vehicle posts through the 12-step atomic pipeline.
-- Vehicle status becomes `ALLOTTED`.
-- Booking becomes partially or fully allotted.
+- Eligible booking appears in queue with **Ordered Quantity, Allotted Quantity, and Remaining Needed** clearly displayed.
+- Available vehicle table shows chassis, engine, model, warehouse, and status for units in `AVAILABLE_FOR_SALE` only.
+- Selection clamping: Maximum selectable units cannot exceed `remainingQuantity` for the selected booking.
+- Selected vehicle posts through the 12-step atomic pipeline and is immediately marked `RESERVED` upon creation, then `ALLOTTED` upon approval.
+- Multi-booking isolation (FTC-49): Once a vehicle is allotted or reserved for Booking 1, it is immediately removed from available inventory and blocked from being selected or allotted to any other booking.
+- Allocation calculations (FTC-53): For a 5-unit booking with 3 units allocated, the queue and booking table show **3 Allocated, 2 Remaining**, preventing over-allocation beyond the requested quantity.
+- Inventory balance synchronization (FTC-55): When 3 vehicles from a starting stock of 10 are allotted, `stock_balance` reflects `10 On Hand`, `3 Reserved`, and `7 Available for Sale`, with zero double-counting across warehouse status views.
 - Advice slip/printable document includes customer, booking, chassis, engine, warehouse, dispatch info, landed value, and signatures.
 
 Exception checks:
@@ -942,7 +944,8 @@ Exception checks:
 |---|---|
 | Insufficient payment | Allotment blocked with threshold message |
 | No available vehicle | No vehicle selectable; partial allotment only if units exist |
-| Double allocation attempt | Second attempt blocked with vehicle no longer available message |
+| Double allocation attempt (FTC-49) | Second attempt blocked with message: *"Vehicle is already allocated or reserved. The system has prevented double allocation."* |
+| Over-allocation attempt (FTC-53) | Blocked with message indicating ordered vs remaining quantity |
 | Cancelled booking | Allotment blocked or reversal workflow required |
 
 Reversal/un-allotment, if available:
@@ -951,7 +954,7 @@ Reversal/un-allotment, if available:
 Reason: Customer requested model change during E2E test
 ```
 
-Expected result: vehicle status returns according to allowed transition, audit/movement history records reversal, and posted history is not deleted.
+Expected result: vehicle status returns to `AVAILABLE_FOR_SALE`, stock balance decreases reserved count atomically, audit/movement history records reversal, and posted history is preserved.
 
 ## Screen 20: Sales Invoices & Multi-Tax Settlement Suite (Jira KMSICAMS-11)
 
@@ -1140,14 +1143,18 @@ Expected formula enforced:
 Available Refundable Balance = Total Received - Invoiced Amount - Already Refunded - Pending In-Review Refunds
 ```
 
-Approval ladder:
+Approval ladder & RBAC Permissions (FTC-44 & FTC-47):
 
-| Tier | Amount | Expected approval |
-|---|---:|---|
-| Tier 1 | `< 50,000 ETB` | Finance Officer review |
-| Tier 2 | `50,000–200,000 ETB` | Finance Manager approval |
-| Tier 3 | `200,000–1,000,000 ETB` | Managing Director approval |
-| Tier 4 | `> 1,000,000 ETB` | Executive Board authorization |
+| Tier | Amount | Expected Approval | Authorized Roles |
+|---|---:|---|---|
+| **Tier 1 (FTC-44)** | **≤ 10,000 ETB** | **Finance Officer Approval** | `FINANCE_OFFICER`, `FINANCE_MANAGER`, `ADMIN` |
+| **Tier 2** | **10,001–50,000 ETB** | **Finance Manager Approval** | `FINANCE_MANAGER`, `ADMIN` |
+| **Tier 3** | **> 50,000 ETB** | **Senior Management Authorization** | `FINANCE_MANAGER`, `ADMIN` |
+
+Role Permission Boundaries (FTC-47):
+- **Sales Manager (`sales@kanabmotors.com`):** Can access Customer Ledger (`statement`) AND initiate Customer Refund requests (`REFUNDS_CREATE`, `REFUNDS_VIEW`). Approval and payment payout actions remain strictly restricted to Finance.
+- **Finance Officer (`financeofficer@kanabmotors.com`):** Can access Customer Ledger, verify BRV payments, and approve Tier 1 refunds (`≤ 10,000 ETB`).
+- **Finance Director / Manager (`finance@kanabmotors.com`):** Unrestricted financial approvals, ledger adjustments, Tier 2/3 refund approvals, and bank payout processing.
 
 Payout confirmation inputs:
 
@@ -1164,7 +1171,8 @@ Expected result:
 - Available refundable balance updates without double-refund.
 
 Negative checks:
-- Refund greater than available balance is blocked.
+- Refund greater than available balance is blocked (e.g. requesting 60,000 when refundable balance is 50,000).
+- Any positive amount from 1 ETB up to refundable balance is accepted (including amounts ≤ 10,000 ETB, with or without comma formatting like `10,000`).
 - Duplicate pending refund that exceeds available refundable balance is blocked.
 - Payout before approval is blocked.
 

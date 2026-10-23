@@ -123,10 +123,25 @@ export const AllotmentPage: React.FC = () => {
   const handleOpenCreateModal = (presetBookingId?: string) => {
     if (!canAllocateBookings) return;
     setAllotmentError(null);
-    setSelectedBookingId(presetBookingId || (eligibleBookings.length > 0 ? eligibleBookings[0].bookingId : ''));
+    const targetBookingId = presetBookingId || (eligibleBookings.length > 0 ? eligibleBookings[0].bookingId : '');
+    setSelectedBookingId(targetBookingId);
     setSelectedUnitIds([]);
     setAllotmentNotes('');
     setShowCreateModal(true);
+
+    const b = eligibleBookings.find((item) => item.bookingId === targetBookingId);
+    if (b && b.itemId) {
+      api
+        .getAvailableAllotmentVehicles(b.itemId)
+        .then((units) => {
+          setAvailableVehicles(units || []);
+        })
+        .catch((err) => {
+          showToast('error', formatApiError(err, 'Failed to load matching available vehicles'));
+        });
+    } else {
+      setAvailableVehicles([]);
+    }
   };
 
   const handleToggleUnitSelection = (unitId: string, maxAllowed: number) => {
@@ -167,8 +182,8 @@ export const AllotmentPage: React.FC = () => {
     } catch (err: any) {
       const errMsg = formatApiError(err, 'Allotment request creation failed');
       // If concurrency/double-allocation occurred, show the exact client recommended notification
-      if (errMsg.toLowerCase().includes('already active') || errMsg.toLowerCase().includes('conflict')) {
-        setAllotmentError('Vehicle is no longer available. Please refresh inventory and select another vehicle.');
+      if (errMsg.toLowerCase().includes('already active') || errMsg.toLowerCase().includes('conflict') || errMsg.toLowerCase().includes('not available')) {
+        setAllotmentError('Vehicle is already allocated or reserved. The system has prevented double allocation. Please refresh and select an available vehicle.');
       } else {
         setAllotmentError(errMsg);
       }
@@ -1418,13 +1433,31 @@ export const AllotmentPage: React.FC = () => {
                         <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Satisfied (≥30%) ✓</span>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Available in WH: </span>
-                        <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>{availableVehicles.length} units</strong>
+                        <span style={{ color: 'var(--text-secondary)' }}>Order Quantity: </span>
+                        <strong style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                          {currentBooking.quantity || currentBooking.requiredQuantity} vehicles
+                        </strong>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Max Can Allot: </span>
+                        <span style={{ color: 'var(--text-secondary)' }}>Currently Allotted: </span>
+                        <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                          {currentBooking.allottedQuantity || 0} vehicles
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Remaining Needed: </span>
+                        <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'monospace' }}>
+                          {remainingNeeded} vehicles
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Available in WH: </span>
+                        <strong style={{ color: 'var(--accent-purple)', fontFamily: 'monospace' }}>{availableVehicles.length} units</strong>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Max Selectable For Allotment: </span>
                         <strong style={{ color: 'var(--accent-amber)', fontFamily: 'monospace' }}>
-                          MIN({availableVehicles.length}, {remainingNeeded}) = {maxAvailableCanAllot} units
+                          MIN({availableVehicles.length} in WH, {remainingNeeded} remaining) = {maxAvailableCanAllot} units max
                         </strong>
                       </div>
                     </div>
