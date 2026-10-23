@@ -12,6 +12,7 @@ import {
   XCircle,
   X,
   ArrowUpRight,
+  ArrowRightLeft,
   RefreshCw,
   Printer,
   ChevronRight,
@@ -85,6 +86,7 @@ export const SparePartsPage: React.FC = () => {
   const [isPartModalOpen, setIsPartModalOpen] = useState(false);
   const [editingPart, setEditingPart] = useState<SparePartDetail | null>(null);
   const [isStockIntakeModalOpen, setIsStockIntakeModalOpen] = useState(false);
+  const [isStockTransferModalOpen, setIsStockTransferModalOpen] = useState(false);
   const [isNewSaleModalOpen, setIsNewSaleModalOpen] = useState(false);
   const [viewingSale, setViewingSale] = useState<SparePartsSaleRecord | null>(null);
   const [cancellingSale, setCancellingSale] = useState<SparePartsSaleRecord | null>(null);
@@ -788,6 +790,24 @@ export const SparePartsPage: React.FC = () => {
                     <Plus size={15} /> Receive Stock
                   </button>
                 )}
+
+                {(hasPermission('STOCK_TRANSFERS_CREATE') || hasPermission('WAREHOUSES_MANAGE')) && (
+                  <button
+                    onClick={() => setIsStockTransferModalOpen(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      height: '38px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      borderColor: 'rgba(6, 182, 212, 0.4)',
+                      color: 'var(--accent-cyan)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <ArrowRightLeft size={15} /> Transfer Stock
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -913,7 +933,7 @@ export const SparePartsPage: React.FC = () => {
                   <RefreshCw size={14} className={loadingSales ? 'spin' : ''} /> Refresh Sales
                 </button>
 
-                {hasPermission('PAYMENTS_RECORD') && (
+                {(hasPermission('SPARE_PARTS_SALES_RECORD') || hasPermission('PAYMENTS_RECORD')) && (
                   <button
                     onClick={() => setIsNewSaleModalOpen(true)}
                     className="btn btn-emerald btn-sm"
@@ -997,8 +1017,19 @@ export const SparePartsPage: React.FC = () => {
                               <CheckCircle2 size={12} /> Completed
                             </span>
                           ) : (
-                            <span className="badge badge-rose">
-                              <XCircle size={12} /> Cancelled
+                            <span
+                              className="badge badge-rose"
+                              style={{
+                                fontWeight: 800,
+                                padding: '0.3rem 0.65rem',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                              }}
+                            >
+                              <XCircle size={13} /> VOID / CANCELLED
                             </span>
                           )}
                         </td>
@@ -1012,19 +1043,22 @@ export const SparePartsPage: React.FC = () => {
                               <Eye size={12} /> View Slip
                             </button>
 
-                            {sale.status === 'COMPLETED' && hasPermission('BOOKINGS_CANCEL') && (
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setCancellingSale(sale);
-                                  setCancelReason('');
-                                  setCancelError(null);
-                                }}
-                                style={{ color: 'var(--accent-rose)' }}
-                              >
-                                Cancel
-                              </button>
-                            )}
+                            {sale.status === 'COMPLETED' &&
+                              (hasPermission('SPARE_PARTS_SALES_CANCEL') ||
+                                hasPermission('BOOKINGS_CANCEL') ||
+                                hasPermission('PAYMENTS_REJECT')) && (
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => {
+                                    setCancellingSale(sale);
+                                    setCancelReason('');
+                                    setCancelError(null);
+                                  }}
+                                  style={{ color: 'var(--accent-rose)' }}
+                                >
+                                  Cancel
+                                </button>
+                              )}
                           </div>
                         </td>
                       </tr>
@@ -1141,10 +1175,34 @@ export const SparePartsPage: React.FC = () => {
           isOpen={isStockIntakeModalOpen}
           parts={allParts.length > 0 ? allParts : parts}
           warehouses={warehouses}
+          defaultWarehouseId={selectedStockWarehouse ? Number(selectedStockWarehouse) : undefined}
           onClose={() => setIsStockIntakeModalOpen(false)}
           onSuccess={() => {
             setIsStockIntakeModalOpen(false);
             showNotification('Stock received into warehouse balance successfully!');
+            loadStock();
+            loadParts();
+            loadAllParts();
+            loadReports();
+          }}
+        />
+      )}
+
+      {/* =====================================================================
+          MODAL 2B: INTER-WAREHOUSE STOCK TRANSFER (FTC-77)
+      ===================================================================== */}
+      {isStockTransferModalOpen && (
+        <StockTransferModal
+          isOpen={isStockTransferModalOpen}
+          parts={allParts.length > 0 ? allParts : parts}
+          warehouses={warehouses}
+          defaultWarehouseId={selectedStockWarehouse ? Number(selectedStockWarehouse) : undefined}
+          onClose={() => setIsStockTransferModalOpen(false)}
+          onSuccess={(info) => {
+            setIsStockTransferModalOpen(false);
+            showNotification(
+              `Transferred ${info.quantity} units of ${info.partName} from ${info.fromName} to ${info.toName} successfully! (Source: ${info.sourceAfter}, Destination: ${info.destAfter})`,
+            );
             loadStock();
             loadParts();
             loadAllParts();
@@ -1746,6 +1804,7 @@ interface StockIntakeModalProps {
   isOpen: boolean;
   parts: SparePartItem[];
   warehouses: Warehouse[];
+  defaultWarehouseId?: number;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -1753,10 +1812,11 @@ interface StockIntakeModalProps {
 const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
   parts,
   warehouses,
+  defaultWarehouseId,
   onClose,
   onSuccess,
 }) => {
-  const [warehouseId, setWarehouseId] = useState<number>(warehouses[0]?.warehouseId || 1);
+  const [warehouseId, setWarehouseId] = useState<number>(defaultWarehouseId || warehouses[0]?.warehouseId || 1);
   const [activeParts, setActiveParts] = useState<SparePartItem[]>(parts);
   const [itemId, setItemId] = useState<string>(parts[0]?.itemId || '');
   const [quantity, setQuantity] = useState<number>(10);
@@ -1764,6 +1824,14 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (warehouses && warehouses.length > 0) {
+      if (!warehouseId || !warehouses.some((w) => Number(w.warehouseId) === Number(warehouseId))) {
+        setWarehouseId(Number(defaultWarehouseId || warehouses[0].warehouseId));
+      }
+    }
+  }, [warehouses, defaultWarehouseId]);
 
   useEffect(() => {
     if (parts && parts.length > 0) {
@@ -1938,6 +2006,290 @@ const StockIntakeModal: React.FC<StockIntakeModalProps> = ({
               className="btn btn-cyan"
             >
               {submitting ? 'Recording...' : 'Post Stock Intake'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// COMPONENT: INTER-WAREHOUSE STOCK TRANSFER MODAL (FTC-77)
+// ============================================================================
+interface StockTransferModalProps {
+  isOpen: boolean;
+  parts: SparePartItem[];
+  warehouses: Warehouse[];
+  defaultWarehouseId?: number;
+  onClose: () => void;
+  onSuccess: (info: { partName: string; fromName: string; toName: string; quantity: number; sourceAfter: number; destAfter: number }) => void;
+}
+
+const StockTransferModal: React.FC<StockTransferModalProps> = ({
+  parts,
+  warehouses,
+  defaultWarehouseId,
+  onClose,
+  onSuccess,
+}) => {
+  const [activeParts, setActiveParts] = useState<SparePartItem[]>(parts);
+  const [itemId, setItemId] = useState<string>(parts[0]?.itemId || '');
+  const [fromWarehouseId, setFromWarehouseId] = useState<number>(defaultWarehouseId || warehouses[0]?.warehouseId || 1);
+  const [toWarehouseId, setToWarehouseId] = useState<number>(
+    warehouses.find((w) => Number(w.warehouseId) !== Number(defaultWarehouseId || warehouses[0]?.warehouseId || 1))?.warehouseId || 2,
+  );
+  const [quantity, setQuantity] = useState<number>(1);
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sourceStock, setSourceStock] = useState<{ onHand: number; available: number } | null>(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+
+  useEffect(() => {
+    if (parts && parts.length > 0) {
+      setActiveParts(parts);
+      if (!itemId) setItemId(parts[0].itemId);
+    } else {
+      api.getSpareParts({ limit: 500, isActive: true })
+        .then((res) => {
+          setActiveParts(res.items);
+          if (res.items.length > 0 && !itemId) setItemId(res.items[0].itemId);
+        })
+        .catch(console.error);
+    }
+  }, [parts]);
+
+  useEffect(() => {
+    if (warehouses && warehouses.length > 1) {
+      if (!fromWarehouseId || !warehouses.some((w) => Number(w.warehouseId) === Number(fromWarehouseId))) {
+        setFromWarehouseId(Number(defaultWarehouseId || warehouses[0].warehouseId));
+      }
+      const other = warehouses.find((w) => Number(w.warehouseId) !== Number(fromWarehouseId));
+      if (other && (Number(toWarehouseId) === Number(fromWarehouseId) || !toWarehouseId)) {
+        setToWarehouseId(Number(other.warehouseId));
+      }
+    }
+  }, [warehouses, defaultWarehouseId, fromWarehouseId]);
+
+  // Fetch live balance for selected item at source warehouse
+  useEffect(() => {
+    if (itemId && fromWarehouseId) {
+      setLoadingBalance(true);
+      api.getSparePartsStock({ warehouseId: Number(fromWarehouseId) })
+        .then((stockList) => {
+          const match = stockList.find((s) => String(s.itemId) === String(itemId) && Number(s.warehouseId) === Number(fromWarehouseId));
+          if (match) {
+            setSourceStock({ onHand: match.quantityOnHand, available: match.quantityAvailable });
+          } else {
+            setSourceStock({ onHand: 0, available: 0 });
+          }
+        })
+        .catch(() => setSourceStock(null))
+        .finally(() => setLoadingBalance(false));
+    }
+  }, [itemId, fromWarehouseId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemId) {
+      setError('Please select a spare part.');
+      return;
+    }
+    if (Number(fromWarehouseId) === Number(toWarehouseId)) {
+      setError('Source and destination warehouse cannot be the same facility.');
+      return;
+    }
+    if (quantity <= 0) {
+      setError('Transfer quantity must be at least 1.');
+      return;
+    }
+    if (sourceStock && sourceStock.available < quantity) {
+      setError(`Cannot transfer ${quantity} units. Only ${sourceStock.available} available on hand at source warehouse.`);
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await api.transferSparePartStock({
+        fromWarehouseId: Number(fromWarehouseId),
+        toWarehouseId: Number(toWarehouseId),
+        itemId,
+        quantity: Number(quantity),
+        notes: notes || undefined,
+      });
+
+      const selectedPart = activeParts.find((p) => String(p.itemId) === String(itemId));
+      const fromWh = warehouses.find((w) => Number(w.warehouseId) === Number(fromWarehouseId));
+      const toWh = warehouses.find((w) => Number(w.warehouseId) === Number(toWarehouseId));
+
+      onSuccess({
+        partName: selectedPart ? `${selectedPart.itemCode} - ${selectedPart.itemName}` : `Part #${itemId}`,
+        fromName: fromWh?.warehouseName || `Warehouse #${fromWarehouseId}`,
+        toName: toWh?.warehouseName || `Warehouse #${toWarehouseId}`,
+        quantity: Number(quantity),
+        sourceAfter: res.sourceBalanceAfter,
+        destAfter: res.destinationBalanceAfter,
+      });
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to complete stock transfer.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-content" style={{ maxWidth: '560px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(6, 182, 212, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-cyan)',
+              }}
+            >
+              <ArrowRightLeft size={20} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                Inter-Warehouse Stock Transfer
+              </h3>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                Shift spare parts stock atomically between warehouse depots with balance audit
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="btn btn-secondary"
+            style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            <ModalErrorAlert error={error} onDismiss={() => setError(null)} />
+
+            {/* Part Selection */}
+            <div className="form-group">
+              <label className="form-label">Select Spare Part Item *</label>
+              <select
+                value={itemId}
+                onChange={(e) => setItemId(e.target.value)}
+                className="select-field"
+                required
+              >
+                {activeParts.length === 0 ? (
+                  <option value="">No registered spare parts found</option>
+                ) : (
+                  activeParts.map((p) => (
+                    <option key={p.itemId} value={p.itemId}>
+                      {p.itemCode} — {p.itemName}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            {/* Source & Destination Warehouse Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Source Warehouse (Transfer From) *</label>
+                <select
+                  value={fromWarehouseId}
+                  onChange={(e) => setFromWarehouseId(Number(e.target.value))}
+                  className="select-field"
+                >
+                  {warehouses.map((w) => (
+                    <option key={w.warehouseId} value={w.warehouseId}>
+                      {w.warehouseName}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                  {loadingBalance ? (
+                    'Checking balance...'
+                  ) : sourceStock !== null ? (
+                    <span style={{ color: sourceStock.available > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)', fontWeight: 700 }}>
+                      Current Stock: {sourceStock.onHand} on hand ({sourceStock.available} available)
+                    </span>
+                  ) : (
+                    'Select part to check stock'
+                  )}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Destination Warehouse (Transfer To) *</label>
+                <select
+                  value={toWarehouseId}
+                  onChange={(e) => setToWarehouseId(Number(e.target.value))}
+                  className="select-field"
+                >
+                  {warehouses
+                    .filter((w) => Number(w.warehouseId) !== Number(fromWarehouseId))
+                    .map((w) => (
+                      <option key={w.warehouseId} value={w.warehouseId}>
+                        {w.warehouseName}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Quantity and Notes */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Transfer Qty *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max={sourceStock ? sourceStock.available : undefined}
+                  value={quantity}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  className="input-field"
+                  style={{ fontWeight: 700 }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Transfer Audit Notes / Purpose</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Branch replenishment or workshop request"
+                  className="input-field"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-footer" style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || (sourceStock !== null && sourceStock.available < quantity)}
+              className="btn btn-cyan"
+            >
+              {submitting ? 'Executing Transfer...' : 'Complete Stock Transfer'}
             </button>
           </div>
         </form>
@@ -2466,7 +2818,14 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', fontFamily: 'monospace' }}>{sale.saleNumber}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end' }}>
+                <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', fontFamily: 'monospace' }}>{sale.saleNumber}</span>
+                {sale.status === 'CANCELLED' && (
+                  <span style={{ padding: '0.2rem 0.55rem', background: '#ef4444', color: '#ffffff', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.05em' }}>
+                    VOID / CANCELLED
+                  </span>
+                )}
+              </div>
               <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(sale.saleDate).toLocaleDateString()}</div>
             </div>
             <button
@@ -2479,7 +2838,61 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
           </div>
         </div>
 
-        <div className="modal-body" style={{ padding: '1.5rem', background: '#ffffff', color: '#0f172a' }}>
+        <div className="modal-body" style={{ padding: '1.5rem', background: '#ffffff', color: '#0f172a', position: 'relative' }}>
+          {sale.status === 'CANCELLED' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%) rotate(-25deg)',
+                fontSize: '4.2rem',
+                fontWeight: 900,
+                color: 'rgba(239, 68, 68, 0.12)',
+                border: '6px dashed rgba(239, 68, 68, 0.25)',
+                padding: '0.5rem 2.5rem',
+                borderRadius: '16px',
+                pointerEvents: 'none',
+                userSelect: 'none',
+                whiteSpace: 'nowrap',
+                letterSpacing: '0.1em',
+                zIndex: 10,
+              }}
+            >
+              VOID / CANCELLED
+            </div>
+          )}
+
+          {sale.status === 'CANCELLED' && (
+            <div
+              style={{
+                background: '#fee2e2',
+                border: '2px solid #ef4444',
+                borderRadius: '8px',
+                padding: '0.9rem 1.15rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.85rem',
+                marginBottom: '1.25rem',
+                color: '#991b1b',
+              }}
+            >
+              <XCircle size={26} style={{ flexShrink: 0, color: '#dc2626' }} />
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.02em' }}>
+                  TRANSACTION STATUS: VOID / CANCELLED
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#7f1d1d', marginTop: '0.2rem', lineHeight: 1.4 }}>
+                  This sale transaction has been formally cancelled and all item quantities have been reversed back into warehouse stock balance. Immutable transaction record preserved in audit ledger.
+                </div>
+                {sale.notes && (
+                  <div style={{ fontSize: '0.78rem', marginTop: '0.35rem', color: '#450a0a', fontWeight: 700 }}>
+                    Cancellation Reason: &ldquo;{sale.notes}&rdquo;
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
             <div>
               <div style={{ fontWeight: 700, color: '#334155' }}>Customer Information:</div>

@@ -598,6 +598,32 @@ export class InventoryService {
     return this.getStockAdjustmentById(id);
   }
 
+  async rejectStockAdjustment(id: string, reason?: string, userId = 1): Promise<StockAdjustment> {
+    const adj = await this.getStockAdjustmentById(id);
+    if (adj.status !== AdjustmentStatus.REQUESTED) {
+      throw new BadRequestException(`Stock adjustment #${adj.adjustmentNumber} is already ${adj.status}`);
+    }
+
+    try {
+      const updatedNotes = reason ? `${adj.reasonNotes || ''}\n[REJECTION REASON: ${reason}]`.trim() : adj.reasonNotes;
+      await this.dataSource.query(`
+        UPDATE stock_adjustment
+        SET status = 'REJECTED', approved_by = $1, approved_at = now(), reason_notes = $2
+        WHERE adjustment_id = $3
+      `, [userId, updatedNotes, id]);
+
+      await this.dataSource.query(`
+        UPDATE approval_request
+        SET status = 'REJECTED', finalized_at = now()
+        WHERE workflow_type_code = 'STOCK_ADJUSTMENT' AND entity_id = $1 AND status = 'PENDING'
+      `, [id]).catch(() => {});
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Stock adjustment rejection failed');
+    }
+
+    return this.getStockAdjustmentById(id);
+  }
+
   // =====================================================================
   // 6. PRODUCTION VEHICLE INTAKE (Stories P1, P2)
   // =====================================================================

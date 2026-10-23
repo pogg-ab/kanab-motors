@@ -203,6 +203,20 @@ export class ShipmentsController {
           cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
         },
       }),
+      fileFilter: (req, file, cb) => {
+        const allowedMimes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const allowedExts = ['.pdf', '.jpeg', '.jpg', '.png', '.webp'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!allowedMimes.includes(file.mimetype) || !allowedExts.includes(ext)) {
+          return cb(
+            new BadRequestException(
+              'Unsupported file format. Only PDF documents and standard images (JPEG, PNG, WEBP) are accepted.',
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
     }),
   )
   uploadDocument(

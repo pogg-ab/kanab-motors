@@ -198,6 +198,13 @@ export class InventoryController {
     return this.inventoryService.approveStockAdjustment(id);
   }
 
+  @RequirePermissions('STOCK_ADJUSTMENTS_APPROVE')
+  @Patch('adjustments/:id/reject')
+  @ApiOperation({ summary: 'Reject stock adjustment leaving balances unchanged' })
+  rejectStockAdjustment(@Param('id') id: string, @Body('reason') reason?: string) {
+    return this.inventoryService.rejectStockAdjustment(id, reason);
+  }
+
   // =========================================================================
   // 6. PRODUCTION VEHICLE INTAKE (P1 - P3)
   // =========================================================================

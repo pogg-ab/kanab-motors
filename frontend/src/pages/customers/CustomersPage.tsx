@@ -403,6 +403,14 @@ export const CustomersPage: React.FC = () => {
   const handleUploadDocument = async () => {
     if (!canUploadDocs) return;
     if (!selectedCustomer || !uploadFile) return;
+
+    const allowedExts = ['.pdf', '.jpeg', '.jpg', '.png', '.webp'];
+    const ext = '.' + (uploadFile.name.split('.').pop() || '').toLowerCase();
+    if (!allowedExts.includes(ext)) {
+      setDocError('Unsupported file format. Only PDF documents and standard images (JPEG, PNG, WEBP) are accepted.');
+      return;
+    }
+
     setUploading(true);
     setDocError(null);
     try {
@@ -1715,6 +1723,7 @@ export const CustomersPage: React.FC = () => {
                       <input
                         type="file"
                         id="cust-doc-upload"
+                        accept=".pdf,.png,.jpg,.jpeg,.webp"
                         style={{ display: 'none' }}
                         onChange={(e) => {
                           if (e.target.files?.[0]) setUploadFile(e.target.files[0]);

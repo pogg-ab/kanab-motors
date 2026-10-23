@@ -1411,6 +1411,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                   <input
                     type="file"
                     id={`file-${doc.type}`}
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
                     style={{ display: 'none' }}
                     onChange={async (e) => {
                       if (!canUploadShipmentDocs) {
@@ -1419,9 +1420,17 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
                         return;
                       }
                       if (e.target.files && e.target.files[0]) {
+                        const file = e.target.files[0];
+                        const allowedExts = ['.pdf', '.jpeg', '.jpg', '.png', '.webp'];
+                        const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+                        if (!allowedExts.includes(ext)) {
+                          showToast('error', 'Unsupported file format. Only PDF documents and standard images (JPEG, PNG, WEBP) are accepted.');
+                          e.target.value = '';
+                          return;
+                        }
                         try {
                           setDocumentUploadProgress((current) => ({ ...current, [doc.type]: 0 }));
-                          const uploaded = await api.uploadShipmentDoc(shipmentId, e.target.files[0], doc.type, (progress) => {
+                          const uploaded = await api.uploadShipmentDoc(shipmentId, file, doc.type, (progress) => {
                             setDocumentUploadProgress((current) => ({ ...current, [doc.type]: progress }));
                           });
                           setDocumentUploadProgress((current) => ({ ...current, [doc.type]: 100 }));

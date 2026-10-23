@@ -57,14 +57,14 @@ export class SparePartsController {
     );
   }
 
-  @RequirePermissions('REPORTS_VIEW')
+  @RequirePermissions('SPARE_PARTS_VIEW', 'REPORTS_VIEW')
   @Get('reports/summary')
   @ApiOperation({ summary: 'Get executive spare parts sales and stock metrics' })
   getReportsSummary() {
     return this.sparePartsService.getReportsSummary();
   }
 
-  @RequirePermissions('STOCK_RECEIPTS_CREATE', 'WAREHOUSES_MANAGE')
+  @RequirePermissions('STOCK_RECEIPTS_CREATE', 'WAREHOUSES_MANAGE', 'SPARE_PARTS_VIEW')
   @Post('stock/receive')
   @ApiOperation({ summary: 'Receive stock intake or opening balance for a spare part' })
   receiveStock(
@@ -81,7 +81,24 @@ export class SparePartsController {
     return this.sparePartsService.receiveStock(body, userId);
   }
 
-  @RequirePermissions('PAYMENTS_VIEW', 'ENQUIRIES_VIEW')
+  @RequirePermissions('STOCK_TRANSFERS_CREATE', 'WAREHOUSES_MANAGE', 'SPARE_PARTS_VIEW')
+  @Post('stock/transfer')
+  @ApiOperation({ summary: 'Transfer spare part stock between warehouses' })
+  transferStock(
+    @Body() body: {
+      fromWarehouseId: number;
+      toWarehouseId: number;
+      itemId: string;
+      quantity: number;
+      notes?: string;
+    },
+    @Request() req: any,
+  ) {
+    const userId = req.user?.userId || 1;
+    return this.sparePartsService.transferStock(body, userId);
+  }
+
+  @RequirePermissions('SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD', 'PAYMENTS_VIEW', 'ENQUIRIES_VIEW')
   @Get('sales')
   @ApiOperation({ summary: 'List spare parts sales history and invoices' })
   getSales(
@@ -106,14 +123,14 @@ export class SparePartsController {
     });
   }
 
-  @RequirePermissions('PAYMENTS_VIEW', 'ENQUIRIES_VIEW')
+  @RequirePermissions('SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD', 'PAYMENTS_VIEW', 'ENQUIRIES_VIEW')
   @Get('sales/:id')
   @ApiOperation({ summary: 'Get single spare parts sale details with line items' })
   getSaleById(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.sparePartsService.getSparePartsSaleById(id);
   }
 
-  @RequirePermissions('PAYMENTS_RECORD', 'ENQUIRIES_CREATE')
+  @RequirePermissions('SPARE_PARTS_SALES_RECORD', 'PAYMENTS_RECORD', 'ENQUIRIES_CREATE')
   @Post('sales')
   @ApiOperation({ summary: 'Create and post a spare parts POS / Sales transaction' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -122,7 +139,7 @@ export class SparePartsController {
     return this.sparePartsService.createSparePartsSale(dto, userId);
   }
 
-  @RequirePermissions('PAYMENTS_REJECT', 'BOOKINGS_CANCEL')
+  @RequirePermissions('SPARE_PARTS_SALES_CANCEL', 'PAYMENTS_REJECT', 'BOOKINGS_CANCEL')
   @Post('sales/:id/cancel')
   @ApiOperation({ summary: 'Cancel a spare parts sale and reverse warehouse stock' })
   cancelSale(

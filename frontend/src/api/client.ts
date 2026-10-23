@@ -1173,6 +1173,8 @@ export const api = {
   getStockAdjustment: (id: string) => apiClient.get<StockAdjustment>(`/inventory/adjustments/${id}`).then((r) => r.data),
   approveStockAdjustment: (id: string) =>
     apiClient.patch<StockAdjustment>(`/inventory/adjustments/${id}/approve`).then((r) => r.data),
+  rejectStockAdjustment: (id: string, reason?: string) =>
+    apiClient.patch<StockAdjustment>(`/inventory/adjustments/${id}/reject`, { reason }).then((r) => r.data),
   createStockReceipt: (data: {
     warehouseId: number;
     itemId: string;
@@ -1252,6 +1254,8 @@ export const api = {
     apiClient.get<SparePartStockItem[]>('/spare-parts/stock', { params }).then((r) => r.data),
   receiveSparePartStock: (data: { warehouseId: number; itemId: string; quantity: number; sourceType?: string; notes?: string }) =>
     apiClient.post('/spare-parts/stock/receive', data).then((r) => r.data),
+  transferSparePartStock: (data: { fromWarehouseId: number; toWarehouseId: number; itemId: string; quantity: number; notes?: string }) =>
+    apiClient.post('/spare-parts/stock/transfer', data).then((r) => r.data),
   getSparePartsSales: (params?: any) =>
     apiClient.get<{ items: SparePartsSaleRecord[]; total: number; page: number; limit: number }>('/spare-parts/sales', { params }).then((r) => r.data),
   getSparePartsSaleById: (id: string) =>

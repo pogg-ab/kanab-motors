@@ -23,6 +23,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   X,
+  XCircle,
 } from 'lucide-react';
 import {
   api,
@@ -84,6 +85,9 @@ export const InventoryPage: React.FC = () => {
   const [showAdjustmentModal, setShowAdjustmentModal] = useState<boolean>(false);
   const [showProductionModal, setShowProductionModal] = useState<boolean>(false);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransfer | null>(null);
+  const [rejectingAdjustment, setRejectingAdjustment] = useState<StockAdjustment | null>(null);
+  const [adjRejectReason, setAdjRejectReason] = useState<string>('');
+  const [adjRejectError, setAdjRejectError] = useState<string | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
@@ -457,6 +461,24 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  const handleRejectAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canApproveStockAdjustment || !rejectingAdjustment) return;
+    setActionLoading(true);
+    setAdjRejectError(null);
+    try {
+      await api.rejectStockAdjustment(rejectingAdjustment.adjustmentId, adjRejectReason);
+      showToast('success', `Adjustment #${rejectingAdjustment.adjustmentId.slice(0, 8)} rejected. Inventory balances remain intact.`);
+      setRejectingAdjustment(null);
+      setAdjRejectReason('');
+      loadAllData();
+    } catch (err: any) {
+      setAdjRejectError(formatApiError(err, 'Failed to reject adjustment'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Production Receipt Actions
   const handleCreateProductionReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -681,7 +703,7 @@ export const InventoryPage: React.FC = () => {
           { key: 'production', label: 'Local Assembly Intake', icon: Wrench },
           { key: 'transitions', label: 'Vehicle State Machine', icon: CarFront },
           { key: 'movements', label: 'Movement History Log', icon: History },
-          { key: 'reports', label: '11 Inventory Reports ★', icon: FileText },
+          ...(can('REPORTS_VIEW') ? [{ key: 'reports', label: '11 Inventory Reports ★', icon: FileText }] : []),
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -1227,22 +1249,44 @@ export const InventoryPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
                         {a.status === 'REQUESTED' && canApproveStockAdjustment && (
-                          <button
-                            disabled={actionLoading}
-                            onClick={() => handleApproveAdjustment(a.adjustmentId)}
-                            style={{
-                              background: '#10B981',
-                              border: 'none',
-                              color: '#FFF',
-                              padding: '0.3rem 0.6rem',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                            }}
-                          >
-                            Approve
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => handleApproveAdjustment(a.adjustmentId)}
+                              style={{
+                                background: '#10B981',
+                                border: 'none',
+                                color: '#FFF',
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              disabled={actionLoading}
+                              onClick={() => {
+                                setRejectingAdjustment(a);
+                                setAdjRejectReason('');
+                                setAdjRejectError(null);
+                              }}
+                              style={{
+                                background: '#EF4444',
+                                border: 'none',
+                                color: '#FFF',
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              Reject
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -1772,7 +1816,7 @@ export const InventoryPage: React.FC = () => {
       )}
 
       {/* TAB 7: 11 INVENTORY REPORTS (Client Specification) */}
-      {activeTab === 'reports' && (
+      {activeTab === 'reports' && can('REPORTS_VIEW') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Header & Report Selector */}
           <div className="card" style={{ padding: '1.25rem' }}>
@@ -3070,6 +3114,99 @@ export const InventoryPage: React.FC = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: REJECT STOCK ADJUSTMENT MODAL */}
+      {rejectingAdjustment && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)', color: '#EF4444' }}>
+                  <XCircle size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Reject Stock Adjustment
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#EF4444' }}>
+                    Decline #{rejectingAdjustment.adjustmentId.slice(0, 8)} — stock balance will remain unchanged
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectingAdjustment(null)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectAdjustment}>
+              <div className="modal-body">
+                <ModalErrorAlert error={adjRejectError} onDismiss={() => setAdjRejectError(null)} />
+                <div style={{ padding: '0.85rem', background: 'var(--bg-table-header)', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Adjustment:</span>
+                    <strong style={{ fontFamily: 'monospace' }}>#{rejectingAdjustment.adjustmentId.slice(0, 8)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Warehouse:</span>
+                    <span>{rejectingAdjustment.warehouse?.warehouseName || `Warehouse #${rejectingAdjustment.warehouseId}`}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Requested Delta:</span>
+                    <strong style={{ color: Number(rejectingAdjustment.quantityDelta) >= 0 ? '#10B981' : '#EF4444' }}>
+                      {Number(rejectingAdjustment.quantityDelta) > 0 ? `+${rejectingAdjustment.quantityDelta}` : rejectingAdjustment.quantityDelta}
+                    </strong>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Rejection Reason / Audit Notes <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={adjRejectReason}
+                    onChange={(e) => setAdjRejectReason(e.target.value)}
+                    placeholder="Specify the operational reason why this stock adjustment is being declined..."
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setRejectingAdjustment(null)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || !adjRejectReason.trim()}
+                  className="btn"
+                  style={{ background: '#EF4444', color: '#FFF', fontWeight: 700 }}
+                >
+                  {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

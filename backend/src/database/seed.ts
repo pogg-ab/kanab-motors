@@ -41,7 +41,7 @@ export async function seedDatabase(dataSource?: DataSource) {
         'SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD', 'SPARE_PARTS_SALES_CANCEL',
         'ENQUIRIES_VIEW', 'ENQUIRIES_CREATE', 'ENQUIRIES_APPROVE', 'ENQUIRIES_REJECT',
         'BOOKINGS_VIEW', 'BOOKINGS_CREATE', 'BOOKINGS_ALLOCATE', 'BOOKINGS_CANCEL', 'BOOKINGS_TRANSFER_FUNDS',
-        'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW', 'EXCESS_VIEW', 'REFUNDS_VIEW', 'REFUNDS_CREATE', 'REPORTS_VIEW',
+        'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW', 'EXCESS_VIEW', 'REFUNDS_VIEW', 'REFUNDS_CREATE',
       ],
     },
     {
@@ -53,7 +53,7 @@ export async function seedDatabase(dataSource?: DataSource) {
         'SPARE_PARTS_VIEW', 'SPARE_PARTS_SALES_RECORD',
         'ENQUIRIES_VIEW', 'ENQUIRIES_CREATE',
         'BOOKINGS_VIEW', 'BOOKINGS_CREATE',
-        'PAYMENTS_VIEW', 'PAYMENTS_RECORD', 'LEDGER_VIEW',
+        'PAYMENTS_VIEW', 'LEDGER_VIEW',
       ],
     },
     {
@@ -84,7 +84,7 @@ export async function seedDatabase(dataSource?: DataSource) {
         'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_CREATE', 'PURCHASE_ORDERS_EDIT', 'PURCHASE_ORDERS_CONFIRM', 'PURCHASE_ORDERS_CANCEL',
         'SHIPMENTS_VIEW', 'SHIPMENTS_CREATE', 'SHIPMENTS_UPDATE_STAGE', 'SHIPMENTS_DOCS_UPLOAD',
         'LANDED_COST_VIEW', 'LANDED_COST_ADD_EXPENSE', 'LANDED_COST_ALLOCATE',
-        'EXCHANGE_RATES_MANAGE', 'REPORTS_VIEW', 'REPORTS_EXPORT',
+        'EXCHANGE_RATES_MANAGE',
       ],
     },
     {
@@ -227,6 +227,7 @@ export async function seedDatabase(dataSource?: DataSource) {
         existing.roleId = targetRole.roleId;
         existing.passwordHash = passwordHash;
         existing.isActive = true;
+        existing.permissions = null;
         await userRepo.save(existing);
       }
     }

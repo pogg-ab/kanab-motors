@@ -574,6 +574,148 @@ export class SparePartsService {
     }
   }
 
+  async transferStock(dto: {
+    fromWarehouseId: number;
+    toWarehouseId: number;
+    itemId: string;
+    quantity: number;
+    notes?: string;
+  }, userId = 1): Promise<any> {
+    if (dto.quantity <= 0) {
+      throw new BadRequestException('Transfer quantity must be greater than zero.');
+    }
+    if (Number(dto.fromWarehouseId) === Number(dto.toWarehouseId)) {
+      throw new BadRequestException('Source and destination warehouse cannot be the same facility.');
+    }
+
+    const item = await this.productRepo.findOne({
+      where: { itemId: dto.itemId, itemType: 'SPARE_PART' },
+    });
+    if (!item) {
+      throw new NotFoundException(`Spare part #${dto.itemId} not found.`);
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const sourceBalance = await queryRunner.query(
+        `
+        SELECT quantity_on_hand, quantity_reserved
+        FROM stock_balance
+        WHERE warehouse_id = $1 AND item_id = $2
+        FOR UPDATE
+      `,
+        [dto.fromWarehouseId, dto.itemId],
+      );
+
+      const onHand = sourceBalance.length > 0 ? Number(sourceBalance[0].quantity_on_hand) : 0;
+      const reserved = sourceBalance.length > 0 ? Number(sourceBalance[0].quantity_reserved) : 0;
+      const available = onHand - reserved;
+
+      if (available < dto.quantity) {
+        throw new BadRequestException(
+          `Insufficient stock at source warehouse #${dto.fromWarehouseId} for ${item.itemCode}. Available: ${available}, Requested: ${dto.quantity}`,
+        );
+      }
+
+      // Decrement from source warehouse
+      await queryRunner.query(
+        `
+        UPDATE stock_balance
+        SET quantity_on_hand = quantity_on_hand - $1,
+            updated_at = now()
+        WHERE warehouse_id = $2 AND item_id = $3
+      `,
+        [dto.quantity, dto.fromWarehouseId, dto.itemId],
+      );
+
+      // Increment in destination warehouse
+      await queryRunner.query(
+        `
+        INSERT INTO stock_balance (warehouse_id, item_id, quantity_on_hand, quantity_reserved)
+        VALUES ($1, $2, $3, 0)
+        ON CONFLICT (warehouse_id, item_id)
+        DO UPDATE SET quantity_on_hand = stock_balance.quantity_on_hand + EXCLUDED.quantity_on_hand,
+                      updated_at = now()
+      `,
+        [dto.toWarehouseId, dto.itemId, dto.quantity],
+      );
+
+      // Record in stock_transfer
+      const transferRes = await queryRunner.query(
+        `
+        INSERT INTO stock_transfer (from_warehouse_id, to_warehouse_id, status, requested_by, approved_by, approved_at, completed_at)
+        VALUES ($1, $2, 'COMPLETED', $3, $3, now(), now())
+        RETURNING transfer_id
+      `,
+        [dto.fromWarehouseId, dto.toWarehouseId, userId],
+      );
+      const transferId = transferRes[0].transfer_id;
+
+      await queryRunner.query(
+        `
+        INSERT INTO stock_transfer_line (transfer_id, item_id, quantity)
+        VALUES ($1, $2, $3)
+      `,
+        [transferId, dto.itemId, dto.quantity],
+      );
+
+      // Record in stock_movement if table exists
+      await queryRunner.query(
+        `
+        INSERT INTO stock_movement (warehouse_id, item_id, movement_type, quantity, reference_type, reference_id, created_by)
+        VALUES ($1, $2, 'TRANSFER_OUT', $3, 'stock_transfer', $4, $5),
+               ($6, $2, 'TRANSFER_IN', $3, 'stock_transfer', $4, $5)
+      `,
+        [dto.fromWarehouseId, dto.itemId, -dto.quantity, transferId, userId, dto.toWarehouseId],
+      ).catch(() => {});
+
+      await queryRunner.commitTransaction();
+
+      await this.auditService.log({
+        entityType: 'INVENTORY',
+        entityId: String(dto.itemId),
+        action: 'UPDATE',
+        changedBy: userId,
+        newValue: {
+          transferId,
+          fromWarehouseId: dto.fromWarehouseId,
+          toWarehouseId: dto.toWarehouseId,
+          quantity: dto.quantity,
+          notes: dto.notes,
+        },
+      });
+
+      // Fetch fresh balances
+      const updatedSource = await this.dataSource.query(
+        `SELECT quantity_on_hand FROM stock_balance WHERE warehouse_id = $1 AND item_id = $2`,
+        [dto.fromWarehouseId, dto.itemId],
+      );
+      const updatedDest = await this.dataSource.query(
+        `SELECT quantity_on_hand FROM stock_balance WHERE warehouse_id = $1 AND item_id = $2`,
+        [dto.toWarehouseId, dto.itemId],
+      );
+
+      return {
+        success: true,
+        transferId,
+        fromWarehouseId: dto.fromWarehouseId,
+        toWarehouseId: dto.toWarehouseId,
+        itemId: dto.itemId,
+        quantity: dto.quantity,
+        sourceBalanceAfter: updatedSource[0] ? Number(updatedSource[0].quantity_on_hand) : 0,
+        destinationBalanceAfter: updatedDest[0] ? Number(updatedDest[0].quantity_on_hand) : 0,
+      };
+    } catch (err: any) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err.message || 'Failed to complete stock transfer');
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   // =========================================================================
   // 3. SPARE PARTS SALES & POS (SP-05 & SP-06)
   // =========================================================================
