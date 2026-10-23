@@ -127,6 +127,53 @@ describe('CustomersService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('FTC-03: should accept valid international mobile numbers from different countries', async () => {
+    // USA (+1)
+    customerRepo.findOne
+      .mockResolvedValueOnce(null) // duplicate mobile check
+      .mockResolvedValueOnce({
+        customerId: 'us-1',
+        fullName: 'US Client',
+        mobileNumber: '+12025550199',
+      });
+    const resUs = await service.create({
+      customerType: CustomerType.DIRECT_POS,
+      fullName: 'US Client',
+      mobileNumber: '+12025550199',
+    });
+    expect(resUs.mobileNumber).toBe('+12025550199');
+
+    // UAE (+971)
+    customerRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        customerId: 'uae-1',
+        fullName: 'UAE Client',
+        mobileNumber: '+971501234567',
+      });
+    const resUae = await service.create({
+      customerType: CustomerType.DIRECT_POS,
+      fullName: 'UAE Client',
+      mobileNumber: '+971501234567',
+    });
+    expect(resUae.mobileNumber).toBe('+971501234567');
+
+    // Djibouti (+253)
+    customerRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        customerId: 'dj-1',
+        fullName: 'Djibouti Client',
+        mobileNumber: '+25377123456',
+      });
+    const resDj = await service.create({
+      customerType: CustomerType.DIRECT_POS,
+      fullName: 'Djibouti Client',
+      mobileNumber: '+25377123456',
+    });
+    expect(resDj.mobileNumber).toBe('+25377123456');
+  });
+
   it('FTC-03: should reject invalid TIN format (must be 10 digits)', async () => {
     await expect(
       service.create({

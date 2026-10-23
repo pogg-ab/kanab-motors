@@ -36,6 +36,7 @@ import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
 import { formatApiError } from '../../utils/error';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { InternationalPhoneInput } from '../../components/InternationalPhoneInput';
 
 export const CustomersPage: React.FC = () => {
   const { showConfirm, showAlert } = useModal();
@@ -205,10 +206,10 @@ export const CustomersPage: React.FC = () => {
     setFormError(null);
 
     // Mobile Number Format Check
-    const trimmedMobile = formData.mobileNumber.trim();
-    const mobileRegex = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/;
+    const trimmedMobile = formData.mobileNumber.trim().replace(/[\s\-\(\)]/g, '');
+    const mobileRegex = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{6,14})$/;
     if (!mobileRegex.test(trimmedMobile)) {
-      setFormError('Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).');
+      setFormError('Invalid mobile number format. Please enter a valid mobile number with country code (e.g. +251911223344, +12025550199, or local 09XXXXXXXX).');
       return;
     }
 
@@ -312,10 +313,10 @@ export const CustomersPage: React.FC = () => {
     setEditError(null);
 
     // Mobile Number Format Check
-    const trimmedMobile = editFormData.mobileNumber.trim();
-    const mobileRegex = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/;
+    const trimmedMobile = editFormData.mobileNumber.trim().replace(/[\s\-\(\)]/g, '');
+    const mobileRegex = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{6,14})$/;
     if (!mobileRegex.test(trimmedMobile)) {
-      setEditError('Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).');
+      setEditError('Invalid mobile number format. Please enter a valid mobile number with country code (e.g. +251911223344, +12025550199, or local 09XXXXXXXX).');
       return;
     }
 
@@ -889,17 +890,11 @@ export const CustomersPage: React.FC = () => {
 
                   <div className="form-group">
                     <label className="form-label">Mobile Number *</label>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="e.g. +251911223344"
-                      required
+                    <InternationalPhoneInput
                       value={formData.mobileNumber}
-                      onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                      onChange={(val) => setFormData({ ...formData, mobileNumber: val })}
+                      required
                     />
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                      Format: +2519XXXXXXXX or 09XXXXXXXX (10-13 digits)
-                    </span>
                   </div>
                 </div>
 
@@ -1199,17 +1194,11 @@ export const CustomersPage: React.FC = () => {
 
                   <div className="form-group">
                     <label className="form-label">Mobile Number *</label>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="e.g. +251911223344"
-                      required
+                    <InternationalPhoneInput
                       value={editFormData.mobileNumber}
-                      onChange={(e) => setEditFormData({ ...editFormData, mobileNumber: e.target.value })}
+                      onChange={(val) => setEditFormData({ ...editFormData, mobileNumber: val })}
+                      required
                     />
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                      Format: +2519XXXXXXXX or 09XXXXXXXX (10-13 digits)
-                    </span>
                   </div>
                 </div>
 

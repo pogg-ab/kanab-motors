@@ -15,7 +15,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
 import { AuditService } from '../audit/audit.service';
 
-const ETH_OR_INTL_MOBILE_REGEX = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/;
+const ETH_OR_INTL_MOBILE_REGEX = /^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{6,14})$/;
 const TIN_REGEX = /^\d{10}$/;
 
 @Injectable()
@@ -33,11 +33,14 @@ export class CustomersService {
   ) {}
 
   async create(dto: CreateCustomerDto, userId: number = 1): Promise<Customer> {
-    // 0. Format validation for Mobile Number
-    const trimmedMobile = (dto.mobileNumber || '').trim();
+    // 0. Format validation & normalization for Mobile Number
+    let trimmedMobile = (dto.mobileNumber || '').trim().replace(/[\s\-\(\)]/g, '');
+    if (/^0[79]\d{8}$/.test(trimmedMobile)) {
+      trimmedMobile = '+251' + trimmedMobile.slice(1);
+    }
     if (!ETH_OR_INTL_MOBILE_REGEX.test(trimmedMobile)) {
       throw new BadRequestException(
-        'Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).',
+        'Invalid mobile number format. Please enter a valid mobile number with country code (e.g. +251911223344, +12025550199, or local 09XXXXXXXX).',
       );
     }
 
@@ -87,7 +90,7 @@ export class CustomersService {
       fullName: dto.fullName.trim(),
       regionId: dto.regionId,
       addressTown: dto.addressTown,
-      mobileNumber: dto.mobileNumber.trim(),
+      mobileNumber: trimmedMobile,
       tinNumber: dto.tinNumber?.trim() || null,
       withholdingTaxFlag: dto.withholdingTaxFlag ?? false,
       createdBy: userId,
@@ -216,11 +219,15 @@ export class CustomersService {
     const oldValue = { ...customer };
 
     // Check duplicate mobile if changing
+    let updatedMobile = customer.mobileNumber;
     if (dto.mobileNumber && dto.mobileNumber.trim() !== customer.mobileNumber) {
-      const trimmedMobile = dto.mobileNumber.trim();
+      let trimmedMobile = dto.mobileNumber.trim().replace(/[\s\-\(\)]/g, '');
+      if (/^0[79]\d{8}$/.test(trimmedMobile)) {
+        trimmedMobile = '+251' + trimmedMobile.slice(1);
+      }
       if (!ETH_OR_INTL_MOBILE_REGEX.test(trimmedMobile)) {
         throw new BadRequestException(
-          'Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).',
+          'Invalid mobile number format. Please enter a valid mobile number with country code (e.g. +251911223344, +12025550199, or local 09XXXXXXXX).',
         );
       }
       const existingMobile = await this.customerRepo.findOne({
@@ -231,6 +238,7 @@ export class CustomersService {
           `Another customer with mobile number ${dto.mobileNumber} already exists`,
         );
       }
+      updatedMobile = trimmedMobile;
     }
 
     // Check duplicate TIN if changing
@@ -266,6 +274,7 @@ export class CustomersService {
     // customerId and customerCode are immutable
     Object.assign(customer, {
       ...dto,
+      mobileNumber: updatedMobile,
       tinNumber: finalTin?.trim() || null,
       updatedBy: userId,
     });

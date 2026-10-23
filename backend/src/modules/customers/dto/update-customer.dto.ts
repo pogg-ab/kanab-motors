@@ -34,8 +34,8 @@ export class UpdateCustomerDto {
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  @Matches(/^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{8,14})$/, {
-    message: 'Invalid mobile number format. Please enter a valid Ethiopian mobile (e.g. +251911223344 or 0911223344) or international format (+XXXXXXXXXXX).',
+  @Matches(/^(\+251[79]\d{8}|0[79]\d{8}|\+[1-9]\d{6,14})$/, {
+    message: 'Invalid mobile number format. Please enter a valid mobile number with country code (e.g. +251911223344, +12025550199, or local 09XXXXXXXX).',
   })
   mobileNumber?: string;
 
