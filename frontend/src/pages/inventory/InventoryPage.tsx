@@ -94,7 +94,7 @@ export const InventoryPage: React.FC = () => {
   const [transferToWh, setTransferToWh] = useState<number>(2);
   const [transferItemType, setTransferItemType] = useState<'PART' | 'VEHICLE'>('PART');
   const [transferItemId, setTransferItemId] = useState<string>('');
-  const [transferQuantity, setTransferQuantity] = useState<number>(1);
+  const [transferQuantity, setTransferQuantity] = useState<number | ''>(1);
   const [transferVehicleUnitId, setTransferVehicleUnitId] = useState<string>('');
 
   // Form states - Non-serialized Stock Receipt
@@ -109,8 +109,8 @@ export const InventoryPage: React.FC = () => {
   // Form states - Adjustment
   const [adjWarehouseId, setAdjWarehouseId] = useState<number>(1);
   const [adjItemId, setAdjItemId] = useState<string>('');
-  const [adjQuantityDelta, setAdjQuantityDelta] = useState<number>(0);
-  const [adjReason, setAdjReason] = useState<string>('CYCLE_COUNT');
+  const [adjQuantityDelta, setAdjQuantityDelta] = useState<number | ''>(1);
+  const [adjReason, setAdjReason] = useState<string>('CYCLE_COUNT_CORRECTION');
   const [adjReasonNotes, setAdjReasonNotes] = useState<string>('');
 
   // Form states - Production
@@ -307,10 +307,11 @@ export const InventoryPage: React.FC = () => {
     }
     setActionLoading(true);
     try {
+      const qty = Number(transferQuantity) || 1;
       const lines =
         transferItemType === 'VEHICLE'
           ? [{ vehicleUnitId: transferVehicleUnitId }]
-          : [{ itemId: transferItemId, quantity: transferQuantity }];
+          : [{ itemId: transferItemId, quantity: qty }];
 
       await api.createStockTransfer({
         fromWarehouseId: transferFromWh,
@@ -405,12 +406,18 @@ export const InventoryPage: React.FC = () => {
       setAdjustmentError('A detailed reason note is mandatory for audit compliance');
       return;
     }
+    const deltaNum = typeof adjQuantityDelta === 'number' ? adjQuantityDelta : parseInt(String(adjQuantityDelta), 10);
+    if (isNaN(deltaNum) || deltaNum === 0) {
+      setAdjustmentError('Quantity delta cannot be zero. Enter a positive number to add stock or negative number to reduce stock.');
+      return;
+    }
     if (!selectedAdjustmentBalance) {
       setAdjustmentError('Select an item with stock balance in this warehouse before creating an adjustment');
       return;
     }
-    if (Number(selectedAdjustmentBalance.quantityOnHand) + Number(adjQuantityDelta) < 0) {
-      setAdjustmentError('Adjustment would make stock quantity negative');
+    const currentOnHand = Number(selectedAdjustmentBalance.quantityOnHand) || 0;
+    if (currentOnHand + deltaNum < 0) {
+      setAdjustmentError(`Adjustment would make stock quantity negative (Current on-hand: ${currentOnHand}, Delta: ${deltaNum}). Inventory balances cannot fall below zero.`);
       return;
     }
     setActionLoading(true);
@@ -418,7 +425,7 @@ export const InventoryPage: React.FC = () => {
       await api.createStockAdjustment({
         warehouseId: adjWarehouseId,
         itemId: adjItemId || undefined,
-        quantityDelta: Number(adjQuantityDelta),
+        quantityDelta: deltaNum,
         reason: adjReason,
         reasonNotes: adjReasonNotes,
       });
@@ -427,7 +434,7 @@ export const InventoryPage: React.FC = () => {
       setAdjustmentError(null);
       setShowAdjustmentModal(false);
       setAdjReasonNotes('');
-      setAdjQuantityDelta(0);
+      setAdjQuantityDelta(1);
       loadAllData();
     } catch (err: any) {
       setAdjustmentError(formatApiError(err, 'Failed to create adjustment'));
@@ -2353,7 +2360,20 @@ export const InventoryPage: React.FC = () => {
                       type="number"
                       min={1}
                       value={transferQuantity}
-                      onChange={(e) => setTransferQuantity(Number(e.target.value))}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                        if (raw === '') {
+                          setTransferQuantity('');
+                        } else {
+                          const parsed = parseInt(raw, 10);
+                          setTransferQuantity(isNaN(parsed) ? '' : Math.max(1, parsed));
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!transferQuantity || Number(transferQuantity) < 1) {
+                          setTransferQuantity(1);
+                        }
+                      }}
                       style={{
                         width: '100%',
                         padding: '0.6rem',
@@ -2676,16 +2696,63 @@ export const InventoryPage: React.FC = () => {
                     type="number"
                     required
                     value={adjQuantityDelta}
-                    onChange={(e) => setAdjQuantityDelta(Number(e.target.value))}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/^(-?)0+(?=\d)/, '$1');
+                      if (raw === '' || raw === '-') {
+                        setAdjQuantityDelta(raw as any);
+                      } else {
+                        const parsed = parseInt(raw, 10);
+                        setAdjQuantityDelta(isNaN(parsed) ? '' : parsed);
+                      }
+                    }}
+                    placeholder="e.g. 5 or -2"
                     style={{
                       width: '100%',
                       padding: '0.6rem',
                       borderRadius: '6px',
                       background: 'var(--bg-primary)',
-                      border: '1px solid var(--border-color)',
+                      border: selectedAdjustmentBalance && (Number(selectedAdjustmentBalance.quantityOnHand) + (Number(adjQuantityDelta) || 0) < 0)
+                        ? '1px solid var(--accent-rose, #ef4444)'
+                        : '1px solid var(--border-color)',
                       color: 'var(--text-primary)',
                     }}
                   />
+                  {selectedAdjustmentBalance && (
+                    <div style={{ marginTop: '0.35rem', fontSize: '0.74rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                        <span>Current On-Hand: <strong style={{ color: 'var(--text-primary)' }}>{Number(selectedAdjustmentBalance.quantityOnHand)}</strong></span>
+                        <span>
+                          Projected Balance:{' '}
+                          <strong
+                            style={{
+                              color:
+                                Number(selectedAdjustmentBalance.quantityOnHand) + (Number(adjQuantityDelta) || 0) < 0
+                                  ? 'var(--accent-rose, #ef4444)'
+                                  : 'var(--accent-emerald, #10b981)',
+                            }}
+                          >
+                            {Number(selectedAdjustmentBalance.quantityOnHand) + (Number(adjQuantityDelta) || 0)}
+                          </strong>
+                        </span>
+                      </div>
+                      {Number(selectedAdjustmentBalance.quantityOnHand) + (Number(adjQuantityDelta) || 0) < 0 && (
+                        <div
+                          style={{
+                            marginTop: '0.35rem',
+                            padding: '0.3rem 0.5rem',
+                            borderRadius: '4px',
+                            background: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                            color: 'var(--accent-rose, #ef4444)',
+                            fontWeight: 600,
+                            fontSize: '0.72rem',
+                          }}
+                        >
+                          ⚠️ Negative Stock Violation: Delta of {adjQuantityDelta} causes negative balance ({Number(selectedAdjustmentBalance.quantityOnHand) + (Number(adjQuantityDelta) || 0)}). Inventory cannot fall below zero.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2709,14 +2776,10 @@ export const InventoryPage: React.FC = () => {
                       color: 'var(--text-primary)',
                     }}
                   >
-                    <option value="PHYSICAL_COUNT">Physical stock count difference</option>
-                    <option value="DAMAGE">Damaged stock</option>
-                    <option value="LOST">Lost stock</option>
-                    <option value="FOUND">Found stock</option>
-                    <option value="DATA_CORRECTION">Data correction</option>
-                    <option value="EXPIRED_DETERIORATED">Expired / deteriorated stock</option>
-                    <option value="INITIAL_LOADING">Initial stock loading</option>
-                    <option value="OTHER">Other approved reason</option>
+                    <option value="CYCLE_COUNT_CORRECTION">Cycle Count / Physical Count Correction</option>
+                    <option value="DAMAGE">Damaged Stock</option>
+                    <option value="LOSS">Lost / Missing Stock</option>
+                    <option value="OTHER">Other Approved Reason</option>
                   </select>
                 </div>
 
@@ -2754,7 +2817,13 @@ export const InventoryPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading || adjustmentBalances.length === 0}
+                  disabled={
+                    actionLoading ||
+                    adjustmentBalances.length === 0 ||
+                    !adjQuantityDelta ||
+                    Number(adjQuantityDelta) === 0 ||
+                    (!!selectedAdjustmentBalance && Number(selectedAdjustmentBalance.quantityOnHand) + Number(adjQuantityDelta) < 0)
+                  }
                   className="btn"
                   style={{ background: '#A855F7', color: '#FFFFFF', fontWeight: 700 }}
                 >

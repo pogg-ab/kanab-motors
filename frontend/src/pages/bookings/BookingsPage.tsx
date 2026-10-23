@@ -20,10 +20,12 @@ import {
   PreAdvanceSlip,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useAuth } from '../../context/AuthContext';
 import { formatApiError } from '../../utils/error';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const BookingsPage: React.FC = () => {
+  const { user } = useAuth();
   const { can } = usePermissions();
   const canCreateBooking = can('BOOKINGS_CREATE');
   const canTransferFunds = can('BOOKINGS_TRANSFER_FUNDS');
@@ -59,7 +61,7 @@ export const BookingsPage: React.FC = () => {
     quantity: 1,
     unitPrice: 0,
     requiredAdvanceAmount: 0,
-    salespersonName: 'Sales Specialist',
+    salespersonName: user?.fullName || '',
     targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
 
@@ -184,6 +186,18 @@ export const BookingsPage: React.FC = () => {
       setCreateError('Customer and Vehicle Item are required');
       return;
     }
+
+    const trimmedSp = (newBooking.salespersonName || '').trim();
+    if (!trimmedSp || trimmedSp.length < 2) {
+      setCreateError("Sales representative full name is mandatory. Please enter an actual salesperson's name.");
+      return;
+    }
+    const genericPlaceholders = ['sales person', 'salesperson', 'sales', 'sales specialist', 'rep', 'representative', 'demo salesperson', 'sales rep'];
+    if (genericPlaceholders.includes(trimmedSp.toLowerCase())) {
+      setCreateError('Generic names like "Sales Specialist" or "Salesperson" are not allowed. Please enter the actual salesperson\'s full name.');
+      return;
+    }
+
     setSaving(true);
     try {
       await api.createBooking({
@@ -194,7 +208,7 @@ export const BookingsPage: React.FC = () => {
         quantity: newBooking.quantity,
         unitPrice: newBooking.unitPrice,
         requiredAdvanceAmount: newBooking.requiredAdvanceAmount,
-        salespersonName: newBooking.salespersonName,
+        salespersonName: trimmedSp,
         targetDeliveryDate: newBooking.targetDeliveryDate ? new Date(newBooking.targetDeliveryDate).toISOString() : undefined,
       });
       showToast('success', 'Advance Booking created successfully!');
@@ -206,7 +220,7 @@ export const BookingsPage: React.FC = () => {
         quantity: 1,
         unitPrice: 0,
         requiredAdvanceAmount: 0,
-        salespersonName: 'Sales Specialist',
+        salespersonName: user?.fullName || '',
         targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       });
       loadData();
@@ -308,11 +322,85 @@ export const BookingsPage: React.FC = () => {
             Refresh
           </button>
           {canCreateBooking && (
-            <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              onClick={() => {
+                setNewBooking({
+                  customerId: '',
+                  itemId: '',
+                  quantity: 1,
+                  unitPrice: 0,
+                  requiredAdvanceAmount: 0,
+                  salespersonName: user?.fullName || '',
+                  targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                });
+                setCreateError(null);
+                setShowCreateModal(true);
+              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
               <Plus size={16} />
               Create Booking
             </button>
           )}
+        </div>
+      </div>
+
+      {/* RBAC Role Indicator Banner */}
+      <div
+        style={{
+          marginBottom: '1.5rem',
+          padding: '0.65rem 1rem',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          background:
+            user?.role?.roleName === 'SALESPERSON'
+              ? 'rgba(59, 130, 246, 0.08)'
+              : user?.role?.roleName === 'SALES_MANAGER'
+              ? 'rgba(245, 158, 11, 0.08)'
+              : 'rgba(168, 85, 247, 0.08)',
+          border: `1px solid ${
+            user?.role?.roleName === 'SALESPERSON'
+              ? 'rgba(59, 130, 246, 0.25)'
+              : user?.role?.roleName === 'SALES_MANAGER'
+              ? 'rgba(245, 158, 11, 0.25)'
+              : 'rgba(168, 85, 247, 0.25)'
+          }`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <span
+            style={{
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              padding: '0.2rem 0.55rem',
+              borderRadius: '4px',
+              textTransform: 'uppercase',
+              background:
+                user?.role?.roleName === 'SALESPERSON'
+                  ? 'var(--accent-blue, #3b82f6)'
+                  : user?.role?.roleName === 'SALES_MANAGER'
+                  ? 'var(--accent-amber, #f59e0b)'
+                  : 'var(--accent-purple, #a855f7)',
+              color: '#fff',
+            }}
+          >
+            {user?.role?.displayName || user?.role?.roleName || 'User'}
+          </span>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            {user?.role?.roleName === 'SALESPERSON'
+              ? 'Sales Representative: Authorized to record customer advance bookings. Vehicle VIN allotment and cancellation require Sales Manager authorization.'
+              : user?.role?.roleName === 'SALES_MANAGER'
+              ? 'Sales Director / Manager: Full allocation, cancellation, and deposit transfer authorization.'
+              : 'System Administrator: Master oversight and administrative authority.'}
+          </span>
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          Active User: <strong style={{ color: 'var(--text-primary)' }}>{user?.fullName || user?.username}</strong>
         </div>
       </div>
 
@@ -770,14 +858,18 @@ export const BookingsPage: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label className="form-label">Sales Representative Name</label>
+                    <label className="form-label">Sales Representative Name *</label>
                     <input
                       type="text"
                       className="input"
+                      placeholder="e.g. Yared Tadesse"
                       value={newBooking.salespersonName}
                       onChange={(e) => setNewBooking({ ...newBooking, salespersonName: e.target.value })}
                       required
                     />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                      Enter actual salesperson name (generic terms like "sales specialist" are blocked).
+                    </span>
                   </div>
                   <div>
                     <label className="form-label">Target Delivery Date *</label>

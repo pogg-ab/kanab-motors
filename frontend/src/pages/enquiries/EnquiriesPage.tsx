@@ -23,10 +23,12 @@ import {
   ProductItem,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
+import { useAuth } from '../../context/AuthContext';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 import { formatApiError } from '../../utils/error';
 
 export const EnquiriesPage: React.FC = () => {
+  const { user } = useAuth();
   const { can } = usePermissions();
   const canCreateEnquiry = can('ENQUIRIES_CREATE');
   const canApproveEnquiry = can('ENQUIRIES_APPROVE');
@@ -48,7 +50,7 @@ export const EnquiriesPage: React.FC = () => {
     itemId: '',
     quantity: 1,
     unitPrice: '',
-    salespersonName: 'Sales Person',
+    salespersonName: user?.fullName || '',
     paymentMode: 'BANK_DEPOSIT',
   });
   const [formError, setFormError] = useState<string | null>(null);
@@ -149,7 +151,7 @@ export const EnquiriesPage: React.FC = () => {
       itemId: defaultItem?.itemId || '',
       quantity: 1,
       unitPrice: defaultItem ? defaultItem.sellingPrice.toString() : '',
-      salespersonName: 'Sales Person',
+      salespersonName: user?.fullName || '',
       paymentMode: 'BANK_DEPOSIT',
     });
     setFormError(null);
@@ -183,6 +185,17 @@ export const EnquiriesPage: React.FC = () => {
       return;
     }
 
+    const trimmedSp = (formData.salespersonName || '').trim();
+    if (!trimmedSp || trimmedSp.length < 2) {
+      setFormError("Salesperson full name is mandatory. Please enter the salesperson's actual name.");
+      return;
+    }
+    const genericPlaceholders = ['sales person', 'salesperson', 'sales', 'sales specialist', 'rep', 'representative', 'demo salesperson', 'sales rep'];
+    if (genericPlaceholders.includes(trimmedSp.toLowerCase())) {
+      setFormError('Generic names like "Sales Person" or "Salesperson" are not allowed. Please enter the actual salesperson\'s full name.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.createEnquiry({
@@ -190,7 +203,7 @@ export const EnquiriesPage: React.FC = () => {
         itemId: formData.itemId,
         quantity: formData.quantity,
         unitPrice: currentPrice,
-        salespersonName: formData.salespersonName,
+        salespersonName: trimmedSp,
         paymentMode: formData.paymentMode,
       });
       setIsCreateOpen(false);
@@ -289,6 +302,64 @@ export const EnquiriesPage: React.FC = () => {
             <Plus size={16} /> New Sales Enquiry
           </button>
         )}
+      </div>
+
+      {/* RBAC Role Indicator Banner */}
+      <div
+        style={{
+          marginBottom: '1.5rem',
+          padding: '0.65rem 1rem',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          background:
+            user?.role?.roleName === 'SALESPERSON'
+              ? 'rgba(59, 130, 246, 0.08)'
+              : user?.role?.roleName === 'SALES_MANAGER'
+              ? 'rgba(245, 158, 11, 0.08)'
+              : 'rgba(168, 85, 247, 0.08)',
+          border: `1px solid ${
+            user?.role?.roleName === 'SALESPERSON'
+              ? 'rgba(59, 130, 246, 0.25)'
+              : user?.role?.roleName === 'SALES_MANAGER'
+              ? 'rgba(245, 158, 11, 0.25)'
+              : 'rgba(168, 85, 247, 0.25)'
+          }`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <span
+            style={{
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              padding: '0.2rem 0.55rem',
+              borderRadius: '4px',
+              textTransform: 'uppercase',
+              background:
+                user?.role?.roleName === 'SALESPERSON'
+                  ? 'var(--accent-blue, #3b82f6)'
+                  : user?.role?.roleName === 'SALES_MANAGER'
+                  ? 'var(--accent-amber, #f59e0b)'
+                  : 'var(--accent-purple, #a855f7)',
+              color: '#fff',
+            }}
+          >
+            {user?.role?.displayName || user?.role?.roleName || 'User'}
+          </span>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            {user?.role?.roleName === 'SALESPERSON'
+              ? 'Sales Representative: Authorized for quotation submissions. Manager approval is required before Pre-Advance Slips can be issued.'
+              : user?.role?.roleName === 'SALES_MANAGER'
+              ? 'Sales Director / Manager: Full authority to approve or reject enquiries and authorize Pre-Advance Slips.'
+              : 'System Administrator: Full master access across operations and approval workflows.'}
+          </span>
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          Active User: <strong style={{ color: 'var(--text-primary)' }}>{user?.fullName || user?.username}</strong>
+        </div>
       </div>
 
       {/* Metrics Cards */}
@@ -670,15 +741,18 @@ export const EnquiriesPage: React.FC = () => {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Salesperson *</label>
+                    <label className="form-label">Salesperson Full Name *</label>
                     <input
                       type="text"
                       className="input-field"
                       required
-                      placeholder="e.g. Sales Person"
+                      placeholder="e.g. Yared Tadesse"
                       value={formData.salespersonName}
                       onChange={(e) => setFormData({ ...formData, salespersonName: e.target.value })}
                     />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                      Enter actual salesperson name (generic terms like "salesperson" are blocked).
+                    </span>
                   </div>
                 </div>
 

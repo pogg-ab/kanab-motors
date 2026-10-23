@@ -65,7 +65,15 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     name: 'Selamawit Sales Director',
     email: 'sales@kanabmotors.com',
     pass: 'Sales@123',
-    desc: 'Enquiries, quotes & bookings',
+    desc: 'Full sales oversight, approvals & cancellations',
+  },
+  {
+    roleName: 'SALESPERSON',
+    badgeClass: 'badge-blue',
+    name: 'Yared Sales Representative',
+    email: 'salesrep@kanabmotors.com',
+    pass: 'Sales@123',
+    desc: 'Quotes & bookings submission (No approval rights)',
   },
 ];
 

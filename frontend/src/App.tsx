@@ -209,6 +209,53 @@ function MainAppContent() {
           {canAccessActiveTab && activeTab === 'vehicles' && <VehiclesPage />}
           {canAccessActiveTab && activeTab === 'users' && <UsersPage />}
           {canAccessActiveTab && activeTab === 'audit' && <AuditLogsPage />}
+
+          {/* Access Denied (RBAC) */}
+          {!canAccessActiveTab && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '70vh',
+                padding: '3rem',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-rose, #ef4444)',
+                  fontSize: '1.75rem',
+                  fontWeight: 900,
+                  marginBottom: '1.25rem',
+                }}
+              >
+                ✕
+              </div>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
+                Access Denied (403 Forbidden)
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', fontSize: '0.875rem', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
+                Your assigned role does not hold authorization to access this module. Role-Based Access Control (RBAC) enforces strict departmental and operational boundaries.
+              </p>
+              <button
+                className="btn btn-cyan"
+                onClick={() => handleTabChange(fallbackTab)}
+                style={{ fontWeight: 700 }}
+              >
+                Return to Authorized Workspace
+              </button>
+            </div>
+          )}
         </main>
       </div>
     </div>

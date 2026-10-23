@@ -35,7 +35,22 @@ export class EnquiriesService {
       where: { itemId: dto.itemId },
       relations: ['taxConfig'],
     });
-    if (!item) throw new NotFoundException(`Product model ${dto.itemId} not found`);
+    const spName = (dto.salespersonName || '').trim();
+    const genericPlaceholders = [
+      'sales person',
+      'salesperson',
+      'sales',
+      'sales specialist',
+      'rep',
+      'representative',
+      'demo salesperson',
+      'sales rep',
+    ];
+    if (!spName || spName.length < 2 || genericPlaceholders.includes(spName.toLowerCase())) {
+      throw new BadRequestException(
+        'Please provide an actual salesperson full name. Generic placeholders like "Sales Person" or "Salesperson" are not permitted.',
+      );
+    }
 
     const unitPrice = Number(dto.unitPrice || item.sellingPrice);
     const qty = Number(dto.quantity || 1);

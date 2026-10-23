@@ -476,6 +476,10 @@ export class InventoryService {
       throw new BadRequestException('A reason explanation is mandatory for stock adjustments');
     }
 
+    if (dto.quantityDelta !== undefined && dto.quantityDelta !== null && Number(dto.quantityDelta) === 0) {
+      throw new BadRequestException('Quantity delta cannot be zero. Specify a positive delta to add stock or negative delta to reduce stock.');
+    }
+
     if (dto.itemId && dto.quantityDelta !== undefined && dto.quantityDelta !== null) {
       const itemRows = await this.dataSource.query(
         `
@@ -511,7 +515,9 @@ export class InventoryService {
       }
       const resultingQuantity = Number(balanceRows[0].quantity_on_hand) + Number(dto.quantityDelta);
       if (resultingQuantity < 0) {
-        throw new BadRequestException('Stock adjustment would make quantity on hand negative');
+        throw new BadRequestException(
+          `Stock adjustment would cause negative inventory balance for item #${dto.itemId} at warehouse #${dto.warehouseId} (Current on-hand: ${balanceRows[0].quantity_on_hand}, Delta: ${dto.quantityDelta}). Inventory balances cannot fall below zero.`,
+        );
       }
     }
 
@@ -565,6 +571,19 @@ export class InventoryService {
   }
 
   async approveStockAdjustment(id: string, userId = 1): Promise<StockAdjustment> {
+    const adj = await this.getStockAdjustmentById(id);
+    if (adj.itemId && adj.quantityDelta && Number(adj.quantityDelta) < 0) {
+      const bal = await this.dataSource.query(
+        `SELECT quantity_on_hand FROM stock_balance WHERE warehouse_id = $1 AND item_id = $2`,
+        [adj.warehouseId, adj.itemId],
+      );
+      if (bal[0] && Number(bal[0].quantity_on_hand) + Number(adj.quantityDelta) < 0) {
+        throw new BadRequestException(
+          `Cannot approve adjustment: current stock on hand (${bal[0].quantity_on_hand}) would become negative with delta (${adj.quantityDelta}).`,
+        );
+      }
+    }
+
     try {
       // Updating to APPROVED triggers trg_execute_stock_adjustment
       await this.dataSource.query(`

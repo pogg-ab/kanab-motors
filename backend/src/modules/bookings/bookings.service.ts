@@ -52,6 +52,23 @@ export class BookingsService {
     const vatAmount = Number(((subtotal * taxRatePct) / 100).toFixed(2));
     const grossTotal = Number((subtotal + vatAmount).toFixed(2));
 
+    const spName = (dto.salespersonName || '').trim();
+    const genericPlaceholders = [
+      'sales person',
+      'salesperson',
+      'sales',
+      'sales specialist',
+      'rep',
+      'representative',
+      'demo salesperson',
+      'sales rep',
+    ];
+    if (!spName || spName.length < 2 || genericPlaceholders.includes(spName.toLowerCase())) {
+      throw new BadRequestException(
+        'Please provide an actual salesperson full name. Generic placeholders like "Sales Specialist" or "Salesperson" are not permitted.',
+      );
+    }
+
     // Story B4: advance is the full current price, so the percentage-versus-fixed question disappears
     const requiredAdvance =
       dto.requiredAdvanceAmount !== undefined && dto.requiredAdvanceAmount !== null

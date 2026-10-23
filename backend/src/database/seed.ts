@@ -186,6 +186,13 @@ export async function seedDatabase(dataSource?: DataSource) {
       roleName: 'SALES_MANAGER',
       password: 'Sales@123',
     },
+    {
+      username: 'salesperson',
+      email: 'salesrep@kanabmotors.com',
+      fullName: 'Yared Sales Representative',
+      roleName: 'SALESPERSON',
+      password: 'Sales@123',
+    },
   ];
 
   for (const u of demoUsers) {
