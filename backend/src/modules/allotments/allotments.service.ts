@@ -111,9 +111,9 @@ export class AllotmentsService {
     return qb.orderBy('v.chassisNumber', 'ASC').getMany();
   }
 
-  private async syncStockBalances(manager: any): Promise<void> {
+  private async syncStockBalances(): Promise<void> {
     try {
-      await manager.query(`
+      await this.dataSource.query(`
         INSERT INTO stock_balance (warehouse_id, item_id, quantity_on_hand, quantity_reserved)
         SELECT 
           vu.current_warehouse_id, 
@@ -133,7 +133,7 @@ export class AllotmentsService {
           updated_at = now();
       `);
     } catch (e) {
-      // Graceful fallback
+      // Graceful fallback - stock balance update should not break core workflows
     }
   }
 
@@ -212,63 +212,76 @@ export class AllotmentsService {
 
       if (existingActive) {
         throw new ConflictException(
-          `Vehicle unit ${unit.chassisNumber} is already active in allotment ${existingActive.allotment?.allotmentNumber || existingActive.allotmentId}`,
+          `Vehicle unit ${unit.chassisNumber} is already active in allotment ${existingActive.allotment?.allotmentNumber || existingActive.allotmentId}. Double allocation prevented.`,
         );
       }
     }
 
     // Perform creation in database transaction
-    const allotmentId = await this.dataSource.transaction(async (manager) => {
-      const allotment = manager.create(Allotment, {
-        bookingId: dto.bookingId,
-        status: AllotmentStatus.REQUESTED,
-        requestedBy: userId,
-      });
+    let allotmentId: string;
+    try {
+      allotmentId = await this.dataSource.transaction(async (manager) => {
+        const allotment = manager.create(Allotment, {
+          bookingId: dto.bookingId,
+          status: AllotmentStatus.REQUESTED,
+          requestedBy: userId,
+        });
 
-      const savedAllotment = await manager.save(allotment);
+        const savedAllotment = await manager.save(allotment);
 
-      const lines = dto.vehicleUnitIds.map((vId) =>
-        manager.create(AllotmentLine, {
-          allotmentId: savedAllotment.allotmentId,
-          vehicleUnitId: vId,
-          isActive: true,
-        }),
-      );
-
-      await manager.save(lines);
-
-      // Immediately reserve vehicle units so they cannot be selected by any concurrent allotment
-      for (const vId of dto.vehicleUnitIds) {
-        await manager.query(
-          `UPDATE vehicle_unit SET current_status = 'RESERVED', updated_at = now() WHERE vehicle_unit_id = $1`,
-          [vId],
+        const lines = dto.vehicleUnitIds.map((vId) =>
+          manager.create(AllotmentLine, {
+            allotmentId: savedAllotment.allotmentId,
+            vehicleUnitId: vId,
+            isActive: true,
+          }),
         );
-        try {
+
+        await manager.save(lines);
+
+        // Immediately reserve vehicle units and log status transition
+        for (const vId of dto.vehicleUnitIds) {
           await manager.query(
-            `SELECT fn_transition_vehicle_status($1, 'RESERVED', $2, 'ALLOTMENT_RESERVATION', $3)`,
+            `UPDATE vehicle_unit SET current_status = 'RESERVED', updated_by = $1, updated_at = now() WHERE vehicle_unit_id = $2`,
+            [userId, vId],
+          );
+          await manager.query(
+            `INSERT INTO vehicle_status_history (vehicle_unit_id, from_status, to_status, triggered_by_user, triggered_by_module, notes)
+             VALUES ($1, 'AVAILABLE_FOR_SALE'::vehicle_status_enum, 'RESERVED'::vehicle_status_enum, $2, 'ALLOTMENT_RESERVATION', $3)`,
             [vId, userId, `Reserved for Allotment ${savedAllotment.allotmentNumber || savedAllotment.allotmentId}`],
           );
-        } catch (ignored) {}
-      }
+        }
 
-      // Sync stock balance so reserved count immediately reflects the reservation
-      await this.syncStockBalances(manager);
+        await this.auditService.log({
+          entityType: 'allotment',
+          entityId: savedAllotment.allotmentId,
+          action: 'INSERT',
+          changedBy: userId,
+          newValue: {
+            allotmentNumber: savedAllotment.allotmentNumber,
+            bookingId: dto.bookingId,
+            unitsCount: dto.vehicleUnitIds.length,
+            notes: dto.notes,
+          },
+        });
 
-      await this.auditService.log({
-        entityType: 'allotment',
-        entityId: savedAllotment.allotmentId,
-        action: 'INSERT',
-        changedBy: userId,
-        newValue: {
-          allotmentNumber: savedAllotment.allotmentNumber,
-          bookingId: dto.bookingId,
-          unitsCount: dto.vehicleUnitIds.length,
-          notes: dto.notes,
-        },
+        return savedAllotment.allotmentId;
       });
+    } catch (err: any) {
+      if (
+        err?.code === '23505' ||
+        err?.message?.includes('uq_allotment_line_active_vehicle') ||
+        err?.message?.includes('duplicate key')
+      ) {
+        throw new ConflictException(
+          'Vehicle unit is already active in an allotment. Double allocation prevented.',
+        );
+      }
+      throw err;
+    }
 
-      return savedAllotment.allotmentId;
-    });
+    // Sync stock balance after successful commit
+    await this.syncStockBalances();
 
     return this.findOne(allotmentId);
   }
@@ -295,27 +308,17 @@ export class AllotmentsService {
       // 2. Transition vehicle units to ALLOTTED
       for (const line of allotment.lines) {
         if (line.isActive) {
-          const unit = await manager.findOne(VehicleUnit, { where: { vehicleUnitId: line.vehicleUnitId } });
-          if (unit) {
-            unit.currentStatus = VehicleStatus.ALLOTTED;
-            unit.updatedBy = userId;
-            await manager.save(unit);
-
-            // Execute stored procedure if available
-            try {
-              await manager.query(
-                `SELECT fn_transition_vehicle_status($1, 'ALLOTTED', $2, 'ALLOTMENT', $3)`,
-                [line.vehicleUnitId, userId, `Allotment ${allotment.allotmentNumber}`],
-              );
-            } catch (ignored) {
-              // Stored function called or fallback via manager.save
-            }
-          }
+          await manager.query(
+            `UPDATE vehicle_unit SET current_status = 'ALLOTTED', updated_by = $1, updated_at = now() WHERE vehicle_unit_id = $2`,
+            [userId, line.vehicleUnitId],
+          );
+          await manager.query(
+            `INSERT INTO vehicle_status_history (vehicle_unit_id, from_status, to_status, triggered_by_user, triggered_by_module, notes)
+             VALUES ($1, 'RESERVED'::vehicle_status_enum, 'ALLOTTED'::vehicle_status_enum, $2, 'ALLOTMENT', $3)`,
+            [line.vehicleUnitId, userId, `Allotment ${allotment.allotmentNumber}`],
+          );
         }
       }
-
-      // Sync stock balance to reflect ALLOTTED state
-      await this.syncStockBalances(manager);
 
       await this.auditService.log({
         entityType: 'allotment',
@@ -328,6 +331,9 @@ export class AllotmentsService {
         },
       });
     });
+
+    // Sync stock balance to reflect ALLOTTED state
+    await this.syncStockBalances();
 
     return this.findOne(id);
   }
@@ -346,15 +352,14 @@ export class AllotmentsService {
       for (const line of allotment.lines) {
         if (line.isActive) {
           await manager.query(
-            `UPDATE vehicle_unit SET current_status = 'AVAILABLE_FOR_SALE', updated_at = now() WHERE vehicle_unit_id = $1`,
-            [line.vehicleUnitId],
+            `UPDATE vehicle_unit SET current_status = 'AVAILABLE_FOR_SALE', updated_by = $1, updated_at = now() WHERE vehicle_unit_id = $2`,
+            [userId, line.vehicleUnitId],
           );
-          try {
-            await manager.query(
-              `SELECT fn_transition_vehicle_status($1, 'AVAILABLE_FOR_SALE', $2, 'ALLOTMENT_REJECTED', $3)`,
-              [line.vehicleUnitId, userId, reason],
-            );
-          } catch (ignored) {}
+          await manager.query(
+            `INSERT INTO vehicle_status_history (vehicle_unit_id, from_status, to_status, triggered_by_user, triggered_by_module, notes)
+             VALUES ($1, 'RESERVED'::vehicle_status_enum, 'AVAILABLE_FOR_SALE'::vehicle_status_enum, $2, 'ALLOTMENT_REJECTED', $3)`,
+            [line.vehicleUnitId, userId, reason],
+          );
         }
       }
 
@@ -370,9 +375,6 @@ export class AllotmentsService {
         { status: AllotmentStatus.REJECTED, rejectionReason: reason.trim() },
       );
 
-      // Sync stock balance after releasing reservations
-      await this.syncStockBalances(manager);
-
       await this.auditService.log({
         entityType: 'allotment',
         entityId: id,
@@ -384,6 +386,9 @@ export class AllotmentsService {
         },
       });
     });
+
+    // Sync stock balance after releasing reservations
+    await this.syncStockBalances();
 
     return this.findOne(id);
   }
@@ -404,19 +409,15 @@ export class AllotmentsService {
       // 1. Revert vehicle units to AVAILABLE_FOR_SALE
       for (const line of allotment.lines) {
         if (line.isActive) {
-          const unit = await manager.findOne(VehicleUnit, { where: { vehicleUnitId: line.vehicleUnitId } });
-          if (unit) {
-            unit.currentStatus = VehicleStatus.AVAILABLE_FOR_SALE;
-            unit.updatedBy = userId;
-            await manager.save(unit);
-
-            try {
-              await manager.query(
-                `SELECT fn_transition_vehicle_status($1, 'AVAILABLE_FOR_SALE', $2, 'ALLOTMENT_REVERSAL', $3)`,
-                [line.vehicleUnitId, userId, `Reversal of allotment ${allotment.allotmentNumber}`],
-              );
-            } catch (ignored) {}
-          }
+          await manager.query(
+            `UPDATE vehicle_unit SET current_status = 'AVAILABLE_FOR_SALE', updated_by = $1, updated_at = now() WHERE vehicle_unit_id = $2`,
+            [userId, line.vehicleUnitId],
+          );
+          await manager.query(
+            `INSERT INTO vehicle_status_history (vehicle_unit_id, from_status, to_status, triggered_by_user, triggered_by_module, notes)
+             VALUES ($1, 'ALLOTTED'::vehicle_status_enum, 'AVAILABLE_FOR_SALE'::vehicle_status_enum, $2, 'ALLOTMENT_REVERSAL', $3)`,
+            [line.vehicleUnitId, userId, `Reversal of allotment ${allotment.allotmentNumber}`],
+          );
         }
       }
 
@@ -433,9 +434,6 @@ export class AllotmentsService {
         { status: AllotmentStatus.CANCELLED },
       );
 
-      // 4. Sync stock balance after releasing allotted units
-      await this.syncStockBalances(manager);
-
       await this.auditService.log({
         entityType: 'allotment',
         entityId: id,
@@ -447,6 +445,9 @@ export class AllotmentsService {
         },
       });
     });
+
+    // Sync stock balance after releasing allotted units
+    await this.syncStockBalances();
 
     return this.findOne(id);
   }

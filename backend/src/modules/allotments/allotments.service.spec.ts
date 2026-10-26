@@ -204,6 +204,45 @@ describe('AllotmentsService (KMSICAMS-5 Business Rules)', () => {
         service.create({ bookingId: '1', vehicleUnitIds: ['101'] }),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('should REJECT allotment with ConflictException if database unique constraint uq_allotment_line_active_vehicle is violated', async () => {
+      bookingRepo.findOne.mockResolvedValue({
+        bookingId: '1',
+        bookingNumber: 'BKG-000001',
+        bookingStatus: BookingStatus.CONFIRMED,
+        requiredAdvanceAmount: 100000,
+        totalAmountDeposited: 100000,
+        quantity: 2,
+        itemId: '1',
+      });
+
+      lineRepo.createQueryBuilder.mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+      });
+
+      vehicleRepo.find.mockResolvedValue([
+        {
+          vehicleUnitId: '101',
+          itemId: '1',
+          chassisNumber: 'CHS-101',
+          currentStatus: VehicleStatus.AVAILABLE_FOR_SALE,
+        },
+      ]);
+
+      lineRepo.findOne.mockResolvedValue(null);
+
+      dataSource.transaction.mockRejectedValue({
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "uq_allotment_line_active_vehicle"',
+      });
+
+      await expect(
+        service.create({ bookingId: '1', vehicleUnitIds: ['101'] }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('Allotment Approval & Status Transition (Stories AP1, IN2)', () => {
