@@ -1023,7 +1023,7 @@ export class SparePartsService {
       sale.notes = sale.notes ? `${sale.notes} | CANCELLED: ${reason}` : `CANCELLED: ${reason}`;
       await queryRunner.manager.save(sale);
 
-      // 2. Reverse stock deduction: restore quantities to stock_balance
+      // 2. Reverse stock deduction: restore quantities to stock_balance & log reversal movement
       for (const line of sale.items) {
         await queryRunner.query(
           `
@@ -1033,6 +1033,20 @@ export class SparePartsService {
           WHERE warehouse_id = $2 AND item_id = $3
         `,
           [line.quantity, sale.warehouseId, line.itemId],
+        );
+
+        await queryRunner.query(
+          `
+          INSERT INTO stock_receipt (warehouse_id, item_id, quantity, source_type, notes, received_by)
+          VALUES ($1, $2, $3, 'MANUAL_RECEIPT', $4, $5)
+        `,
+          [
+            sale.warehouseId,
+            line.itemId,
+            line.quantity,
+            `[SALE VOID REVERSAL] Restored from cancelled sale #${sale.saleNumber}: ${reason}`,
+            userId,
+          ],
         );
       }
 
@@ -1075,6 +1089,9 @@ export class SparePartsService {
       };
     } catch (err: any) {
       await queryRunner.rollbackTransaction();
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
       throw new BadRequestException(err.message || 'Failed to cancel spare parts sale');
     } finally {
       await queryRunner.release();

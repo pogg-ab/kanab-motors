@@ -179,4 +179,59 @@ describe('SparePartsService - transferStock', () => {
     );
     expect(stockMovementQuery).toBeUndefined();
   });
+
+  describe('cancelSparePartsSale', () => {
+    it('should reject if sale is not found', async () => {
+      queryRunner.manager = { findOne: jest.fn().mockResolvedValue(null) };
+      await expect(service.cancelSparePartsSale('999', 'Reason', 1)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should reject if sale is already cancelled', async () => {
+      queryRunner.manager = {
+        findOne: jest.fn().mockResolvedValue({
+          saleId: '1',
+          saleNumber: 'POS-001',
+          status: 'CANCELLED',
+        }),
+      };
+      await expect(service.cancelSparePartsSale('1', 'Reason', 1)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should reverse stock back into stock_balance, record in stock_receipt, and commit', async () => {
+      const mockSale = {
+        saleId: '1',
+        saleNumber: 'POS-001',
+        status: 'COMPLETED',
+        warehouseId: 2,
+        customerId: '5',
+        grandTotal: 1500,
+        notes: null,
+        items: [
+          { itemId: '10', quantity: 3, unitPrice: 500 },
+        ],
+      };
+      queryRunner.manager = {
+        findOne: jest.fn().mockResolvedValue(mockSale),
+        save: jest.fn().mockResolvedValue(mockSale),
+      };
+      queryRunner.query.mockResolvedValue([]);
+
+      const result = await service.cancelSparePartsSale('1', 'Customer return', 1);
+
+      expect(result.status).toBe('CANCELLED');
+      expect(result.restoredItemsCount).toBe(1);
+      expect(mockSale.status).toBe('CANCELLED');
+      expect(queryRunner.commitTransaction).toHaveBeenCalled();
+
+      // Check executed queries: stock_balance update, stock_receipt insert, customer_ledger_transaction insert
+      const queries = queryRunner.query.mock.calls.map((c: any) => c[0]);
+      expect(queries.some((q: string) => q.includes('UPDATE stock_balance'))).toBe(true);
+      expect(queries.some((q: string) => q.includes('INSERT INTO stock_receipt'))).toBe(true);
+      expect(queries.some((q: string) => q.includes('INSERT INTO customer_ledger_transaction'))).toBe(true);
+    });
+  });
 });

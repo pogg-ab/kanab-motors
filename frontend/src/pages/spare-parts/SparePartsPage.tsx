@@ -1021,15 +1021,19 @@ export const SparePartsPage: React.FC = () => {
                               className="badge badge-rose"
                               style={{
                                 fontWeight: 800,
-                                padding: '0.3rem 0.65rem',
-                                border: '1px solid rgba(239, 68, 68, 0.4)',
-                                background: 'rgba(239, 68, 68, 0.15)',
+                                fontSize: '0.75rem',
+                                padding: '0.35rem 0.75rem',
+                                border: '1.5px solid #ef4444',
+                                background: 'rgba(239, 68, 68, 0.18)',
+                                color: '#f87171',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.35rem',
+                                gap: '0.4rem',
+                                letterSpacing: '0.04em',
+                                boxShadow: '0 2px 4px rgba(239, 68, 68, 0.2)',
                               }}
                             >
-                              <XCircle size={13} /> VOID / CANCELLED
+                              <XCircle size={14} /> CANCELLED / VOID
                             </span>
                           )}
                         </td>
@@ -1237,7 +1241,21 @@ export const SparePartsPage: React.FC = () => {
           MODAL 4: VIEW PRINTABLE SALE SLIP / INVOICE
       ===================================================================== */}
       {viewingSale && (
-        <SaleReceiptModal sale={viewingSale} onClose={() => setViewingSale(null)} />
+        <SaleReceiptModal
+          sale={viewingSale}
+          onClose={() => setViewingSale(null)}
+          onCancelRequest={(saleToCancel) => {
+            setViewingSale(null);
+            setCancellingSale(saleToCancel);
+            setCancelReason('');
+            setCancelError(null);
+          }}
+          canCancel={
+            hasPermission('SPARE_PARTS_SALES_CANCEL') ||
+            hasPermission('BOOKINGS_CANCEL') ||
+            hasPermission('PAYMENTS_REJECT')
+          }
+        />
       )}
 
       {/* =====================================================================
@@ -2101,11 +2119,11 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({
       return;
     }
     if (quantity <= 0) {
-      setError('Transfer quantity must be at least 1.');
+      setError('Cannot submit transfer: Transfer quantity must be greater than 0.');
       return;
     }
     if (sourceStock && sourceStock.available < quantity) {
-      setError(`Cannot transfer ${quantity} units. Only ${sourceStock.available} available on hand at source warehouse.`);
+      setError(`Cannot transfer: Entered quantity (${quantity}) is above current stock (${sourceStock.available} units available in stock at source warehouse).`);
       return;
     }
 
@@ -2254,13 +2272,50 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({
                 <input
                   type="number"
                   required
-                  min="1"
-                  max={sourceStock ? sourceStock.available : undefined}
+                  min="0"
                   value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  onChange={(e) => setQuantity(e.target.value === '' ? 0 : Number(e.target.value))}
                   className="input-field"
-                  style={{ fontWeight: 700 }}
+                  style={{
+                    fontWeight: 700,
+                    borderColor:
+                      quantity <= 0 || (sourceStock !== null && quantity > sourceStock.available)
+                        ? 'var(--accent-rose)'
+                        : undefined,
+                    background:
+                      quantity <= 0 || (sourceStock !== null && quantity > sourceStock.available)
+                        ? 'rgba(239, 68, 68, 0.08)'
+                        : undefined,
+                  }}
                 />
+                {quantity <= 0 && (
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--accent-rose)',
+                      marginTop: '0.35rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    ⚠️ Transfer quantity must be greater than 0
+                  </div>
+                )}
+                {sourceStock !== null && quantity > sourceStock.available && (
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--accent-rose)',
+                      marginTop: '0.35rem',
+                      fontWeight: 700,
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      padding: '0.3rem 0.5rem',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    ⚠️ Entered quantity ({quantity}) is above current stock ({sourceStock.available} available in stock)!
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -2286,7 +2341,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={submitting || (sourceStock !== null && sourceStock.available < quantity)}
+              disabled={submitting || quantity <= 0 || (sourceStock !== null && sourceStock.available < quantity)}
               className="btn btn-cyan"
             >
               {submitting ? 'Executing Transfer...' : 'Complete Stock Transfer'}
@@ -2340,11 +2395,33 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
       discountPercent: 0,
     },
   ]);
+  const [warehouseStockMap, setWarehouseStockMap] = useState<Record<string, { onHand: number; available: number }>>({});
+  const [loadingStockMap, setLoadingStockMap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Filter only spare parts eligible for sales (SALES_ONLY or BOTH)
   const sellableParts = activeParts.filter((p) => p.usageType !== 'ASSEMBLY_ONLY');
+
+  // Load stock balances for fulfilling warehouse
+  useEffect(() => {
+    if (warehouseId) {
+      setLoadingStockMap(true);
+      api.getSparePartsStock({ warehouseId: Number(warehouseId) })
+        .then((stocks) => {
+          const map: Record<string, { onHand: number; available: number }> = {};
+          stocks.forEach((s) => {
+            map[String(s.itemId)] = {
+              onHand: Number(s.quantityOnHand),
+              available: Number(s.quantityAvailable),
+            };
+          });
+          setWarehouseStockMap(map);
+        })
+        .catch(console.error)
+        .finally(() => setLoadingStockMap(false));
+    }
+  }, [warehouseId]);
 
   useEffect(() => {
     if (parts && parts.length > 0) {
@@ -2438,6 +2515,11 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const calculatedVat = taxable * 0.15;
   const calculatedGrandTotal = taxable + calculatedVat;
 
+  const hasAnyStockError = lines.some((l) => {
+    const stock = warehouseStockMap[String(l.itemId)]?.available ?? 0;
+    return l.quantity <= 0 || l.quantity > stock;
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || lines.length === 0) {
@@ -2445,7 +2527,26 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
       return;
     }
 
+    // Explicit validation matching test cases
+    for (const l of lines) {
+      const stockInfo = warehouseStockMap[String(l.itemId)] || { onHand: 0, available: 0 };
+      const part = activeParts.find((p) => String(p.itemId) === String(l.itemId));
+      const partLabel = part ? `${part.itemCode} - ${part.itemName}` : `Part #${l.itemId}`;
+
+      if (l.quantity <= 0) {
+        setError(`Cannot submit sale: Quantity for "${partLabel}" must be greater than 0.`);
+        return;
+      }
+      if (l.quantity > stockInfo.available) {
+        setError(
+          `Cannot submit sale: Entered quantity (${l.quantity}) is above current stock (${stockInfo.available} units available in stock) for "${partLabel}".`,
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
+    setError(null);
     try {
       const res = await api.createSparePartsSale({
         warehouseId: Number(warehouseId),
@@ -2633,7 +2734,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   <thead>
                     <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
                       <th style={{ padding: '0.75rem 0.9rem', textAlign: 'left' }}>Spare Part</th>
-                      <th style={{ padding: '0.75rem 0.9rem', width: '90px', textAlign: 'center' }}>Qty</th>
+                      <th style={{ padding: '0.75rem 0.9rem', width: '120px', textAlign: 'center' }}>Qty</th>
                       <th style={{ padding: '0.75rem 0.9rem', width: '130px', textAlign: 'right' }}>Unit Price (ETB)</th>
                       <th style={{ padding: '0.75rem 0.9rem', width: '90px', textAlign: 'center' }}>Disc %</th>
                       <th style={{ padding: '0.75rem 0.9rem', width: '140px', textAlign: 'right' }}>Total (inc. VAT)</th>
@@ -2642,11 +2743,15 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   </thead>
                   <tbody>
                     {lines.map((line, idx) => {
+                      const stockInfo = warehouseStockMap[String(line.itemId)] || { onHand: 0, available: 0 };
+                      const currentStock = stockInfo.available;
+                      const isAboveStock = line.quantity > currentStock;
+                      const isZeroOrNegative = line.quantity <= 0;
                       const lineSub = line.quantity * line.unitPrice * (1 - (line.discountPercent || 0) / 100);
                       const lineTot = lineSub * 1.15;
                       return (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '0.6rem 0.9rem' }}>
+                          <td style={{ padding: '0.6rem 0.9rem', verticalAlign: 'top' }}>
                             <select
                               value={line.itemId}
                               onChange={(e) => updateLine(idx, 'itemId', e.target.value)}
@@ -2663,20 +2768,68 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                                 ))
                               )}
                             </select>
+                            <div style={{ fontSize: '0.74rem', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Warehouse Stock:</span>
+                              <span style={{ fontWeight: 700, color: currentStock > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                                {loadingStockMap ? 'Checking stock...' : `${currentStock} units in stock (${stockInfo.onHand} on hand)`}
+                              </span>
+                            </div>
                           </td>
 
-                          <td style={{ padding: '0.6rem 0.9rem' }}>
+                          <td style={{ padding: '0.6rem 0.9rem', verticalAlign: 'top' }}>
                             <input
                               type="number"
-                              min="1"
+                              min="0"
                               value={line.quantity}
-                              onChange={(e) => updateLine(idx, 'quantity', Number(e.target.value))}
+                              onChange={(e) => updateLine(idx, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))}
                               className="input-field"
-                              style={{ padding: '0.45rem', textAlign: 'center', fontSize: '0.82rem' }}
+                              style={{
+                                padding: '0.45rem',
+                                textAlign: 'center',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                borderColor: isAboveStock || isZeroOrNegative ? 'var(--accent-rose)' : undefined,
+                                background: isAboveStock || isZeroOrNegative ? 'rgba(239, 68, 68, 0.08)' : undefined,
+                                color: isAboveStock || isZeroOrNegative ? 'var(--accent-rose)' : undefined,
+                              }}
                             />
+                            {isAboveStock && (
+                              <div
+                                style={{
+                                  fontSize: '0.71rem',
+                                  color: 'var(--accent-rose)',
+                                  marginTop: '0.3rem',
+                                  fontWeight: 700,
+                                  lineHeight: 1.25,
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  padding: '0.25rem 0.4rem',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                }}
+                              >
+                                ⚠️ Entered quantity ({line.quantity}) is above current stock ({currentStock} available in stock)!
+                              </div>
+                            )}
+                            {isZeroOrNegative && (
+                              <div
+                                style={{
+                                  fontSize: '0.71rem',
+                                  color: 'var(--accent-rose)',
+                                  marginTop: '0.3rem',
+                                  fontWeight: 700,
+                                  lineHeight: 1.25,
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  padding: '0.25rem 0.4rem',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                }}
+                              >
+                                ⚠️ Quantity must be greater than 0
+                              </div>
+                            )}
                           </td>
 
-                          <td style={{ padding: '0.6rem 0.9rem' }}>
+                          <td style={{ padding: '0.6rem 0.9rem', verticalAlign: 'top' }}>
                             <input
                               type="number"
                               min="0"
@@ -2688,7 +2841,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                             />
                           </td>
 
-                          <td style={{ padding: '0.6rem 0.9rem' }}>
+                          <td style={{ padding: '0.6rem 0.9rem', verticalAlign: 'top' }}>
                             <input
                               type="number"
                               min="0"
@@ -2700,11 +2853,11 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                             />
                           </td>
 
-                          <td style={{ padding: '0.6rem 0.9rem', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>
+                          <td style={{ padding: '0.6rem 0.9rem', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', verticalAlign: 'top' }}>
                             ETB {lineTot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
 
-                          <td style={{ padding: '0.6rem 0.9rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.6rem 0.9rem', textAlign: 'center', verticalAlign: 'top' }}>
                             {lines.length > 1 && (
                               <button
                                 type="button"
@@ -2783,7 +2936,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || hasAnyStockError}
               className="btn btn-emerald"
             >
               {submitting ? 'Posting...' : 'Post Sale & Issue Invoice'}
@@ -2801,9 +2954,16 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
 interface SaleReceiptModalProps {
   sale: SparePartsSaleRecord;
   onClose: () => void;
+  onCancelRequest?: (sale: SparePartsSaleRecord) => void;
+  canCancel?: boolean;
 }
 
-const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) => {
+const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({
+  sale,
+  onClose,
+  onCancelRequest,
+  canCancel,
+}) => {
   return (
     <div className="modal-backdrop">
       <div className="modal-content" style={{ maxWidth: '680px', background: '#ffffff', color: '#0f172a' }}>
@@ -2821,8 +2981,22 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end' }}>
                 <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a', fontFamily: 'monospace' }}>{sale.saleNumber}</span>
                 {sale.status === 'CANCELLED' && (
-                  <span style={{ padding: '0.2rem 0.55rem', background: '#ef4444', color: '#ffffff', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.05em' }}>
-                    VOID / CANCELLED
+                  <span
+                    style={{
+                      padding: '0.3rem 0.75rem',
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 900,
+                      letterSpacing: '0.06em',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)',
+                    }}
+                  >
+                    <XCircle size={15} /> VOID / CANCELLED
                   </span>
                 )}
               </div>
@@ -2869,25 +3043,25 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
                 background: '#fee2e2',
                 border: '2px solid #ef4444',
                 borderRadius: '8px',
-                padding: '0.9rem 1.15rem',
+                padding: '1.1rem 1.35rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.85rem',
+                gap: '1rem',
                 marginBottom: '1.25rem',
                 color: '#991b1b',
               }}
             >
-              <XCircle size={26} style={{ flexShrink: 0, color: '#dc2626' }} />
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '0.95rem', letterSpacing: '0.02em' }}>
-                  TRANSACTION STATUS: VOID / CANCELLED
+              <XCircle size={32} style={{ flexShrink: 0, color: '#dc2626' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 900, fontSize: '1.05rem', letterSpacing: '0.03em', color: '#b91c1c' }}>
+                  OFFICIAL STATUS: VOID / CANCELLED INVOICE
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#7f1d1d', marginTop: '0.2rem', lineHeight: 1.4 }}>
-                  This sale transaction has been formally cancelled and all item quantities have been reversed back into warehouse stock balance. Immutable transaction record preserved in audit ledger.
+                <div style={{ fontSize: '0.82rem', color: '#7f1d1d', marginTop: '0.25rem', lineHeight: 1.45 }}>
+                  This spare parts sale has been formally cancelled and all item quantities have been reversed back into warehouse stock balance. Immutable transaction record preserved in audit ledger.
                 </div>
                 {sale.notes && (
-                  <div style={{ fontSize: '0.78rem', marginTop: '0.35rem', color: '#450a0a', fontWeight: 700 }}>
-                    Cancellation Reason: &ldquo;{sale.notes}&rdquo;
+                  <div style={{ fontSize: '0.8rem', marginTop: '0.45rem', color: '#450a0a', fontWeight: 700, background: 'rgba(255,255,255,0.7)', padding: '0.4rem 0.65rem', borderRadius: '4px', border: '1px solid #fca5a5' }}>
+                    Cancellation Audit Reason: &ldquo;{sale.notes}&rdquo;
                   </div>
                 )}
               </div>
@@ -2926,7 +3100,14 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
                       <strong style={{ color: '#0284c7' }}>{it.item?.itemCode || `Part #${it.itemId}`}</strong>
                       <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{it.item?.itemName}</div>
                     </td>
-                    <td style={{ padding: '0.6rem', textAlign: 'center', fontWeight: 600 }}>{it.quantity}</td>
+                    <td style={{ padding: '0.6rem', textAlign: 'center', fontWeight: 600 }}>
+                      {it.quantity}
+                      {sale.status === 'CANCELLED' && (
+                        <div style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 700, marginTop: '0.15rem' }}>
+                          [REVERSED TO STOCK]
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>{Number(it.unitPrice).toLocaleString()}</td>
                     <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>{Number(it.lineVat).toLocaleString()}</td>
                     <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>{Number(it.lineTotal).toLocaleString()}</td>
@@ -2962,7 +3143,7 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
           </div>
         </div>
 
-        <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', background: '#f8fafc', justifyContent: 'space-between' }}>
+        <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             onClick={() => window.print()}
             className="btn btn-cyan"
@@ -2970,12 +3151,36 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({ sale, onClose }) =>
           >
             <Printer size={15} /> Print Receipt
           </button>
-          <button
-            onClick={onClose}
-            className="btn btn-secondary"
-          >
-            Close
-          </button>
+          
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {canCancel && sale.status === 'COMPLETED' && onCancelRequest && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onCancelRequest(sale);
+                }}
+                className="btn btn-secondary"
+                style={{
+                  color: '#dc2626',
+                  borderColor: '#fca5a5',
+                  background: '#fef2f2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: 700,
+                }}
+              >
+                <XCircle size={15} /> Cancel / Void Sale
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="btn btn-secondary"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
