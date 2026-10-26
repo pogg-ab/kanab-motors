@@ -662,15 +662,6 @@ export class SparePartsService {
         [transferId, dto.itemId, dto.quantity],
       );
 
-      // Record in stock_movement if table exists
-      await queryRunner.query(
-        `
-        INSERT INTO stock_movement (warehouse_id, item_id, movement_type, quantity, reference_type, reference_id, created_by)
-        VALUES ($1, $2, 'TRANSFER_OUT', $3, 'stock_transfer', $4, $5),
-               ($6, $2, 'TRANSFER_IN', $3, 'stock_transfer', $4, $5)
-      `,
-        [dto.fromWarehouseId, dto.itemId, -dto.quantity, transferId, userId, dto.toWarehouseId],
-      ).catch(() => {});
 
       await queryRunner.commitTransaction();
 
