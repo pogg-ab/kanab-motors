@@ -275,8 +275,9 @@ export class UpdatePOStatusDto {
 
 // Compliance Record DTO
 export class CreateComplianceRecordDto {
+  @IsOptional()
   @Matches(/^[1-9]\d*$/)
-  poId: string;
+  poId?: string;
 
   @IsOptional()
   @Matches(/^[1-9]\d*$/)
@@ -328,8 +329,9 @@ export class CreateComplianceRecordDto {
 
 // Payment Schedule DTO
 export class CreatePaymentScheduleDto {
+  @IsOptional()
   @Matches(/^[1-9]\d*$/)
-  poId: string;
+  poId?: string;
 
   @IsString()
   milestoneName: string;
@@ -402,8 +404,9 @@ export class RecordPaymentTransactionDto {
 
 // Letter of Credit DTO
 export class CreateLetterOfCreditDto {
+  @IsOptional()
   @Matches(/^[1-9]\d*$/)
-  poId: string;
+  poId?: string;
 
   @IsString()
   lcNumber: string;
