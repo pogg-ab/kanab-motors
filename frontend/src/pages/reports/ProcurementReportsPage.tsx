@@ -21,11 +21,12 @@ import { api, ExchangeRateDefault } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { formatApiError } from '../../utils/error';
 import { FinancialCommitmentsReport } from '../../components/FinancialCommitmentsReport';
+import { ImportReconciliationReports } from '../../components/ImportReconciliationReports';
 
 export const ProcurementReportsPage: React.FC = () => {
   const { can } = usePermissions();
   const canManageExchangeRates = can('EXCHANGE_RATES_MANAGE');
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'po_status' | 'exchange_rates' | 'commitments'>('pipeline');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'po_status' | 'exchange_rates' | 'commitments' | 'reconciliation_reports'>('pipeline');
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [poData, setPoData] = useState<any>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
@@ -239,6 +240,14 @@ export const ProcurementReportsPage: React.FC = () => {
         >
           <TrendingUp size={15} color={activeTab === 'commitments' ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
           <span>Financial Commitments & L/C (IMP-22)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('reconciliation_reports')}
+          className={`filter-pill ${activeTab === 'reconciliation_reports' ? 'active' : ''}`}
+        >
+          <Layers size={15} color={activeTab === 'reconciliation_reports' ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
+          <span>Import Reconciliation & Logistics (IMP-45–48)</span>
         </button>
       </div>
 
@@ -755,6 +764,9 @@ export const ProcurementReportsPage: React.FC = () => {
 
       {/* TAB 4: FINANCIAL COMMITMENTS & L/C (IMP-22) */}
       {activeTab === 'commitments' && <FinancialCommitmentsReport />}
+
+      {/* TAB 5: IMPORT LOGISTICS & RECONCILIATION REPORTS (IMP-45 to IMP-48) */}
+      {activeTab === 'reconciliation_reports' && <ImportReconciliationReports />}
     </div>
   );
 };

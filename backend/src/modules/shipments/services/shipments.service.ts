@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import {
   Shipment,
   ShipmentStage,
@@ -28,6 +28,29 @@ import {
   ReceiveShipmentLineDto,
 } from '../dto/shipment.dto';
 import { LandedCostAllocationService } from './landed-cost-allocation.service';
+import { FreightForwarder } from '../entities/freight-forwarder.entity';
+import { ShipmentFreightQuotation } from '../entities/shipment-freight-quotation.entity';
+import { ShipmentBooking } from '../entities/shipment-booking.entity';
+import { ShipmentContainer } from '../entities/shipment-container.entity';
+import { ShipmentMilestone } from '../entities/shipment-milestone.entity';
+import { ShipmentInsurance } from '../entities/shipment-insurance.entity';
+import { ShipmentCargoTracking } from '../entities/shipment-cargo-tracking.entity';
+import { ShipmentDocument } from '../entities/shipment-document.entity';
+import { ImportNotification } from '../entities/import-notification.entity';
+import {
+  CreateFreightForwarderDto,
+  UpdateFreightForwarderDto,
+  CreateFreightQuotationDto,
+  SelectFreightQuotationDto,
+  CreateShipmentBookingDto,
+  CreateShipmentContainerDto,
+  CreateShipmentMilestoneDto,
+  CreateShipmentInsuranceDto,
+  CreateCargoTrackingDto,
+  CreateShipmentDocumentDto,
+  VerifyShipmentDocumentDto,
+  UpdateOriginalDocumentStatusDto,
+} from '../dto/logistics.dto';
 
 @Injectable()
 export class ShipmentsService {
@@ -58,6 +81,24 @@ export class ShipmentsService {
     private readonly lineCostRepo: Repository<ShipmentLineLandedCost>,
     @InjectRepository(VehicleUnitLandedCost)
     private readonly vehicleUnitCostRepo: Repository<VehicleUnitLandedCost>,
+    @InjectRepository(FreightForwarder)
+    private readonly forwarderRepo: Repository<FreightForwarder>,
+    @InjectRepository(ShipmentFreightQuotation)
+    private readonly quotationRepo: Repository<ShipmentFreightQuotation>,
+    @InjectRepository(ShipmentBooking)
+    private readonly bookingRepo: Repository<ShipmentBooking>,
+    @InjectRepository(ShipmentContainer)
+    private readonly containerRepo: Repository<ShipmentContainer>,
+    @InjectRepository(ShipmentMilestone)
+    private readonly milestoneRepo: Repository<ShipmentMilestone>,
+    @InjectRepository(ShipmentInsurance)
+    private readonly insuranceRepo: Repository<ShipmentInsurance>,
+    @InjectRepository(ShipmentCargoTracking)
+    private readonly cargoTrackingRepo: Repository<ShipmentCargoTracking>,
+    @InjectRepository(ShipmentDocument)
+    private readonly shipmentDocRepo: Repository<ShipmentDocument>,
+    @InjectRepository(ImportNotification)
+    private readonly notificationRepo: Repository<ImportNotification>,
     private readonly dataSource: DataSource,
     private readonly landedCostService: LandedCostAllocationService,
   ) {}
@@ -156,6 +197,48 @@ export class ShipmentsService {
       });
       await queryRunner.manager.save(ShipmentStageHistory, history);
 
+      // Story IMP-28: Auto-seed standard logistics shipping milestones
+      const defaultMilestones = [
+        'CARGO_READY',
+        'BOOKING_CONFIRMED',
+        'CONTAINER_STUFFED',
+        'CUSTOMS_EXPORT_CLEARED',
+        'VESSEL_DEPARTED',
+        'PORT_OF_DJIBOUTI_ARRIVED',
+        'CUSTOMS_IMPORT_CLEARED',
+        'INLAND_DISPATCHED',
+        'WAREHOUSE_RECEIVED',
+      ];
+      const milestoneEntities = defaultMilestones.map((name) =>
+        queryRunner.manager.create(ShipmentMilestone, {
+          shipmentId: savedShipment.shipmentId,
+          milestoneName: name,
+          isCompleted: false,
+        }),
+      );
+      await queryRunner.manager.save(ShipmentMilestone, milestoneEntities);
+
+      // Story IMP-33: Auto-seed standard shipping document checklist
+      const defaultDocTypes = [
+        'COMMERCIAL_INVOICE',
+        'PACKING_LIST',
+        'BILL_OF_LADING',
+        'CERTIFICATE_OF_ORIGIN',
+        'PRE_SHIPMENT_INSPECTION_CERTIFICATE',
+        'CUSTOMS_DECLARATION',
+        'INSURANCE_CERTIFICATE',
+        'ECTN_CERTIFICATE',
+      ];
+      const docEntities = defaultDocTypes.map((type) =>
+        queryRunner.manager.create(ShipmentDocument, {
+          shipmentId: savedShipment.shipmentId,
+          documentType: type,
+          verificationStatus: 'PENDING',
+          originalDocumentStatus: 'NOT_RECEIVED',
+        }),
+      );
+      await queryRunner.manager.save(ShipmentDocument, docEntities);
+
       await queryRunner.commitTransaction();
 
       return this.findOne(savedShipment.shipmentId);
@@ -227,6 +310,17 @@ export class ShipmentsService {
         'stageHistory.user',
         'creator',
         'updater',
+        'selectedForwarder',
+        'quotations',
+        'quotations.forwarder',
+        'bookings',
+        'bookings.forwarder',
+        'containers',
+        'milestones',
+        'insurances',
+        'cargoTrackings',
+        'documents',
+        'documents.verifier',
       ],
       order: {
         stageHistory: { changedAt: 'ASC' },
@@ -821,5 +915,565 @@ export class ShipmentsService {
       })),
     };
   }
-}
 
+  // =========================================================================
+  // KMSICAMS-12 Part II: Phase 5 - Freight Forwarder Master & Logistics Booking
+  // =========================================================================
+
+  // Story IMP-23: Freight Forwarder Master Data
+  async getFreightForwarders(activeOnly = true): Promise<FreightForwarder[]> {
+    return this.forwarderRepo.find({
+      where: activeOnly ? { isActive: true } : {},
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createFreightForwarder(dto: CreateFreightForwarderDto): Promise<FreightForwarder> {
+    const forwarder = this.forwarderRepo.create(dto);
+    return this.forwarderRepo.save(forwarder);
+  }
+
+  async updateFreightForwarder(id: string, dto: UpdateFreightForwarderDto): Promise<FreightForwarder> {
+    const forwarder = await this.forwarderRepo.findOne({ where: { freightForwarderId: id } });
+    if (!forwarder) {
+      throw new NotFoundException(`Freight Forwarder #${id} not found`);
+    }
+    Object.assign(forwarder, dto);
+    return this.forwarderRepo.save(forwarder);
+  }
+
+  async setShipmentSelectedForwarder(shipmentId: string, forwarderId: string): Promise<Shipment> {
+    await this.findOne(shipmentId);
+    await this.shipmentRepo.update({ shipmentId }, { selectedForwarderId: forwarderId });
+    return this.findOne(shipmentId);
+  }
+
+  // Story IMP-24 & IMP-25: Freight Quotation Management & Selection
+  async getShipmentQuotations(shipmentId: string): Promise<ShipmentFreightQuotation[]> {
+    return this.quotationRepo.find({
+      where: { shipmentId },
+      relations: ['forwarder', 'creator', 'selector'],
+      order: { quotationDate: 'DESC' },
+    });
+  }
+
+  async addShipmentQuotation(shipmentId: string, dto: CreateFreightQuotationDto): Promise<ShipmentFreightQuotation> {
+    await this.findOne(shipmentId);
+    const quotation = this.quotationRepo.create({
+      shipmentId,
+      freightForwarderId: dto.freightForwarderId,
+      quotationReference: dto.quotationReference,
+      quotationDate: dto.quotationDate || new Date().toISOString().split('T')[0],
+      validUntil: dto.validUntil,
+      freightAmount: dto.freightAmount,
+      currency: dto.currency || 'USD',
+      estimatedTransitDays: dto.estimatedTransitDays,
+      destinationCharges: dto.destinationCharges || 0,
+      additionalTerms: dto.additionalTerms,
+      attachmentId: dto.attachmentId,
+      selectionStatus: 'PENDING',
+      createdBy: dto.userId,
+    });
+    return this.quotationRepo.save(quotation);
+  }
+
+  async selectShipmentQuotation(
+    shipmentId: string,
+    quotationId: string,
+    dto: SelectFreightQuotationDto,
+  ): Promise<ShipmentFreightQuotation> {
+    await this.findOne(shipmentId);
+    const quotation = await this.quotationRepo.findOne({
+      where: { quotationId, shipmentId },
+    });
+    if (!quotation) {
+      throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
+    }
+
+    // Mark other quotations as REJECTED
+    await this.quotationRepo.update(
+      { shipmentId },
+      { selectionStatus: 'REJECTED' },
+    );
+
+    quotation.selectionStatus = 'SELECTED';
+    quotation.selectionReason = dto.selectionReason;
+    quotation.selectedBy = dto.userId;
+    quotation.selectedAt = new Date();
+
+    const saved = await this.quotationRepo.save(quotation);
+
+    // Also update shipment selectedForwarderId
+    await this.shipmentRepo.update(
+      { shipmentId },
+      { selectedForwarderId: quotation.freightForwarderId },
+    );
+
+    return saved;
+  }
+
+  // Story IMP-26: Shipment Booking and Vessel Tracking
+  async getShipmentBookings(shipmentId: string): Promise<ShipmentBooking[]> {
+    return this.bookingRepo.find({
+      where: { shipmentId },
+      relations: ['forwarder', 'creator'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async createShipmentBooking(shipmentId: string, dto: CreateShipmentBookingDto): Promise<ShipmentBooking> {
+    await this.findOne(shipmentId);
+    const booking = this.bookingRepo.create({
+      shipmentId,
+      freightForwarderId: dto.freightForwarderId,
+      bookingReference: dto.bookingReference,
+      carrierName: dto.carrierName,
+      vesselName: dto.vesselName,
+      voyageNumber: dto.voyageNumber,
+      originPort: dto.originPort,
+      destinationPort: dto.destinationPort,
+      estimatedDepartureDate: dto.estimatedDepartureDate,
+      actualDepartureDate: dto.actualDepartureDate,
+      estimatedArrivalDate: dto.estimatedArrivalDate,
+      actualArrivalDate: dto.actualArrivalDate,
+      bookingStatus: dto.bookingStatus || 'CONFIRMED',
+      notes: dto.notes,
+      createdBy: dto.userId,
+    });
+    return this.bookingRepo.save(booking);
+  }
+
+  async updateShipmentBooking(bookingId: string, dto: Partial<CreateShipmentBookingDto>): Promise<ShipmentBooking> {
+    const booking = await this.bookingRepo.findOne({ where: { bookingId } });
+    if (!booking) {
+      throw new NotFoundException(`Shipment booking #${bookingId} not found`);
+    }
+    Object.assign(booking, dto);
+    return this.bookingRepo.save(booking);
+  }
+
+  // Story IMP-27: Container Management
+  async getShipmentContainers(shipmentId: string): Promise<ShipmentContainer[]> {
+    return this.containerRepo.find({
+      where: { shipmentId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async addShipmentContainer(shipmentId: string, dto: CreateShipmentContainerDto): Promise<ShipmentContainer> {
+    await this.findOne(shipmentId);
+    const container = this.containerRepo.create({
+      shipmentId,
+      ...dto,
+    });
+    return this.containerRepo.save(container);
+  }
+
+  async updateShipmentContainer(containerId: string, dto: Partial<CreateShipmentContainerDto>): Promise<ShipmentContainer> {
+    const container = await this.containerRepo.findOne({ where: { containerId } });
+    if (!container) {
+      throw new NotFoundException(`Container #${containerId} not found`);
+    }
+    Object.assign(container, dto);
+    return this.containerRepo.save(container);
+  }
+
+  // Story IMP-28: Cargo Milestones
+  async getShipmentMilestones(shipmentId: string): Promise<ShipmentMilestone[]> {
+    return this.milestoneRepo.find({
+      where: { shipmentId },
+      relations: ['completer'],
+      order: { milestoneId: 'ASC' },
+    });
+  }
+
+  async addShipmentMilestone(shipmentId: string, dto: CreateShipmentMilestoneDto): Promise<ShipmentMilestone> {
+    await this.findOne(shipmentId);
+    const milestone = this.milestoneRepo.create({
+      shipmentId,
+      milestoneName: dto.milestoneName,
+      plannedDate: dto.plannedDate,
+      milestoneDate: dto.milestoneDate,
+      isCompleted: dto.isCompleted || false,
+      completedAt: dto.isCompleted ? new Date() : undefined,
+      completedBy: dto.isCompleted ? dto.userId : undefined,
+      notes: dto.notes,
+    });
+    return this.milestoneRepo.save(milestone);
+  }
+
+  async updateShipmentMilestone(
+    milestoneId: string,
+    isCompleted: boolean,
+    notes?: string,
+    userId?: number,
+  ): Promise<ShipmentMilestone> {
+    const milestone = await this.milestoneRepo.findOne({ where: { milestoneId } });
+    if (!milestone) {
+      throw new NotFoundException(`Milestone #${milestoneId} not found`);
+    }
+    milestone.isCompleted = isCompleted;
+    milestone.completedAt = isCompleted ? new Date() : undefined;
+    milestone.completedBy = isCompleted ? userId : undefined;
+    if (notes) milestone.notes = notes;
+    return this.milestoneRepo.save(milestone);
+  }
+
+  // Story IMP-29: Shipment Insurance
+  async getShipmentInsurances(shipmentId: string): Promise<ShipmentInsurance[]> {
+    return this.insuranceRepo.find({
+      where: { shipmentId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async addShipmentInsurance(shipmentId: string, dto: CreateShipmentInsuranceDto): Promise<ShipmentInsurance> {
+    await this.findOne(shipmentId);
+    const insurance = this.insuranceRepo.create({
+      shipmentId,
+      ...dto,
+      currency: dto.currency || 'USD',
+      coverageType: dto.coverageType || 'All Risks (Institute Cargo Clauses A)',
+    });
+    return this.insuranceRepo.save(insurance);
+  }
+
+  // Story IMP-30: Cargo Tracking & ECTN
+  async getShipmentCargoTracking(shipmentId: string): Promise<ShipmentCargoTracking[]> {
+    return this.cargoTrackingRepo.find({
+      where: { shipmentId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async addShipmentCargoTracking(shipmentId: string, dto: CreateCargoTrackingDto): Promise<ShipmentCargoTracking> {
+    await this.findOne(shipmentId);
+    const tracking = this.cargoTrackingRepo.create({
+      shipmentId,
+      ...dto,
+    });
+    return this.cargoTrackingRepo.save(tracking);
+  }
+
+  async updateShipmentCargoTracking(trackingId: string, dto: Partial<CreateCargoTrackingDto>): Promise<ShipmentCargoTracking> {
+    const tracking = await this.cargoTrackingRepo.findOne({ where: { trackingId } });
+    if (!tracking) {
+      throw new NotFoundException(`Cargo tracking #${trackingId} not found`);
+    }
+    Object.assign(tracking, dto);
+    return this.cargoTrackingRepo.save(tracking);
+  }
+
+  // =========================================================================
+  // KMSICAMS-12 Part II: Phase 6 - Shipping Document Control and Verification
+  // =========================================================================
+
+  // Stories IMP-32 through IMP-37: Shipment Documents
+  async getShipmentDocumentsList(shipmentId: string): Promise<ShipmentDocument[]> {
+    return this.shipmentDocRepo.find({
+      where: { shipmentId },
+      relations: ['verifier', 'creator', 'purchaseOrder'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async addShipmentDocument(shipmentId: string, dto: CreateShipmentDocumentDto): Promise<ShipmentDocument> {
+    await this.findOne(shipmentId);
+    const doc = this.shipmentDocRepo.create({
+      shipmentId,
+      ...dto,
+      verificationStatus: dto.verificationStatus || 'PENDING',
+      originalDocumentStatus: dto.originalDocumentStatus || 'NOT_RECEIVED',
+      createdBy: dto.userId,
+    });
+    return this.shipmentDocRepo.save(doc);
+  }
+
+  async verifyShipmentDocument(docId: string, dto: VerifyShipmentDocumentDto): Promise<ShipmentDocument> {
+    const doc = await this.shipmentDocRepo.findOne({ where: { shipmentDocumentId: docId } });
+    if (!doc) {
+      throw new NotFoundException(`Shipment document #${docId} not found`);
+    }
+    doc.verificationStatus = dto.status;
+    doc.verifiedBy = dto.userId;
+    doc.verifiedAt = new Date();
+    if (dto.notes) doc.verificationNotes = dto.notes;
+    return this.shipmentDocRepo.save(doc);
+  }
+
+  async updateOriginalDocumentStatus(docId: string, dto: UpdateOriginalDocumentStatusDto): Promise<ShipmentDocument> {
+    const doc = await this.shipmentDocRepo.findOne({ where: { shipmentDocumentId: docId } });
+    if (!doc) {
+      throw new NotFoundException(`Shipment document #${docId} not found`);
+    }
+    doc.originalDocumentStatus = dto.status;
+    if (dto.releaseDate) doc.releaseDate = dto.releaseDate;
+    return this.shipmentDocRepo.save(doc);
+  }
+
+  // Story IMP-31: Shipment Logistics Cockpit Overview
+  async getShipmentLogisticsOverview(shipmentId: string): Promise<any> {
+    const shipment = await this.findOne(shipmentId);
+    const [quotations, bookings, containers, milestones, insurances, tracking, docs] = await Promise.all([
+      this.getShipmentQuotations(shipmentId),
+      this.getShipmentBookings(shipmentId),
+      this.getShipmentContainers(shipmentId),
+      this.getShipmentMilestones(shipmentId),
+      this.getShipmentInsurances(shipmentId),
+      this.getShipmentCargoTracking(shipmentId),
+      this.getShipmentDocumentsList(shipmentId),
+    ]);
+
+    const activeBooking = bookings.find((b) => b.bookingStatus === 'CONFIRMED') || bookings[0] || null;
+    const selectedQuotation = quotations.find((q) => q.selectionStatus === 'SELECTED') || null;
+
+    // Calculate action items / alerts
+    const alerts: string[] = [];
+    if (!selectedQuotation && quotations.length === 0) {
+      alerts.push('No freight quotation recorded yet.');
+    } else if (!selectedQuotation) {
+      alerts.push('Freight quotations recorded but none selected yet.');
+    }
+
+    if (!activeBooking) {
+      alerts.push('No confirmed ocean/air vessel booking registered.');
+    }
+
+    if (containers.length === 0) {
+      alerts.push('No container allocations recorded for this shipment.');
+    }
+
+    const unverifiedDocs = docs.filter((d) => d.verificationStatus === 'PENDING' || d.verificationStatus === 'REJECTED');
+    if (unverifiedDocs.length > 0) {
+      alerts.push(`${unverifiedDocs.length} shipping documents awaiting verification or rejected.`);
+    }
+
+    return {
+      shipment: {
+        shipmentId: shipment.shipmentId,
+        shipmentNumber: shipment.shipmentNumber,
+        currentStage: shipment.currentStage,
+        expectedArrivalDate: shipment.expectedArrivalDate,
+        billOfLadingNumber: shipment.billOfLadingNumber,
+        selectedForwarder: shipment.selectedForwarder,
+      },
+      selectedQuotation,
+      activeBooking,
+      containersCount: containers.length,
+      containers,
+      milestones,
+      insurances,
+      cargoTracking: tracking,
+      documentsCount: docs.length,
+      documents: docs,
+      alerts,
+    };
+  }
+
+  // =========================================================================
+  // KMSICAMS-12 Part II: Phase 7 - Notifications & Overdue Alerts
+  // =========================================================================
+
+  async getImportNotifications(params?: { unreadOnly?: boolean; role?: string; userId?: number }): Promise<ImportNotification[]> {
+    const qb = this.notificationRepo.createQueryBuilder('n').orderBy('n.createdAt', 'DESC').take(50);
+    if (params?.unreadOnly) {
+      qb.andWhere('n.isRead = false');
+    }
+    if (params?.userId) {
+      qb.andWhere('(n.recipientUserId = :userId OR n.recipientUserId IS NULL)', { userId: params.userId });
+    }
+    return qb.getMany();
+  }
+
+  async markNotificationRead(id: string): Promise<ImportNotification> {
+    const n = await this.notificationRepo.findOne({ where: { notificationId: id } });
+    if (!n) throw new NotFoundException('Notification not found');
+    n.isRead = true;
+    n.readAt = new Date();
+    return this.notificationRepo.save(n);
+  }
+
+  // Story IMP-40: Automated scan of upcoming deadlines and alerts
+  async generateAutomatedImportAlerts(): Promise<number> {
+    let createdCount = 0;
+    const now = new Date();
+    const upcomingDays = 7;
+    const futureLimit = new Date(now.getTime() + upcomingDays * 24 * 60 * 60 * 1000);
+
+    // 1. Container Free Time / Demurrage
+    const containers = await this.containerRepo.find({
+      relations: ['shipment'],
+      where: { containerStatus: In(['LOADED', 'IN_TRANSIT', 'DISCHARGED', 'AT_PORT']) },
+    });
+
+    for (const c of containers) {
+      if (c.emptyReturnDueDate && new Date(c.emptyReturnDueDate) <= futureLimit) {
+        const existing = await this.notificationRepo.findOne({
+          where: {
+            eventType: 'CONTAINER_RETURN_DEADLINE_APPROACHING',
+            entityType: 'CONTAINER',
+            entityId: c.containerId,
+          },
+        });
+        if (!existing) {
+          await this.notificationRepo.save(
+            this.notificationRepo.create({
+              eventType: 'CONTAINER_RETURN_DEADLINE_APPROACHING',
+              recipientRole: 'LOGISTICS_OFFICER',
+              entityType: 'CONTAINER',
+              entityId: c.containerId,
+              title: `Container ${c.containerNumber} Demurrage Deadline Approaching`,
+              message: `Container ${c.containerNumber} on Shipment ${c.shipment?.shipmentNumber} is due for empty return on ${c.emptyReturnDueDate}.`,
+              severity: 'WARNING',
+            }),
+          );
+          createdCount++;
+        }
+      }
+    }
+
+    return createdCount;
+  }
+
+  // =========================================================================
+  // KMSICAMS-12 Part II: Phase 8 - Reporting & Reconciliation
+  // =========================================================================
+
+  // Story IMP-45: Logistics and Shipment Status Report
+  async getShipmentLogisticsReport(): Promise<any> {
+    const shipments = await this.shipmentRepo.find({
+      relations: ['selectedForwarder', 'bookings', 'containers', 'milestones', 'documents'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return shipments.map((s) => {
+      const activeBooking = s.bookings?.find((b) => b.bookingStatus === 'CONFIRMED') || s.bookings?.[0];
+      const completedMilestones = s.milestones?.filter((m) => m.isCompleted).length || 0;
+      const totalMilestones = s.milestones?.length || 0;
+      const verifiedDocs = s.documents?.filter((d) => d.verificationStatus === 'VERIFIED').length || 0;
+      const totalDocs = s.documents?.length || 0;
+
+      return {
+        shipmentId: s.shipmentId,
+        shipmentNumber: s.shipmentNumber,
+        currentStage: s.currentStage,
+        forwarderName: s.selectedForwarder?.name || 'Unassigned',
+        vesselName: activeBooking?.vesselName || '—',
+        voyageNumber: activeBooking?.voyageNumber || '—',
+        originPort: activeBooking?.originPort || '—',
+        destinationPort: activeBooking?.destinationPort || '—',
+        containersCount: s.containers?.length || 0,
+        milestonesProgress: `${completedMilestones}/${totalMilestones}`,
+        documentsVerified: `${verifiedDocs}/${totalDocs}`,
+        expectedArrivalDate: s.expectedArrivalDate,
+        actualArrivalDate: s.actualArrivalDate,
+      };
+    });
+  }
+
+  // Story IMP-46: Document Completeness Report
+  async getDocumentCompletenessReport(): Promise<any> {
+    const docs = await this.shipmentDocRepo.find({
+      relations: ['shipment', 'purchaseOrder', 'verifier'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const statusCounts: Record<string, number> = {
+      PENDING: 0,
+      VERIFIED: 0,
+      REJECTED: 0,
+      EXPIRED: 0,
+    };
+
+    for (const d of docs) {
+      statusCounts[d.verificationStatus] = (statusCounts[d.verificationStatus] || 0) + 1;
+    }
+
+    return {
+      totalDocuments: docs.length,
+      statusCounts,
+      documents: docs.map((d) => ({
+        shipmentDocumentId: d.shipmentDocumentId,
+        shipmentNumber: d.shipment?.shipmentNumber,
+        poNumber: d.purchaseOrder?.poNumber || '—',
+        documentType: d.documentType,
+        documentReference: d.documentReference || '—',
+        verificationStatus: d.verificationStatus,
+        originalStatus: d.originalDocumentStatus,
+        issueDate: d.issueDate,
+        expiryDate: d.expiryDate,
+        verifiedBy: d.verifier?.fullName || '—',
+        verifiedAt: d.verifiedAt,
+      })),
+    };
+  }
+
+  // Story IMP-47: Import Reconciliation Report
+  async getImportReconciliationReport(): Promise<any> {
+    const pos = await this.poRepo.find({
+      relations: ['lines', 'lines.item', 'supplier'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const shipmentLines = await this.shipmentLineRepo.find({
+      relations: ['shipment'],
+    });
+
+    const receipts = await this.receiptRepo.find();
+
+    const reconciliation = [];
+
+    for (const po of pos) {
+      for (const line of po.lines || []) {
+        const lineShipments = shipmentLines.filter((sl) => String(sl.poLineId) === String(line.poLineId));
+        const shippedQty = lineShipments.reduce((sum, sl) => sum + Number(sl.quantityShipped || 0), 0);
+        const receivedQty = lineShipments.reduce((sum, sl) => sum + Number(sl.quantityReceived || 0), 0);
+        const orderedQty = Number(line.quantityOrdered || 0);
+        const outstandingQty = Math.max(0, orderedQty - receivedQty);
+
+        reconciliation.push({
+          poId: po.poId,
+          poNumber: po.poNumber,
+          poDate: po.poDate,
+          supplierName: po.supplier?.supplierName || '—',
+          itemId: line.itemId,
+          itemCode: line.item?.itemCode || line.itemId,
+          itemName: line.item?.itemName || 'Product Item',
+          unitPrice: Number(line.unitPrice || 0),
+          currency: po.currency || 'USD',
+          orderedQuantity: orderedQty,
+          shippedQuantity: shippedQty,
+          receivedQuantity: receivedQty,
+          outstandingQuantity: outstandingQty,
+          status: outstandingQty === 0 ? 'FULLY_RECEIVED' : receivedQty > 0 ? 'PARTIALLY_RECEIVED' : 'IN_PIPELINE',
+        });
+      }
+    }
+
+    return reconciliation;
+  }
+
+  // Story IMP-48: Import Monitoring Dashboard
+  async getImportMonitoringDashboard(): Promise<any> {
+    const [pipeline, logistics, docsReport, forwarders, containers] = await Promise.all([
+      this.getPipelineReport(),
+      this.getShipmentLogisticsReport(),
+      this.getDocumentCompletenessReport(),
+      this.getFreightForwarders(false),
+      this.containerRepo.find(),
+    ]);
+
+    const activeContainers = containers.filter((c) => c.containerStatus !== 'RETURNED').length;
+
+    return {
+      activeShipmentsCount: pipeline.totalActiveShipments,
+      totalShipmentsCount: pipeline.totalShipments,
+      inlandTransitCount: pipeline.totalInlandTransit,
+      activeContainersCount: activeContainers,
+      unverifiedDocumentsCount: (docsReport.statusCounts.PENDING || 0) + (docsReport.statusCounts.REJECTED || 0),
+      freightForwardersCount: forwarders.length,
+      stageBreakdown: pipeline.stageBreakdown,
+      recentShipments: logistics.slice(0, 10),
+    };
+  }
+}

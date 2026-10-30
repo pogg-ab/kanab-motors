@@ -708,6 +708,195 @@ export interface Shipment {
   updatedAt: string;
 }
 
+
+// ============================================================================
+// KMSICAMS-12 Part II: Logistics, Forwarders, Containers & Documents
+// ============================================================================
+export interface FreightForwarder {
+  freightForwarderId: string;
+  name: string;
+  country: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentFreightQuotation {
+  quotationId: string;
+  shipmentId: string;
+  freightForwarderId: string;
+  forwarder?: FreightForwarder;
+  quotationReference?: string;
+  quotationDate?: string;
+  validUntil?: string;
+  freightAmount: number;
+  currency: string;
+  estimatedTransitDays?: number;
+  destinationCharges: number;
+  additionalTerms?: string;
+  attachmentId?: string;
+  selectionStatus: 'PENDING' | 'SELECTED' | 'REJECTED';
+  selectionReason?: string;
+  selectedBy?: number;
+  selector?: { fullName?: string };
+  selectedAt?: string;
+  createdBy?: number;
+  creator?: { fullName?: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentBooking {
+  bookingId: string;
+  shipmentId: string;
+  freightForwarderId?: string;
+  forwarder?: FreightForwarder;
+  bookingReference: string;
+  carrierName?: string;
+  vesselName?: string;
+  voyageNumber?: string;
+  originPort?: string;
+  destinationPort?: string;
+  estimatedDepartureDate?: string;
+  actualDepartureDate?: string;
+  estimatedArrivalDate?: string;
+  actualArrivalDate?: string;
+  bookingStatus: 'REQUESTED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  notes?: string;
+  createdBy?: number;
+  creator?: { fullName?: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentContainer {
+  containerId: string;
+  shipmentId: string;
+  containerNumber: string;
+  containerType: string;
+  payloadCapacityKg?: number;
+  grossWeightKg?: number;
+  sealNumber?: string;
+  loadingDate?: string;
+  freeTimeDays: number;
+  freeTimeEndDate?: string;
+  emptyReturnDueDate?: string;
+  containerStatus: 'LOADED' | 'IN_TRANSIT' | 'DISCHARGED' | 'AT_PORT' | 'DELIVERED' | 'RETURNED';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentMilestone {
+  milestoneId: string;
+  shipmentId: string;
+  milestoneName: string;
+  plannedDate?: string;
+  milestoneDate?: string;
+  isCompleted: boolean;
+  completedAt?: string;
+  completedBy?: number;
+  completer?: { fullName?: string };
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentInsurance {
+  insuranceId: string;
+  shipmentId: string;
+  policyNumber: string;
+  insurerName: string;
+  insuredValue: number;
+  currency: string;
+  premiumAmount?: number;
+  coverageType: string;
+  issueDate?: string;
+  validUntil?: string;
+  isActive: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentCargoTracking {
+  trackingId: string;
+  shipmentId: string;
+  documentName: string;
+  referenceNumber?: string;
+  status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'EXPIRED';
+  submissionDate?: string;
+  deadlineDate?: string;
+  shippingCutOffDate?: string;
+  verifiedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShipmentDocument {
+  shipmentDocumentId: string;
+  shipmentId: string;
+  poId?: string;
+  purchaseOrder?: { poNumber?: string };
+  attachmentId?: string;
+  documentType: string;
+  documentReference?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  receivedDate?: string;
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'EXPIRED';
+  verifiedBy?: number;
+  verifier?: { fullName?: string };
+  verifiedAt?: string;
+  verificationNotes?: string;
+  originalDocumentStatus: 'NOT_RECEIVED' | 'RECEIVED' | 'ENDORSED_TO_BANK' | 'RELEASED_TO_AGENT' | 'SURRENDERED';
+  releaseDate?: string;
+  createdBy?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportNotification {
+  notificationId: string;
+  eventType: string;
+  recipientRole?: string;
+  recipientUserId?: number;
+  entityType: string;
+  entityId: string;
+  title: string;
+  message: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+}
+
+export interface ShipmentLogisticsOverview {
+  shipment: {
+    shipmentId: string;
+    shipmentNumber: string;
+    currentStage: string;
+    expectedArrivalDate?: string;
+    billOfLadingNumber?: string;
+    selectedForwarder?: FreightForwarder;
+  };
+  selectedQuotation?: ShipmentFreightQuotation;
+  activeBooking?: ShipmentBooking;
+  containersCount: number;
+  containers: ShipmentContainer[];
+  milestones: ShipmentMilestone[];
+  insurances: ShipmentInsurance[];
+  cargoTracking: ShipmentCargoTracking[];
+  documentsCount: number;
+  documents: ShipmentDocument[];
+  alerts: string[];
+}
+
 export interface LandedCostReport {
   shipmentId: string;
   shipmentNumber: string;
@@ -1202,6 +1391,82 @@ export const api = {
     apiClient.put(`/shipments/lookups/exchange-rates/${currency}`, { rateToEtb }).then((r) => r.data),
   getShipmentPipelineReport: () =>
     apiClient.get<any>('/shipments/reports/pipeline').then((r) => r.data),
+  // KMSICAMS-12 Part II: Freight Forwarders (IMP-23)
+  getFreightForwarders: (activeOnly = true) =>
+    apiClient.get<FreightForwarder[]>('/shipments/freight-forwarders', { params: { activeOnly } }).then((r) => r.data),
+  createFreightForwarder: (data: any) =>
+    apiClient.post<FreightForwarder>('/shipments/freight-forwarders', data).then((r) => r.data),
+  updateFreightForwarder: (id: string, data: any) =>
+    apiClient.put<FreightForwarder>('/shipments/freight-forwarders/' + id, data).then((r) => r.data),
+  setShipmentForwarder: (shipmentId: string, forwarderId: string) =>
+    apiClient.patch<Shipment>('/shipments/' + shipmentId + '/forwarder/' + forwarderId).then((r) => r.data),
+
+  // Phase 5: Quotations, Bookings, Containers, Milestones, Insurance, Cargo Tracking (IMP-24 - IMP-30)
+  getShipmentQuotations: (shipmentId: string) =>
+    apiClient.get<ShipmentFreightQuotation[]>('/shipments/' + shipmentId + '/quotations').then((r) => r.data),
+  addShipmentQuotation: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentFreightQuotation>('/shipments/' + shipmentId + '/quotations', data).then((r) => r.data),
+  selectShipmentQuotation: (shipmentId: string, quotationId: string, data: any) =>
+    apiClient.post<ShipmentFreightQuotation>('/shipments/' + shipmentId + '/quotations/' + quotationId + '/select', data).then((r) => r.data),
+  getShipmentBookings: (shipmentId: string) =>
+    apiClient.get<ShipmentBooking[]>('/shipments/' + shipmentId + '/bookings').then((r) => r.data),
+  createShipmentBooking: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentBooking>('/shipments/' + shipmentId + '/bookings', data).then((r) => r.data),
+  updateShipmentBooking: (bookingId: string, data: any) =>
+    apiClient.put<ShipmentBooking>('/shipments/bookings/' + bookingId, data).then((r) => r.data),
+  getShipmentContainers: (shipmentId: string) =>
+    apiClient.get<ShipmentContainer[]>('/shipments/' + shipmentId + '/containers').then((r) => r.data),
+  addShipmentContainer: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentContainer>('/shipments/' + shipmentId + '/containers', data).then((r) => r.data),
+  updateShipmentContainer: (containerId: string, data: any) =>
+    apiClient.put<ShipmentContainer>('/shipments/containers/' + containerId, data).then((r) => r.data),
+  getShipmentMilestones: (shipmentId: string) =>
+    apiClient.get<ShipmentMilestone[]>('/shipments/' + shipmentId + '/milestones').then((r) => r.data),
+  addShipmentMilestone: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentMilestone>('/shipments/' + shipmentId + '/milestones', data).then((r) => r.data),
+  updateShipmentMilestone: (milestoneId: string, isCompleted: boolean, notes?: string) =>
+    apiClient.patch<ShipmentMilestone>('/shipments/milestones/' + milestoneId, { isCompleted, notes }).then((r) => r.data),
+  getShipmentInsurances: (shipmentId: string) =>
+    apiClient.get<ShipmentInsurance[]>('/shipments/' + shipmentId + '/insurance').then((r) => r.data),
+  addShipmentInsurance: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentInsurance>('/shipments/' + shipmentId + '/insurance', data).then((r) => r.data),
+  getShipmentCargoTracking: (shipmentId: string) =>
+    apiClient.get<ShipmentCargoTracking[]>('/shipments/' + shipmentId + '/cargo-tracking').then((r) => r.data),
+  addShipmentCargoTracking: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentCargoTracking>('/shipments/' + shipmentId + '/cargo-tracking', data).then((r) => r.data),
+  updateShipmentCargoTracking: (trackingId: string, data: any) =>
+    apiClient.put<ShipmentCargoTracking>('/shipments/cargo-tracking/' + trackingId, data).then((r) => r.data),
+
+  // Phase 6: Document Control & Verification (IMP-32 - IMP-37)
+  getShipmentDocumentsControl: (shipmentId: string) =>
+    apiClient.get<ShipmentDocument[]>('/shipments/' + shipmentId + '/documents-control').then((r) => r.data),
+  addShipmentDocumentControl: (shipmentId: string, data: any) =>
+    apiClient.post<ShipmentDocument>('/shipments/' + shipmentId + '/documents-control', data).then((r) => r.data),
+  verifyShipmentDocument: (docId: string, data: { status: 'VERIFIED' | 'REJECTED'; notes?: string }) =>
+    apiClient.patch<ShipmentDocument>('/shipments/documents-control/' + docId + '/verify', data).then((r) => r.data),
+  updateOriginalDocumentStatus: (docId: string, data: { status: string; releaseDate?: string }) =>
+    apiClient.patch<ShipmentDocument>('/shipments/documents-control/' + docId + '/original-status', data).then((r) => r.data),
+  getShipmentLogisticsOverview: (shipmentId: string) =>
+    apiClient.get<ShipmentLogisticsOverview>('/shipments/' + shipmentId + '/logistics-overview').then((r) => r.data),
+
+  // Phase 7: Notifications & Alerts (IMP-40, IMP-41)
+  getImportNotifications: (unreadOnly?: boolean) =>
+    apiClient.get<ImportNotification[]>('/shipments/notifications/alerts', { params: { unreadOnly } }).then((r) => r.data),
+  markImportNotificationRead: (id: string) =>
+    apiClient.patch<ImportNotification>('/shipments/notifications/' + id + '/read').then((r) => r.data),
+  scanImportAlerts: () =>
+    apiClient.post<number>('/shipments/notifications/scan-alerts').then((r) => r.data),
+
+  // Phase 8: Reporting & Reconciliation (IMP-45 - IMP-48)
+  getShipmentLogisticsReport: () =>
+    apiClient.get<any[]>('/shipments/reports/logistics').then((r) => r.data),
+  getDocumentCompletenessReport: () =>
+    apiClient.get<any>('/shipments/reports/document-completeness').then((r) => r.data),
+  getImportReconciliationReport: () =>
+    apiClient.get<any[]>('/shipments/reports/reconciliation').then((r) => r.data),
+  getImportMonitoringDashboard: () =>
+    apiClient.get<any>('/shipments/reports/monitoring-dashboard').then((r) => r.data),
+
   getShipmentDocs: (shipmentId: string) =>
     apiClient.get<Attachment[]>(`/shipments/${shipmentId}/documents`).then((r) => r.data),
   uploadShipmentDoc: (

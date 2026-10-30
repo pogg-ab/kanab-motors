@@ -37,6 +37,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { formatApiError } from '../../utils/error';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { ShipmentLogisticsCockpit } from '../../components/ShipmentLogisticsCockpit';
 
 interface ShipmentDetailPageProps {
   shipmentId: string;
@@ -68,7 +69,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
   const [landedReport, setLandedReport] = useState<LandedCostReport | null>(null);
   const [shipmentDocuments, setShipmentDocuments] = useState<Attachment[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [activeTab, setActiveTab] = useState<'tracking' | 'costs' | 'allocation' | 'docs' | 'receipt'>('allocation');
+  const [activeTab, setActiveTab] = useState<'tracking' | 'costs' | 'allocation' | 'docs' | 'receipt' | 'logistics'>('allocation');
   const [loading, setLoading] = useState<boolean>(true);
   const [documentUploadProgress, setDocumentUploadProgress] = useState<Record<string, number>>({});
 
@@ -557,6 +558,15 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         }}
       >
         <button
+          onClick={() => setActiveTab('logistics')}
+          className={`filter-pill ${activeTab === 'logistics' ? 'active' : ''}`}
+          style={{ borderRadius: 'var(--radius-md) var(--radius-md) 0 0', borderBottom: 'none' }}
+        >
+          <Ship size={14} />
+          <span>Logistics & Booking (IMP-31)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('tracking')}
           className={`filter-pill ${activeTab === 'tracking' ? 'active' : ''}`}
           style={{ borderRadius: 'var(--radius-md) var(--radius-md) 0 0', borderBottom: 'none' }}
@@ -601,6 +611,14 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
           <span>Inventory Receiving (VIN Matching)</span>
         </button>
       </div>
+
+      {/* TAB 0: LOGISTICS COCKPIT & BOOKING (IMP-31) */}
+      {activeTab === 'logistics' && (
+        <ShipmentLogisticsCockpit
+          shipmentId={shipmentId}
+          onRefreshShipment={loadShipmentData}
+        />
+      )}
 
       {/* TAB 1: STAGE TRACKING & CHRONOLOGICAL HISTORY */}
       {activeTab === 'tracking' && (

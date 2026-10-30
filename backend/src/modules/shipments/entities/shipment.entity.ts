@@ -14,6 +14,14 @@ import { ShipmentLine } from './shipment-line.entity';
 import { ShipmentStageHistory } from './shipment-stage-history.entity';
 import { ShipmentCostComponent } from './shipment-cost-component.entity';
 import { ShipmentStage, AllocationMethod } from './shipment-stage.enum';
+import { FreightForwarder } from './freight-forwarder.entity';
+import { ShipmentFreightQuotation } from './shipment-freight-quotation.entity';
+import { ShipmentBooking } from './shipment-booking.entity';
+import { ShipmentContainer } from './shipment-container.entity';
+import { ShipmentMilestone } from './shipment-milestone.entity';
+import { ShipmentInsurance } from './shipment-insurance.entity';
+import { ShipmentCargoTracking } from './shipment-cargo-tracking.entity';
+import { ShipmentDocument } from './shipment-document.entity';
 
 export { ShipmentStage, AllocationMethod };
 
@@ -54,6 +62,13 @@ export class Shipment {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  @Column({ name: 'selected_forwarder_id', type: 'bigint', nullable: true })
+  selectedForwarderId?: string;
+
+  @ManyToOne(() => FreightForwarder, { nullable: true, eager: true })
+  @JoinColumn({ name: 'selected_forwarder_id' })
+  selectedForwarder?: FreightForwarder;
+
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy?: number;
 
@@ -82,4 +97,25 @@ export class Shipment {
 
   @OneToMany(() => ShipmentCostComponent, (cost) => cost.shipment)
   costComponents: ShipmentCostComponent[];
+
+  @OneToMany(() => ShipmentFreightQuotation, (q) => q.shipment)
+  quotations: ShipmentFreightQuotation[];
+
+  @OneToMany(() => ShipmentBooking, (b) => b.shipment)
+  bookings: ShipmentBooking[];
+
+  @OneToMany(() => ShipmentContainer, (c) => c.shipment)
+  containers: ShipmentContainer[];
+
+  @OneToMany(() => ShipmentMilestone, (m) => m.shipment)
+  milestones: ShipmentMilestone[];
+
+  @OneToMany(() => ShipmentInsurance, (i) => i.shipment)
+  insurances: ShipmentInsurance[];
+
+  @OneToMany(() => ShipmentCargoTracking, (t) => t.shipment)
+  cargoTrackings: ShipmentCargoTracking[];
+
+  @OneToMany(() => ShipmentDocument, (d) => d.shipment)
+  documents: ShipmentDocument[];
 }
