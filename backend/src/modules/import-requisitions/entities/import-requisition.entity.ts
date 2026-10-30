@@ -90,7 +90,7 @@ export class ImportRequisition {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  @OneToMany(() => ImportRequisitionLine, (line) => line.requisition, { cascade: true })
+  @OneToMany(() => ImportRequisitionLine, (line) => line.requisition)
   lines: ImportRequisitionLine[];
 }
 

@@ -221,6 +221,7 @@ export class ImportRequisitionsService {
           }),
         );
         await manager.save(ImportRequisitionLine, updatedLines);
+        delete (req as any).lines;
       }
 
       await manager.save(ImportRequisition, req);
