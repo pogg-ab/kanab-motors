@@ -681,7 +681,8 @@ export class PurchaseOrdersService {
     }
 
     const txn = this.paymentTxnRepo.create({
-      paymentScheduleId: dto.paymentScheduleId,
+      paymentScheduleId: schedule.paymentScheduleId,
+      paymentSchedule: schedule,
       paymentReference: dto.paymentReference,
       paymentDate: dto.paymentDate || new Date().toISOString().split('T')[0],
       amountPaid: dto.amountPaid,
@@ -701,6 +702,8 @@ export class PurchaseOrdersService {
     } else {
       schedule.status = 'PARTIALLY_PAID';
     }
+    delete (schedule as any).transactions;
+    delete (schedule as any).purchaseOrder;
     await this.paymentScheduleRepo.save(schedule);
 
     return savedTxn;

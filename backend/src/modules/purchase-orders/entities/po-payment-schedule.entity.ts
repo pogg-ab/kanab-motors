@@ -61,7 +61,7 @@ export class PoPaymentSchedule {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  @OneToMany(() => PoPaymentTransaction, (txn) => txn.paymentSchedule, { cascade: true })
+  @OneToMany(() => PoPaymentTransaction, (txn) => txn.paymentSchedule)
   transactions: PoPaymentTransaction[];
 }
 
