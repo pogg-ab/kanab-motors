@@ -20,11 +20,12 @@ import {
 import { api, ExchangeRateDefault } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { formatApiError } from '../../utils/error';
+import { FinancialCommitmentsReport } from '../../components/FinancialCommitmentsReport';
 
 export const ProcurementReportsPage: React.FC = () => {
   const { can } = usePermissions();
   const canManageExchangeRates = can('EXCHANGE_RATES_MANAGE');
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'po_status' | 'exchange_rates'>('pipeline');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'po_status' | 'exchange_rates' | 'commitments'>('pipeline');
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [poData, setPoData] = useState<any>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDefault[]>([]);
@@ -230,6 +231,14 @@ export const ProcurementReportsPage: React.FC = () => {
         >
           <Coins size={15} color={activeTab === 'exchange_rates' ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
           <span>Baseline Exchange Rates (NBE)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('commitments')}
+          className={`filter-pill ${activeTab === 'commitments' ? 'active' : ''}`}
+        >
+          <TrendingUp size={15} color={activeTab === 'commitments' ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
+          <span>Financial Commitments & L/C (IMP-22)</span>
         </button>
       </div>
 
@@ -743,6 +752,9 @@ export const ProcurementReportsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* TAB 4: FINANCIAL COMMITMENTS & L/C (IMP-22) */}
+      {activeTab === 'commitments' && <FinancialCommitmentsReport />}
     </div>
   );
 };

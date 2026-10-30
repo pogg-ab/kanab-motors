@@ -50,4 +50,13 @@ export class PurchaseOrderLine {
     generatedType: 'STORED',
   })
   lineTotal: number;
+
+  @Column({ name: 'hsn_sac_code', length: 50, default: '8711.20' })
+  hsnSacCode: string;
+
+  @Column({ length: 20, default: 'PCS' })
+  uom: string;
+
+  @Column({ name: 'item_description', type: 'text', nullable: true })
+  itemDescription?: string;
 }

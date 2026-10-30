@@ -6,6 +6,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   approvals: ['ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM'],
   documents: ['CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD'],
   inventory: ['WAREHOUSES_MANAGE', 'STOCK_RECEIPTS_CREATE', 'STOCK_ADJUSTMENTS_CREATE', 'STOCK_TRANSFERS_CREATE'],
+  'import-requisitions': ['PURCHASE_ORDERS_VIEW'],
   shipments: ['SHIPMENTS_VIEW'],
   'purchase-orders': ['PURCHASE_ORDERS_VIEW'],
   suppliers: ['SUPPLIERS_VIEW'],
@@ -27,6 +28,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 export const DEFAULT_AUTHORIZED_TAB_ORDER = [
   'dashboard',
   'reports',
+  'import-requisitions',
   'shipments',
   'purchase-orders',
   'suppliers',

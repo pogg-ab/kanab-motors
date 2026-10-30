@@ -152,6 +152,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
 
   const procurementItems = [
     {
+      id: 'import-requisitions',
+      label: 'Import Requisitions',
+      module: 'Planning & Budget Review',
+      icon: FileSpreadsheet,
+      permissions: TAB_PERMISSIONS['import-requisitions'],
+    },
+    {
       id: 'shipments',
       label: 'Shipments & Landed Cost',
       module: 'Maritime Logistics & Costing',

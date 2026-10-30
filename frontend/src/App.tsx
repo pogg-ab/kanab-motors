@@ -17,6 +17,7 @@ import { SettlementPage } from './pages/settlement/SettlementPage';
 import { AllotmentPage } from './pages/allotment/AllotmentPage';
 import { SuppliersPage } from './pages/procurement/SuppliersPage';
 import { PurchaseOrdersPage } from './pages/procurement/PurchaseOrdersPage';
+import { ImportRequisitionsPage } from './pages/procurement/ImportRequisitionsPage';
 import { ShipmentsPage } from './pages/shipments/ShipmentsPage';
 import { ShipmentDetailPage } from './pages/shipments/ShipmentDetailPage';
 import { ProcurementReportsPage } from './pages/reports/ProcurementReportsPage';
@@ -190,6 +191,7 @@ function MainAppContent() {
             ) : (
               <ShipmentsPage onSelectShipment={(id) => setSelectedShipmentId(id)} />
             ))}
+          {canAccessActiveTab && activeTab === 'import-requisitions' && <ImportRequisitionsPage />}
           {canAccessActiveTab && activeTab === 'purchase-orders' && <PurchaseOrdersPage />}
           {canAccessActiveTab && activeTab === 'suppliers' && <SuppliersPage />}
           {canAccessActiveTab && activeTab === 'procurement-reports' && <ProcurementReportsPage />}

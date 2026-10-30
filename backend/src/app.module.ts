@@ -26,6 +26,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
+import { ImportRequisitionsModule } from './modules/import-requisitions/import-requisitions.module';
 import { PermissionGuard } from './common/guards/permission.guard';
 
 @Module({
@@ -58,6 +59,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
     InventoryModule,
     ReportsModule,
     SparePartsModule,
+    ImportRequisitionsModule,
   ],
   providers: [
     {
@@ -67,4 +69,3 @@ import { PermissionGuard } from './common/guards/permission.guard';
   ],
 })
 export class AppModule {}
-

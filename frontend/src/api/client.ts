@@ -421,6 +421,8 @@ export interface EligibleBooking extends Booking {
 // --- KMSICAMS-3 Interfaces (Import, Shipment Tracking & Landed Cost) ---
 
 export interface Supplier {
+  exporterIecNo?: string;
+  exporterAdCode?: string;
   supplierId: number;
   supplierName: string;
   country?: string;
@@ -451,6 +453,153 @@ export interface PurchaseOrderLine {
   unitPrice: number;
   currency: string;
   lineTotal: number;
+  hsnSacCode?: string;
+  uom?: string;
+  itemDescription?: string;
+}
+
+export interface CompanyProfile {
+  profileId: number;
+  companyName: string;
+  iecNo?: string;
+  adCode?: string;
+  taxId?: string;
+  address?: string;
+  city?: string;
+  country: string;
+  phone?: string;
+  email?: string;
+  isDefault: boolean;
+}
+
+export interface CompanyBankAccount {
+  bankAccountId: number;
+  accountName: string;
+  bankName: string;
+  accountNumber: string;
+  bankBranch?: string;
+  ifscCode?: string;
+  swiftCode?: string;
+  currency: string;
+  isActive: boolean;
+}
+
+export interface ImportComplianceRecord {
+  complianceRecordId: string;
+  poId: string;
+  shipmentId?: string;
+  requirementType: string;
+  issuingAuthority: string;
+  applicationReference?: string;
+  documentReference?: string;
+  applicationDate?: string;
+  submissionDate?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  status: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PoPaymentTransaction {
+  paymentTransactionId: string;
+  paymentScheduleId: string;
+  paymentReference: string;
+  paymentDate: string;
+  amountPaid: number;
+  currency: string;
+  bankName?: string;
+  status: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface PoPaymentSchedule {
+  paymentScheduleId: string;
+  poId: string;
+  milestoneName: string;
+  paymentMethod: string;
+  dueDate?: string;
+  amountDue: number;
+  currency: string;
+  status: string;
+  notes?: string;
+  totalPaid?: number;
+  remainingBalance?: number;
+  isFullyPaid?: boolean;
+  transactions?: PoPaymentTransaction[];
+}
+
+export interface PoLetterOfCredit {
+  lcId: string;
+  poId: string;
+  lcNumber: string;
+  issuingBank: string;
+  advisingBank?: string;
+  amount: number;
+  currency: string;
+  issueDate: string;
+  expiryDate: string;
+  latestShipmentDate?: string;
+  status: string;
+  documentaryRequirements?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface ImportRequisitionLine {
+  requisitionLineId: string;
+  requisitionId: string;
+  itemId: string;
+  item?: ProductItem;
+  quantityRequested: number;
+  estimatedUnitPrice: number;
+  currency: string;
+  lineTotal: number;
+  technicalSpecification?: string;
+  qualityRequirements?: string;
+  intendedApplication?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ImportRequisition {
+  requisitionId: string;
+  requisitionNumber: string;
+  businessUnitId: string;
+  requestedBy?: number;
+  requester?: { userId: number; username: string; fullName: string };
+  requestDate: string;
+  requiredDeliveryDate?: string;
+  justification?: string;
+  estimatedBudget: number;
+  currency: string;
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CONVERTED_TO_PO';
+  approvedBy?: number;
+  approver?: { userId: number; username: string; fullName: string };
+  approvedAt?: string;
+  approvalNotes?: string;
+  rejectionReason?: string;
+  lines: ImportRequisitionLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockOrderReview {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  category?: string;
+  brand?: string;
+  stockOnHand: number;
+  stockReserved: number;
+  stockAvailable: number;
+  openPOQuantity: number;
+  pendingRequisitionQuantity: number;
+  totalPipeline: number;
+  minimumOrderQuantity: number;
+  safetyStockThreshold: number;
+  suggestedOrderQuantity: number;
 }
 
 export interface PurchaseOrder {
@@ -462,7 +611,31 @@ export interface PurchaseOrder {
   currency: string;
   status: 'DRAFT' | 'SUBMITTED' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
   notes?: string;
+  requisitionId?: string;
+  requisition?: ImportRequisition;
+  incoterms?: string;
+  paymentTerms?: string;
+  countryOfOrigin?: string;
+  portOfLoading?: string;
+  portOfDischarge?: string;
+  modeOfShipment?: string;
+  packingRequirements?: string;
+  deliveryLeadTimeDays?: number;
+  leadTimeTrigger?: string;
+  expectedDeliveryDate?: string;
+  proformaInvoiceNo?: string;
+  proformaInvoiceDate?: string;
+  contractReference?: string;
+  inspectionRequirements?: string;
+  warrantyTerms?: string;
+  commercialRemarks?: string;
+  bankAccountId?: number;
+  bankAccount?: CompanyBankAccount;
+  amountInWords?: string;
   lines: PurchaseOrderLine[];
+  complianceRecords?: ImportComplianceRecord[];
+  paymentSchedules?: PoPaymentSchedule[];
+  lettersOfCredit?: PoLetterOfCredit[];
   createdAt: string;
   updatedAt: string;
 }
@@ -938,6 +1111,58 @@ export const api = {
       .then((r) => r.data),
   getPOStatusReport: () =>
     apiClient.get<any>('/purchase-orders/reports/status').then((r) => r.data),
+
+  // KMSICAMS-12 Phase 1: Import Requisition & Planning (IMP-01 to IMP-06)
+  getImportRequisitions: (params?: any) =>
+    apiClient.get<{ items: ImportRequisition[]; total: number }>('/import-requisitions', { params }).then((r) => r.data),
+  getImportRequisition: (id: string) =>
+    apiClient.get<ImportRequisition>('/import-requisitions/' + id).then((r) => r.data),
+  getStockReview: (itemId: string) =>
+    apiClient.get<StockOrderReview>('/import-requisitions/stock-review/' + itemId).then((r) => r.data),
+  createImportRequisition: (data: any) =>
+    apiClient.post<ImportRequisition>('/import-requisitions', data).then((r) => r.data),
+  updateImportRequisition: (id: string, data: any) =>
+    apiClient.put<ImportRequisition>('/import-requisitions/' + id, data).then((r) => r.data),
+  submitImportRequisition: (id: string, userId?: number) =>
+    apiClient.patch<ImportRequisition>('/import-requisitions/' + id + '/submit', { userId }).then((r) => r.data),
+  approveImportRequisition: (id: string, approvalNotes?: string, userId?: number) =>
+    apiClient.patch<ImportRequisition>('/import-requisitions/' + id + '/approve', { approvalNotes, userId }).then((r) => r.data),
+  rejectImportRequisition: (id: string, reason: string, userId?: number) =>
+    apiClient.patch<ImportRequisition>('/import-requisitions/' + id + '/reject', { reason, userId }).then((r) => r.data),
+  cancelImportRequisition: (id: string, userId?: number) =>
+    apiClient.patch<ImportRequisition>('/import-requisitions/' + id + '/cancel', { userId }).then((r) => r.data),
+  convertRequisitionToPO: (id: string, data: any, userId?: number) =>
+    apiClient.post<PurchaseOrder>('/import-requisitions/' + id + '/convert-to-po', { ...data, userId }).then((r) => r.data),
+
+  // KMSICAMS-12 Phase 2-4: Commercial Terms, Compliance & Payment Schedules (IMP-07 to IMP-22)
+  getCompanyProfile: () =>
+    apiClient.get<CompanyProfile>('/purchase-orders/company-profile').then((r) => r.data),
+  getCompanyBankAccounts: () =>
+    apiClient.get<CompanyBankAccount[]>('/purchase-orders/bank-accounts').then((r) => r.data),
+  getPOPrintData: (id: string) =>
+    apiClient.get<any>('/purchase-orders/' + id + '/print').then((r) => r.data),
+  validatePOReadiness: (id: string) =>
+    apiClient.get<any>('/purchase-orders/' + id + '/validate-readiness').then((r) => r.data),
+  getPOComplianceRecords: (id: string) =>
+    apiClient.get<ImportComplianceRecord[]>('/purchase-orders/' + id + '/compliance').then((r) => r.data),
+  createPOComplianceRecord: (poId: string, data: any) =>
+    apiClient.post<ImportComplianceRecord>('/purchase-orders/' + poId + '/compliance', data).then((r) => r.data),
+  updatePOComplianceStatus: (recordId: number | string, status: string, notes?: string) =>
+    apiClient.patch<ImportComplianceRecord>('/purchase-orders/compliance/' + recordId + '/status', { status, notes }).then((r) => r.data),
+  getPOPaymentSchedules: (poId: string) =>
+    apiClient.get<PoPaymentSchedule[]>('/purchase-orders/' + poId + '/payment-schedules').then((r) => r.data),
+  createPOPaymentSchedule: (poId: string, data: any) =>
+    apiClient.post<PoPaymentSchedule>('/purchase-orders/' + poId + '/payment-schedules', data).then((r) => r.data),
+  recordPOPaymentTransaction: (data: any) =>
+    apiClient.post<PoPaymentTransaction>('/purchase-orders/payments/transactions', data).then((r) => r.data),
+  getPOLettersOfCredit: (poId: string) =>
+    apiClient.get<PoLetterOfCredit[]>('/purchase-orders/' + poId + '/letters-of-credit').then((r) => r.data),
+  createPOLetterOfCredit: (poId: string, data: any) =>
+    apiClient.post<PoLetterOfCredit>('/purchase-orders/' + poId + '/letters-of-credit', data).then((r) => r.data),
+  updatePOLetterOfCreditStatus: (lcId: string, status: string, notes?: string) =>
+    apiClient.patch<PoLetterOfCredit>('/purchase-orders/letters-of-credit/' + lcId + '/status', { status, notes }).then((r) => r.data),
+  getFinancialCommitments: () =>
+    apiClient.get<any>('/purchase-orders/financial-commitments').then((r) => r.data),
 
   // Shipments & Landed Cost (Stories S1-S7, C1-C6, A1-A8, R1-R6, D1-D4, RP1-RP2)
   getShipments: (params?: any) =>

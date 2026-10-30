@@ -3,7 +3,6 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  OneToMany,
 } from 'typeorm';
 
 @Entity('supplier')
@@ -28,6 +27,12 @@ export class Supplier {
 
   @Column({ type: 'text', nullable: true })
   address?: string;
+
+  @Column({ name: 'exporter_iec_no', length: 50, nullable: true })
+  exporterIecNo?: string;
+
+  @Column({ name: 'exporter_ad_code', length: 50, nullable: true })
+  exporterAdCode?: string;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
