@@ -80,7 +80,7 @@ export const ImportRequisitionsPage: React.FC = () => {
   const [justification, setJustification] = useState<string>('');
   const [estimatedBudget, setEstimatedBudget] = useState<number | string>('');
   const [lines, setLines] = useState<RequisitionFormLine[]>([
-    { itemId: '', quantityRequested: 10, estimatedUnitPrice: 2500 },
+    { itemId: '', quantityRequested: 1, estimatedUnitPrice: '' },
   ]);
 
   // Convert to PO Form State
@@ -154,7 +154,7 @@ export const ImportRequisitionsPage: React.FC = () => {
     setRequiredDeliveryDate('');
     setJustification('');
     setEstimatedBudget('');
-    setLines([{ itemId: '', quantityRequested: 10, estimatedUnitPrice: 2500 }]);
+    setLines([{ itemId: '', quantityRequested: 1, estimatedUnitPrice: '' }]);
     setFormError(null);
     setEditingReq(null);
   };
@@ -212,8 +212,8 @@ export const ImportRequisitionsPage: React.FC = () => {
 
     if (field === 'itemId') {
       const prod = products.find((p) => p.itemId === val);
-      if (prod && !updated[index].estimatedUnitPrice) {
-        updated[index].estimatedUnitPrice = Number(prod.sellingPrice) > 0 ? Number(prod.sellingPrice) : 2500;
+      if (prod) {
+        updated[index].estimatedUnitPrice = Number(prod.sellingPrice || 0);
       }
     }
     setLines(updated);
