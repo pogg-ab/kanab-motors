@@ -1401,7 +1401,7 @@ export class ShipmentsService {
   // Story IMP-45: Logistics and Shipment Status Report
   async getShipmentLogisticsReport(): Promise<any> {
     const shipments = await this.shipmentRepo.find({
-      relations: ['selectedForwarder', 'bookings', 'containers', 'milestones', 'documents'],
+      relations: ['selectedForwarder', 'bookings', 'containers', 'milestones', 'documents', 'insurances'],
       order: { createdAt: 'DESC' },
     });
 
@@ -1411,19 +1411,28 @@ export class ShipmentsService {
       const totalMilestones = s.milestones?.length || 0;
       const verifiedDocs = s.documents?.filter((d) => d.verificationStatus === 'VERIFIED').length || 0;
       const totalDocs = s.documents?.length || 0;
+      const primaryInsurance = (s as any).insurances?.[0];
 
       return {
         shipmentId: s.shipmentId,
         shipmentNumber: s.shipmentNumber,
         currentStage: s.currentStage,
         forwarderName: s.selectedForwarder?.name || 'Unassigned',
-        vesselName: activeBooking?.vesselName || '—',
+        selectedForwarderName: s.selectedForwarder?.name || null,
+        vesselName: activeBooking?.vesselName || null,
         voyageNumber: activeBooking?.voyageNumber || '—',
+        bookingReference: activeBooking?.bookingReference || null,
         originPort: activeBooking?.originPort || '—',
         destinationPort: activeBooking?.destinationPort || '—',
         containersCount: s.containers?.length || 0,
+        completedMilestonesCount: completedMilestones,
+        totalMilestonesCount: totalMilestones,
         milestonesProgress: `${completedMilestones}/${totalMilestones}`,
+        verifiedDocsCount: verifiedDocs,
+        totalDocsCount: totalDocs,
         documentsVerified: `${verifiedDocs}/${totalDocs}`,
+        hasInsurance: Boolean(primaryInsurance),
+        insurancePolicyNumber: primaryInsurance?.policyNumber || null,
         expectedArrivalDate: s.expectedArrivalDate,
         actualArrivalDate: s.actualArrivalDate,
       };
@@ -1459,9 +1468,11 @@ export class ShipmentsService {
         documentReference: d.documentReference || '—',
         verificationStatus: d.verificationStatus,
         originalStatus: d.originalDocumentStatus,
+        originalDocumentStatus: d.originalDocumentStatus,
         issueDate: d.issueDate,
         expiryDate: d.expiryDate,
         verifiedBy: d.verifier?.fullName || '—',
+        verifiedByEmail: d.verifier?.email || d.verifier?.fullName || '—',
         verifiedAt: d.verifiedAt,
       })),
     };
@@ -1478,8 +1489,6 @@ export class ShipmentsService {
       relations: ['shipment'],
     });
 
-    const receipts = await this.receiptRepo.find();
-
     const reconciliation = [];
 
     for (const po of pos) {
@@ -1490,6 +1499,15 @@ export class ShipmentsService {
         const orderedQty = Number(line.quantityOrdered || 0);
         const outstandingQty = Math.max(0, orderedQty - receivedQty);
 
+        let varianceStatus = 'NOT_SHIPPED';
+        if (receivedQty >= orderedQty && orderedQty > 0) {
+          varianceStatus = 'MATCHED';
+        } else if (receivedQty > 0) {
+          varianceStatus = 'UNDER_RECEIVED';
+        } else if (shippedQty > 0) {
+          varianceStatus = 'IN_TRANSIT';
+        }
+
         reconciliation.push({
           poId: po.poId,
           poNumber: po.poNumber,
@@ -1498,12 +1516,14 @@ export class ShipmentsService {
           itemId: line.itemId,
           itemCode: line.item?.itemCode || line.itemId,
           itemName: line.item?.itemName || 'Product Item',
+          itemDescription: line.item?.itemName || 'Product Item',
           unitPrice: Number(line.unitPrice || 0),
           currency: po.currency || 'USD',
           orderedQuantity: orderedQty,
           shippedQuantity: shippedQty,
           receivedQuantity: receivedQty,
           outstandingQuantity: outstandingQty,
+          varianceStatus,
           status: outstandingQty === 0 ? 'FULLY_RECEIVED' : receivedQty > 0 ? 'PARTIALLY_RECEIVED' : 'IN_PIPELINE',
         });
       }

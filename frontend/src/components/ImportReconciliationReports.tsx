@@ -44,7 +44,8 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
         setLogisticsData(Array.isArray(data) ? data : []);
       } else if (subTab === 'documents') {
         const data = await api.getDocumentCompletenessReport();
-        setDocumentsData(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : ((data as any)?.documents || []);
+        setDocumentsData(list);
       } else if (subTab === 'reconciliation') {
         const data = await api.getImportReconciliationReport();
         setReconciliationData(Array.isArray(data) ? data : []);
