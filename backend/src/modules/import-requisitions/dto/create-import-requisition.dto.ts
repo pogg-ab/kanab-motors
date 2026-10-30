@@ -115,11 +115,18 @@ export class ConvertRequisitionToPODto {
   modeOfShipment?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   bankAccountId?: number;
 
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  userId?: number;
 }
 

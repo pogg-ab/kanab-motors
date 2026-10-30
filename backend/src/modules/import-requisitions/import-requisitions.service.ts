@@ -442,7 +442,7 @@ export class ImportRequisitionsService {
         portOfLoading: dto.portOfLoading || 'Nhava Sheva (JNPT), Mumbai, India',
         portOfDischarge: dto.portOfDischarge || 'Djibouti Free Port / Mojo Dry Port',
         modeOfShipment: dto.modeOfShipment || 'SEA',
-        bankAccountId: dto.bankAccountId || 1,
+        bankAccountId: dto.bankAccountId ? Number(dto.bankAccountId) : undefined,
         amountInWords,
         notes: dto.notes || `Generated from Requisition ${requisition.requisitionNumber}. ${requisition.justification || ''}`,
         createdBy: userId,

@@ -109,7 +109,7 @@ export class ImportRequisitionsController {
     @Body() dto: ConvertRequisitionToPODto,
     @Body('userId') userId?: number,
   ) {
-    return this.reqService.convertToPO(id, dto, userId);
+    return this.reqService.convertToPO(id, dto, userId || dto.userId);
   }
 }
 
