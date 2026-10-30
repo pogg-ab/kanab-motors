@@ -441,8 +441,20 @@ export class CreateShipmentDocumentDto {
 }
 
 export class VerifyShipmentDocumentDto {
-  @IsIn(['VERIFIED', 'REJECTED'])
-  status: 'VERIFIED' | 'REJECTED';
+  @IsIn(['PENDING', 'VERIFIED', 'REJECTED'])
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+  @IsOptional()
+  @IsString()
+  documentReference?: string;
+
+  @IsOptional()
+  @IsDateString()
+  issueDate?: string;
+
+  @IsOptional()
+  @IsIn(['NOT_RECEIVED', 'RECEIVED', 'ENDORSED_TO_BANK', 'RELEASED_TO_AGENT', 'SURRENDERED'])
+  originalDocumentStatus?: 'NOT_RECEIVED' | 'RECEIVED' | 'ENDORSED_TO_BANK' | 'RELEASED_TO_AGENT' | 'SURRENDERED';
 
   @IsOptional()
   @IsString()

@@ -29,6 +29,7 @@ import {
   ShipmentInsurance,
   ShipmentCargoTracking,
   ShipmentLogisticsOverview,
+  ShipmentDocument,
 } from '../api/client';
 import { formatApiError } from '../utils/error';
 
@@ -85,6 +86,12 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
   const [ectnReference, setEctnReference] = useState<string>('');
   const [ectnDeadline, setEctnDeadline] = useState<string>('');
 
+  const [editingDoc, setEditingDoc] = useState<ShipmentDocument | null>(null);
+  const [docReference, setDocReference] = useState<string>('');
+  const [docIssueDate, setDocIssueDate] = useState<string>('');
+  const [docVerificationStatus, setDocVerificationStatus] = useState<'PENDING' | 'VERIFIED' | 'REJECTED'>('VERIFIED');
+  const [docOriginalStatus, setDocOriginalStatus] = useState<string>('RELEASED_TO_AGENT');
+  const [docNotes, setDocNotes] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
@@ -243,6 +250,37 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
       if (onRefreshShipment) onRefreshShipment();
     } catch (err: any) {
       alert(formatApiError(err, 'Failed to record cargo tracking'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenEditDoc = (doc: ShipmentDocument) => {
+    setEditingDoc(doc);
+    setDocReference(doc.documentReference || '');
+    setDocIssueDate(doc.issueDate ? doc.issueDate.split('T')[0] : '');
+    setDocVerificationStatus(doc.verificationStatus === 'REJECTED' ? 'REJECTED' : 'VERIFIED');
+    setDocOriginalStatus(doc.originalDocumentStatus || 'RELEASED_TO_AGENT');
+    setDocNotes(doc.verificationNotes || '');
+  };
+
+  const handleUpdateDocStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoc) return;
+    setSaving(true);
+    try {
+      await api.verifyShipmentDocument(editingDoc.shipmentDocumentId, {
+        status: docVerificationStatus,
+        documentReference: docReference.trim() || undefined,
+        issueDate: docIssueDate || undefined,
+        originalDocumentStatus: docOriginalStatus,
+        notes: docNotes.trim() || undefined,
+      });
+      setEditingDoc(null);
+      await loadOverview();
+      if (onRefreshShipment) onRefreshShipment();
+    } catch (err: any) {
+      alert(formatApiError(err, 'Failed to update document status'));
     } finally {
       setSaving(false);
     }
@@ -673,6 +711,101 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         </div>
       </div>
 
+      {/* Section 5: Shipping Document Lifecycle & Verification (IMP-32 – IMP-36) */}
+      <div className="card" style={{ padding: '1.5rem', marginTop: '1.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+              Shipping Document Lifecycle & Verification (IMP-32 – IMP-36)
+            </h3>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Manage regulatory shipping documents, verification status, and physical original paper tracking
+            </p>
+          </div>
+          <span className="badge badge-outline" style={{ fontSize: '0.75rem' }}>
+            {(overview?.documents || []).filter((d) => d.verificationStatus === 'VERIFIED').length} of {(overview?.documents || []).length} Verified
+          </span>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ width: '100%', fontSize: '0.85rem' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ padding: '0.75rem' }}>Document Type</th>
+                <th style={{ padding: '0.75rem' }}>Reference / No.</th>
+                <th style={{ padding: '0.75rem' }}>Issue Date</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Verification Status</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Original Paper Status</th>
+                <th style={{ padding: '0.75rem' }}>Verified By</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!overview?.documents || overview.documents.length === 0) ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+                    No shipping documents initialized.
+                  </td>
+                </tr>
+              ) : (
+                overview.documents.map((doc) => {
+                  const isVerified = doc.verificationStatus === 'VERIFIED';
+                  const isRejected = doc.verificationStatus === 'REJECTED';
+                  return (
+                    <tr
+                      key={doc.shipmentDocumentId}
+                      style={{
+                        borderBottom: '1px solid var(--border-color)',
+                        background: isVerified ? 'rgba(16, 185, 129, 0.05)' : isRejected ? 'rgba(239, 68, 68, 0.05)' : undefined,
+                      }}
+                    >
+                      <td style={{ padding: '0.75rem', fontWeight: 600 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <FileText size={16} color="var(--accent-cyan)" />
+                          <span>{doc.documentType.replace(/_/g, ' ')}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {doc.documentReference || '—'}
+                      </td>
+                      <td style={{ padding: '0.75rem' }}>
+                        {doc.issueDate ? new Date(doc.issueDate).toLocaleDateString() : '—'}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        <span
+                          className={'badge ' + (isVerified ? 'badge-success' : isRejected ? 'badge-danger' : 'badge-outline')}
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          {doc.verificationStatus}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        <span className="badge badge-secondary" style={{ fontSize: '0.72rem' }}>
+                          {(doc.originalDocumentStatus || 'NOT_RECEIVED').replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                        {doc.verifier?.fullName || (isVerified ? 'System / Verified' : '—')}
+                      </td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditDoc(doc)}
+                          className="btn btn-outline-primary"
+                          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        >
+                          Update Status
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* MODAL: ADD QUOTATION */}
       {showAddQuoteModal && (
         <div className="modal-backdrop">
@@ -1088,6 +1221,101 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
                 </button>
                 <button type="submit" disabled={saving} className="btn btn-primary">
                   {saving ? 'Confirming...' : 'Confirm & Appoint Forwarder'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: UPDATE DOCUMENT STATUS (IMP-34, IMP-36) */}
+      {editingDoc && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3>Update Document Verification & Status</h3>
+              <button onClick={() => setEditingDoc(null)} className="modal-close">&times;</button>
+            </div>
+            <form onSubmit={handleUpdateDocStatus}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label className="form-label">Document Type</label>
+                  <input
+                    type="text"
+                    className="input w-full"
+                    disabled
+                    value={editingDoc.documentType.replace(/_/g, ' ')}
+                    style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Document Reference #</label>
+                    <input
+                      type="text"
+                      className="input w-full"
+                      value={docReference}
+                      onChange={(e) => setDocReference(e.target.value)}
+                      placeholder="e.g. ESLSE-BL-ADD-901"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Issue Date</label>
+                    <input
+                      type="date"
+                      className="input w-full"
+                      value={docIssueDate}
+                      onChange={(e) => setDocIssueDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Verification Status *</label>
+                    <select
+                      className="input w-full"
+                      value={docVerificationStatus}
+                      onChange={(e) => setDocVerificationStatus(e.target.value as any)}
+                    >
+                      <option value="VERIFIED">VERIFIED</option>
+                      <option value="PENDING">PENDING</option>
+                      <option value="REJECTED">REJECTED</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Original Paper Status *</label>
+                    <select
+                      className="input w-full"
+                      value={docOriginalStatus}
+                      onChange={(e) => setDocOriginalStatus(e.target.value)}
+                    >
+                      <option value="RELEASED_TO_AGENT">RELEASED_TO_AGENT</option>
+                      <option value="RECEIVED">RECEIVED</option>
+                      <option value="NOT_RECEIVED">NOT_RECEIVED</option>
+                      <option value="ENDORSED_TO_BANK">ENDORSED_TO_BANK</option>
+                      <option value="SURRENDERED">SURRENDERED</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">Verification Notes / Remarks</label>
+                  <textarea
+                    className="input w-full"
+                    rows={2}
+                    value={docNotes}
+                    onChange={(e) => setDocNotes(e.target.value)}
+                    placeholder="e.g. Original B/L verified with ESLSE booking agent."
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setEditingDoc(null)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="btn btn-primary">
+                  {saving ? 'Saving...' : 'Save Document Record'}
                 </button>
               </div>
             </form>

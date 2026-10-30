@@ -374,17 +374,24 @@ export class ShipmentsService {
     // Document Completeness Check (Story D2):
     // 1. Advancing to ETHIOPIAN_CUSTOMS_CLEARANCE requires verified Customs Declaration
     if (targetStage === ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE) {
-      const customsDoc = await this.attachmentRepo.findOne({
+      const customsAttachment = await this.attachmentRepo.findOne({
         where: {
           entityType: 'shipment',
           entityId: String(id),
           documentType: 'CUSTOMS_DECLARATION',
         },
       });
+      const structuredCustoms = await this.shipmentDocRepo.findOne({
+        where: {
+          shipmentId: id,
+          documentType: 'CUSTOMS_DECLARATION',
+          verificationStatus: 'VERIFIED',
+        },
+      });
 
-      if (!customsDoc || !customsDoc.filePath) {
+      if (!customsAttachment?.filePath && !structuredCustoms) {
         throw new BadRequestException(
-          `Document Completeness Check Failed: Mandatory Customs Declaration document ('CUSTOMS_DECLARATION') is missing or has no attached file. Please upload the physical/scanned document in the Document Centre before advancing to ${targetStage}.`,
+          `Document Completeness Check Failed: Mandatory Customs Declaration document ('CUSTOMS_DECLARATION') must be uploaded or marked VERIFIED in Shipping Document Control before advancing to ${targetStage}.`,
         );
       }
     }
@@ -1245,7 +1252,10 @@ export class ShipmentsService {
     doc.verificationStatus = dto.status;
     doc.verifiedBy = dto.userId;
     doc.verifiedAt = new Date();
-    if (dto.notes) doc.verificationNotes = dto.notes;
+    if (dto.documentReference !== undefined) doc.documentReference = dto.documentReference;
+    if (dto.issueDate !== undefined) doc.issueDate = dto.issueDate;
+    if (dto.originalDocumentStatus !== undefined) doc.originalDocumentStatus = dto.originalDocumentStatus;
+    if (dto.notes !== undefined) doc.verificationNotes = dto.notes;
     return this.shipmentDocRepo.save(doc);
   }
 
