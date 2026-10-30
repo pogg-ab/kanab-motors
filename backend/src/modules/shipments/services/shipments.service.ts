@@ -1257,6 +1257,7 @@ export class ShipmentsService {
         billOfLadingNumber: shipment.billOfLadingNumber,
         selectedForwarder: shipment.selectedForwarder,
       },
+      quotations,
       selectedQuotation,
       activeBooking,
       containersCount: containers.length,

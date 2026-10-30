@@ -885,6 +885,7 @@ export interface ShipmentLogisticsOverview {
     billOfLadingNumber?: string;
     selectedForwarder?: FreightForwarder;
   };
+  quotations: ShipmentFreightQuotation[];
   selectedQuotation?: ShipmentFreightQuotation;
   activeBooking?: ShipmentBooking;
   containersCount: number;

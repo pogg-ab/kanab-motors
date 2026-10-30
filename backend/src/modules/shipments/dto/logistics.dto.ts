@@ -87,6 +87,7 @@ export class UpdateFreightForwarderDto {
 // IMP-24 & IMP-25: Freight Quotation DTOs
 // -------------------------------------------------------------
 export class CreateFreightQuotationDto {
+  @Type(() => String)
   @IsString()
   freightForwarderId: string;
 
