@@ -52,4 +52,9 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   targetDeliveryDate?: string;
+
+  @ApiPropertyOptional({ example: 'BANK_DEPOSIT', default: 'BANK_DEPOSIT' })
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
 }

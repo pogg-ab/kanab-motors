@@ -1,5 +1,7 @@
+import { EntityAttachmentsModal } from '../../components/EntityAttachmentsModal';
 import React, { useState, useEffect, useId } from 'react';
 import {
+  Paperclip,
   Package,
   Boxes,
   ShoppingCart,
@@ -90,6 +92,7 @@ export const SparePartsPage: React.FC = () => {
   const [isNewSaleModalOpen, setIsNewSaleModalOpen] = useState(false);
   const [viewingSale, setViewingSale] = useState<SparePartsSaleRecord | null>(null);
   const [cancellingSale, setCancellingSale] = useState<SparePartsSaleRecord | null>(null);
+  const [attachmentSale, setAttachmentSale] = useState<SparePartsSaleRecord | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [submittingCancel, setSubmittingCancel] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -1041,6 +1044,14 @@ export const SparePartsPage: React.FC = () => {
                           <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
                             <button
                               className="btn btn-secondary btn-sm"
+                              onClick={() => setAttachmentSale(sale)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              title="Supporting Documents & Invoices"
+                            >
+                              <Paperclip size={12} /> Docs
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
                               onClick={() => setViewingSale(sale)}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                             >
@@ -1218,6 +1229,27 @@ export const SparePartsPage: React.FC = () => {
       {/* =====================================================================
           MODAL 3: NEW POS SALE (SP-05 & SP-06)
       ===================================================================== */}
+      
+      {/* KMSICAMS-14 (KMSI-14-04): Spare Parts Sale Attachments Modal */}
+      {attachmentSale && (
+        <EntityAttachmentsModal
+          isOpen={!!attachmentSale}
+          onClose={() => setAttachmentSale(null)}
+          entityType="spare_parts_sale"
+          entityId={attachmentSale.saleId}
+          title={`POS Sale Attachments — ${attachmentSale.saleNumber}`}
+          subtitle={`${attachmentSale.customerName} · ETB ${Number(attachmentSale.grandTotal).toLocaleString()} · ${attachmentSale.paymentMethod}`}
+          allowedDocTypes={[
+            'Signed Delivery Note / Gate Pass',
+            'Official VAT Sales Invoice Copy',
+            'Card / Mobile Payment Slip',
+            'Bank Deposit Slip',
+            'Customer Purchase Order',
+            'Other Supporting Document',
+          ]}
+        />
+      )}
+
       {isNewSaleModalOpen && (
         <NewSaleModal
           isOpen={isNewSaleModalOpen}

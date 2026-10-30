@@ -4,6 +4,7 @@ import { WorkflowType } from './entities/workflow-type.entity';
 import { ApprovalPolicy } from './entities/approval-policy.entity';
 import { ApprovalRequest } from './entities/approval-request.entity';
 import { ApprovalAction } from './entities/approval-action.entity';
+import { ApprovalReminderConfig, ApprovalReminderLog } from './entities/approval-reminder.entity';
 import { ApprovalsService } from './approvals.service';
 import { ApprovalsController } from './approvals.controller';
 
@@ -14,6 +15,8 @@ import { ApprovalsController } from './approvals.controller';
       ApprovalPolicy,
       ApprovalRequest,
       ApprovalAction,
+      ApprovalReminderConfig,
+      ApprovalReminderLog,
     ]),
   ],
   providers: [ApprovalsService],

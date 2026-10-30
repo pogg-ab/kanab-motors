@@ -87,6 +87,9 @@ export class Booking {
   @Column({ name: 'booking_date', type: 'timestamptz', default: () => 'now()' })
   bookingDate: Date;
 
+  @Column({ name: 'payment_method', length: 50, default: 'BANK_DEPOSIT' })
+  paymentMethod: string;
+
   @Column({ name: 'target_delivery_date', type: 'timestamptz', nullable: true })
   targetDeliveryDate: Date;
 

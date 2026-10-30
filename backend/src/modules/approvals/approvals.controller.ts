@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Param,
   Query,
@@ -78,5 +79,36 @@ export class ApprovalsController {
     @Query('userId') userId?: string,
   ) {
     return this.approvalsService.recordDecision(id, dto, Number(userId) || 1);
+  }
+
+  @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')
+  @Post('scan-reminders')
+  @ApiOperation({ summary: 'Scan pending approvals and dispatch reminders based on configured intervals (KMSI-14-09)' })
+  scanReminders() {
+    return this.approvalsService.scanPendingApprovals();
+  }
+
+  @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')
+  @Get('reminders/configs')
+  @ApiOperation({ summary: 'Get approval reminder interval configurations (KMSI-14-09)' })
+  getReminderConfigs() {
+    return this.approvalsService.getReminderConfigs();
+  }
+
+  @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')
+  @Put('reminders/configs/:id')
+  @ApiOperation({ summary: 'Update approval reminder interval configuration (KMSI-14-09)' })
+  updateReminderConfig(
+    @Param('id') id: string,
+    @Body() body: { reminderIntervalHours: number; isActive: boolean },
+  ) {
+    return this.approvalsService.updateReminderConfig(parseInt(id, 10), body.reminderIntervalHours, body.isActive);
+  }
+
+  @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')
+  @Get('reminders/logs')
+  @ApiOperation({ summary: 'Get audit logs of dispatched approval reminders (KMSI-14-09)' })
+  getReminderLogs() {
+    return this.approvalsService.getReminderLogs();
   }
 }

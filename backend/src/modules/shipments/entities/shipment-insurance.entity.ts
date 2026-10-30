@@ -57,3 +57,4 @@ export class ShipmentInsurance {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }
+

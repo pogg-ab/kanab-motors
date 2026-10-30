@@ -11,6 +11,7 @@ import {
 import { ProductItem } from '../../products/entities/product-item.entity';
 import { Warehouse } from '../../lookups/entities/warehouse.entity';
 import { AppUser } from '../../auth/entities/app-user.entity';
+import { Customer } from '../../customers/entities/customer.entity';
 
 export enum VehicleStatus {
   RECEIVED = 'RECEIVED',
@@ -66,6 +67,28 @@ export class VehicleUnit {
 
   @Column({ name: 'hold_for_inspection', type: 'boolean', default: false })
   holdForInspection: boolean;
+
+  @Column({ name: 'ownership_status', length: 50, default: 'COMPANY_OWNED' })
+  ownershipStatus: 'COMPANY_OWNED' | 'CUSTOMER_OWNED';
+
+  @Column({ name: 'custody_customer_id', type: 'bigint', nullable: true })
+  custodyCustomerId?: string;
+
+  @ManyToOne(() => Customer, { nullable: true })
+  @JoinColumn({ name: 'custody_customer_id' })
+  custodyCustomer?: Customer;
+
+  @Column({ name: 'custody_reason', type: 'text', nullable: true })
+  custodyReason?: string;
+
+  @Column({ name: 'custody_start_date', type: 'date', nullable: true })
+  custodyStartDate?: string;
+
+  @Column({ name: 'expected_handover_date', type: 'date', nullable: true })
+  expectedHandoverDate?: string;
+
+  @Column({ name: 'handover_completed_at', type: 'timestamptz', nullable: true })
+  handoverCompletedAt?: Date;
 
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy: number;

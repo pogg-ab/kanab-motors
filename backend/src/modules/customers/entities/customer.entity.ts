@@ -62,6 +62,18 @@ export class Customer {
   @Column({ name: 'tin_number', length: 30, nullable: true })
   tinNumber: string;
 
+  @Column({ name: 'contact_person', length: 255, nullable: true })
+  contactPerson?: string;
+
+  @Column({ name: 'email', length: 255, nullable: true })
+  email?: string;
+
+  @Column({ name: 'preferred_contact_method', length: 50, default: 'PHONE' })
+  preferredContactMethod: string;
+
+  @Column({ name: 'business_occupation', length: 255, nullable: true })
+  businessOccupation?: string;
+
   @Column({ name: 'withholding_tax_flag', type: 'boolean', default: false })
   withholdingTaxFlag: boolean;
 

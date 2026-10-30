@@ -9,6 +9,7 @@ import {
   Query,
   UsePipes,
   ValidationPipe,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { VehiclesService } from './vehicles.service';
@@ -18,9 +19,10 @@ import { BulkImportVehicleDto } from './dto/bulk-import-vehicle.dto';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import { UpdateVehicleStatusDto } from './dto/update-vehicle-status.dto';
+import { RecordCustomerCustodyDto } from './dto/record-customer-custody.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
-@ApiTags('Vehicle Units & Chassis Tracking (Module 2)')
+@ApiTags('Vehicle Units & Chassis Tracking (Module 2 & KMSICAMS-14)')
 @Controller('vehicles')
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
@@ -35,9 +37,9 @@ export class VehiclesController {
 
   @RequirePermissions('VEHICLES_VIEW')
   @Get()
-  @ApiOperation({ summary: 'List and filter vehicle units by chassis, status, warehouse' })
-  findAll(@Query() query: VehicleQueryDto) {
-    return this.vehiclesService.findAll(query);
+  @ApiOperation({ summary: 'List and filter vehicle units by chassis, status, warehouse, custody' })
+  findAll(@Query() query: VehicleQueryDto & { ownershipStatus?: string }) {
+    return this.vehiclesService.findAll(query as any);
   }
 
   @RequirePermissions('VEHICLES_VIEW')
@@ -66,6 +68,30 @@ export class VehiclesController {
     @Body() body: UpdateVehicleStatusDto,
   ) {
     return this.vehiclesService.updateStatus(id, body.status, body.warehouseId);
+  }
+
+  @RequirePermissions('VEHICLES_STATUS_UPDATE')
+  @Post(':id/custody')
+  @ApiOperation({ summary: 'Record customer-owned vehicle retained in company stock (KMSI-14-06)' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  recordCustody(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: RecordCustomerCustodyDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.vehiclesService.recordCustomerCustody(id, dto, userId);
+  }
+
+  @RequirePermissions('VEHICLES_STATUS_UPDATE')
+  @Post(':id/release-custody')
+  @ApiOperation({ summary: 'Complete physical handover of customer-retained vehicle (KMSI-14-06)' })
+  releaseCustody(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.vehiclesService.completeCustomerHandover(id, userId);
   }
 
   @RequirePermissions('VEHICLES_BULK_IMPORT')

@@ -86,3 +86,4 @@ export class ShipmentFreightQuotation {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }
+

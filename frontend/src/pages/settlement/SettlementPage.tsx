@@ -1,3 +1,4 @@
+import { EntityAttachmentsModal } from '../../components/EntityAttachmentsModal';
 import React, { useState, useEffect } from 'react';
 import {
   Coins,
@@ -87,6 +88,7 @@ export const SettlementPage: React.FC = () => {
   const canRejectRefund = can('REFUNDS_REJECT');
   const canRouteExcess = can('EXCESS_ROUTE');
   const [activeTab, setActiveTab] = useState<'refunds' | 'excess'>('refunds');
+  const [attachmentRefund, setAttachmentRefund] = useState<CustomerRefund | null>(null);
   const [refunds, setRefunds] = useState<CustomerRefund[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -906,6 +908,27 @@ export const SettlementPage: React.FC = () => {
       )}
 
       {/* Modal: New Refund Request (Section 11) */}
+      
+      {/* KMSICAMS-14 (KMSI-14-03): Customer Refund Attachments Modal */}
+      {attachmentRefund && (
+        <EntityAttachmentsModal
+          isOpen={!!attachmentRefund}
+          onClose={() => setAttachmentRefund(null)}
+          entityType="refund"
+          entityId={attachmentRefund.refundId}
+          title={`Refund Attachments — ${attachmentRefund.refundNumber}`}
+          subtitle={`${attachmentRefund.customer?.fullName} · ETB ${Number(attachmentRefund.refundAmount).toLocaleString()} · ${attachmentRefund.refundMethod}`}
+          allowedDocTypes={[
+            'Customer Refund Request Letter',
+            'Bank Account Confirmation Letter',
+            'Customer ID / Passport Copy',
+            'Original Deposit / Payment Receipt',
+            'Approved Executive Payout Memo',
+            'Other Supporting Document',
+          ]}
+        />
+      )}
+
       {showNewRefundModal && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '640px', width: '95%' }}>

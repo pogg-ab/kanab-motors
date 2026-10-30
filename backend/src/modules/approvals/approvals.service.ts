@@ -5,6 +5,7 @@ import { ApprovalRequest, ApprovalStatus } from './entities/approval-request.ent
 import { ApprovalAction } from './entities/approval-action.entity';
 import { ApprovalPolicy } from './entities/approval-policy.entity';
 import { WorkflowType } from './entities/workflow-type.entity';
+import { ApprovalReminderConfig, ApprovalReminderLog } from './entities/approval-reminder.entity';
 import { SubmitApprovalDto } from './dto/submit-approval.dto';
 import { ApprovalDecisionDto } from './dto/approval-decision.dto';
 
@@ -19,6 +20,10 @@ export class ApprovalsService {
     private approvalPolicyRepo: Repository<ApprovalPolicy>,
     @InjectRepository(WorkflowType)
     private workflowTypeRepo: Repository<WorkflowType>,
+    @InjectRepository(ApprovalReminderConfig)
+    private reminderConfigRepo: Repository<ApprovalReminderConfig>,
+    @InjectRepository(ApprovalReminderLog)
+    private reminderLogRepo: Repository<ApprovalReminderLog>,
     private dataSource: DataSource,
   ) {}
 
@@ -111,5 +116,118 @@ export class ApprovalsService {
     return this.workflowTypeRepo.find({
       order: { workflowTypeCode: 'ASC' },
     });
+  }
+
+  // =========================================================================
+  // KMSI-14-09: CONFIGURABLE REMINDERS FOR PENDING APPROVALS
+  // =========================================================================
+  async getReminderConfigs(): Promise<ApprovalReminderConfig[]> {
+    return this.reminderConfigRepo.find({ order: { workflowTypeCode: 'ASC' } });
+  }
+
+  async updateReminderConfig(configId: number, intervalHours: number, isActive: boolean): Promise<ApprovalReminderConfig> {
+    const cfg = await this.reminderConfigRepo.findOne({ where: { configId } });
+    if (!cfg) throw new NotFoundException(`Reminder config #${configId} not found`);
+    cfg.reminderIntervalHours = intervalHours;
+    cfg.isActive = isActive;
+    return this.reminderConfigRepo.save(cfg);
+  }
+
+  async getReminderLogs(): Promise<ApprovalReminderLog[]> {
+    return this.reminderLogRepo.find({
+      order: { notificationSentAt: 'DESC' },
+      take: 100,
+    });
+  }
+
+  async scanPendingApprovals(): Promise<{ notificationsGenerated: number; message: string; logs: any[] }> {
+    const configs = await this.reminderConfigRepo.find({ where: { isActive: true } });
+    const configMap = new Map<string, number>();
+    configs.forEach(c => configMap.set(c.workflowTypeCode, c.reminderIntervalHours));
+
+    const pendingRequests = await this.dataSource.query(`
+      SELECT 
+        ar.approval_request_id AS id,
+        ar.request_number AS reference_number,
+        ar.workflow_type_code,
+        ar.entity_type,
+        ar.entity_id,
+        ar.requested_at AS submission_date,
+        COALESCE(u.full_name, 'System') AS requesting_user,
+        ROUND(EXTRACT(EPOCH FROM (NOW() - ar.requested_at)) / 3600.0, 1) AS hours_elapsed
+      FROM approval_request ar
+      LEFT JOIN app_user u ON u.user_id = ar.requested_by
+      WHERE ar.status = 'PENDING'
+      
+      UNION ALL
+      
+      SELECT
+        se.enquiry_id::text AS id,
+        se.enquiry_number AS reference_number,
+        'SALES_ENQUIRY' AS workflow_type_code,
+        'sales_enquiry' AS entity_type,
+        se.enquiry_id AS entity_id,
+        se.created_at AS submission_date,
+        COALESCE(u.full_name, se.salesperson_name) AS requesting_user,
+        ROUND(EXTRACT(EPOCH FROM (NOW() - se.created_at)) / 3600.0, 1) AS hours_elapsed
+      FROM sales_enquiry se
+      LEFT JOIN app_user u ON u.user_id = se.created_by
+      WHERE se.status IN ('SUBMITTED', 'SALES_REP_APPROVED')
+      
+      UNION ALL
+      
+      SELECT
+        cr.refund_id::text AS id,
+        cr.refund_number AS reference_number,
+        'CUSTOMER_REFUND' AS workflow_type_code,
+        'customer_refund' AS entity_type,
+        cr.refund_id AS entity_id,
+        cr.created_at AS submission_date,
+        'Customer / Sales' AS requesting_user,
+        ROUND(EXTRACT(EPOCH FROM (NOW() - cr.created_at)) / 3600.0, 1) AS hours_elapsed
+      FROM customer_refund cr
+      WHERE cr.status = 'REQUESTED'
+    `);
+
+    let notificationsGenerated = 0;
+    const newLogs: any[] = [];
+
+    for (const req of pendingRequests) {
+      const intervalHours = configMap.get(req.workflow_type_code) || 4;
+      const hours = Number(req.hours_elapsed || 0);
+
+      if (hours >= intervalHours) {
+        // Check if reminder was already logged recently
+        const recent = await this.reminderLogRepo.createQueryBuilder('rl')
+          .where('rl.entityType = :et AND rl.entityId = :eid', { et: req.entity_type, eid: req.entity_id })
+          .andWhere('rl.notificationSentAt >= NOW() - INTERVAL \'1 hour\' * :interval', { interval: intervalHours })
+          .getOne();
+
+        if (!recent) {
+          const log = this.reminderLogRepo.create({
+            workflowTypeCode: req.workflow_type_code,
+            entityType: req.entity_type,
+            entityId: req.entity_id,
+            reminderIntervalHours: intervalHours,
+            notificationDetails: {
+              referenceNumber: req.reference_number,
+              requestingUser: req.requesting_user,
+              submissionDate: req.submission_date,
+              hoursElapsed: hours,
+              link: `/${req.entity_type.replace(/_/g, '-')}/${req.entity_id}`,
+            },
+          });
+          await this.reminderLogRepo.save(log);
+          notificationsGenerated++;
+          newLogs.push(log);
+        }
+      }
+    }
+
+    return {
+      notificationsGenerated,
+      message: `Approval reminder scan completed. Generated ${notificationsGenerated} notification(s).`,
+      logs: newLogs,
+    };
   }
 }

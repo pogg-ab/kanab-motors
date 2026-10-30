@@ -1073,6 +1073,92 @@ export interface UnifiedDocumentItem {
   uploadedByName?: string;
 }
 
+
+// ============================================================================
+// KMSICAMS-14 Interfaces (Client Feedback Backlog)
+// ============================================================================
+export interface CustomerPaymentTransfer {
+  transferId: string;
+  fromBookingId: string;
+  fromBooking?: Booking;
+  toBookingId: string;
+  toBooking?: Booking;
+  sourceCustomerId: string;
+  destinationCustomerId: string;
+  amount: number;
+  authorizationReason: string;
+  transferDate: string;
+  status: string;
+  approvedBy?: number;
+  createdAt: string;
+}
+
+export interface ApprovalReminderConfig {
+  configId: number;
+  requestType: string;
+  intervalHours: number;
+  escalationLeadHours?: number;
+  isActive: boolean;
+  notifyRole?: string;
+  createdAt: string;
+}
+
+export interface ApprovalReminderLog {
+  logId: string;
+  approvalRequestId?: string;
+  requestType: string;
+  notificationIntervalHours: number;
+  recipientRole?: string;
+  recipientEmail?: string;
+  notificationChannel: string;
+  sentAt: string;
+  isEscalation: boolean;
+}
+
+export interface CreditSaleItem {
+  type: 'VEHICLE' | 'SPARE_PART';
+  id: string;
+  referenceNumber: string;
+  customerName: string;
+  customerCode?: string;
+  saleDate: string;
+  dueDate?: string;
+  currency: string;
+  totalAmount: number;
+  amountPaid: number;
+  outstandingBalance: number;
+  status: string;
+}
+
+export interface CreditSalesReport {
+  generatedAt: string;
+  totals: {
+    totalCreditSales: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    totalOverdue: number;
+  };
+  records: CreditSaleItem[];
+}
+
+export interface StockAgingItem {
+  type: 'VEHICLE' | 'SPARE_PART';
+  identifier: string;
+  name: string;
+  warehouseName?: string;
+  entryDate: string;
+  ageDays: number;
+  ageBucket: '0-30' | '31-60' | '61-90' | '91-180' | '>180';
+  quantity: number;
+  unitCostOrPrice: number;
+}
+
+export interface StockAgingReport {
+  generatedAt: string;
+  bucketSummary: Record<string, { count: number; value: number }>;
+  records: StockAgingItem[];
+}
+
 // API Methods
 export const api = {
   // Lookups
@@ -1756,6 +1842,57 @@ export const api = {
     apiClient.post(`/spare-parts/sales/${id}/cancel`, { reason }).then((r) => r.data),
   getSparePartsReportsSummary: () =>
     apiClient.get<SparePartsReportsSummary>('/spare-parts/reports/summary').then((r) => r.data),
+  // KMSICAMS-14 Client Feedback Methods
+  // Polymorphic Attachments (KMSI-14-01, KMSI-14-02, KMSI-14-03, KMSI-14-04)
+  getEntityAttachments: (entityType: string, entityId: string) =>
+    apiClient.get<Attachment[]>(`/documents/entity/${entityType}/${entityId}`).then((r) => r.data),
+  uploadEntityAttachment: (entityType: string, entityId: string, file: File, documentType?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (documentType) formData.append('documentType', documentType);
+    return apiClient.post<Attachment>(`/documents/entity/${entityType}/${entityId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data);
+  },
+  deleteEntityAttachment: (attachmentId: string) =>
+    apiClient.delete(`/documents/${attachmentId}`).then((r) => r.data),
+
+  // Two-Stage Sales Enquiry Approvals (KMSI-14-15)
+  submitEnquiryForApproval: (id: string) =>
+    apiClient.post<SalesEnquiry>(`/enquiries/${id}/submit`).then((r) => r.data),
+  salesRepApproveEnquiry: (id: string, data: { decision: 'APPROVE' | 'REJECT'; notes?: string }) =>
+    apiClient.post<SalesEnquiry>(`/enquiries/${id}/sales-rep-approval`, data).then((r) => r.data),
+  salesManagerApproveEnquiry: (id: string, data: { decision: 'APPROVE' | 'REJECT'; notes?: string }) =>
+    apiClient.post<SalesEnquiry>(`/enquiries/${id}/sales-manager-approval`, data).then((r) => r.data),
+
+  // Excess Payment Transfer (KMSI-14-05)
+  transferExcessPayment: (data: { fromBookingId: string; toBookingId: string; amount: number; authorizationReason: string }) =>
+    apiClient.post<CustomerPaymentTransfer>('/payments/transfer-excess', data).then((r) => r.data),
+  getPaymentTransfers: (bookingId: string) =>
+    apiClient.get<CustomerPaymentTransfer[]>(`/payments/transfers/${bookingId}`).then((r) => r.data),
+
+  // Customer Custody Vehicles (KMSI-14-06)
+  recordVehicleCustody: (vehicleUnitId: string, data: { customerId: string; custodyReason: string; expectedHandoverDate?: string }) =>
+    apiClient.post<VehicleUnit>(`/vehicles/units/${vehicleUnitId}/custody`, data).then((r) => r.data),
+  releaseVehicleCustody: (vehicleUnitId: string) =>
+    apiClient.post<VehicleUnit>(`/vehicles/units/${vehicleUnitId}/handover`).then((r) => r.data),
+
+  // Financial & Inventory Reports (KMSI-14-07, KMSI-14-08)
+  getCreditSalesReport: (params?: { startDate?: string; endDate?: string; customerId?: string }) =>
+    apiClient.get<CreditSalesReport>('/reports/credit-sales', { params }).then((r) => r.data),
+  getStockAgingReport: (params?: { category?: string; warehouseId?: number; agingBucket?: string }) =>
+    apiClient.get<StockAgingReport>('/reports/stock-aging', { params }).then((r) => r.data),
+
+  // Automated Approval Reminders (KMSI-14-09)
+  scanApprovalReminders: () =>
+    apiClient.post<{ scannedAt: string; pendingApprovalsFound: number; remindersCreated: number; details: any[] }>('/approvals/reminders/scan').then((r) => r.data),
+  getApprovalReminderConfigs: () =>
+    apiClient.get<ApprovalReminderConfig[]>('/approvals/reminders/configs').then((r) => r.data),
+  updateApprovalReminderConfig: (id: number, data: { intervalHours?: number; escalationLeadHours?: number; isActive?: boolean }) =>
+    apiClient.put<ApprovalReminderConfig>(`/approvals/reminders/configs/${id}`, data).then((r) => r.data),
+  getApprovalReminderLogs: (limit?: number) =>
+    apiClient.get<ApprovalReminderLog[]>('/approvals/reminders/logs', { params: { limit } }).then((r) => r.data),
+
 };
 
 // ============================================================================

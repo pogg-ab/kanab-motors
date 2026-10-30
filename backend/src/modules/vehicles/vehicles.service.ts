@@ -10,6 +10,7 @@ import { VehicleUnit, VehicleStatus } from './entities/vehicle-unit.entity';
 import { ProductItem } from '../products/entities/product-item.entity';
 import { CreateVehicleUnitDto } from './dto/create-vehicle-unit.dto';
 import { UpdateVehicleUnitDto } from './dto/update-vehicle-unit.dto';
+import { RecordCustomerCustodyDto } from './dto/record-customer-custody.dto';
 import { BulkImportVehicleDto } from './dto/bulk-import-vehicle.dto';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
 import { AuditService } from '../audit/audit.service';
@@ -102,6 +103,9 @@ export class VehiclesService {
       qb.andWhere('u.itemId = :itemId', { itemId: query.itemId });
     }
 
+    if ((query as any).ownershipStatus) {
+      qb.andWhere('u.ownershipStatus = :os', { os: (query as any).ownershipStatus });
+    }
     if (query.warehouseId) {
       qb.andWhere('u.currentWarehouseId = :warehouseId', { warehouseId: query.warehouseId });
     }
@@ -128,7 +132,7 @@ export class VehiclesService {
   async findOne(id: string): Promise<VehicleUnit> {
     const unit = await this.unitRepo.findOne({
       where: { vehicleUnitId: id },
-      relations: ['item', 'item.category', 'item.brand', 'currentWarehouse', 'creator', 'updater'],
+      relations: ['item', 'item.category', 'item.brand', 'currentWarehouse', 'creator', 'updater', 'custodyCustomer'],
     });
     if (!unit) {
       throw new NotFoundException(`Vehicle unit with ID ${id} not found`);
@@ -328,6 +332,65 @@ export class VehiclesService {
         status: saved.currentStatus,
         itemId: saved.itemId,
         currentWarehouseId: saved.currentWarehouseId,
+      },
+    });
+
+    return this.findOne(id);
+  }
+
+  /**
+   * KMSI-14-06: Record Customer-Owned Vehicle Retained in Company Stock
+   */
+  async recordCustomerCustody(id: string, dto: RecordCustomerCustodyDto, userId: number = 1): Promise<VehicleUnit> {
+    const unit = await this.findOne(id);
+    unit.ownershipStatus = 'CUSTOMER_OWNED';
+    unit.custodyCustomerId = dto.customerId;
+    unit.custodyReason = dto.custodyReason.trim();
+    unit.custodyStartDate = dto.custodyStartDate || new Date().toISOString().split('T')[0];
+    unit.expectedHandoverDate = dto.expectedHandoverDate;
+    unit.updatedBy = userId;
+
+    const saved = await this.unitRepo.save(unit);
+
+    await this.auditService.log({
+      entityType: 'vehicle_unit',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        ownershipStatus: 'CUSTOMER_OWNED',
+        custodyCustomerId: dto.customerId,
+        custodyReason: dto.custodyReason,
+        expectedHandoverDate: dto.expectedHandoverDate,
+      },
+    });
+
+    return this.findOne(id);
+  }
+
+  /**
+   * KMSI-14-06: Complete Handover of Customer-Retained Vehicle
+   */
+  async completeCustomerHandover(id: string, userId: number = 1): Promise<VehicleUnit> {
+    const unit = await this.findOne(id);
+    if (unit.ownershipStatus !== 'CUSTOMER_OWNED') {
+      throw new BadRequestException('Vehicle is not classified as customer-owned retained stock');
+    }
+
+    unit.handoverCompletedAt = new Date();
+    unit.currentStatus = VehicleStatus.DELIVERED;
+    unit.updatedBy = userId;
+
+    const saved = await this.unitRepo.save(unit);
+
+    await this.auditService.log({
+      entityType: 'vehicle_unit',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        handoverCompletedAt: saved.handoverCompletedAt,
+        currentStatus: saved.currentStatus,
       },
     });
 

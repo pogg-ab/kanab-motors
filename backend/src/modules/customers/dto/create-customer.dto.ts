@@ -86,6 +86,26 @@ export class CreateCustomerDto {
   @IsOptional()
   withholdingTaxFlag?: boolean;
 
+  @ApiPropertyOptional({ example: 'Ato Solomon Girma' })
+  @IsString()
+  @IsOptional()
+  contactPerson?: string;
+
+  @ApiPropertyOptional({ example: 'contact@customer.com' })
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional({ example: 'PHONE' })
+  @IsString()
+  @IsOptional()
+  preferredContactMethod?: string;
+
+  @ApiPropertyOptional({ example: 'Automotive Distribution' })
+  @IsString()
+  @IsOptional()
+  businessOccupation?: string;
+
   @ApiPropertyOptional({ type: [CreateBankAccountDto] })
   @IsArray()
   @IsOptional()

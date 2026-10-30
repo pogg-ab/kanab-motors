@@ -1,5 +1,7 @@
+import { EntityAttachmentsModal } from '../../components/EntityAttachmentsModal';
 import React, { useState, useEffect } from 'react';
 import {
+  X,
   Receipt,
   Plus,
   Search,
@@ -47,6 +49,18 @@ export const PaymentsPage: React.FC = () => {
   const [customBankName, setCustomBankName] = useState<string>('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [rejectError, setRejectError] = useState<string | null>(null);
+
+  // KMSICAMS-14 States (KMSI-14-02, KMSI-14-05)
+  const [attachmentPayment, setAttachmentPayment] = useState<CustomerPayment | null>(null);
+  const [showExcessTransferModal, setShowExcessTransferModal] = useState(false);
+  const [excessTransferData, setExcessTransferData] = useState({
+    fromBookingId: '',
+    toBookingId: '',
+    amount: '',
+    reason: '',
+  });
+  const [excessTransferSubmitting, setExcessTransferSubmitting] = useState(false);
+  const [excessTransferError, setExcessTransferError] = useState<string | null>(null);
 
   const ETHIOPIAN_BANKS = [
     'Commercial Bank of Ethiopia (CBE)',
@@ -134,6 +148,43 @@ export const PaymentsPage: React.FC = () => {
       showToast('error', formatApiError(err, 'Failed to load payments data'));
     } finally {
       setLoading(false);
+    }
+  };
+
+
+  const handleExcessTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!excessTransferData.fromBookingId || !excessTransferData.toBookingId) {
+      setExcessTransferError('Please select both source and destination bookings.');
+      return;
+    }
+    const amt = parseFloat(excessTransferData.amount);
+    if (isNaN(amt) || amt <= 0) {
+      setExcessTransferError('Please enter a valid transfer amount greater than 0.');
+      return;
+    }
+    if (!excessTransferData.reason || excessTransferData.reason.trim().length < 5) {
+      setExcessTransferError('Please provide a detailed customer authorization reason (min 5 chars).');
+      return;
+    }
+
+    setExcessTransferSubmitting(true);
+    setExcessTransferError(null);
+    try {
+      await api.transferExcessPayment({
+        fromBookingId: excessTransferData.fromBookingId,
+        toBookingId: excessTransferData.toBookingId,
+        amount: amt,
+        authorizationReason: excessTransferData.reason.trim(),
+      });
+      showToast('success', `Successfully transferred ETB ${amt.toLocaleString()} across bookings!`);
+      setShowExcessTransferModal(false);
+      setExcessTransferData({ fromBookingId: '', toBookingId: '', amount: '', reason: '' });
+      loadData();
+    } catch (err: any) {
+      setExcessTransferError(formatApiError(err, 'Failed to transfer excess payment'));
+    } finally {
+      setExcessTransferSubmitting(false);
     }
   };
 
@@ -805,6 +856,135 @@ export const PaymentsPage: React.FC = () => {
       )}
 
       {/* Modal: Official BRV Receipt View / Print */}
+      
+      {/* KMSICAMS-14 (KMSI-14-02): BRV Attachments Modal */}
+      {attachmentPayment && (
+        <EntityAttachmentsModal
+          isOpen={!!attachmentPayment}
+          onClose={() => setAttachmentPayment(null)}
+          entityType="payment"
+          entityId={attachmentPayment.paymentId}
+          title={`Payment Voucher Attachments — ${attachmentPayment.receiptNumber}`}
+          subtitle={`ETB ${Number(attachmentPayment.amount).toLocaleString()} · ${attachmentPayment.instrumentType} · ${attachmentPayment.bankName || 'Bank Reference'}`}
+          allowedDocTypes={[
+            'Bank Deposit Slip',
+            'Wire Transfer Confirmation',
+            'Cheque Scanned Copy',
+            'Customer Written Request',
+            'Official Receipt Voucher',
+          ]}
+        />
+      )}
+
+      {/* KMSICAMS-14 (KMSI-14-05): Transfer Excess Payment Across Bookings Modal */}
+      {showExcessTransferModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '620px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Transfer Excess Customer Payment</h3>
+                <p className="modal-subtitle">Reallocate excess deposited funds across customer bookings with audit trail</p>
+              </div>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setShowExcessTransferModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleExcessTransfer}>
+              <div className="modal-body">
+                {excessTransferError && (
+                  <ModalErrorAlert error={excessTransferError} onDismiss={() => setExcessTransferError(null)} />
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Source Booking (Sender of Excess Funds) *</label>
+                  <select
+                    className="select-field"
+                    value={excessTransferData.fromBookingId}
+                    onChange={(e) => setExcessTransferData({ ...excessTransferData, fromBookingId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Source Booking with Deposited Funds</option>
+                    {bookings
+                      .filter((b) => Number(b.totalAmountDeposited || 0) > 0)
+                      .map((b) => (
+                        <option key={b.bookingId} value={b.bookingId}>
+                          {b.bookingNumber} — {b.customer?.fullName} (Deposited: ETB {Number(b.totalAmountDeposited).toLocaleString()} | Outstanding: ETB {Number(b.outstandingBalance).toLocaleString()})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Destination Booking (Recipient Booking) *</label>
+                  <select
+                    className="select-field"
+                    value={excessTransferData.toBookingId}
+                    onChange={(e) => setExcessTransferData({ ...excessTransferData, toBookingId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Destination Booking</option>
+                    {bookings
+                      .filter((b) => b.bookingId !== excessTransferData.fromBookingId && b.bookingStatus !== 'CANCELLED')
+                      .map((b) => (
+                        <option key={b.bookingId} value={b.bookingId}>
+                          {b.bookingNumber} — {b.customer?.fullName} (Outstanding: ETB {Number(b.outstandingBalance).toLocaleString()})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Transfer Amount (ETB) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    className="input-field"
+                    placeholder="Enter amount to transfer"
+                    value={excessTransferData.amount}
+                    onChange={(e) => setExcessTransferData({ ...excessTransferData, amount: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Customer Authorization & Ledger Reason *</label>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    placeholder="Provide customer written authorization reference or justification for fund transfer..."
+                    value={excessTransferData.reason}
+                    onChange={(e) => setExcessTransferData({ ...excessTransferData, reason: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={excessTransferSubmitting}
+                  onClick={() => setShowExcessTransferModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={excessTransferSubmitting}
+                >
+                  {excessTransferSubmitting ? 'Transferring...' : 'Execute Fund Transfer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {selectedReceipt && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '700px' }}>

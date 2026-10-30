@@ -222,3 +222,4 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
     expect(overview).toHaveProperty('alerts');
   });
 });
+

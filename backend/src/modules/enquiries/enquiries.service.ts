@@ -11,6 +11,7 @@ import { ProductItem } from '../products/entities/product-item.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { EnquiryQueryDto } from './dto/enquiry-query.dto';
+import { EnquiryApprovalDto } from './dto/enquiry-approval.dto';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -35,6 +36,8 @@ export class EnquiriesService {
       where: { itemId: dto.itemId },
       relations: ['taxConfig'],
     });
+    if (!item) throw new NotFoundException(`Item ${dto.itemId} not found`);
+
     const spName = (dto.salespersonName || '').trim();
     const genericPlaceholders = [
       'sales person',
@@ -68,6 +71,8 @@ export class EnquiriesService {
     const vatAmount = Number(((subtotal * taxRatePct) / 100).toFixed(2));
     const estimatedValue = Number((subtotal + vatAmount).toFixed(2));
 
+    const initialStatus = dto.isDraft ? EnquiryStatus.DRAFT : EnquiryStatus.SUBMITTED;
+
     const enquiry = this.enquiryRepo.create({
       customerId: dto.customerId,
       itemId: dto.itemId,
@@ -77,8 +82,27 @@ export class EnquiriesService {
       estimatedSalesValue: estimatedValue,
       salespersonName: spName,
       paymentMode: dto.paymentMode || 'BANK_DEPOSIT',
-      status: EnquiryStatus.SUBMITTED,
+      status: initialStatus,
       createdBy: userId,
+      // KMSI-14-11: Enquiry Details
+      leadSource: dto.leadSource || 'WALK_IN',
+      branchShowroom: dto.branchShowroom,
+      // KMSI-14-12: Vehicle Requirements
+      vehicleCategoryId: dto.vehicleCategoryId,
+      preferredColor: dto.preferredColor,
+      requiredDeliveryDate: dto.requiredDeliveryDate,
+      registrationHomologationNeeded: Boolean(dto.registrationHomologationNeeded),
+      chargerTypeIncluded: Boolean(dto.chargerTypeIncluded),
+      // KMSI-14-13: Budget & Preferences
+      targetBudget: dto.targetBudget,
+      currency: dto.currency || 'ETB',
+      financingRequired: Boolean(dto.financingRequired),
+      expectedDeposit: dto.expectedDeposit,
+      expectedPaymentTimeline: dto.expectedPaymentTimeline,
+      financeProvider: dto.financeProvider,
+      tradeInVehicle: Boolean(dto.tradeInVehicle),
+      // KMSI-14-14: Customer Requirements Notes
+      customerRequirementsNotes: dto.customerRequirementsNotes,
     });
 
     const saved = await this.enquiryRepo.save(enquiry);
@@ -92,6 +116,7 @@ export class EnquiriesService {
         enquiryNumber: saved.enquiryNumber,
         customerId: saved.customerId,
         estimatedSalesValue: saved.estimatedSalesValue,
+        status: saved.status,
       },
     });
 
@@ -107,7 +132,9 @@ export class EnquiriesService {
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.customer', 'customer')
       .leftJoinAndSelect('e.item', 'item')
-      .leftJoinAndSelect('item.brand', 'brand');
+      .leftJoinAndSelect('item.brand', 'brand')
+      .leftJoinAndSelect('e.salesRepApprover', 'salesRepApprover')
+      .leftJoinAndSelect('e.salesManagerApprover', 'salesManagerApprover');
 
     if (query.status) {
       qb.andWhere('e.status = :status', { status: query.status });
@@ -117,7 +144,7 @@ export class EnquiriesService {
     }
     if (query.search && query.search.trim() !== '') {
       const s = `%${query.search.trim()}%`;
-      qb.andWhere('(e.enquiryNumber ILIKE :s OR customer.fullName ILIKE :s OR item.itemName ILIKE :s)', { s });
+      qb.andWhere('(e.enquiryNumber ILIKE :s OR customer.fullName ILIKE :s OR item.itemName ILIKE :s OR e.salespersonName ILIKE :s)', { s });
     }
 
     qb.orderBy('e.createdAt', 'DESC');
@@ -137,10 +164,127 @@ export class EnquiriesService {
   async findOne(id: string): Promise<SalesEnquiry> {
     const enquiry = await this.enquiryRepo.findOne({
       where: { enquiryId: id },
-      relations: ['customer', 'item', 'item.brand', 'item.category', 'creator'],
+      relations: [
+        'customer',
+        'item',
+        'item.brand',
+        'item.category',
+        'creator',
+        'salesRepApprover',
+        'salesManagerApprover',
+      ],
     });
     if (!enquiry) throw new NotFoundException(`Sales Enquiry with ID ${id} not found`);
     return enquiry;
+  }
+
+  // KMSI-14-15: Submit Draft Enquiry
+  async submitEnquiry(id: string, userId: number = 1): Promise<SalesEnquiry> {
+    const enquiry = await this.findOne(id);
+    if (enquiry.status !== EnquiryStatus.DRAFT && enquiry.status !== EnquiryStatus.REJECTED) {
+      throw new BadRequestException(`Cannot submit enquiry currently in ${enquiry.status} state. Only DRAFT or REJECTED enquiries can be submitted.`);
+    }
+    enquiry.status = EnquiryStatus.SUBMITTED;
+    const saved = await this.enquiryRepo.save(enquiry);
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue: { status: enquiry.status },
+      newValue: { status: saved.status },
+    });
+    return saved;
+  }
+
+  // KMSI-14-15: Step 1: Sales Representative Approval
+  async salesRepApproval(id: string, dto: EnquiryApprovalDto, userId: number = 1): Promise<SalesEnquiry> {
+    const enquiry = await this.findOne(id);
+    if (enquiry.status !== EnquiryStatus.SUBMITTED) {
+      throw new BadRequestException(`Enquiry must be in SUBMITTED status for Sales Rep review. Current status: ${enquiry.status}`);
+    }
+
+    if (dto.approved === false) {
+      enquiry.status = EnquiryStatus.REJECTED;
+      enquiry.rejectionReason = dto.rejectionReason || 'Rejected by Sales Representative';
+    } else {
+      enquiry.status = EnquiryStatus.SALES_REP_APPROVED;
+      enquiry.salesRepApprovedBy = userId;
+      enquiry.salesRepApprovedAt = new Date();
+      enquiry.salesRepNotes = dto.notes;
+    }
+
+    const saved = await this.enquiryRepo.save(enquiry);
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        status: saved.status,
+        salesRepNotes: saved.salesRepNotes,
+        rejectionReason: saved.rejectionReason,
+      },
+    });
+    return saved;
+  }
+
+  // KMSI-14-15: Step 2: Sales Manager Approval
+  async salesManagerApproval(id: string, dto: EnquiryApprovalDto, userId: number = 1): Promise<SalesEnquiry> {
+    const enquiry = await this.findOne(id);
+    if (enquiry.status !== EnquiryStatus.SALES_REP_APPROVED) {
+      throw new BadRequestException(`Enquiry must be approved by Sales Representative before Sales Manager can approve. Current status: ${enquiry.status}`);
+    }
+
+    if (dto.approved === false) {
+      enquiry.status = EnquiryStatus.REJECTED;
+      enquiry.rejectionReason = dto.rejectionReason || 'Rejected by Sales Manager';
+    } else {
+      enquiry.status = EnquiryStatus.APPROVED;
+      enquiry.salesManagerApprovedBy = userId;
+      enquiry.salesManagerApprovedAt = new Date();
+      enquiry.salesManagerNotes = dto.notes;
+
+      // Automatically generate Pre-Advance Slip with 3-day validity window
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 3);
+
+      let slip = await this.slipRepo.findOne({ where: { enquiryId: id } });
+      if (!slip) {
+        slip = this.slipRepo.create({
+          enquiryId: id,
+          customerId: enquiry.customerId,
+          itemId: enquiry.itemId,
+          quantity: enquiry.quantity,
+          unitPrice: enquiry.unitPrice,
+          vatAmount: enquiry.vatAmount,
+          totalAmount: enquiry.estimatedSalesValue,
+          requiredAdvanceAmount: enquiry.estimatedSalesValue,
+          status: PreAdvanceSlipStatus.ACTIVE,
+          issuedAt: new Date(),
+          expiresAt,
+          createdBy: userId,
+        });
+      } else {
+        slip.status = PreAdvanceSlipStatus.ACTIVE;
+        slip.expiresAt = expiresAt;
+      }
+      await this.slipRepo.save(slip);
+    }
+
+    const saved = await this.enquiryRepo.save(enquiry);
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        status: saved.status,
+        salesManagerNotes: saved.salesManagerNotes,
+        rejectionReason: saved.rejectionReason,
+      },
+    });
+    return saved;
   }
 
   async updateStatus(
@@ -161,7 +305,7 @@ export class EnquiriesService {
 
     const saved = await this.enquiryRepo.save(enquiry);
 
-    // Story E16, E17, E18: Once approved, automatically generate pre-advance slip with 3-day expiry
+    // Once approved, automatically generate pre-advance slip with 3-day expiry
     if (status === EnquiryStatus.APPROVED) {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 3);
@@ -176,7 +320,7 @@ export class EnquiriesService {
           unitPrice: enquiry.unitPrice,
           vatAmount: enquiry.vatAmount,
           totalAmount: enquiry.estimatedSalesValue,
-          requiredAdvanceAmount: enquiry.estimatedSalesValue, // Story B4: advance is the full current price
+          requiredAdvanceAmount: enquiry.estimatedSalesValue,
           status: PreAdvanceSlipStatus.ACTIVE,
           issuedAt: new Date(),
           expiresAt,

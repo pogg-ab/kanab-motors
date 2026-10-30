@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Shield,
+  CheckCircle,
   CarFront,
   Plus,
   Search,
@@ -88,6 +90,17 @@ export const VehiclesPage: React.FC = () => {
   const [warehouseActionError, setWarehouseActionError] = useState<string | null>(null);
   const [statusModalUnit, setStatusModalUnit] = useState<VehicleUnit | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // KMSICAMS-14 (KMSI-14-06): Customer Custody State
+  const [custodyModalUnit, setCustodyModalUnit] = useState<VehicleUnit | null>(null);
+  const [custodyFormData, setCustodyFormData] = useState({
+    customerId: '',
+    custodyReason: 'Customer requested deferred handover pending showroom / warehouse readiness',
+    expectedHandoverDate: '',
+  });
+  const [custodySubmitting, setCustodySubmitting] = useState(false);
+  const [custodyError, setCustodyError] = useState<string | null>(null);
+  const [customersList, setCustomersList] = useState<any[]>([]);
   const [selectedVehicleForDetail, setSelectedVehicleForDetail] = useState<VehicleUnit | null>(null);
 
   // Excel Import State
@@ -480,6 +493,46 @@ export const VehiclesPage: React.FC = () => {
       setEditVehicleError(formatApiError(err, 'Failed to update vehicle unit'));
     } finally {
       setSubmittingEditVehicle(false);
+    }
+  };
+
+
+  const handleRecordCustody = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!custodyModalUnit) return;
+    if (!custodyFormData.customerId) {
+      setCustodyError('Please select the owning customer.');
+      return;
+    }
+    if (!custodyFormData.custodyReason.trim() || custodyFormData.custodyReason.trim().length < 5) {
+      setCustodyError('Please provide a valid custody retention reason.');
+      return;
+    }
+
+    setCustodySubmitting(true);
+    setCustodyError(null);
+    try {
+      await api.recordVehicleCustody(custodyModalUnit.vehicleUnitId, {
+        customerId: custodyFormData.customerId,
+        custodyReason: custodyFormData.custodyReason.trim(),
+        expectedHandoverDate: custodyFormData.expectedHandoverDate || undefined,
+      });
+      setCustodyModalUnit(null);
+      fetchVehicles();
+    } catch (err: any) {
+      setCustodyError(formatApiError(err, 'Failed to record customer custody'));
+    } finally {
+      setCustodySubmitting(false);
+    }
+  };
+
+  const handleCompleteHandover = async (vehicleUnitId: string) => {
+    if (!window.confirm('Confirm that this vehicle has been officially handed over to the customer?')) return;
+    try {
+      await api.releaseVehicleCustody(vehicleUnitId);
+      fetchVehicles();
+    } catch (err: any) {
+      alert(formatApiError(err, 'Failed to complete vehicle handover'));
     }
   };
 
@@ -1209,6 +1262,95 @@ export const VehiclesPage: React.FC = () => {
       )}
 
       {/* UPDATE STATUS MODAL */}
+      
+      {/* KMSICAMS-14 (KMSI-14-06): Customer-Owned Stock Retention Modal */}
+      {custodyModalUnit && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '540px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Record Customer Physical Custody</h3>
+                <p className="modal-subtitle">
+                  Chassis #{custodyModalUnit.chassisNumber} · {custodyModalUnit.item?.itemName}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setCustodyModalUnit(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleRecordCustody}>
+              <div className="modal-body">
+                {custodyError && <ModalErrorAlert error={custodyError} onDismiss={() => setCustodyError(null)} />}
+                
+                <div style={{ padding: '0.75rem', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.8rem', color: '#fbbf24' }}>
+                  <strong>Legal vs Physical Custody:</strong> This vehicle is legally owned by the customer, but retained at the company premises. It will be excluded from sellable inventory.
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Owning Customer *</label>
+                  <select
+                    className="select-field"
+                    value={custodyFormData.customerId}
+                    onChange={(e) => setCustodyFormData({ ...custodyFormData, customerId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Owning Customer</option>
+                    {customersList.map((c) => (
+                      <option key={c.customerId} value={c.customerId}>
+                        {c.fullName} ({c.customerCode} - {c.customerType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Expected Handover Date (Optional)</label>
+                  <input
+                    type="date"
+                    className="input-field"
+                    value={custodyFormData.expectedHandoverDate}
+                    onChange={(e) => setCustodyFormData({ ...custodyFormData, expectedHandoverDate: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Retention Justification / Custody Reason *</label>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    placeholder="Enter customer deferred collection reason or custody terms..."
+                    value={custodyFormData.custodyReason}
+                    onChange={(e) => setCustodyFormData({ ...custodyFormData, custodyReason: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={custodySubmitting}
+                  onClick={() => setCustodyModalUnit(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={custodySubmitting}
+                >
+                  {custodySubmitting ? 'Recording...' : 'Confirm Custody Retention'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {statusModalUnit && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>

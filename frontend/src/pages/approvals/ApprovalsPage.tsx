@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Bell,
+  Play,
   ShieldCheck,
   CheckCircle2,
   XCircle,
@@ -19,6 +21,8 @@ import {
   ApprovalRequest,
   ApprovalPolicy,
   WorkflowType,
+  ApprovalReminderConfig,
+  ApprovalReminderLog,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
@@ -44,9 +48,55 @@ export const ApprovalsPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // KMSICAMS-14 (KMSI-14-09): Reminder Engine States
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderConfigs, setReminderConfigs] = useState<ApprovalReminderConfig[]>([]);
+  const [reminderLogs, setReminderLogs] = useState<ApprovalReminderLog[]>([]);
+  const [scanningReminders, setScanningReminders] = useState(false);
+  const [scanResult, setScanResult] = useState<{ count: number; scannedAt: string } | null>(null);
+
   useEffect(() => {
     loadData();
   }, []);
+
+
+  const loadRemindersData = async () => {
+    try {
+      const [configs, logs] = await Promise.all([
+        api.getApprovalReminderConfigs().catch(() => []),
+        api.getApprovalReminderLogs(30).catch(() => []),
+      ]);
+      setReminderConfigs(configs || []);
+      setReminderLogs(logs || []);
+    } catch (err) {
+      console.error('Failed to load reminder engine data:', err);
+    }
+  };
+
+  const handleScanReminders = async () => {
+    setScanningReminders(true);
+    try {
+      const res = await api.scanApprovalReminders();
+      setScanResult({
+        count: res.remindersCreated,
+        scannedAt: new Date(res.scannedAt).toLocaleTimeString(),
+      });
+      await loadRemindersData();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to scan reminders');
+    } finally {
+      setScanningReminders(false);
+    }
+  };
+
+  const handleToggleReminderConfig = async (config: ApprovalReminderConfig) => {
+    try {
+      await api.updateApprovalReminderConfig(config.configId, { isActive: !config.isActive });
+      await loadRemindersData();
+    } catch (err: any) {
+      alert('Failed to update reminder configuration');
+    }
+  };
 
   const loadData = async () => {
     try {

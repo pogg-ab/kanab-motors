@@ -79,3 +79,4 @@ export class ShipmentBooking {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }
+

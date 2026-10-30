@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
+  CheckCircle,
+  Send,
+  XCircle,
   FileText,
   Plus,
   Search,
   CheckCircle2,
-  XCircle,
   ArrowRight,
   User,
   Package,
@@ -70,6 +72,16 @@ export const EnquiriesPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+  // Two-stage approval state (KMSI-14-15)
+  const [approvalModal, setApprovalModal] = useState<{
+    enquiry: SalesEnquiry | null;
+    stage: 'SALES_REP' | 'SALES_MANAGER' | null;
+    decision: 'APPROVE' | 'REJECT';
+    notes: string;
+  }>({ enquiry: null, stage: null, decision: 'APPROVE', notes: '' });
+  const [approvalSubmitting, setApprovalSubmitting] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+
 
   // Printable Proforma Quotation Modal
   const [selectedQuote, setSelectedQuote] = useState<SalesEnquiry | null>(null);
@@ -228,6 +240,57 @@ export const EnquiriesPage: React.FC = () => {
       setFormError(formatApiError(err, 'Failed to create enquiry'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+
+  const handleOpenTwoStageApproval = (enquiry: SalesEnquiry, stage: 'SALES_REP' | 'SALES_MANAGER', decision: 'APPROVE' | 'REJECT' = 'APPROVE') => {
+    setApprovalModal({
+      enquiry,
+      stage,
+      decision,
+      notes: '',
+    });
+    setApprovalError(null);
+  };
+
+  const handleConfirmTwoStageApproval = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!approvalModal.enquiry || !approvalModal.stage) return;
+    if (approvalModal.decision === 'REJECT' && (!approvalModal.notes || approvalModal.notes.trim().length < 5)) {
+      setApprovalError('Rejection requires at least 5 characters of justification comments.');
+      return;
+    }
+
+    setApprovalSubmitting(true);
+    setApprovalError(null);
+    try {
+      if (approvalModal.stage === 'SALES_REP') {
+        await api.salesRepApproveEnquiry(approvalModal.enquiry.enquiryId, {
+          decision: approvalModal.decision,
+          notes: approvalModal.notes.trim() || undefined,
+        });
+      } else {
+        await api.salesManagerApproveEnquiry(approvalModal.enquiry.enquiryId, {
+          decision: approvalModal.decision,
+          notes: approvalModal.notes.trim() || undefined,
+        });
+      }
+      setApprovalModal({ enquiry: null, stage: null, decision: 'APPROVE', notes: '' });
+      fetchEnquiries();
+    } catch (err: any) {
+      setApprovalError(formatApiError(err, 'Failed to record approval decision'));
+    } finally {
+      setApprovalSubmitting(false);
+    }
+  };
+
+  const handleSubmitDraftEnquiry = async (enquiryId: string) => {
+    try {
+      await api.submitEnquiryForApproval(enquiryId);
+      fetchEnquiries();
+    } catch (err: any) {
+      alert(formatApiError(err, 'Failed to submit enquiry'));
     }
   };
 
@@ -972,6 +1035,84 @@ export const EnquiriesPage: React.FC = () => {
       )}
 
       {/* REJECTION MODAL */}
+      
+      {/* KMSICAMS-14: Two-Stage Approval Modal */}
+      {approvalModal.enquiry && approvalModal.stage && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">
+                  {approvalModal.stage === 'SALES_REP' ? 'Stage 1: Sales Rep Review' : 'Stage 2: Sales Manager Approval'}
+                </h3>
+                <p className="modal-subtitle">
+                  Enquiry #{approvalModal.enquiry.enquiryNumber} · {approvalModal.enquiry.customer?.fullName}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setApprovalModal({ enquiry: null, stage: null, decision: 'APPROVE', notes: '' })}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmTwoStageApproval}>
+              <div className="modal-body">
+                {approvalError && <ModalErrorAlert error={approvalError} onDismiss={() => setApprovalError(null)} />}
+                <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className={`btn ${approvalModal.decision === 'APPROVE' ? 'btn-emerald' : 'btn-secondary'}`}
+                    style={{ flex: 1 }}
+                    onClick={() => setApprovalModal({ ...approvalModal, decision: 'APPROVE' })}
+                  >
+                    <CheckCircle size={14} /> Approve / Endorse
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${approvalModal.decision === 'REJECT' ? 'btn-rose' : 'btn-secondary'}`}
+                    style={{ flex: 1 }}
+                    onClick={() => setApprovalModal({ ...approvalModal, decision: 'REJECT' })}
+                  >
+                    <XCircle size={14} /> Reject / Return
+                  </button>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">
+                    Audit Notes & Comments {approvalModal.decision === 'REJECT' ? '*' : '(Optional)'}
+                  </label>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    placeholder={approvalModal.decision === 'REJECT' ? 'Enter required rejection reason...' : 'Enter review comments, terms or delivery notes...'}
+                    value={approvalModal.notes}
+                    onChange={(e) => setApprovalModal({ ...approvalModal, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={approvalSubmitting}
+                  onClick={() => setApprovalModal({ enquiry: null, stage: null, decision: 'APPROVE', notes: '' })}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={`btn ${approvalModal.decision === 'APPROVE' ? 'btn-emerald' : 'btn-rose'}`}
+                  disabled={approvalSubmitting}
+                >
+                  {approvalSubmitting ? 'Recording...' : `Confirm ${approvalModal.decision === 'APPROVE' ? 'Approval' : 'Rejection'}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {rejectTarget && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>

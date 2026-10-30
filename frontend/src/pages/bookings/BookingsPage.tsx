@@ -1,6 +1,8 @@
+import { EntityAttachmentsModal } from '../../components/EntityAttachmentsModal';
 import React, { useState, useEffect } from 'react';
 import {
   Bookmark,
+  Paperclip,
   Plus,
   Search,
   RefreshCw,
@@ -42,6 +44,7 @@ export const BookingsPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
+  const [attachmentBooking, setAttachmentBooking] = useState<Booking | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // Create Form State
@@ -662,6 +665,14 @@ export const BookingsPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: '0.45rem', justifyContent: 'center', alignItems: 'center' }}>
+                            <button
+                              onClick={() => setAttachmentBooking(b)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                              title="Supporting Documents & Attachments"
+                            >
+                              <Paperclip size={13} /> Docs
+                            </button>
                           {b.bookingStatus !== 'CANCELLED' ? (
                             <>
                               <button

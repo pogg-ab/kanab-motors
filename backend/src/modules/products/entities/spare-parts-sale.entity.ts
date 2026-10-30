@@ -80,6 +80,15 @@ export class SparePartsSale {
   @Column({ name: 'grand_total', type: 'numeric', precision: 18, scale: 2, default: 0 })
   grandTotal: number;
 
+  @Column({ name: 'amount_paid', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  amountPaid: number;
+
+  @Column({ name: 'outstanding_balance', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  outstandingBalance: number;
+
+  @Column({ name: 'credit_due_date', type: 'date', nullable: true })
+  creditDueDate?: string;
+
   @Column({ length: 30, default: SparePartsSaleStatus.COMPLETED })
   status: SparePartsSaleStatus;
 

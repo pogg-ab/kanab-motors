@@ -268,3 +268,4 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/purchase-orders/financial-comm
 | **4** | `IMP-18` | Payment transaction records partial/full settlement with bank references | [ ] PASS |
 | **4** | `IMP-20` | Letter of Credit tracks issuing bank, expiry date, and shipment deadlines | [ ] PASS |
 | **4** | `IMP-22` | Cross-PO Financial Commitments report calculates outstanding supplier balance | [ ] PASS |
+

@@ -1,5 +1,7 @@
+import { CreditSalesAndAgingReports } from '../../components/CreditSalesAndAgingReports';
 import React, { useState, useEffect } from 'react';
 import {
+  CreditCard,
   BarChart3,
   TrendingUp,
   Receipt,
@@ -36,7 +38,7 @@ import {
 } from '../../api/client';
 
 export const ReportsHubPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'sales' | 'operational' | 'inventory' | 'financial'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'operational' | 'inventory' | 'financial' | 'credit_and_aging'>('sales');
   const [salesSubTab, setSalesSubTab] = useState<'daily' | 'monthly' | 'model' | 'category' | 'customer' | 'region' | 'salesperson'>('daily');
   const [operationalSubTab, setOperationalSubTab] = useState<'invoices' | 'deliveries' | 'enquiries' | 'bookings'>('invoices');
   const [reportView, setReportView] = useState<'chart' | 'table'>('chart');
@@ -455,6 +457,7 @@ export const ReportsHubPage: React.FC = () => {
           { key: 'operational', label: 'Operational Reports', icon: Receipt },
           { key: 'inventory', label: 'Inventory & Fleet Reports', icon: CarFront },
           { key: 'financial', label: 'Customer Financial Reports', icon: DollarSign },
+          { key: 'credit_and_aging', label: 'Credit Sales & Stock Aging (KMSI-14)', icon: CreditCard },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;

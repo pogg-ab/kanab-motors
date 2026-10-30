@@ -4,6 +4,7 @@ import {
   IsString,
   IsPositive,
   IsOptional,
+  IsBoolean,
   Min,
   MinLength,
 } from 'class-validator';
@@ -39,4 +40,89 @@ export class CreateEnquiryDto {
   @IsString()
   @IsOptional()
   paymentMode?: string;
+
+  // KMSI-14-11: Enquiry Details
+  @ApiPropertyOptional({ example: 'WALK_IN' })
+  @IsString()
+  @IsOptional()
+  leadSource?: string;
+
+  @ApiPropertyOptional({ example: 'Bole Flagship Showroom' })
+  @IsString()
+  @IsOptional()
+  branchShowroom?: string;
+
+  // KMSI-14-12: Vehicle Requirements
+  @ApiPropertyOptional({ example: 1 })
+  @IsNumber()
+  @IsOptional()
+  vehicleCategoryId?: number;
+
+  @ApiPropertyOptional({ example: 'Midnight Blue' })
+  @IsString()
+  @IsOptional()
+  preferredColor?: string;
+
+  @ApiPropertyOptional({ example: '2026-12-15' })
+  @IsString()
+  @IsOptional()
+  requiredDeliveryDate?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  registrationHomologationNeeded?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsBoolean()
+  @IsOptional()
+  chargerTypeIncluded?: boolean;
+
+  // KMSI-14-13: Budget and Payment Preferences
+  @ApiPropertyOptional({ example: 3500000.0 })
+  @IsNumber()
+  @IsOptional()
+  targetBudget?: number;
+
+  @ApiPropertyOptional({ example: 'ETB', default: 'ETB' })
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsBoolean()
+  @IsOptional()
+  financingRequired?: boolean;
+
+  @ApiPropertyOptional({ example: 1000000.0 })
+  @IsNumber()
+  @IsOptional()
+  expectedDeposit?: number;
+
+  @ApiPropertyOptional({ example: 'Within 30 days of allocation' })
+  @IsString()
+  @IsOptional()
+  expectedPaymentTimeline?: string;
+
+  @ApiPropertyOptional({ example: 'Commercial Bank of Ethiopia' })
+  @IsString()
+  @IsOptional()
+  financeProvider?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsBoolean()
+  @IsOptional()
+  tradeInVehicle?: boolean;
+
+  // KMSI-14-14: Customer Requirements and Notes
+  @ApiPropertyOptional({ example: 'Customer requires fast-charger installation support at residential garage.' })
+  @IsString()
+  @IsOptional()
+  customerRequirementsNotes?: string;
+
+  // KMSI-14-15: Initial Status (DRAFT vs SUBMITTED)
+  @ApiPropertyOptional({ example: false })
+  @IsBoolean()
+  @IsOptional()
+  isDraft?: boolean;
 }

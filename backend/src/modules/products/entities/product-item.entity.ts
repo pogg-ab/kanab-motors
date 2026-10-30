@@ -69,6 +69,21 @@ export class ProductItem {
   @Column({ name: 'weight_kg', type: 'numeric', precision: 10, scale: 2, nullable: true })
   weightKg?: number;
 
+  @Column({ name: 'model_year', type: 'int', nullable: true })
+  modelYear?: number;
+
+  @Column({ name: 'powertrain', length: 50, nullable: true })
+  powertrain?: string;
+
+  @Column({ name: 'new_or_used', length: 20, default: 'NEW' })
+  newOrUsed: string;
+
+  @Column({ name: 'fuel_energy_type', length: 50, nullable: true })
+  fuelEnergyType?: string;
+
+  @Column({ name: 'driving_range_km', type: 'int', nullable: true })
+  drivingRangeKm?: number;
+
   @Column({ name: 'is_individually_tracked', type: 'boolean', default: false })
   isIndividuallyTracked: boolean;
 

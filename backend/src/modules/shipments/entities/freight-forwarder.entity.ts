@@ -38,3 +38,4 @@ export class FreightForwarder {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }
+

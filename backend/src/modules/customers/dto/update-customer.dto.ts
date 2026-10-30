@@ -54,6 +54,26 @@ export class UpdateCustomerDto {
   withholdingTaxFlag?: boolean;
 
   @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  contactPerson?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  preferredContactMethod?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  businessOccupation?: string;
+
+  @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;

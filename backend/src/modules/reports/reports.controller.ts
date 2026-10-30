@@ -140,4 +140,31 @@ export class ReportsController {
   getCustomerFinancialSummary() {
     return this.reportsService.getCustomerFinancialSummary();
   }
+
+  @RequirePermissions('REPORTS_VIEW')
+  @Get('credit-sales')
+  @ApiOperation({ summary: 'Credit Sales Report for vehicles and spare parts (KMSI-14-07)' })
+  getCreditSalesReport(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('customerId') customerId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.reportsService.getCreditSalesReport({ startDate, endDate, customerId, status });
+  }
+
+  @RequirePermissions('REPORTS_VIEW')
+  @Get('stock-aging')
+  @ApiOperation({ summary: 'Stock Aging Tracking Report for vehicles and spare parts (KMSI-14-08)' })
+  getStockAgingReport(
+    @Query('warehouseId') warehouseId?: string,
+    @Query('itemType') itemType?: string,
+    @Query('agingBucket') agingBucket?: string,
+  ) {
+    return this.reportsService.getStockAgingReport({
+      warehouseId: warehouseId ? parseInt(warehouseId, 10) : undefined,
+      itemType,
+      agingBucket,
+    });
+  }
 }

@@ -70,4 +70,40 @@ export class DocumentsService {
     }
     return true;
   }
+
+  async getAttachmentsForEntity(entityType: string, entityId: string): Promise<Attachment[]> {
+    return this.attachmentRepo.find({
+      where: { entityType, entityId },
+      order: { uploadedAt: 'DESC' },
+    });
+  }
+
+  async createAttachment(
+    entityType: string,
+    entityId: string,
+    file: { originalname: string; filename: string; mimetype?: string; size?: number },
+    documentType?: string,
+    userId: number = 1,
+  ): Promise<Attachment> {
+    const attachment = this.attachmentRepo.create({
+      entityType,
+      entityId,
+      documentType: documentType || 'SUPPORTING_DOC',
+      fileName: file.originalname,
+      filePath: `/uploads/documents/${file.filename}`,
+      contentType: file.mimetype || 'application/octet-stream',
+      fileSizeBytes: String(file.size || 0),
+      uploadedBy: userId,
+    });
+    return this.attachmentRepo.save(attachment);
+  }
+
+  async deleteAttachment(attachmentId: string): Promise<{ success: boolean }> {
+    const att = await this.attachmentRepo.findOne({ where: { attachmentId } });
+    if (!att) {
+      throw new BadRequestException(`Attachment with ID ${attachmentId} not found`);
+    }
+    await this.attachmentRepo.remove(att);
+    return { success: true };
+  }
 }

@@ -128,6 +128,7 @@ export class BookingsService {
       targetDeliveryDate: deliveryDate,
       bookingStatus: BookingStatus.APPROVED, // auto-approved on creation
       salespersonName: spName,
+      paymentMethod: dto.paymentMethod || 'BANK_DEPOSIT',
       createdBy: userId,
     });
 
@@ -155,6 +156,12 @@ export class BookingsService {
       relations: ['customer', 'item'],
     });
     if (!enquiry) throw new NotFoundException(`Enquiry ${enquiryId} not found`);
+
+    if (enquiry.status !== EnquiryStatus.APPROVED) {
+      throw new BadRequestException(
+        `Sales Enquiry must be fully approved by Sales Manager before converting to an Advance Order Booking. Current status: ${enquiry.status}`,
+      );
+    }
 
     const spName = (enquiry.salespersonName || '').trim();
     if (!spName || spName.length < 2) {

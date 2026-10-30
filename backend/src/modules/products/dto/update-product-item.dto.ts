@@ -78,6 +78,31 @@ export class UpdateProductItemDto {
   @IsOptional()
   batteryPowerKwh?: number;
 
+  @ApiPropertyOptional({ example: 2025 })
+  @IsNumber()
+  @IsOptional()
+  modelYear?: number;
+
+  @ApiPropertyOptional({ example: 'BEV' })
+  @IsString()
+  @IsOptional()
+  powertrain?: string;
+
+  @ApiPropertyOptional({ example: 'NEW', default: 'NEW' })
+  @IsString()
+  @IsOptional()
+  newOrUsed?: string;
+
+  @ApiPropertyOptional({ example: 'ELECTRIC' })
+  @IsString()
+  @IsOptional()
+  fuelEnergyType?: string;
+
+  @ApiPropertyOptional({ example: 450 })
+  @IsNumber()
+  @IsOptional()
+  drivingRangeKm?: number;
+
   @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()

@@ -218,3 +218,4 @@ export class KMSICAMS12Part2LogisticsAndDocuments1711000000005 implements Migrat
     await queryRunner.query(`DROP TABLE IF EXISTS "freight_forwarder" CASCADE;`);
   }
 }
+
