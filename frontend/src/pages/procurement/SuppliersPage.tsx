@@ -266,7 +266,7 @@ export const SuppliersPage: React.FC = () => {
         <span style={{ color: 'var(--text-secondary)' }}>Procurement Master Data</span>
         <span>/</span>
         <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>
-          {activeTab === 'suppliers' ? 'Suppliers' : 'Freight Forwarders (IMP-23)'}
+          {activeTab === 'suppliers' ? 'Suppliers' : 'Freight Forwarders'}
         </span>
       </div>
 
@@ -274,7 +274,7 @@ export const SuppliersPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
-            {activeTab === 'suppliers' ? 'International Supplier Master Data' : 'Freight Forwarder Master Catalog (IMP-23)'}
+            {activeTab === 'suppliers' ? 'International Supplier Master Data' : 'Freight Forwarder Master Catalog'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
             {activeTab === 'suppliers'
@@ -347,7 +347,7 @@ export const SuppliersPage: React.FC = () => {
           style={{ borderRadius: 'var(--radius-md) var(--radius-md) 0 0', borderBottom: 'none' }}
         >
           <Ship size={15} />
-          <span>Freight Forwarders (IMP-23) ({forwarders.length})</span>
+          <span>Freight Forwarders ({forwarders.length})</span>
         </button>
       </div>
 
@@ -927,7 +927,7 @@ export const SuppliersPage: React.FC = () => {
                 </div>
                 <div>
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                    {editingForwarder ? 'Edit Freight Forwarder' : 'Register Freight Forwarder (IMP-23)'}
+                    {editingForwarder ? 'Edit Freight Forwarder' : 'Register Freight Forwarder'}
                   </h2>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>International freight, booking, and shipping agent master data</span>
                 </div>

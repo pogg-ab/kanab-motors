@@ -946,7 +946,7 @@ export const ImportRequisitionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Stock & Pipeline Review Modal (Story IMP-04 & IMP-05) */}
+      {/* Stock & Pipeline Review */}
       {showStockReviewModal && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '650px', width: '90%' }}>
@@ -1047,7 +1047,7 @@ export const ImportRequisitionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Convert to PO Modal (Story IMP-06) */}
+      {/* Convert Requisition to Purchase Order */}
       {showConvertModal && selectedReq && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '750px', width: '90%' }}>

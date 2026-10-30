@@ -310,7 +310,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
 
   return (
     <div style={{ marginTop: '1.25rem' }}>
-      {/* Alert Banners (IMP-31) */}
+      {/* Logistics Action Items & Checkpoints */}
       {(overview?.alerts || []).length > 0 && (
         <div className="card" style={{ padding: '1rem 1.25rem', marginBottom: '1.5rem', borderLeft: '4px solid var(--accent-amber)', background: 'rgba(245, 158, 11, 0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--accent-amber)', marginBottom: '0.35rem' }}>
@@ -378,7 +378,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-              Freight-Forwarder Quotations & Tariffs (IMP-24, IMP-25)
+              Freight-Forwarder Quotations & Tariffs
             </h3>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               Compare multi-currency forwarder rates, transit days, and record formal forwarder selection
@@ -483,7 +483,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                Shipment Booking & Vessel Schedule (IMP-26)
+                Shipment Booking & Vessel Schedule
               </h3>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Maritime carrier, vessel name, voyage number, ports, and transit timetable
@@ -543,7 +543,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                Assigned Containers (IMP-27)
+                Assigned Containers & Demurrage
               </h3>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Container numbers, seal numbers, and demurrage free-time rules
@@ -586,7 +586,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-              Cargo Readiness & Shipping Milestones Progress (IMP-28)
+              Cargo Readiness & Shipping Milestones Progress
             </h3>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               Track physical milestones leading to port departure, customs, and inland warehouse arrival
@@ -631,7 +631,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
 
       {/* Section 4: Marine Insurance & Cargo Tracking (IMP-29, IMP-30) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-        {/* Marine Cargo Insurance (IMP-29) */}
+        {/* Marine Cargo Insurance Policy */}
         <div className="card" style={{ padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>
@@ -675,7 +675,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                ECTN & Cargo Tracking (IMP-30)
+                ECTN & Regulatory Cargo Tracking
               </h3>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Electronic Cargo Tracking Note & shipping cut-off deadlines
@@ -711,7 +711,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         </div>
       </div>
 
-      {/* Section 5: Shipping Document Lifecycle & Verification (IMP-32 – IMP-36) */}
+      {/* Section 5: Shipping Document Lifecycle & Verification */}
       <div className="card" style={{ padding: '1.5rem', marginTop: '1.75rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div>
@@ -811,7 +811,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '550px' }}>
             <div className="modal-header">
-              <h3>Add Freight-Forwarder Quotation (IMP-24)</h3>
+              <h3>Add Freight-Forwarder Quotation</h3>
               <button onClick={() => setShowAddQuoteModal(false)} className="modal-close">&times;</button>
             </div>
             <form onSubmit={handleCreateQuote}>
@@ -907,7 +907,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '600px' }}>
             <div className="modal-header">
-              <h3>Shipment Booking & Vessel Details (IMP-26)</h3>
+              <h3>Shipment Booking & Vessel Details</h3>
               <button onClick={() => setShowAddBookingModal(false)} className="modal-close">&times;</button>
             </div>
             <form onSubmit={handleCreateBooking}>
@@ -1014,7 +1014,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3>Assign Container (IMP-27)</h3>
+              <h3>Assign Container</h3>
               <button onClick={() => setShowAddContainerModal(false)} className="modal-close">&times;</button>
             </div>
             <form onSubmit={handleAddContainer}>
@@ -1084,7 +1084,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3>Record Cargo Insurance (IMP-29)</h3>
+              <h3>Record Marine Cargo Insurance</h3>
               <button onClick={() => setShowAddInsuranceModal(false)} className="modal-close">&times;</button>
             </div>
             <form onSubmit={handleAddInsurance}>
@@ -1152,7 +1152,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3>Record ECTN / Cargo Tracking (IMP-30)</h3>
+              <h3>Record ECTN / Cargo Tracking</h3>
               <button onClick={() => setShowAddTrackingModal(false)} className="modal-close">&times;</button>
             </div>
             <form onSubmit={handleAddTracking}>

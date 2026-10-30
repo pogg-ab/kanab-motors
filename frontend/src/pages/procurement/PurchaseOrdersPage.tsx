@@ -76,6 +76,29 @@ export const PurchaseOrdersPage: React.FC = () => {
   // Modals & Sub-views
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+
+  const handleOpenPODetails = async (order: PurchaseOrder) => {
+    setSelectedOrder(order);
+    setDetailTab('commercial');
+    try {
+      const full = await api.getPurchaseOrder(order.poId);
+      setSelectedOrder(full);
+    } catch (err) {
+      console.error('Failed to fetch full PO details:', err);
+    }
+  };
+
+  const handleTabChange = async (tab: 'commercial' | 'compliance' | 'payments' | 'lc') => {
+    setDetailTab(tab);
+    if (selectedOrder?.poId) {
+      try {
+        const full = await api.getPurchaseOrder(selectedOrder.poId);
+        setSelectedOrder(full);
+      } catch (err) {
+        console.error('Error refreshing PO details on tab change:', err);
+      }
+    }
+  };
   const [detailTab, setDetailTab] = useState<'commercial' | 'compliance' | 'payments' | 'lc'>('commercial');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [poError, setPoError] = useState<string | null>(null);
@@ -674,10 +697,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <td style={{ textAlign: 'right' }}>
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => {
-                              setSelectedOrder(po);
-                              setDetailTab('commercial');
-                            }}
+                            onClick={() => handleOpenPODetails(po)}
                             className="btn btn-secondary btn-sm"
                             title="Manage PO Details & Import Features"
                           >
@@ -687,7 +707,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                           <button
                             onClick={() => handleOpenPrintDocument(po.poId)}
                             className="btn btn-secondary btn-sm text-cyan-400"
-                            title="Print Client-Format PO Document (POX-05)"
+                            title="Print Client-Format Purchase Order"
                           >
                             <Printer size={14} />
                           </button>
@@ -766,42 +786,102 @@ export const PurchaseOrdersPage: React.FC = () => {
             </div>
 
             {/* Navigation Tabs inside Modal */}
-            <div className="flex border-b border-slate-700 px-4 bg-slate-900/60 text-xs font-semibold">
+            <div style={{
+              display: 'flex',
+              gap: '0.6rem',
+              padding: '0.85rem 1.25rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              borderBottom: '1px solid var(--border-color)',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}>
               <button
-                onClick={() => setDetailTab('commercial')}
-                className={`py-3 px-4 border-b-2 flex items-center gap-1.5 transition-colors ${
-                  detailTab === 'commercial' ? 'border-cyan-400 text-cyan-400' : 'border-transparent text-gray-400 hover:text-gray-200'
-                }`}
+                type="button"
+                onClick={() => handleTabChange('commercial')}
+                className={`filter-pill ${detailTab === 'commercial' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 1rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  cursor: 'pointer',
+                  border: detailTab === 'commercial' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                  background: detailTab === 'commercial' ? 'rgba(0, 210, 211, 0.15)' : 'var(--bg-tertiary)',
+                  color: detailTab === 'commercial' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  transition: 'all 0.2s ease',
+                }}
               >
                 <Package size={14} />
                 <span>Lines & Commercial Terms</span>
               </button>
               <button
-                onClick={() => setDetailTab('compliance')}
-                className={`py-3 px-4 border-b-2 flex items-center gap-1.5 transition-colors ${
-                  detailTab === 'compliance' ? 'border-cyan-400 text-cyan-400' : 'border-transparent text-gray-400 hover:text-gray-200'
-                }`}
+                type="button"
+                onClick={() => handleTabChange('compliance')}
+                className={`filter-pill ${detailTab === 'compliance' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 1rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  cursor: 'pointer',
+                  border: detailTab === 'compliance' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                  background: detailTab === 'compliance' ? 'rgba(0, 210, 211, 0.15)' : 'var(--bg-tertiary)',
+                  color: detailTab === 'compliance' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  transition: 'all 0.2s ease',
+                }}
               >
                 <ShieldCheck size={14} />
                 <span>Regulatory Compliance ({selectedOrder.complianceRecords?.length || 0})</span>
               </button>
               <button
-                onClick={() => setDetailTab('payments')}
-                className={`py-3 px-4 border-b-2 flex items-center gap-1.5 transition-colors ${
-                  detailTab === 'payments' ? 'border-cyan-400 text-cyan-400' : 'border-transparent text-gray-400 hover:text-gray-200'
-                }`}
+                type="button"
+                onClick={() => handleTabChange('payments')}
+                className={`filter-pill ${detailTab === 'payments' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 1rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  cursor: 'pointer',
+                  border: detailTab === 'payments' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                  background: detailTab === 'payments' ? 'rgba(0, 210, 211, 0.15)' : 'var(--bg-tertiary)',
+                  color: detailTab === 'payments' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  transition: 'all 0.2s ease',
+                }}
               >
                 <CreditCard size={14} />
                 <span>Payment Schedules ({selectedOrder.paymentSchedules?.length || 0})</span>
               </button>
               <button
-                onClick={() => setDetailTab('lc')}
-                className={`py-3 px-4 border-b-2 flex items-center gap-1.5 transition-colors ${
-                  detailTab === 'lc' ? 'border-cyan-400 text-cyan-400' : 'border-transparent text-gray-400 hover:text-gray-200'
-                }`}
+                type="button"
+                onClick={() => handleTabChange('lc')}
+                className={`filter-pill ${detailTab === 'lc' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 1rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  cursor: 'pointer',
+                  border: detailTab === 'lc' ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
+                  background: detailTab === 'lc' ? 'rgba(0, 210, 211, 0.15)' : 'var(--bg-tertiary)',
+                  color: detailTab === 'lc' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  transition: 'all 0.2s ease',
+                }}
               >
                 <FileCheck size={14} />
-                <span>Letters of Credit (L/C) ({selectedOrder.lettersOfCredit?.length || 0})</span>
+                <span>Letters of Credit ({selectedOrder.lettersOfCredit?.length || 0})</span>
               </button>
             </div>
 
@@ -896,7 +976,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                       className="btn btn-secondary btn-sm flex items-center gap-1.5"
                     >
                       <ShieldCheck size={14} className="text-cyan-400" />
-                      <span>Verify Commercial Readiness (IMP-11)</span>
+                      <span>Verify Commercial Readiness</span>
                     </button>
                   </div>
                 </div>
@@ -907,7 +987,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-sm text-cyan-400">Import Permits & Regulatory Clearances (IMP-12)</h4>
+                      <h4 className="font-bold text-sm text-cyan-400">Import Permits & Regulatory Clearances</h4>
                       <p className="text-xs text-gray-400">
                         Tracks mandatory government permits, central bank approvals, and pre-shipment inspection certificates.
                       </p>
@@ -978,7 +1058,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-sm text-cyan-400">Contractual Payment Schedules & Milestones (IMP-16)</h4>
+                      <h4 className="font-bold text-sm text-cyan-400">Contractual Payment Schedules & Milestones</h4>
                       <p className="text-xs text-gray-400">
                         Tracks advance, document, and final payment milestones with live balance reconciliation.
                       </p>
@@ -1072,7 +1152,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-sm text-cyan-400">Letter of Credit (L/C) Tracking (IMP-20)</h4>
+                      <h4 className="font-bold text-sm text-cyan-400">Letters of Credit (L/C) Portfolio</h4>
                       <p className="text-xs text-gray-400">
                         Tracks issued documentary credit obligations, advising banks, validity periods, and latest shipment deadlines.
                       </p>
@@ -1740,7 +1820,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Client-Format PO Document Preview & Print Modal (POX-05) */}
+      {/* Client-Format PO Document Preview & Print */}
       {showPrintModal && printData && (
         <ClientPODocumentModal data={printData} onClose={() => setShowPrintModal(false)} />
       )}

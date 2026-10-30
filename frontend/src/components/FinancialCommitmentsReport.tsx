@@ -58,7 +58,7 @@ export const FinancialCommitmentsReport: React.FC = () => {
             Cross-PO Financial Commitments & Foreign Currency Liabilities
           </h2>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Story IMP-22: Track multi-currency milestone payment schedules, outstanding obligations, and active Letters of Credit
+            Track multi-currency milestone payment schedules, outstanding obligations, and active Letters of Credit
           </p>
         </div>
 

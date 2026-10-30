@@ -563,7 +563,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
           style={{ borderRadius: 'var(--radius-md) var(--radius-md) 0 0', borderBottom: 'none' }}
         >
           <Ship size={14} />
-          <span>Logistics & Booking (IMP-31)</span>
+          <span>Logistics & Booking</span>
         </button>
 
         <button

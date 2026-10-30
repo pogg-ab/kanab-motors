@@ -66,7 +66,7 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
           className={`filter-pill ${subTab === 'logistics' ? 'active' : ''}`}
         >
           <Ship size={14} />
-          <span>Shipment & Logistics Report (IMP-45)</span>
+          <span>Shipment & Logistics Report</span>
         </button>
 
         <button
@@ -74,7 +74,7 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
           className={`filter-pill ${subTab === 'documents' ? 'active' : ''}`}
         >
           <FileCheck size={14} />
-          <span>Document Completeness Report (IMP-46)</span>
+          <span>Document Completeness Report</span>
         </button>
 
         <button
@@ -82,7 +82,7 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
           className={`filter-pill ${subTab === 'reconciliation' ? 'active' : ''}`}
         >
           <Layers size={14} />
-          <span>Import Reconciliation Matrix (IMP-47)</span>
+          <span>Import Reconciliation Matrix</span>
         </button>
 
         <button
@@ -371,7 +371,7 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Explanation Banner */}
           <div style={{ padding: '0.85rem 1.25rem', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            <strong>Import Reconciliation Matrix (IMP-47):</strong> Reconciles commercial commitments vs logistics movement vs warehouse physical receipts.
+            <strong>Import Reconciliation Matrix:</strong> Reconciles commercial commitments vs logistics movement vs warehouse physical receipts.
             Distinguishes <span style={{ color: 'var(--accent-cyan)' }}>Ordered Qty</span> (PO line), <span style={{ color: 'var(--accent-indigo)' }}>Shipped Qty</span> (Bill of Lading line), and <span style={{ color: 'var(--accent-emerald)' }}>Received Qty</span> (physical warehouse GRN).
           </div>
 

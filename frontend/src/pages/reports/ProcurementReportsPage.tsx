@@ -239,7 +239,7 @@ export const ProcurementReportsPage: React.FC = () => {
           className={`filter-pill ${activeTab === 'commitments' ? 'active' : ''}`}
         >
           <TrendingUp size={15} color={activeTab === 'commitments' ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
-          <span>Financial Commitments & L/C (IMP-22)</span>
+          <span>Financial Commitments & Letters of Credit</span>
         </button>
 
         <button
@@ -247,7 +247,7 @@ export const ProcurementReportsPage: React.FC = () => {
           className={`filter-pill ${activeTab === 'reconciliation_reports' ? 'active' : ''}`}
         >
           <Layers size={15} color={activeTab === 'reconciliation_reports' ? 'var(--accent-cyan)' : 'var(--text-muted)'} />
-          <span>Import Reconciliation & Logistics (IMP-45–48)</span>
+          <span>Import Reconciliation & Logistics</span>
         </button>
       </div>
 
