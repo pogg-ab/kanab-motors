@@ -1080,11 +1080,35 @@ export class ShipmentsService {
 
   // Story IMP-28: Cargo Milestones
   async getShipmentMilestones(shipmentId: string): Promise<ShipmentMilestone[]> {
-    return this.milestoneRepo.find({
+    let milestones = await this.milestoneRepo.find({
       where: { shipmentId },
       relations: ['completer'],
       order: { milestoneId: 'ASC' },
     });
+
+    if (milestones.length === 0) {
+      const defaultMilestones = [
+        'CARGO_READY',
+        'BOOKING_CONFIRMED',
+        'CONTAINER_STUFFED',
+        'CUSTOMS_EXPORT_CLEARED',
+        'VESSEL_DEPARTED',
+        'PORT_OF_DJIBOUTI_ARRIVED',
+        'CUSTOMS_IMPORT_CLEARED',
+        'INLAND_DISPATCHED',
+        'WAREHOUSE_RECEIVED',
+      ];
+      const milestoneEntities = defaultMilestones.map((name) =>
+        this.milestoneRepo.create({
+          shipmentId,
+          milestoneName: name,
+          isCompleted: false,
+        }),
+      );
+      milestones = await this.milestoneRepo.save(milestoneEntities);
+    }
+
+    return milestones;
   }
 
   async addShipmentMilestone(shipmentId: string, dto: CreateShipmentMilestoneDto): Promise<ShipmentMilestone> {
@@ -1170,11 +1194,35 @@ export class ShipmentsService {
 
   // Stories IMP-32 through IMP-37: Shipment Documents
   async getShipmentDocumentsList(shipmentId: string): Promise<ShipmentDocument[]> {
-    return this.shipmentDocRepo.find({
+    let docs = await this.shipmentDocRepo.find({
       where: { shipmentId },
       relations: ['verifier', 'creator', 'purchaseOrder'],
       order: { createdAt: 'ASC' },
     });
+
+    if (docs.length === 0) {
+      const defaultDocTypes = [
+        'COMMERCIAL_INVOICE',
+        'PACKING_LIST',
+        'BILL_OF_LADING',
+        'CERTIFICATE_OF_ORIGIN',
+        'PRE_SHIPMENT_INSPECTION_CERTIFICATE',
+        'CUSTOMS_DECLARATION',
+        'INSURANCE_CERTIFICATE',
+        'ECTN_CERTIFICATE',
+      ];
+      const docEntities = defaultDocTypes.map((type) =>
+        this.shipmentDocRepo.create({
+          shipmentId,
+          documentType: type,
+          verificationStatus: 'PENDING',
+          originalDocumentStatus: 'NOT_RECEIVED',
+        }),
+      );
+      docs = await this.shipmentDocRepo.save(docEntities);
+    }
+
+    return docs;
   }
 
   async addShipmentDocument(shipmentId: string, dto: CreateShipmentDocumentDto): Promise<ShipmentDocument> {
