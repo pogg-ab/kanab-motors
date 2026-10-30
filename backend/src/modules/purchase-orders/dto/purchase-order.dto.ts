@@ -349,9 +349,9 @@ export class CreatePaymentScheduleDto {
   @Min(0.01)
   amountDue: number;
 
+  @IsOptional()
   @IsString()
-  @Matches(/^[A-Z]{3,10}$/)
-  currency: string;
+  currency?: string;
 
   @IsOptional()
   @IsString()
@@ -369,6 +369,7 @@ export class CreatePaymentScheduleDto {
 
 // Payment Transaction DTO
 export class RecordPaymentTransactionDto {
+  @Type(() => String)
   @Matches(/^[1-9]\d*$/)
   paymentScheduleId: string;
 
@@ -384,9 +385,9 @@ export class RecordPaymentTransactionDto {
   @Min(0.01)
   amountPaid: number;
 
+  @IsOptional()
   @IsString()
-  @Matches(/^[A-Z]{3,10}$/)
-  currency: string;
+  currency?: string;
 
   @IsOptional()
   @IsString()
@@ -423,9 +424,9 @@ export class CreateLetterOfCreditDto {
   @Min(0.01)
   amount: number;
 
+  @IsOptional()
   @IsString()
-  @Matches(/^[A-Z]{3,10}$/)
-  currency: string;
+  currency?: string;
 
   @IsDateString()
   issueDate: string;

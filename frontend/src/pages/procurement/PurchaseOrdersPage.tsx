@@ -79,6 +79,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [detailTab, setDetailTab] = useState<'commercial' | 'compliance' | 'payments' | 'lc'>('commercial');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [poError, setPoError] = useState<string | null>(null);
+  const [txnError, setTxnError] = useState<string | null>(null);
 
   // Client PO Document Print State (POX-05)
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
@@ -436,7 +437,7 @@ export const PurchaseOrdersPage: React.FC = () => {
     if (!selectedOrder || !targetScheduleId || !txnAmount) return;
     try {
       await api.recordPOPaymentTransaction({
-        paymentScheduleId: targetScheduleId,
+        paymentScheduleId: String(targetScheduleId),
         paymentReference: txnRef.trim(),
         paymentDate: txnDate,
         amountPaid: Number(txnAmount),
@@ -451,7 +452,9 @@ export const PurchaseOrdersPage: React.FC = () => {
       const refreshed = await api.getPurchaseOrder(selectedOrder.poId);
       setSelectedOrder(refreshed);
     } catch (err: any) {
-      showToast('error', formatApiError(err, 'Failed to record payment transaction'));
+      const msg = formatApiError(err, 'Failed to record payment transaction');
+      setTxnError(msg);
+      showToast('error', msg);
     }
   };
 
@@ -1579,6 +1582,7 @@ export const PurchaseOrdersPage: React.FC = () => {
             </div>
             <form onSubmit={handleRecordPaymentTxn}>
               <div className="modal-body space-y-3 text-xs">
+                <ModalErrorAlert error={txnError} />
                 <div>
                   <label className="form-label">Bank Reference / SWIFT MT103 Ref *</label>
                   <input
