@@ -636,7 +636,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                Marine Cargo Insurance (IMP-29)
+                Marine Cargo Insurance
               </h3>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Institute Cargo Clauses A (All Risks) marine policy
@@ -716,7 +716,7 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-              Shipping Document Lifecycle & Verification (IMP-32 – IMP-36)
+              Shipping Document Lifecycle & Verification
             </h3>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               Manage regulatory shipping documents, verification status, and physical original paper tracking
