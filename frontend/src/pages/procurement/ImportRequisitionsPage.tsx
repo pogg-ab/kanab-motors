@@ -685,23 +685,28 @@ export const ImportRequisitionsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '900px', width: '95%' }}>
             <div className="modal-header">
-              <div className="flex items-center gap-2">
-                <FileText className="text-cyan-400" size={20} />
-                <h3 className="font-bold text-lg">
-                  {editingReq ? `Edit Requisition ${editingReq.requisitionNumber}` : 'New Import Requisition Request'}
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {editingReq ? `Edit Requisition ${editingReq.requisitionNumber}` : 'New Import Requisition Request'}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Material demand planning & safety stock justification</span>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary btn-sm">
-                <X size={16} />
+              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.65rem' }}>
+                ✕
               </button>
             </div>
 
             <form onSubmit={handleSubmitRequisitionForm}>
-              <div className="modal-body space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {formError && <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />}
 
                 {/* Header Information */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Requesting Business Unit *</label>
                     <input
@@ -733,7 +738,7 @@ export const ImportRequisitionsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Procurement Currency *</label>
                     <select
@@ -763,24 +768,32 @@ export const ImportRequisitionsPage: React.FC = () => {
                 </div>
 
                 {/* Line Items Table */}
-                <div className="border border-slate-700 rounded-lg p-3 bg-slate-900/40 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-cyan-400">Requisition Line Items</span>
-                    <button type="button" onClick={handleAddLine} className="btn btn-secondary btn-sm flex items-center gap-1">
+                <div style={{
+                  padding: '1.15rem',
+                  background: 'rgba(15, 23, 42, 0.4)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>Requisition Line Items</span>
+                    <button type="button" onClick={handleAddLine} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Plus size={14} />
                       <span>Add Product Line</span>
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="table text-sm">
+                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
-                        <tr>
-                          <th style={{ width: '35%' }}>Product *</th>
-                          <th style={{ width: '15%' }}>Qty Requested *</th>
-                          <th style={{ width: '20%' }}>Est. Unit Rate ({currency})</th>
-                          <th style={{ width: '20%' }}>Line Total</th>
-                          <th style={{ width: '10%' }}>Actions</th>
+                        <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '35%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PRODUCT *</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '15%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY REQUESTED *</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '20%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EST. UNIT RATE ({currency})</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '20%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '10%', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTIONS</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -896,93 +909,126 @@ export const ImportRequisitionsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '850px', width: '95%' }}>
             <div className="modal-header">
-              <div className="flex items-center gap-2">
-                <FileText className="text-cyan-400" size={20} />
-                <h3 className="font-bold text-lg">
-                  Requisition Reference: <span className="font-mono text-cyan-400">{selectedReq.requisitionNumber}</span>
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>Requisition Reference:</span>
+                    <span className="font-mono" style={{ color: 'var(--accent-cyan)' }}>{selectedReq.requisitionNumber}</span>
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {selectedReq.businessUnitId} · Created {new Date(selectedReq.requestDate).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
-              <button onClick={() => setSelectedReq(null)} className="btn btn-secondary btn-sm">
-                <X size={16} />
-              </button>
+              <button onClick={() => setSelectedReq(null)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.65rem' }}>✕</button>
             </div>
 
-            <div className="modal-body space-y-4 max-h-[75vh] overflow-y-auto">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-xs">
-                <div>
-                  <span className="text-gray-400">Status:</span>
-                  <div className="mt-1">{getStatusBadge(selectedReq.status)}</div>
+            <div className="modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '0.85rem',
+                padding: '1.15rem',
+                background: 'rgba(15, 23, 42, 0.6)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+              }}>
+                <div style={{ padding: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Status</div>
+                  <div style={{ marginTop: '0.35rem' }}>{getStatusBadge(selectedReq.status)}</div>
                 </div>
-                <div>
-                  <span className="text-gray-400">Request Date:</span>
-                  <div className="font-bold mt-1">{new Date(selectedReq.requestDate).toLocaleDateString()}</div>
+                <div style={{ padding: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Request Date</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: '0.25rem' }}>{new Date(selectedReq.requestDate).toLocaleDateString()}</div>
                 </div>
-                <div>
-                  <span className="text-gray-400">Estimated Budget:</span>
-                  <div className="font-mono font-bold mt-1 text-cyan-400">
-                    {selectedReq.currency} {Number(selectedReq.estimatedBudget || 0).toLocaleString()}
+                <div style={{ padding: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Estimated Budget</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--accent-cyan)', marginTop: '0.25rem' }} className="font-mono">
+                    {selectedReq.currency} {Number(selectedReq.estimatedBudget || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div>
-                  <span className="text-gray-400">Required Delivery:</span>
-                  <div className="font-bold mt-1">
+                <div style={{ padding: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Required Delivery</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: '0.25rem' }}>
                     {selectedReq.requiredDeliveryDate ? new Date(selectedReq.requiredDeliveryDate).toLocaleDateString() : 'Immediate'}
                   </div>
                 </div>
               </div>
 
-              <div>
-                <span className="text-gray-400 text-xs">Justification & Business Rationale:</span>
-                <p className="text-sm bg-slate-900/30 p-2 rounded border border-slate-800 mt-1">
-                  {selectedReq.justification || 'Standard scheduled inventory replenishment request.'}
-                </p>
-              </div>
+              {selectedReq.justification && (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  background: 'rgba(15, 23, 42, 0.5)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Justification & Business Rationale</div>
+                  <div style={{ color: 'var(--text-primary)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{selectedReq.justification}</div>
+                </div>
+              )}
 
               {selectedReq.rejectionReason && (
-                <div className="p-3 bg-red-950/40 border border-red-800 rounded-lg text-sm text-red-300">
-                  <span className="font-bold flex items-center gap-1 mb-1">
-                    <AlertTriangle size={14} /> Rejection Reason:
-                  </span>
-                  {selectedReq.rejectionReason}
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--accent-rose)',
+                  fontSize: '0.85rem',
+                }}>
+                  <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                    <AlertTriangle size={15} /> Rejection Reason:
+                  </div>
+                  <div>{selectedReq.rejectionReason}</div>
                 </div>
               )}
 
               {/* Line Items */}
               <div>
-                <h4 className="font-bold text-sm text-cyan-400 mb-2">Requested Products & Specifications</h4>
-                <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                  <table className="table text-xs">
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.65rem' }}>
+                  Requested Products & Specifications
+                </h4>
+                <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                  <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                     <thead>
-                      <tr>
-                        <th>Item Code</th>
-                        <th>Product Description</th>
-                        <th>Requested Qty</th>
-                        <th>Est. Unit Price</th>
-                        <th>Total</th>
-                        <th>Pipeline Review</th>
+                      <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ITEM CODE</th>
+                        <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PRODUCT DESCRIPTION</th>
+                        <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>REQUESTED QTY</th>
+                        <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EST. UNIT PRICE</th>
+                        <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>TOTAL</th>
+                        <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PIPELINE REVIEW</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedReq.lines?.map((l) => (
-                        <tr key={l.requisitionLineId}>
-                          <td className="font-mono text-cyan-400">{l.item?.itemCode || 'ITM-01'}</td>
-                          <td>
-                            <div className="font-medium">{l.item?.itemName}</div>
+                        <tr key={l.requisitionLineId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono text-cyan-400">
+                            {l.item?.itemCode || 'ITM-01'}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.95rem' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{l.item?.itemName}</div>
                             {l.technicalSpecification && (
-                              <div className="text-gray-400 text-[11px] mt-0.5">{l.technicalSpecification}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{l.technicalSpecification}</div>
                             )}
                           </td>
-                          <td className="font-bold">{l.quantityRequested}</td>
-                          <td className="font-mono">
-                            {selectedReq.currency} {Number(l.estimatedUnitPrice).toLocaleString()}
+                          <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {Number(l.quantityRequested).toLocaleString()}
                           </td>
-                          <td className="font-mono font-bold text-cyan-400">
-                            {selectedReq.currency} {(Number(l.quantityRequested) * Number(l.estimatedUnitPrice)).toLocaleString()}
+                          <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }} className="font-mono">
+                            {selectedReq.currency} {Number(l.estimatedUnitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td>
+                          <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">
+                            {selectedReq.currency} {(Number(l.quantityRequested) * Number(l.estimatedUnitPrice)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
                             <button
                               onClick={() => handleStockReview(l.itemId)}
-                              className="btn btn-secondary btn-sm p-1 text-cyan-400 flex items-center gap-1"
+                              className="btn btn-secondary btn-sm"
+                              style={{ color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem' }}
                             >
                               <TrendingUp size={12} />
                               <span>Review Stock</span>
@@ -996,22 +1042,20 @@ export const ImportRequisitionsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="modal-footer flex items-center justify-between">
+            <div className="modal-footer" style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <button onClick={() => setSelectedReq(null)} className="btn btn-secondary">
                 Close
               </button>
-              <div className="flex items-center gap-2">
-                {selectedReq.status === 'APPROVED' && canManage && (
-                  <button
-                    onClick={() => setShowConvertModal(true)}
-                    className="btn btn-primary flex items-center gap-1"
-                    style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: 700 }}
-                  >
-                    <span>Generate Purchase Order</span>
-                    <ArrowRight size={16} />
-                  </button>
-                )}
-              </div>
+              {selectedReq.status === 'APPROVED' && canManage && (
+                <button
+                  onClick={() => setShowConvertModal(true)}
+                  className="btn btn-cyan"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+                >
+                  <span>Generate Purchase Order</span>
+                  <ArrowRight size={16} />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1022,94 +1066,135 @@ export const ImportRequisitionsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '650px', width: '90%' }}>
             <div className="modal-header">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="text-cyan-400" size={20} />
-                <h3 className="font-bold text-lg">Inventory Demand & Pipeline Review</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <TrendingUp size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Inventory Demand & Pipeline Review
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stock balance & replenishment buffer analysis</span>
+                </div>
               </div>
-              <button onClick={() => setShowStockReviewModal(false)} className="btn btn-secondary btn-sm">
-                <X size={16} />
-              </button>
+              <button onClick={() => setShowStockReviewModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.65rem' }}>✕</button>
             </div>
 
-            <div className="modal-body space-y-4">
+            <div className="modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {reviewLoading || !selectedItemReview ? (
-                <div className="text-center py-8 text-gray-400">
-                  <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-cyan-400" />
-                  Calculating inventory safety thresholds...
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <RefreshCw size={24} className="spin" style={{ display: 'inline-block', marginBottom: '0.5rem' }} />
+                  <div>Calculating inventory safety thresholds...</div>
                 </div>
               ) : (
                 <>
-                  <div className="p-3 bg-slate-900 rounded-lg border border-slate-800">
-                    <span className="text-xs text-gray-400">Product:</span>
-                    <div className="text-base font-bold text-white">
+                  <div style={{
+                    padding: '1rem',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                  }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>PRODUCT</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.15rem' }}>
                       {selectedItemReview.itemCode} - {selectedItemReview.itemName}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      Category: {selectedItemReview.category || 'Vehicle'} · Brand: {selectedItemReview.brand || 'Bajaj'}
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                      Category: <strong>{selectedItemReview.category || 'Vehicle'}</strong> · Brand: <strong>{selectedItemReview.brand || 'Bajaj'}</strong>
                     </div>
                   </div>
 
                   {/* Stock Metrics Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/50">
-                      <span className="text-xs text-gray-400">On-Hand Stock</span>
-                      <div className="text-xl font-bold font-mono mt-1 text-emerald-400">
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.75rem',
+                  }}>
+                    <div style={{
+                      padding: '0.85rem 0.5rem',
+                      background: 'rgba(15, 23, 42, 0.5)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>On-Hand Stock</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.25rem' }}>
                         {selectedItemReview.stockOnHand}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/50">
-                      <span className="text-xs text-gray-400">Reserved (Allotted)</span>
-                      <div className="text-xl font-bold font-mono mt-1 text-amber-400">
+
+                    <div style={{
+                      padding: '0.85rem 0.5rem',
+                      background: 'rgba(15, 23, 42, 0.5)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Reserved (Allotted)</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)', marginTop: '0.25rem' }}>
                         {selectedItemReview.stockReserved}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/50">
-                      <span className="text-xs text-gray-400">Available Stock</span>
-                      <div className="text-xl font-bold font-mono mt-1 text-cyan-400">
+
+                    <div style={{
+                      padding: '0.85rem 0.5rem',
+                      background: 'rgba(15, 23, 42, 0.5)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Available Stock</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
                         {selectedItemReview.stockAvailable}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/50">
-                      <span className="text-xs text-gray-400">Open PO Pipeline</span>
-                      <div className="text-xl font-bold font-mono mt-1 text-blue-400">
+
+                    <div style={{
+                      padding: '0.85rem 0.5rem',
+                      background: 'rgba(15, 23, 42, 0.5)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Open PO Pipeline</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.25rem' }}>
                         {selectedItemReview.openPOQuantity}
                       </div>
                     </div>
                   </div>
 
-                  {/* Pipeline Recommendation */}
-                  <div className="p-4 rounded-lg border border-cyan-900/60 bg-cyan-950/20 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-cyan-300 text-sm">
-                      <Info size={16} /> Replenishment & Safety Stock Intelligence
+                  {/* Replenishment Recommendation */}
+                  <div style={{
+                    padding: '1rem 1.15rem',
+                    background: 'rgba(0, 210, 211, 0.06)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid rgba(0, 210, 211, 0.25)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.825rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.65rem' }}>
+                      <Info size={16} />
+                      <span>Replenishment & Safety Stock Intelligence</span>
                     </div>
-                    <div className="text-xs text-gray-300 space-y-1">
-                      <div>
-                        • Pending Requisitions in Pipeline: <span className="font-bold">{selectedItemReview.pendingRequisitionQuantity} units</span>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <div>• Pending Requisitions in Pipeline: <strong>{selectedItemReview.pendingRequisitionQuantity} units</strong></div>
+                      <div>• Total Anticipated Inventory Supply: <strong>{selectedItemReview.totalPipeline} units</strong></div>
+                      <div>• Minimum Order Safety Buffer: <strong>{selectedItemReview.safetyStockThreshold} units</strong></div>
+                      <div style={{ marginTop: '0.35rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(0, 210, 211, 0.2)', color: 'var(--text-primary)', fontWeight: 700 }}>
+                        {selectedItemReview.suggestedOrderQuantity > 0 ? (
+                          <span style={{ color: 'var(--accent-amber)' }}>
+                            Recommended Order Quantity: <strong style={{ color: 'var(--accent-cyan)', fontSize: '0.95rem' }}>{selectedItemReview.suggestedOrderQuantity} unit(s)</strong> to meet minimum safety buffer.
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--accent-emerald)' }}>
+                            Inventory pipeline is healthy. Current stock and incoming POs meet the threshold.
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        • Total Anticipated Inventory Supply: <span className="font-bold">{selectedItemReview.totalPipeline} units</span>
-                      </div>
-                      <div>
-                        • Minimum Order Safety Buffer: <span className="font-bold">{selectedItemReview.safetyStockThreshold} units</span>
-                      </div>
-                    </div>
-                    <div className="pt-2 border-t border-cyan-900/40 text-xs">
-                      {selectedItemReview.suggestedOrderQuantity > 0 ? (
-                        <span className="text-amber-400 font-semibold">
-                          Recommended Order Quantity: {selectedItemReview.suggestedOrderQuantity} unit(s) to meet minimum safety buffer.
-                        </span>
-                      ) : (
-                        <span className="text-emerald-400 font-semibold">
-                          Inventory pipeline is healthy. Current stock and incoming POs meet the threshold.
-                        </span>
-                      )}
                     </div>
                   </div>
                 </>
               )}
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowStockReviewModal(false)} className="btn btn-secondary">
                 Close
               </button>
@@ -1123,24 +1208,36 @@ export const ImportRequisitionsPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '750px', width: '90%' }}>
             <div className="modal-header">
-              <div className="flex items-center gap-2">
-                <ArrowRight className="text-cyan-400" size={20} />
-                <h3 className="font-bold text-lg">
-                  Convert Requisition {selectedReq.requisitionNumber} to Purchase Order
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ArrowRight size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Convert Requisition to Purchase Order
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Generate formal PO from {selectedReq.requisitionNumber}</span>
+                </div>
               </div>
-              <button onClick={() => setShowConvertModal(false)} className="btn btn-secondary btn-sm">
-                <X size={16} />
+              <button onClick={() => setShowConvertModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.65rem' }}>
+                ✕
               </button>
             </div>
 
             <form onSubmit={handleConvertToPO}>
-              <div className="modal-body space-y-4">
-                <p className="text-sm text-gray-300">
-                  This will generate an official Purchase Order in <span className="font-bold text-cyan-400">DRAFT</span> status with all requisition line items, contractual terms, and designated importer bank accounts.
-                </p>
+              <div className="modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  background: 'rgba(0, 210, 211, 0.08)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(0, 210, 211, 0.25)',
+                  fontSize: '0.825rem',
+                  color: 'var(--text-primary)',
+                }}>
+                  This will generate an official Purchase Order in <strong style={{ color: 'var(--accent-cyan)' }}>DRAFT</strong> status with all requisition line items, commercial terms, and designated importer bank accounts.
+                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Select Foreign Supplier / Manufacturer *</label>
                     <select
@@ -1175,7 +1272,7 @@ export const ImportRequisitionsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Incoterms *</label>
                     <select
@@ -1214,22 +1311,33 @@ export const ImportRequisitionsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Agreed Commercial Payment Terms</label>
-                  <input
-                    type="text"
-                    className="input w-full"
-                    value={convertPaymentTerms}
-                    onChange={(e) => setConvertPaymentTerms(e.target.value)}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Port of Discharge</label>
+                    <input
+                      type="text"
+                      className="input w-full text-xs"
+                      value={convertPortDischarge}
+                      onChange={(e) => setConvertPortDischarge(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Agreed Commercial Payment Terms</label>
+                    <input
+                      type="text"
+                      className="input w-full text-xs"
+                      value={convertPaymentTerms}
+                      onChange={(e) => setConvertPaymentTerms(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="modal-footer flex items-center justify-between">
+              <div className="modal-footer" style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <button type="button" onClick={() => setShowConvertModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
+                <button type="submit" className="btn btn-cyan" disabled={saving}>
                   {saving ? 'Converting...' : 'Generate Purchase Order'}
                 </button>
               </div>

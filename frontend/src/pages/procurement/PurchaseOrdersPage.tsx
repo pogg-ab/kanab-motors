@@ -841,29 +841,32 @@ export const PurchaseOrdersPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '1000px', width: '95%' }}>
             <div className="modal-header">
-              <div className="flex items-center gap-3">
-                <FileText className="text-cyan-400" size={22} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={20} color="var(--accent-cyan)" />
+                </div>
                 <div>
-                  <h3 className="font-bold text-lg flex items-center gap-2">
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span>PO Ref:</span>
-                    <span className="font-mono text-cyan-400">{selectedOrder.poNumber}</span>
-                    <span className="ml-2">{getStatusBadge(selectedOrder.status)}</span>
+                    <span className="font-mono" style={{ color: 'var(--accent-cyan)' }}>{selectedOrder.poNumber}</span>
+                    <span style={{ marginLeft: '0.5rem' }}>{getStatusBadge(selectedOrder.status)}</span>
                   </h3>
-                  <span className="text-xs text-gray-400">
-                    Supplier: {selectedOrder.supplier?.supplierName} · Value: {selectedOrder.currency} {selectedOrder.lines?.reduce((s, l) => s + Number(l.quantityOrdered) * Number(l.unitPrice), 0).toLocaleString()}
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Supplier: {selectedOrder.supplier?.supplierName || 'Unknown'} · Value: {selectedOrder.currency} {selectedOrder.lines?.reduce((s, l) => s + Number(l.quantityOrdered) * Number(l.unitPrice), 0).toLocaleString()}
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <button
                   onClick={() => handleOpenPrintDocument(selectedOrder.poId)}
-                  className="btn btn-secondary btn-sm flex items-center gap-1 text-cyan-400"
+                  className="btn btn-secondary btn-sm"
+                  style={{ color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
                   <Printer size={14} />
                   <span>Client-Format PO</span>
                 </button>
-                <button onClick={() => setSelectedOrder(null)} className="btn btn-secondary btn-sm">
-                  <X size={16} />
+                <button onClick={() => setSelectedOrder(null)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.65rem' }}>
+                  ✕
                 </button>
               </div>
             </div>
@@ -968,83 +971,83 @@ export const PurchaseOrdersPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="modal-body space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="modal-body" style={{ padding: '1.5rem', maxHeight: '75vh', overflowY: 'auto' }}>
               {/* TAB 1: Commercial Terms & Lines */}
               {detailTab === 'commercial' && (
-                <div className="space-y-4">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {/* Commercial Specifications Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-xs">
-                    <div>
-                      <span className="text-gray-400">Incoterms:</span>
-                      <div className="font-bold text-cyan-300 mt-0.5">{selectedOrder.incoterms || 'FOB'}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Shipment Mode:</span>
-                      <div className="font-bold text-white mt-0.5">{selectedOrder.modeOfShipment || 'SEA'}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Port of Loading:</span>
-                      <div className="font-bold text-white mt-0.5">{selectedOrder.portOfLoading}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Port of Discharge:</span>
-                      <div className="font-bold text-white mt-0.5">{selectedOrder.portOfDischarge}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Payment Terms:</span>
-                      <div className="font-bold text-white mt-0.5">{selectedOrder.paymentTerms}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Lead Time Days:</span>
-                      <div className="font-bold text-white mt-0.5">{selectedOrder.deliveryLeadTimeDays || 30} Days</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Expected Delivery:</span>
-                      <div className="font-bold text-white mt-0.5">{selectedOrder.expectedDeliveryDate || '30 days post-issuance'}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Importer Bank:</span>
-                      <div className="font-bold text-cyan-300 mt-0.5">{selectedOrder.bankAccount?.bankName || 'CBE Forex'}</div>
-                    </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '0.85rem',
+                    padding: '1.15rem',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                  }}>
+                    {[
+                      { label: 'Incoterms', val: selectedOrder.incoterms || 'FOB', color: 'var(--accent-cyan)' },
+                      { label: 'Shipment Mode', val: selectedOrder.modeOfShipment || 'SEA', color: 'var(--text-primary)' },
+                      { label: 'Port of Loading', val: selectedOrder.portOfLoading, color: 'var(--text-primary)' },
+                      { label: 'Port of Discharge', val: selectedOrder.portOfDischarge, color: 'var(--text-primary)' },
+                      { label: 'Payment Terms', val: selectedOrder.paymentTerms, color: 'var(--text-primary)' },
+                      { label: 'Lead Time Days', val: `${selectedOrder.deliveryLeadTimeDays || 30} Days`, color: 'var(--text-primary)' },
+                      { label: 'Expected Delivery', val: selectedOrder.expectedDeliveryDate || '30 days post-issuance', color: 'var(--text-primary)' },
+                      { label: 'Importer Bank', val: selectedOrder.bankAccount?.bankName || 'CBE Forex', color: 'var(--accent-emerald)' },
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ padding: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>{item.label}</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: item.color, marginTop: '0.2rem' }}>{item.val}</div>
+                      </div>
+                    ))}
                   </div>
 
                   {/* Amount in words */}
                   {selectedOrder.amountInWords && (
-                    <div className="p-2.5 bg-cyan-950/20 border border-cyan-900/50 rounded-lg text-xs">
-                      <span className="font-bold text-cyan-300">Amount in Words: </span>
-                      <span className="font-semibold text-white">{selectedOrder.amountInWords}</span>
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      background: 'rgba(0, 210, 211, 0.08)',
+                      border: '1px solid rgba(0, 210, 211, 0.25)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '0.825rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}>
+                      <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>Amount in Words:</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontStyle: 'italic' }}>{selectedOrder.amountInWords}</span>
                     </div>
                   )}
 
                   {/* Line Items Table */}
-                  <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                    <table className="table text-xs">
+                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
-                        <tr>
-                          <th>Sl.</th>
-                          <th>Item Code</th>
-                          <th>Description of Goods</th>
-                          <th>HSN/SAC</th>
-                          <th style={{ textAlign: 'right' }}>Qty</th>
-                          <th>UOM</th>
-                          <th style={{ textAlign: 'right' }}>Unit Rate</th>
-                          <th style={{ textAlign: 'right' }}>Line Total</th>
+                        <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>SL.</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ITEM CODE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DESCRIPTION OF GOODS</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>HSN/SAC</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UOM</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UNIT RATE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.lines?.map((l, idx) => (
-                          <tr key={l.poLineId}>
-                            <td>{idx + 1}</td>
-                            <td className="font-mono text-cyan-400">{l.item?.itemCode || `ITM-${l.itemId}`}</td>
-                            <td>
-                              <div className="font-medium">{l.itemDescription || l.item?.itemName}</div>
+                          <tr key={l.poLineId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.75rem 0.95rem' }}>{idx + 1}</td>
+                            <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono text-cyan-400">{l.item?.itemCode || `ITM-${l.itemId}`}</td>
+                            <td style={{ padding: '0.75rem 0.95rem' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{l.itemDescription || l.item?.itemName}</div>
                             </td>
-                            <td className="font-mono">{l.hsnSacCode || '8711.20'}</td>
-                            <td className="font-bold text-right">{l.quantityOrdered}</td>
-                            <td>{l.uom || 'PCS'}</td>
-                            <td className="font-mono text-right">{Number(l.unitPrice).toLocaleString()}</td>
-                            <td className="font-mono font-bold text-right text-cyan-400">
-                              {(Number(l.quantityOrdered) * Number(l.unitPrice)).toLocaleString()}
+                            <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono">{l.hsnSacCode || '8711.20'}</td>
+                            <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>{l.quantityOrdered}</td>
+                            <td style={{ padding: '0.75rem 0.95rem' }}>{l.uom || 'PCS'}</td>
+                            <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }} className="font-mono">{Number(l.unitPrice).toLocaleString()}</td>
+                            <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">
+                              {(Number(l.quantityOrdered) * Number(l.unitPrice)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                           </tr>
                         ))}
@@ -1053,12 +1056,13 @@ export const PurchaseOrdersPage: React.FC = () => {
                   </div>
 
                   {/* Commercial Readiness Check Button */}
-                  <div className="flex justify-end pt-2">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
                     <button
                       onClick={() => handleValidateReadiness(selectedOrder.poId)}
-                      className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                     >
-                      <ShieldCheck size={14} className="text-cyan-400" />
+                      <ShieldCheck size={14} color="var(--accent-cyan)" />
                       <span>Verify Commercial Readiness</span>
                     </button>
                   </div>
@@ -1067,56 +1071,58 @@ export const PurchaseOrdersPage: React.FC = () => {
 
               {/* TAB 2: Regulatory Compliance & Clearances (Phase 3) */}
               {detailTab === 'compliance' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <h4 className="font-bold text-sm text-cyan-400">Import Permits & Regulatory Clearances</h4>
-                      <p className="text-xs text-gray-400">
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>Import Permits & Regulatory Clearances</h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
                         Tracks mandatory government permits, central bank approvals, and pre-shipment inspection certificates.
                       </p>
                     </div>
                     <button
                       onClick={() => setShowAddComplianceModal(true)}
-                      className="btn btn-primary btn-sm flex items-center gap-1"
+                      className="btn btn-cyan btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                     >
                       <Plus size={14} />
                       <span>Add Requirement</span>
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                    <table className="table text-xs">
+                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
-                        <tr>
-                          <th>Clearance Type</th>
-                          <th>Issuing Authority</th>
-                          <th>Application Ref</th>
-                          <th>Document Ref</th>
-                          <th>Expiry Date</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'right' }}>Toggle Status</th>
+                        <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>CLEARANCE TYPE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUING AUTHORITY</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>APPLICATION REF</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DOCUMENT REF</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EXPIRY DATE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>TOGGLE STATUS</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.complianceRecords && selectedOrder.complianceRecords.length > 0 ? (
                           selectedOrder.complianceRecords.map((rec) => (
-                            <tr key={rec.complianceRecordId}>
-                              <td className="font-semibold text-cyan-300">{rec.requirementType}</td>
-                              <td>{rec.issuingAuthority}</td>
-                              <td className="font-mono">{rec.applicationReference || 'Pending'}</td>
-                              <td className="font-mono">{rec.documentReference || 'Pending'}</td>
-                              <td>{rec.expiryDate || 'N/A'}</td>
-                              <td>
+                            <tr key={rec.complianceRecordId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '0.75rem 0.95rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>{rec.requirementType}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }}>{rec.issuingAuthority}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono">{rec.applicationReference || 'Pending'}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono">{rec.documentReference || 'Pending'}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }}>{rec.expiryDate || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
                                 {rec.status === 'APPROVED' ? (
                                   <span className="badge badge-success"><CheckCircle2 size={10} className="inline mr-1" /> APPROVED</span>
                                 ) : (
                                   <span className="badge badge-warning"><Clock size={10} className="inline mr-1" /> {rec.status}</span>
                                 )}
                               </td>
-                              <td style={{ textAlign: 'right' }}>
+                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }}>
                                 <button
                                   onClick={() => handleToggleComplianceStatus(rec.complianceRecordId, rec.status)}
-                                  className="btn btn-secondary btn-sm text-[11px]"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
                                 >
                                   {rec.status === 'APPROVED' ? 'Mark Pending' : 'Mark Approved'}
                                 </button>
@@ -1125,7 +1131,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={7} className="text-center py-6 text-gray-400">
+                            <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                               No regulatory compliance records tracked for this PO yet.
                             </td>
                           </tr>
@@ -1138,35 +1144,36 @@ export const PurchaseOrdersPage: React.FC = () => {
 
               {/* TAB 3: Payment Schedules & Milestones (Phase 4) */}
               {detailTab === 'payments' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <h4 className="font-bold text-sm text-cyan-400">Contractual Payment Schedules & Milestones</h4>
-                      <p className="text-xs text-gray-400">
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>Contractual Payment Schedules & Milestones</h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
                         Tracks advance, document, and final payment milestones with live balance reconciliation.
                       </p>
                     </div>
                     <button
                       onClick={() => setShowAddScheduleModal(true)}
-                      className="btn btn-primary btn-sm flex items-center gap-1"
+                      className="btn btn-cyan btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                     >
                       <Plus size={14} />
                       <span>Add Milestone</span>
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                    <table className="table text-xs">
+                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
-                        <tr>
-                          <th>Milestone Name</th>
-                          <th>Method</th>
-                          <th>Due Date</th>
-                          <th>Amount Due</th>
-                          <th>Amount Paid</th>
-                          <th>Remaining Balance</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>MILESTONE NAME</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>METHOD</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DUE DATE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT DUE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT PAID</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>REMAINING BALANCE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTIONS</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1177,20 +1184,20 @@ export const PurchaseOrdersPage: React.FC = () => {
                               .reduce((acc, t) => acc + Number(t.amountPaid), 0) || 0;
                             const remaining = Math.max(0, Number(s.amountDue) - totalPaid);
                             return (
-                              <tr key={s.paymentScheduleId}>
-                                <td className="font-semibold text-white">{s.milestoneName}</td>
-                                <td>{s.paymentMethod}</td>
-                                <td>{s.dueDate || 'Upon Event'}</td>
-                                <td className="font-mono font-bold">
+                              <tr key={s.paymentScheduleId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '0.75rem 0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>{s.milestoneName}</td>
+                                <td style={{ padding: '0.75rem 0.95rem' }}>{s.paymentMethod}</td>
+                                <td style={{ padding: '0.75rem 0.95rem' }}>{s.dueDate || 'Upon Event'}</td>
+                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700 }} className="font-mono">
                                   {s.currency} {Number(s.amountDue).toLocaleString()}
                                 </td>
-                                <td className="font-mono text-emerald-400">
+                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', color: 'var(--accent-emerald)' }} className="font-mono">
                                   {s.currency} {totalPaid.toLocaleString()}
                                 </td>
-                                <td className="font-mono font-bold text-amber-400">
+                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-amber)' }} className="font-mono">
                                   {s.currency} {remaining.toLocaleString()}
                                 </td>
-                                <td>
+                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
                                   {remaining <= 0 ? (
                                     <span className="badge badge-success">PAID</span>
                                   ) : totalPaid > 0 ? (
@@ -1199,7 +1206,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                                     <span className="badge badge-warning">DUE</span>
                                   )}
                                 </td>
-                                <td style={{ textAlign: 'right' }}>
+                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }}>
                                   {remaining > 0 && (
                                     <button
                                       onClick={() => {
@@ -1207,8 +1214,8 @@ export const PurchaseOrdersPage: React.FC = () => {
                                         setTxnAmount(remaining);
                                         setShowRecordTxnModal(true);
                                       }}
-                                      className="btn btn-primary btn-sm text-[11px]"
-                                      style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: 600 }}
+                                      className="btn btn-cyan btn-sm"
+                                      style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
                                     >
                                       Record Payment
                                     </button>
@@ -1219,7 +1226,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                           })
                         ) : (
                           <tr>
-                            <td colSpan={8} className="text-center py-6 text-gray-400">
+                            <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                               No payment milestones created yet.
                             </td>
                           </tr>
@@ -1232,58 +1239,59 @@ export const PurchaseOrdersPage: React.FC = () => {
 
               {/* TAB 4: Letter of Credit Tracking (Phase 4) */}
               {detailTab === 'lc' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <h4 className="font-bold text-sm text-cyan-400">Letters of Credit (L/C) Portfolio</h4>
-                      <p className="text-xs text-gray-400">
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>Letters of Credit (L/C) Portfolio</h4>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
                         Tracks issued documentary credit obligations, advising banks, validity periods, and latest shipment deadlines.
                       </p>
                     </div>
                     <button
                       onClick={() => setShowAddLCModal(true)}
-                      className="btn btn-primary btn-sm flex items-center gap-1"
+                      className="btn btn-cyan btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                     >
                       <Plus size={14} />
                       <span>Record L/C</span>
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                    <table className="table text-xs">
+                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
-                        <tr>
-                          <th>L/C Reference Number</th>
-                          <th>Issuing Bank</th>
-                          <th>Advising Bank</th>
-                          <th>Amount</th>
-                          <th>Issue Date</th>
-                          <th>Expiry Date</th>
-                          <th>Latest Shipment</th>
-                          <th>Status</th>
+                        <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>L/C REFERENCE NUMBER</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUING BANK</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ADVISING BANK</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUE DATE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EXPIRY DATE</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LATEST SHIPMENT</th>
+                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.lettersOfCredit && selectedOrder.lettersOfCredit.length > 0 ? (
                           selectedOrder.lettersOfCredit.map((lc) => (
-                            <tr key={lc.lcId}>
-                              <td className="font-mono font-bold text-cyan-400">{lc.lcNumber}</td>
-                              <td>{lc.issuingBank}</td>
-                              <td>{lc.advisingBank || 'N/A'}</td>
-                              <td className="font-mono font-bold">
+                            <tr key={lc.lcId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '0.75rem 0.95rem', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">{lc.lcNumber}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }}>{lc.issuingBank}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }}>{lc.advisingBank || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700 }} className="font-mono">
                                 {lc.currency} {Number(lc.amount).toLocaleString()}
                               </td>
-                              <td>{new Date(lc.issueDate).toLocaleDateString()}</td>
-                              <td className="text-amber-400 font-semibold">{new Date(lc.expiryDate).toLocaleDateString()}</td>
-                              <td>{lc.latestShipmentDate ? new Date(lc.latestShipmentDate).toLocaleDateString() : 'N/A'}</td>
-                              <td>
+                              <td style={{ padding: '0.75rem 0.95rem' }}>{new Date(lc.issueDate).toLocaleDateString()}</td>
+                              <td style={{ padding: '0.75rem 0.95rem', color: 'var(--accent-amber)', fontWeight: 600 }}>{new Date(lc.expiryDate).toLocaleDateString()}</td>
+                              <td style={{ padding: '0.75rem 0.95rem' }}>{lc.latestShipmentDate ? new Date(lc.latestShipmentDate).toLocaleDateString() : 'N/A'}</td>
+                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
                                 <span className="badge badge-success">{lc.status}</span>
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={8} className="text-center py-6 text-gray-400">
+                            <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                               No Letters of Credit recorded for this Purchase Order.
                             </td>
                           </tr>
@@ -1309,23 +1317,28 @@ export const PurchaseOrdersPage: React.FC = () => {
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '950px', width: '95%' }}>
             <div className="modal-header">
-              <div className="flex items-center gap-2">
-                <FileText className="text-cyan-400" size={20} />
-                <h3 className="font-bold text-lg">
-                  {editingOrder ? `Edit Purchase Order ${editingOrder.poNumber}` : 'New Commercial Purchase Order'}
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {editingOrder ? `Edit Purchase Order ${editingOrder.poNumber}` : 'New Commercial Purchase Order'}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Commercial import terms, foreign banking & allocation</span>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary btn-sm">
-                <X size={16} />
+              <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.65rem' }}>
+                ✕
               </button>
             </div>
 
             <form onSubmit={handleSavePO}>
-              <div className="modal-body space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {poError && <ModalErrorAlert error={poError} onDismiss={() => setPoError(null)} />}
 
                 {/* Primary Supplier & Terms */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Foreign Supplier / Vendor *</label>
                     <select
@@ -1370,12 +1383,20 @@ export const PurchaseOrdersPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Commercial Terms Section (Phase 2 - IMP-07 to IMP-10) */}
-                <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 space-y-3">
-                  <span className="font-bold text-xs text-cyan-400 uppercase tracking-wider">
-                    Commercial & Logistics Terms
+                {/* Commercial Terms Section */}
+                <div style={{
+                  padding: '1.15rem',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Commercial & Logistics Specifications
                   </span>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem' }}>
                     <div>
                       <label className="form-label">Incoterms *</label>
                       <select
@@ -1423,7 +1444,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
                     <div>
                       <label className="form-label">Payment Terms Agreement</label>
                       <input
@@ -1462,26 +1483,34 @@ export const PurchaseOrdersPage: React.FC = () => {
                 </div>
 
                 {/* Line Items Table */}
-                <div className="border border-slate-700 rounded-lg p-3 bg-slate-900/40 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-cyan-400">Order Line Items</span>
-                    <button type="button" onClick={handleAddLine} className="btn btn-secondary btn-sm flex items-center gap-1">
+                <div style={{
+                  padding: '1.15rem',
+                  background: 'rgba(15, 23, 42, 0.4)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>Order Line Items</span>
+                    <button type="button" onClick={handleAddLine} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Plus size={14} />
                       <span>Add Item</span>
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="table text-sm">
+                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
-                        <tr>
-                          <th style={{ width: '30%' }}>Product *</th>
-                          <th style={{ width: '12%' }}>HSN/SAC</th>
-                          <th style={{ width: '15%' }}>Qty *</th>
-                          <th style={{ width: '10%' }}>UOM</th>
-                          <th style={{ width: '18%' }}>Unit Price ({currency}) *</th>
-                          <th style={{ width: '15%' }}>Line Total</th>
-                          <th></th>
+                        <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '30%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PRODUCT *</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '12%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>HSN/SAC</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '15%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY *</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UOM</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '18%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UNIT PRICE ({currency}) *</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '15%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
+                          <th style={{ padding: '0.65rem 0.85rem', width: '5%' }}></th>
                         </tr>
                       </thead>
                       <tbody>
