@@ -24,6 +24,7 @@ import {
   ArrowRight,
   Info,
   X,
+  Globe,
 } from 'lucide-react';
 import {
   api,
@@ -540,8 +541,19 @@ export const PurchaseOrdersPage: React.FC = () => {
     }
   };
 
+  // Computed metrics for KPI cards
+  const confirmedOrders = orders.filter((o) => o.status === 'CONFIRMED');
+  const draftOrders = orders.filter((o) => o.status === 'DRAFT');
+  const submittedOrders = orders.filter((o) => o.status === 'SUBMITTED');
+  const receivedOrders = orders.filter((o) => o.status === 'RECEIVED' || o.status === 'PARTIALLY_RECEIVED');
+  const totalValueUSD = orders.reduce((sum, o) => {
+    const val = (o.lines || []).reduce((lSum, l) => lSum + Number(l.quantityOrdered || 0) * Number(l.unitPrice || 0), 0);
+    return sum + val;
+  }, 0);
+  const confirmationRate = orders.length > 0 ? Math.round((confirmedOrders.length / orders.length) * 100) : 0;
+
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
       {/* Toast Notification */}
       {notification && (
         <div
@@ -565,102 +577,156 @@ export const PurchaseOrdersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header Banner */}
-      <div
-        className="card"
-        style={{
-          background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)',
-          borderLeft: '4px solid var(--accent-cyan)',
-        }}
-      >
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="badge" style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: 700 }}>
-                KMSICAMS-12 Phase 2-4
-              </span>
-              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                Purchase Orders & Commercial Import Execution
-              </h2>
-            </div>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-              Commercial terms, IEC & bank configurations, regulatory compliance checklists, milestone payment schedules, and official PO document printing.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={loadData} className="btn btn-secondary" disabled={loading}>
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-              <span>Refresh</span>
+      {/* Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+        <span style={{ color: 'var(--accent-cyan)' }}>★</span>
+        <span>Logistics & Import</span>
+        <span>/</span>
+        <span style={{ color: 'var(--text-secondary)' }}>Procurement Management</span>
+        <span>/</span>
+        <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Purchase Orders</span>
+      </div>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
+            Purchase Orders & Commercial Execution
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+            Commercial terms, foreign currency remittance accounts, regulatory compliance, milestone payment schedules, and client-format PO documents
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button onClick={loadData} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <RefreshCw size={15} className={loading ? 'spin' : ''} />
+            Refresh
+          </button>
+          {canCreatePO && (
+            <button onClick={handleOpenCreateModal} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Plus size={16} />
+              New Purchase Order
             </button>
-            {canCreatePO && (
-              <button onClick={handleOpenCreateModal} className="btn btn-primary">
-                <Plus size={16} />
-                <span>New Purchase Order</span>
-              </button>
-            )}
+          )}
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL PURCHASE ORDERS
+            </span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FileText size={17} color="var(--accent-cyan)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>{orders.length}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.65rem' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+              {confirmedOrders.length} Confirmed
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Active execution contracts</span>
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL COMMITTED VALUE
+            </span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DollarSign size={17} color="var(--accent-indigo)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-indigo)', letterSpacing: '-0.01em', marginTop: '0.25rem' }}>
+            USD {totalValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+            Across {orders.length} international procurement orders
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              CONFIRMATION READINESS
+            </span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={17} color="var(--accent-emerald)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+            {confirmationRate}%
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+            {confirmedOrders.length} of {orders.length} orders confirmed & ready for shipping
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search by PO #, Supplier, Proforma Ref, notes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input pl-9 w-full"
-            />
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input"
-              style={{ minWidth: '180px' }}
+      <div className="card" style={{ padding: '0.85rem 1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+          {[
+            { id: '', label: `All Orders (${orders.length})` },
+            { id: 'CONFIRMED', label: `Confirmed (${confirmedOrders.length})` },
+            { id: 'DRAFT', label: `Draft (${draftOrders.length})` },
+            { id: 'SUBMITTED', label: `Submitted (${submittedOrders.length})` },
+            { id: 'RECEIVED', label: `Received (${receivedOrders.length})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`filter-pill ${statusFilter === tab.id ? 'active' : ''}`}
             >
-              <option value="">All Statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="SUBMITTED">Submitted</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="PARTIALLY_RECEIVED">Partially Received</option>
-              <option value="RECEIVED">Received</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </div>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ position: 'relative', width: '340px', minWidth: '260px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            className="input"
+            placeholder="Search by PO #, Supplier, Proforma Ref..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ paddingLeft: '36px', height: '38px', fontSize: '0.825rem' }}
+          />
         </div>
       </div>
 
       {/* Orders Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-responsive">
-          <table className="table">
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
-                <th>PO Number</th>
-                <th>Supplier & Country</th>
-                <th>PO Date</th>
-                <th>Commercial Terms</th>
-                <th>Items & Units</th>
-                <th>Total Value</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>PO NUMBER</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>SUPPLIER & ORIGIN</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>PO DATE</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>COMMERCIAL TERMS</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ITEMS & UNITS</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>TOTAL VALUE</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>STATUS</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>
-                    <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-cyan-400" />
-                    Loading purchase orders...
+                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <RefreshCw size={20} className="spin" style={{ display: 'inline-block', marginBottom: '0.5rem' }} />
+                    <div>Loading purchase orders...</div>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10" style={{ color: 'var(--text-secondary)' }}>
+                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No purchase orders found matching your search.
                   </td>
                 </tr>
@@ -669,33 +735,49 @@ export const PurchaseOrdersPage: React.FC = () => {
                   const totalUnits = po.lines?.reduce((s, l) => s + Number(l.quantityOrdered || 0), 0) || 0;
                   const poTotal = po.lines?.reduce((s, l) => s + Number(l.quantityOrdered || 0) * Number(l.unitPrice || 0), 0) || 0;
                   return (
-                    <tr key={po.poId} className="hover:bg-slate-800/20">
-                      <td className="font-mono font-semibold" style={{ color: 'var(--accent-cyan)' }}>
-                        {po.poNumber}
+                    <tr key={po.poId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontSize: '0.95rem' }} className="font-mono">
+                          {po.poNumber}
+                        </div>
                         {po.proformaInvoiceNo && (
-                          <div className="text-[11px] text-gray-400 font-sans">PI: {po.proformaInvoiceNo}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                            PI: {po.proformaInvoiceNo}
+                          </div>
                         )}
                       </td>
-                      <td>
-                        <div className="font-medium">{po.supplier?.supplierName || 'Unknown Supplier'}</div>
-                        <div className="text-xs text-gray-400">{po.supplier?.country || po.countryOfOrigin || 'India'}</div>
-                      </td>
-                      <td>{new Date(po.poDate).toLocaleDateString()}</td>
-                      <td className="text-xs">
-                        <div className="font-semibold text-cyan-300">{po.incoterms || 'FOB'} · {po.modeOfShipment || 'SEA'}</div>
-                        <div className="text-gray-400 truncate max-w-xs">{po.portOfLoading} → {po.portOfDischarge}</div>
-                      </td>
-                      <td>
-                        <div className="text-sm">
-                          {po.lines?.length || 0} line(s) · <span className="font-bold">{totalUnits}</span> units
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                          {po.supplier?.supplierName || 'Unknown Supplier'}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          <Globe size={12} color="var(--accent-cyan)" />
+                          <span>{po.supplier?.country || po.countryOfOrigin || 'International'}</span>
                         </div>
                       </td>
-                      <td className="font-mono font-bold">
+                      <td style={{ padding: '1rem 1.15rem', fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                        {new Date(po.poDate).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
+                          {po.incoterms || 'FOB'} · {po.modeOfShipment || 'SEA'}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }} className="truncate max-w-xs">
+                          {po.portOfLoading} → {po.portOfDischarge}
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', fontSize: '0.825rem' }}>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{po.lines?.length || 0} line(s)</span>
+                        <span style={{ color: 'var(--text-muted)' }}> · {totalUnits} units</span>
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'right', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }} className="font-mono">
                         {po.currency} {poTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td>{getStatusBadge(po.status)}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div className="flex items-center justify-end gap-1">
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
+                        {getStatusBadge(po.status)}
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
                           <button
                             onClick={() => handleOpenPODetails(po)}
                             className="btn btn-secondary btn-sm"
@@ -706,7 +788,8 @@ export const PurchaseOrdersPage: React.FC = () => {
 
                           <button
                             onClick={() => handleOpenPrintDocument(po.poId)}
-                            className="btn btn-secondary btn-sm text-cyan-400"
+                            className="btn btn-secondary btn-sm"
+                            style={{ color: 'var(--accent-cyan)' }}
                             title="Print Client-Format Purchase Order"
                           >
                             <Printer size={14} />
@@ -734,8 +817,8 @@ export const PurchaseOrdersPage: React.FC = () => {
                           {po.status === 'SUBMITTED' && canConfirmPO && (
                             <button
                               onClick={() => handleUpdateStatus(po.poId, 'CONFIRMED')}
-                              className="btn btn-success btn-sm flex items-center gap-1"
-                              style={{ background: '#10B981', color: '#fff' }}
+                              className="btn btn-success btn-sm"
+                              style={{ background: '#10B981', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                               title="Confirm & Authorize PO"
                             >
                               <Check size={14} />

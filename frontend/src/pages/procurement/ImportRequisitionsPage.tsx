@@ -381,8 +381,16 @@ export const ImportRequisitionsPage: React.FC = () => {
     }
   };
 
+  // Computed metrics for KPI cards
+  const approvedReqs = requisitions.filter((r) => r.status === 'APPROVED');
+  const draftReqs = requisitions.filter((r) => r.status === 'DRAFT');
+  const submittedReqs = requisitions.filter((r) => r.status === 'SUBMITTED');
+  const convertedReqs = requisitions.filter((r) => r.status === 'CONVERTED_TO_PO');
+  const totalBudgetUSD = requisitions.reduce((sum, r) => sum + Number(r.estimatedBudget || 0), 0);
+  const conversionRate = requisitions.length > 0 ? Math.round((convertedReqs.length / requisitions.length) * 100) : 0;
+
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
       {/* Toast Notification */}
       {notification && (
         <div
@@ -406,101 +414,155 @@ export const ImportRequisitionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header Banner */}
-      <div
-        className="card"
-        style={{
-          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%)',
-          borderLeft: '4px solid var(--accent-cyan)',
-        }}
-      >
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="badge" style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: 700 }}>
-                KMSICAMS-12 Phase 1
-              </span>
-              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                Import Requisition & Requirement Planning
-              </h2>
-            </div>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-              Business-unit import demand review, live inventory safety buffers, approval governance, and single-click PO conversion.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={loadData} className="btn btn-secondary" disabled={loading}>
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-              <span>Refresh</span>
+      {/* Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+        <span style={{ color: 'var(--accent-cyan)' }}>★</span>
+        <span>Logistics & Import</span>
+        <span>/</span>
+        <span style={{ color: 'var(--text-secondary)' }}>Procurement Planning</span>
+        <span>/</span>
+        <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Import Requisitions</span>
+      </div>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
+            Import Requisition & Requirement Planning
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+            Business-unit demand review, live inventory safety buffers, approval governance, and single-click PO conversion
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button onClick={loadData} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <RefreshCw size={15} className={loading ? 'spin' : ''} />
+            Refresh
+          </button>
+          {canManage && (
+            <button onClick={handleOpenCreateModal} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Plus size={16} />
+              New Import Requisition
             </button>
-            {canManage && (
-              <button onClick={handleOpenCreateModal} className="btn btn-primary">
-                <Plus size={16} />
-                <span>New Import Requisition</span>
-              </button>
-            )}
+          )}
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL REQUISITIONS
+            </span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Package size={17} color="var(--accent-cyan)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>{requisitions.length}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.65rem' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+              {approvedReqs.length} Approved
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ready for PO conversion</span>
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              ESTIMATED PIPELINE BUDGET
+            </span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp size={17} color="var(--accent-indigo)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-indigo)', letterSpacing: '-0.01em', marginTop: '0.25rem' }}>
+            USD {totalBudgetUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+            Demand replenishment buffer across {requisitions.length} requests
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              PO CONVERSION RATE
+            </span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={17} color="var(--accent-emerald)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+            {conversionRate}%
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+            {convertedReqs.length} of {requisitions.length} requisitions converted to PO
           </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search by REQ #, justification, business unit..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input pl-9 w-full"
-            />
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input"
-              style={{ minWidth: '180px' }}
+      <div className="card" style={{ padding: '0.85rem 1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+          {[
+            { id: '', label: `All Requisitions (${requisitions.length})` },
+            { id: 'APPROVED', label: `Approved (${approvedReqs.length})` },
+            { id: 'SUBMITTED', label: `Submitted (${submittedReqs.length})` },
+            { id: 'CONVERTED_TO_PO', label: `Converted (${convertedReqs.length})` },
+            { id: 'DRAFT', label: `Draft (${draftReqs.length})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`filter-pill ${statusFilter === tab.id ? 'active' : ''}`}
             >
-              <option value="">All Statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="SUBMITTED">Submitted (Pending Approval)</option>
-              <option value="APPROVED">Approved (Ready for PO)</option>
-              <option value="CONVERTED_TO_PO">Converted to PO</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </div>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ position: 'relative', width: '340px', minWidth: '260px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            className="input"
+            placeholder="Search by REQ #, justification, business unit..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ paddingLeft: '36px', height: '38px', fontSize: '0.825rem' }}
+          />
         </div>
       </div>
 
       {/* Main Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-responsive">
-          <table className="table">
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
-                <th>Requisition Ref</th>
-                <th>Request Date</th>
-                <th>Business Unit</th>
-                <th>Requested Products</th>
-                <th>Estimated Budget</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>REQUISITION REF</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>REQUEST DATE</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>BUSINESS UNIT</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>REQUESTED PRODUCTS</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ESTIMATED BUDGET</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>STATUS</th>
+                <th style={{ padding: '0.85rem 1.15rem', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>
-                    <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-cyan-400" />
-                    Loading requisitions...
+                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <RefreshCw size={20} className="spin" style={{ display: 'inline-block', marginBottom: '0.5rem' }} />
+                    <div>Loading requisitions...</div>
                   </td>
                 </tr>
               ) : filteredRequisitions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10" style={{ color: 'var(--text-secondary)' }}>
+                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No import requisitions found matching your filter criteria.
                   </td>
                 </tr>
@@ -509,31 +571,40 @@ export const ImportRequisitionsPage: React.FC = () => {
                   const totalItems = req.lines?.length || 0;
                   const totalUnits = req.lines?.reduce((s, l) => s + Number(l.quantityRequested), 0) || 0;
                   return (
-                    <tr key={req.requisitionId} className="hover:bg-slate-800/20">
-                      <td className="font-mono font-semibold" style={{ color: 'var(--accent-cyan)' }}>
-                        {req.requisitionNumber}
+                    <tr key={req.requisitionId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontSize: '0.95rem' }} className="font-mono">
+                          {req.requisitionNumber}
+                        </div>
                       </td>
-                      <td>{new Date(req.requestDate).toLocaleDateString()}</td>
-                      <td>
-                        <span className="font-medium">{req.businessUnitId}</span>
+                      <td style={{ padding: '1rem 1.15rem', fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                        {new Date(req.requestDate).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{req.businessUnitId}</div>
                         {req.requester && (
-                          <div className="text-xs text-gray-400">By: {req.requester.fullName || req.requester.username}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                            By: {req.requester.fullName || req.requester.username}
+                          </div>
                         )}
                       </td>
-                      <td>
-                        <div className="text-sm">
-                          {totalItems} item(s) · <span className="font-bold">{totalUnits}</span> units total
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontSize: '0.825rem' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{totalItems} item(s)</span>
+                          <span style={{ color: 'var(--text-muted)' }}> · {totalUnits} units total</span>
                         </div>
-                        <div className="text-xs text-gray-400 truncate max-w-xs">
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }} className="truncate max-w-xs">
                           {req.lines?.map((l) => l.item?.itemName).filter(Boolean).join(', ')}
                         </div>
                       </td>
-                      <td className="font-mono font-bold">
-                        {req.currency} {Number(req.estimatedBudget || 0).toLocaleString()}
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'right', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }} className="font-mono">
+                        {req.currency} {Number(req.estimatedBudget || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td>{getStatusBadge(req.status)}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div className="flex items-center justify-end gap-1">
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
+                        {getStatusBadge(req.status)}
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
                           <button
                             onClick={() => setSelectedReq(req)}
                             className="btn btn-secondary btn-sm"
@@ -591,8 +662,8 @@ export const ImportRequisitionsPage: React.FC = () => {
                                 setSelectedReq(req);
                                 setShowConvertModal(true);
                               }}
-                              className="btn btn-primary btn-sm flex items-center gap-1"
-                              style={{ background: 'var(--accent-cyan)', color: '#000', fontWeight: 600 }}
+                              className="btn btn-cyan btn-sm"
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
                             >
                               <span>Convert to PO</span>
                               <ArrowRight size={14} />
