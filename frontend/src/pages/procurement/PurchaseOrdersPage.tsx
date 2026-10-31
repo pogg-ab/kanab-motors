@@ -839,7 +839,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       {/* PO Detail & Full Import Processes Modal */}
       {selectedOrder && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '1000px', width: '95%' }}>
+          <div className="modal-content" style={{ maxWidth: '1150px', width: '96%' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', border: '1px solid rgba(0, 210, 211, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -971,7 +971,7 @@ export const PurchaseOrdersPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="modal-body" style={{ padding: '1.5rem', maxHeight: '75vh', overflowY: 'auto' }}>
+            <div className="modal-body" style={{ padding: '1.25rem 1.5rem', maxHeight: '75vh', overflowY: 'auto', overflowX: 'hidden' }}>
               {/* TAB 1: Commercial Terms & Lines */}
               {detailTab === 'commercial' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -1020,33 +1020,33 @@ export const PurchaseOrdersPage: React.FC = () => {
                   )}
 
                   {/* Line Items Table */}
-                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                  <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)', width: '100%' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>SL.</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ITEM CODE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DESCRIPTION OF GOODS</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>HSN/SAC</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UOM</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UNIT RATE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '5%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>SL.</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '14%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ITEM CODE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '30%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DESCRIPTION OF GOODS</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>HSN/SAC</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '8%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '7%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UOM</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '13%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UNIT RATE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '13%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.lines?.map((l, idx) => (
                           <tr key={l.poLineId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                            <td style={{ padding: '0.75rem 0.95rem' }}>{idx + 1}</td>
-                            <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono text-cyan-400">{l.item?.itemCode || `ITM-${l.itemId}`}</td>
-                            <td style={{ padding: '0.75rem 0.95rem' }}>
+                            <td style={{ padding: '0.65rem 0.75rem' }}>{idx + 1}</td>
+                            <td style={{ padding: '0.65rem 0.75rem' }} className="font-mono text-cyan-400">{l.item?.itemCode || `ITM-${l.itemId}`}</td>
+                            <td style={{ padding: '0.65rem 0.75rem' }}>
                               <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{l.itemDescription || l.item?.itemName}</div>
                             </td>
-                            <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono">{l.hsnSacCode || '8711.20'}</td>
-                            <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>{l.quantityOrdered}</td>
-                            <td style={{ padding: '0.75rem 0.95rem' }}>{l.uom || 'PCS'}</td>
-                            <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }} className="font-mono">{Number(l.unitPrice).toLocaleString()}</td>
-                            <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">
+                            <td style={{ padding: '0.65rem 0.75rem' }} className="font-mono">{l.hsnSacCode || '8711.20'}</td>
+                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>{l.quantityOrdered}</td>
+                            <td style={{ padding: '0.65rem 0.75rem' }}>{l.uom || 'PCS'}</td>
+                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }} className="font-mono">{Number(l.unitPrice).toLocaleString()}</td>
+                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">
                               {(Number(l.quantityOrdered) * Number(l.unitPrice)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                           </tr>
@@ -1072,11 +1072,11 @@ export const PurchaseOrdersPage: React.FC = () => {
               {/* TAB 2: Regulatory Compliance & Clearances (Phase 3) */}
               {detailTab === 'compliance' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>Import Permits & Regulatory Clearances</h4>
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
-                        Tracks mandatory government permits, central bank approvals, and pre-shipment inspection certificates.
+                        Mandatory government clearances, central bank foreign currency allocations, and pre-shipment inspections.
                       </p>
                     </div>
                     <button
@@ -1089,46 +1089,64 @@ export const PurchaseOrdersPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                  <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)', width: '100%' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>CLEARANCE TYPE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUING AUTHORITY</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>APPLICATION REF</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DOCUMENT REF</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EXPIRY DATE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>TOGGLE STATUS</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '22%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>CLEARANCE TYPE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '22%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUING AUTHORITY</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '14%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>APPLICATION REF</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '14%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DOCUMENT REF</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EXPIRY DATE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '8%', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '10%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTION</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.complianceRecords && selectedOrder.complianceRecords.length > 0 ? (
-                          selectedOrder.complianceRecords.map((rec) => (
-                            <tr key={rec.complianceRecordId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                              <td style={{ padding: '0.75rem 0.95rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>{rec.requirementType}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }}>{rec.issuingAuthority}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono">{rec.applicationReference || 'Pending'}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }} className="font-mono">{rec.documentReference || 'Pending'}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }}>{rec.expiryDate || 'N/A'}</td>
-                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
-                                {rec.status === 'APPROVED' ? (
-                                  <span className="badge badge-success"><CheckCircle2 size={10} className="inline mr-1" /> APPROVED</span>
-                                ) : (
-                                  <span className="badge badge-warning"><Clock size={10} className="inline mr-1" /> {rec.status}</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }}>
-                                <button
-                                  onClick={() => handleToggleComplianceStatus(rec.complianceRecordId, rec.status)}
-                                  className="btn btn-secondary btn-sm"
-                                  style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
-                                >
-                                  {rec.status === 'APPROVED' ? 'Mark Pending' : 'Mark Approved'}
-                                </button>
-                              </td>
-                            </tr>
-                          ))
+                          selectedOrder.complianceRecords.map((rec) => {
+                            const formattedType = rec.requirementType === 'PRE_SHIPMENT_INSPECTION_CERT'
+                              ? 'Pre-Shipment Inspection'
+                              : rec.requirementType === 'CENTRAL_BANK_APPROVAL'
+                              ? 'Central Bank Forex'
+                              : rec.requirementType === 'IMPORT_PERMIT'
+                              ? 'Import Permit'
+                              : rec.requirementType ? rec.requirementType.replace(/_/g, ' ') : 'Requirement';
+
+                            return (
+                              <tr key={rec.complianceRecordId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                                  {formattedType}
+                                </td>
+                                <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.78rem' }} title={rec.issuingAuthority}>
+                                  {rec.issuingAuthority}
+                                </td>
+                                <td style={{ padding: '0.65rem 0.75rem' }} className="font-mono text-xs">{rec.applicationReference || 'Pending'}</td>
+                                <td style={{ padding: '0.65rem 0.75rem' }} className="font-mono text-xs">{rec.documentReference || 'Pending'}</td>
+                                <td style={{ padding: '0.65rem 0.75rem', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>{rec.expiryDate || 'N/A'}</td>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
+                                  {rec.status === 'APPROVED' ? (
+                                    <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                      <CheckCircle2 size={10} className="inline mr-0.5" /> APPROVED
+                                    </span>
+                                  ) : (
+                                    <span className="badge badge-warning" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                      <Clock size={10} className="inline mr-0.5" /> {rec.status}
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
+                                  <button
+                                    onClick={() => handleToggleComplianceStatus(rec.complianceRecordId, rec.status)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
+                                  >
+                                    {rec.status === 'APPROVED' ? 'Mark Pending' : 'Mark Approved'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
                         ) : (
                           <tr>
                             <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -1145,7 +1163,7 @@ export const PurchaseOrdersPage: React.FC = () => {
               {/* TAB 3: Payment Schedules & Milestones (Phase 4) */}
               {detailTab === 'payments' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>Contractual Payment Schedules & Milestones</h4>
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
@@ -1162,18 +1180,18 @@ export const PurchaseOrdersPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                  <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)', width: '100%' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>MILESTONE NAME</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>METHOD</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DUE DATE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT DUE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT PAID</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>REMAINING BALANCE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTIONS</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '22%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>MILESTONE NAME</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '13%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>METHOD</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '11%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>DUE DATE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '13%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT DUE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '13%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT PAID</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '13%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>REMAINING</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '7%', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '8%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTION</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1183,30 +1201,31 @@ export const PurchaseOrdersPage: React.FC = () => {
                               ?.filter((t) => t.status === 'CONFIRMED')
                               .reduce((acc, t) => acc + Number(t.amountPaid), 0) || 0;
                             const remaining = Math.max(0, Number(s.amountDue) - totalPaid);
+                            const methodLabel = s.paymentMethod === 'TELEGRAPHIC_TRANSFER' ? 'T/T Wire' : s.paymentMethod;
                             return (
                               <tr key={s.paymentScheduleId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                <td style={{ padding: '0.75rem 0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>{s.milestoneName}</td>
-                                <td style={{ padding: '0.75rem 0.95rem' }}>{s.paymentMethod}</td>
-                                <td style={{ padding: '0.75rem 0.95rem' }}>{s.dueDate || 'Upon Event'}</td>
-                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700 }} className="font-mono">
+                                <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{s.milestoneName}</td>
+                                <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem' }}>{methodLabel}</td>
+                                <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{s.dueDate || 'Upon Event'}</td>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700 }} className="font-mono">
                                   {s.currency} {Number(s.amountDue).toLocaleString()}
                                 </td>
-                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', color: 'var(--accent-emerald)' }} className="font-mono">
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: 'var(--accent-emerald)' }} className="font-mono">
                                   {s.currency} {totalPaid.toLocaleString()}
                                 </td>
-                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-amber)' }} className="font-mono">
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-amber)' }} className="font-mono">
                                   {s.currency} {remaining.toLocaleString()}
                                 </td>
-                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
                                   {remaining <= 0 ? (
-                                    <span className="badge badge-success">PAID</span>
+                                    <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>PAID</span>
                                   ) : totalPaid > 0 ? (
-                                    <span className="badge badge-info">PARTIAL</span>
+                                    <span className="badge badge-info" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>PARTIAL</span>
                                   ) : (
-                                    <span className="badge badge-warning">DUE</span>
+                                    <span className="badge badge-warning" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>DUE</span>
                                   )}
                                 </td>
-                                <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right' }}>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
                                   {remaining > 0 && (
                                     <button
                                       onClick={() => {
@@ -1215,9 +1234,9 @@ export const PurchaseOrdersPage: React.FC = () => {
                                         setShowRecordTxnModal(true);
                                       }}
                                       className="btn btn-cyan btn-sm"
-                                      style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                                      style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
                                     >
-                                      Record Payment
+                                      Pay
                                     </button>
                                   )}
                                 </td>
@@ -1240,7 +1259,7 @@ export const PurchaseOrdersPage: React.FC = () => {
               {/* TAB 4: Letter of Credit Tracking (Phase 4) */}
               {detailTab === 'lc' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>Letters of Credit (L/C) Portfolio</h4>
                       <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
@@ -1257,41 +1276,39 @@ export const PurchaseOrdersPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                  <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)', width: '100%' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>L/C REFERENCE NUMBER</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUING BANK</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ADVISING BANK</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUE DATE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EXPIRY DATE</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LATEST SHIPMENT</th>
-                          <th style={{ padding: '0.75rem 0.95rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '16%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>L/C REF NUMBER</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '20%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUING BANK</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '18%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ADVISING BANK</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '14%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUE DATE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>EXPIRY DATE</th>
+                          <th style={{ padding: '0.65rem 0.75rem', width: '6%', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.lettersOfCredit && selectedOrder.lettersOfCredit.length > 0 ? (
                           selectedOrder.lettersOfCredit.map((lc) => (
                             <tr key={lc.lcId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                              <td style={{ padding: '0.75rem 0.95rem', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">{lc.lcNumber}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }}>{lc.issuingBank}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }}>{lc.advisingBank || 'N/A'}</td>
-                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700 }} className="font-mono">
+                              <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">{lc.lcNumber}</td>
+                              <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem' }}>{lc.issuingBank}</td>
+                              <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem' }}>{lc.advisingBank || 'N/A'}</td>
+                              <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700 }} className="font-mono">
                                 {lc.currency} {Number(lc.amount).toLocaleString()}
                               </td>
-                              <td style={{ padding: '0.75rem 0.95rem' }}>{new Date(lc.issueDate).toLocaleDateString()}</td>
-                              <td style={{ padding: '0.75rem 0.95rem', color: 'var(--accent-amber)', fontWeight: 600 }}>{new Date(lc.expiryDate).toLocaleDateString()}</td>
-                              <td style={{ padding: '0.75rem 0.95rem' }}>{lc.latestShipmentDate ? new Date(lc.latestShipmentDate).toLocaleDateString() : 'N/A'}</td>
-                              <td style={{ padding: '0.75rem 0.95rem', textAlign: 'center' }}>
-                                <span className="badge badge-success">{lc.status}</span>
+                              <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{new Date(lc.issueDate).toLocaleDateString()}</td>
+                              <td style={{ padding: '0.65rem 0.75rem', color: 'var(--accent-amber)', fontWeight: 600, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{new Date(lc.expiryDate).toLocaleDateString()}</td>
+                              <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
+                                <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>{lc.status}</span>
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                            <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                               No Letters of Credit recorded for this Purchase Order.
                             </td>
                           </tr>
