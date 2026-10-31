@@ -53,3 +53,4 @@ export class ApprovalReminderLog {
   @Column({ name: 'notification_details', type: 'jsonb', nullable: true })
   notificationDetails?: Record<string, any>;
 }
+

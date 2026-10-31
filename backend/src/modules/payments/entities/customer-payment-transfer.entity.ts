@@ -65,3 +65,4 @@ export class CustomerPaymentTransfer {
   @CreateDateColumn({ name: 'transferred_at', type: 'timestamptz' })
   transferredAt: Date;
 }
+

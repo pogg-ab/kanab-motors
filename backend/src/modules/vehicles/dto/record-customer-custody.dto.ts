@@ -21,3 +21,4 @@ export class RecordCustomerCustodyDto {
   @IsString()
   expectedHandoverDate?: string;
 }
+

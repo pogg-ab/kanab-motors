@@ -29,3 +29,4 @@ export class TransferExcessPaymentDto {
   @IsString()
   authorizationReference?: string;
 }
+

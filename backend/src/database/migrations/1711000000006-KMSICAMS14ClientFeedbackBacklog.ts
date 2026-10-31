@@ -152,3 +152,4 @@ export class KMSICAMS14ClientFeedbackBacklog1711000000006 implements MigrationIn
     await queryRunner.query(`DROP TABLE IF EXISTS customer_payment_transfer;`);
   }
 }
+

@@ -17,3 +17,4 @@ export class EnquiryApprovalDto {
   @IsString()
   rejectionReason?: string;
 }
+
