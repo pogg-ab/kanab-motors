@@ -30,6 +30,7 @@ import { InventoryPage } from './pages/inventory/InventoryPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ReportsHubPage } from './pages/reports/ReportsHubPage';
 import { SparePartsPage } from './pages/spare-parts/SparePartsPage';
+import { CompanyProfilePage } from './pages/settings/CompanyProfilePage';
 import { canAccessTab, getFirstAuthorizedTab } from './authz/permissions';
 
 function MainAppContent() {
@@ -145,6 +146,8 @@ function MainAppContent() {
         return 'System Governance: Identity & Access Management (RBAC)';
       case 'audit':
         return 'System Intelligence: Audit Trail & Compliance';
+      case 'company-profile':
+        return 'Settings: Company Profile & Importer Information';
       default:
         return 'KANAB Motors SIMS';
     }
@@ -211,6 +214,7 @@ function MainAppContent() {
           {canAccessActiveTab && activeTab === 'vehicles' && <VehiclesPage />}
           {canAccessActiveTab && activeTab === 'users' && <UsersPage />}
           {canAccessActiveTab && activeTab === 'audit' && <AuditLogsPage />}
+          {canAccessActiveTab && activeTab === 'company-profile' && <CompanyProfilePage />}
 
           {/* Access Denied (RBAC) */}
           {!canAccessActiveTab && (

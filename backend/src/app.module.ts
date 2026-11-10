@@ -27,6 +27,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
 import { ImportRequisitionsModule } from './modules/import-requisitions/import-requisitions.module';
+import { CompanyProfileModule } from './modules/company-profile/company-profile.module';
 import { PermissionGuard } from './common/guards/permission.guard';
 
 @Module({
@@ -60,6 +61,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
     ReportsModule,
     SparePartsModule,
     ImportRequisitionsModule,
+    CompanyProfileModule,
   ],
   providers: [
     {

@@ -10,6 +10,8 @@ export interface CreateSupplierDto {
   phone?: string;
   email?: string;
   address?: string;
+  exporterIecNo?: string;
+  exporterAdCode?: string;
   isActive?: boolean;
 }
 
@@ -20,6 +22,8 @@ export interface UpdateSupplierDto {
   phone?: string;
   email?: string;
   address?: string;
+  exporterIecNo?: string;
+  exporterAdCode?: string;
   isActive?: boolean;
 }
 
@@ -39,6 +43,8 @@ export class SuppliersService {
       phone: dto.phone,
       email: dto.email,
       address: dto.address,
+      exporterIecNo: dto.exporterIecNo,
+      exporterAdCode: dto.exporterAdCode,
       isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
     return this.supplierRepo.save(supplier);
@@ -49,7 +55,7 @@ export class SuppliersService {
 
     if (search) {
       query.andWhere(
-        '(s.supplierName ILIKE :search OR s.country ILIKE :search OR s.contactPerson ILIKE :search OR s.email ILIKE :search)',
+        '(s.supplierName ILIKE :search OR s.country ILIKE :search OR s.contactPerson ILIKE :search OR s.email ILIKE :search OR s.exporterIecNo ILIKE :search OR s.exporterAdCode ILIKE :search)',
         { search: `%${search}%` },
       );
     }

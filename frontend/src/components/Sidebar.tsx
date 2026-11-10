@@ -221,6 +221,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
 
   const systemItems = [
     {
+      id: 'company-profile',
+      label: 'Company & Importer Profile',
+      module: 'Legal Settings & Bank Accounts',
+      icon: Building2,
+      permissions: TAB_PERMISSIONS['company-profile'],
+    },
+    {
       id: 'users',
       label: 'Users & Permissions',
       module: 'Role-Based Access Control',

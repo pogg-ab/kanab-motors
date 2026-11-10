@@ -492,9 +492,9 @@ export class PurchaseOrdersService {
       contractReference: po.contractReference || 'N/A',
       importer: {
         companyName: company?.companyName || 'KANAB Motors PLC',
-        iecNo: company?.iecNo || 'ETH-IEC-994821',
-        adCode: company?.adCode || 'AD-CBE-0019284',
-        taxId: company?.taxId || 'TIN-0092837461',
+        iecNo: company?.importerIecNo || company?.iecNo || 'ETH-IEC-994821',
+        adCode: company?.importerAdCode || company?.adCode || 'AD-CBE-0019284',
+        taxId: company?.tin || company?.taxId || 'TIN-0092837461',
         address: company?.address || 'Bole Sub-City, Kebele 03, House No. 492, Addis Ababa, Ethiopia',
         city: company?.city || 'Addis Ababa',
         country: company?.country || 'Ethiopia',

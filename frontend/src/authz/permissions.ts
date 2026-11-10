@@ -23,6 +23,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   vehicles: ['VEHICLES_VIEW'],
   users: ['USERS_VIEW', 'USERS_EDIT', 'ROLES_MANAGE'],
   audit: ['AUDIT_VIEW'],
+  'company-profile': ['USERS_VIEW', 'USERS_EDIT', 'PURCHASE_ORDERS_CONFIRM', 'PURCHASE_ORDERS_VIEW'],
 };
 
 export const DEFAULT_AUTHORIZED_TAB_ORDER = [
@@ -50,6 +51,7 @@ export const DEFAULT_AUTHORIZED_TAB_ORDER = [
   'documents',
   'users',
   'audit',
+  'company-profile',
 ];
 
 export const canAccessAny = (

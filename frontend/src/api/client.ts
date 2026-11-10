@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api');
+  (import.meta.env.DEV ? 'http://localhost:3052/api' : '/api');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -461,19 +461,32 @@ export interface PurchaseOrderLine {
 export interface CompanyProfile {
   profileId: number;
   companyName: string;
-  iecNo?: string;
-  adCode?: string;
+  tradeName?: string;
+  logo?: string;
+  registrationNo?: string;
+  tin?: string;
   taxId?: string;
+  vatRegistrationNo?: string;
   address?: string;
   city?: string;
   country: string;
   phone?: string;
   email?: string;
+  website?: string;
+  importerIecNo?: string;
+  iecNo?: string;
+  importerAdCode?: string;
+  adCode?: string;
   isDefault: boolean;
+  isActive?: boolean;
+  bankAccounts?: CompanyBankAccount[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CompanyBankAccount {
   bankAccountId: number;
+  companyProfileId?: number;
   accountName: string;
   bankName: string;
   accountNumber: string;
@@ -481,7 +494,11 @@ export interface CompanyBankAccount {
   ifscCode?: string;
   swiftCode?: string;
   currency: string;
+  isDefault: boolean;
   isActive: boolean;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ImportComplianceRecord {
@@ -1410,11 +1427,21 @@ export const api = {
   convertRequisitionToPO: (id: string, data: any, userId?: number) =>
     apiClient.post<PurchaseOrder>('/import-requisitions/' + id + '/convert-to-po', { ...data, userId }).then((r) => r.data),
 
-  // KMSICAMS-12 Phase 2-4: Commercial Terms, Compliance & Payment Schedules (IMP-07 to IMP-22)
+  // Company Profile Settings & Importer Bank Accounts
   getCompanyProfile: () =>
-    apiClient.get<CompanyProfile>('/purchase-orders/company-profile').then((r) => r.data),
+    apiClient.get<CompanyProfile>('/company-profile').then((r) => r.data),
+  updateCompanyProfile: (id: number, data: Partial<CompanyProfile>) =>
+    apiClient.put<CompanyProfile>('/company-profile/' + id, data).then((r) => r.data),
   getCompanyBankAccounts: () =>
-    apiClient.get<CompanyBankAccount[]>('/purchase-orders/bank-accounts').then((r) => r.data),
+    apiClient.get<CompanyBankAccount[]>('/company-profile/bank-accounts').then((r) => r.data),
+  createCompanyBankAccount: (data: Partial<CompanyBankAccount>) =>
+    apiClient.post<CompanyBankAccount>('/company-profile/bank-accounts', data).then((r) => r.data),
+  updateCompanyBankAccount: (id: number, data: Partial<CompanyBankAccount>) =>
+    apiClient.put<CompanyBankAccount>('/company-profile/bank-accounts/' + id, data).then((r) => r.data),
+  deactivateCompanyBankAccount: (id: number) =>
+    apiClient.put<CompanyBankAccount>('/company-profile/bank-accounts/' + id + '/deactivate', {}).then((r) => r.data),
+  deleteCompanyBankAccount: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>('/company-profile/bank-accounts/' + id).then((r) => r.data),
   getPOPrintData: (id: string) =>
     apiClient.get<any>('/purchase-orders/' + id + '/print').then((r) => r.data),
   validatePOReadiness: (id: string) =>

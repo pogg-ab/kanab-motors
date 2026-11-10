@@ -44,6 +44,8 @@ export const SuppliersPage: React.FC = () => {
     phone: string;
     email: string;
     address: string;
+    exporterIecNo: string;
+    exporterAdCode: string;
     isActive: boolean;
   }>({
     supplierName: '',
@@ -52,6 +54,8 @@ export const SuppliersPage: React.FC = () => {
     phone: '',
     email: '',
     address: '',
+    exporterIecNo: '',
+    exporterAdCode: '',
     isActive: true,
   });
 
@@ -146,6 +150,8 @@ export const SuppliersPage: React.FC = () => {
         phone: '',
         email: '',
         address: '',
+        exporterIecNo: '',
+        exporterAdCode: '',
         isActive: true,
       });
       loadSuppliers();
@@ -229,7 +235,9 @@ export const SuppliersPage: React.FC = () => {
     const matchesSearch =
       s.supplierName?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
       s.country?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-      s.contactPerson?.toLowerCase().includes(supplierSearch.toLowerCase());
+      s.contactPerson?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+      s.exporterIecNo?.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+      s.exporterAdCode?.toLowerCase().includes(supplierSearch.toLowerCase());
     const matchesStatus =
       supplierStatusFilter === ''
         ? true
@@ -302,7 +310,7 @@ export const SuppliersPage: React.FC = () => {
                 onClick={() => {
                   setSupplierError(null);
                   setEditingSupplier(null);
-                  setSupplierFormData({ supplierName: '', country: '', contactPerson: '', phone: '', email: '', address: '', isActive: true });
+                  setSupplierFormData({ supplierName: '', country: '', contactPerson: '', phone: '', email: '', address: '', exporterIecNo: '', exporterAdCode: '', isActive: true });
                   setShowSupplierModal(true);
                 }}
                 className="btn btn-cyan"
@@ -498,6 +506,20 @@ export const SuppliersPage: React.FC = () => {
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                             Registered: {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : 'N/A'}
                           </div>
+                          {(s.exporterIecNo || s.exporterAdCode) && (
+                            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                              {s.exporterIecNo && (
+                                <span className="badge badge-cyan" style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem' }}>
+                                  IEC: {s.exporterIecNo}
+                                </span>
+                              )}
+                              {s.exporterAdCode && (
+                                <span className="badge badge-purple" style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem' }}>
+                                  AD: {s.exporterAdCode}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '1rem 1.15rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)', fontWeight: 600 }}>
@@ -551,6 +573,8 @@ export const SuppliersPage: React.FC = () => {
                                       phone: s.phone || '',
                                       email: s.email || '',
                                       address: s.address || '',
+                                      exporterIecNo: s.exporterIecNo || '',
+                                      exporterAdCode: s.exporterAdCode || '',
                                       isActive: s.isActive,
                                     });
                                     setShowSupplierModal(true);
@@ -876,6 +900,37 @@ export const SuppliersPage: React.FC = () => {
                     onChange={(e) => setSupplierFormData({ ...supplierFormData, address: e.target.value })}
                     placeholder="Industrial Park, City, Province, Port of Export..."
                   />
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Building2 size={13} /> Exporter Regulatory Information (POX-02)
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    Captured for international manufacturers to populate Purchase Orders, customs clearances, and bank documentation.
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label className="form-label">Exporter IEC No.</label>
+                      <input
+                        type="text"
+                        className="input"
+                        value={supplierFormData.exporterIecNo}
+                        onChange={(e) => setSupplierFormData({ ...supplierFormData, exporterIecNo: e.target.value })}
+                        placeholder="e.g. EXP-CN-884920"
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label">Exporter AD Code</label>
+                      <input
+                        type="text"
+                        className="input"
+                        value={supplierFormData.exporterAdCode}
+                        onChange={(e) => setSupplierFormData({ ...supplierFormData, exporterAdCode: e.target.value })}
+                        placeholder="e.g. AD-BOC-SH-091"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div>

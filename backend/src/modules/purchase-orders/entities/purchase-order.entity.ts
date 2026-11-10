@@ -14,6 +14,7 @@ import { AppUser } from '../../auth/entities/app-user.entity';
 import { PurchaseOrderLine } from './purchase-order-line.entity';
 import { ImportRequisition } from '../../import-requisitions/entities/import-requisition.entity';
 import { CompanyBankAccount } from './company-bank-account.entity';
+import { CompanyProfile } from './company-profile.entity';
 import { PoPaymentSchedule } from './po-payment-schedule.entity';
 import { PoLetterOfCredit } from './po-letter-of-credit.entity';
 import { ImportComplianceRecord } from './import-compliance-record.entity';
@@ -115,6 +116,13 @@ export class PurchaseOrder {
 
   @Column({ name: 'commercial_remarks', type: 'text', nullable: true })
   commercialRemarks?: string;
+
+  @Column({ name: 'company_profile_id', type: 'int', nullable: true })
+  companyProfileId?: number;
+
+  @ManyToOne(() => CompanyProfile, { nullable: true })
+  @JoinColumn({ name: 'company_profile_id' })
+  companyProfile?: CompanyProfile;
 
   @Column({ name: 'bank_account_id', type: 'int', nullable: true })
   bankAccountId?: number;
