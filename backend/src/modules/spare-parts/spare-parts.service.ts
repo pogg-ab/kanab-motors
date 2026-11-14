@@ -866,38 +866,48 @@ export class SparePartsService {
 
       // 3. Post to customer ledger if customerId is present (Non-destructive integration)
       if (dto.customerId) {
+        const lastTx = await queryRunner.query(
+          `SELECT running_balance FROM customer_ledger_transaction WHERE customer_id = $1 ORDER BY transaction_id DESC LIMIT 1`,
+          [dto.customerId],
+        );
+        const prevBal = lastTx && lastTx[0] && lastTx[0].running_balance !== null ? Number(lastTx[0].running_balance) : 0;
+        const newRunningBal = Number((prevBal - Number(grandTotal)).toFixed(2));
+
         await queryRunner.query(
           `
           INSERT INTO customer_ledger_transaction (
             customer_id, transaction_type, reference_number, description,
-            debit_amount, credit_amount, created_by
+            debit_amount, credit_amount, running_balance, processed_by
           )
-          VALUES ($1, 'INVOICE_CHARGE', $2, $3, $4, 0, $5)
+          VALUES ($1, 'INVOICE_CHARGE', $2, $3, $4, 0, $5, $6)
         `,
           [
             dto.customerId,
             saleNumber,
             `Spare Parts Purchase Invoice #${saleNumber} (${processedLines.length} item(s))`,
             grandTotal,
+            newRunningBal,
             userId,
           ],
         );
 
         // If paid immediately via CASH / BANK_TRANSFER, also log offset payment credit
         if (dto.paymentMethod === 'CASH' || dto.paymentMethod === 'BANK_TRANSFER') {
+          const paidRunningBal = Number((newRunningBal + Number(grandTotal)).toFixed(2));
           await queryRunner.query(
             `
             INSERT INTO customer_ledger_transaction (
               customer_id, transaction_type, reference_number, description,
-              debit_amount, credit_amount, created_by
+              debit_amount, credit_amount, running_balance, processed_by
             )
-            VALUES ($1, 'ADDITIONAL_PAYMENT', $2, $3, 0, $4, $5)
+            VALUES ($1, 'ADDITIONAL_PAYMENT', $2, $3, 0, $4, $5, $6)
           `,
             [
               dto.customerId,
               `PMT-${saleNumber}`,
               `Payment settled for Spare Parts Invoice #${saleNumber} via ${dto.paymentMethod}`,
               grandTotal,
+              paidRunningBal,
               userId,
             ],
           );
@@ -1052,19 +1062,27 @@ export class SparePartsService {
 
       // 3. If customer was ledger-tracked, post a credit offset
       if (sale.customerId) {
+        const lastTx = await queryRunner.query(
+          `SELECT running_balance FROM customer_ledger_transaction WHERE customer_id = $1 ORDER BY transaction_id DESC LIMIT 1`,
+          [sale.customerId],
+        );
+        const prevBal = lastTx && lastTx[0] && lastTx[0].running_balance !== null ? Number(lastTx[0].running_balance) : 0;
+        const newRunningBal = Number((prevBal + Number(sale.grandTotal)).toFixed(2));
+
         await queryRunner.query(
           `
           INSERT INTO customer_ledger_transaction (
             customer_id, transaction_type, reference_number, description,
-            debit_amount, credit_amount, created_by
+            debit_amount, credit_amount, running_balance, processed_by
           )
-          VALUES ($1, 'ADJUSTMENT', $2, $3, 0, $4, $5)
+          VALUES ($1, 'ADJUSTMENT', $2, $3, 0, $4, $5, $6)
         `,
           [
             sale.customerId,
             `REV-${sale.saleNumber}`,
             `Reversal of cancelled Spare Parts Sale #${sale.saleNumber}: ${reason}`,
             sale.grandTotal,
+            newRunningBal,
             userId,
           ],
         );

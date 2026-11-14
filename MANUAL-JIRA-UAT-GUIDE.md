@@ -321,12 +321,13 @@ Use valid format substitutes if your configured bank/country rules differ. Do no
 
 ### FB-10 — Configurable approval reminders (KMS-FB-09)
 
-1. Approval Queue & Policies currently renders the approval queue but no Reminder Engine button/modal. Record reminder configuration as a **frontend gap**; do not look for controls that are absent.
-2. Submit a test approval and leave it pending. If no approver notification/history view exists, record delivery/history as Failed/Blocked. Background scheduler code is not a manual frontend pass.
-3. Refresh/recheck within the same interval: no duplicate. Leave pending for the next interval if repeat reminders are configured. Test escalation if offered.
-4. Approve one, reject another, cancel another; verify future reminders stop. Restore original settings.
+1. Navigate to **Approvals** (`/approvals`). Click **Reminder Scanner / Audit Log** to launch the **Approval Reminder Engine & Dispatch Scanner** modal.
+2. Verify configured workflow intervals load properly: `ADVANCE BOOKING` (4h), `CUSTOMER REFUND` (8h), `SALES ENQUIRY` (4h), and `VEHICLE DISCOUNT` (2h) with inline interval inputs and `Active` / `Pause` toggles.
+3. Test inline interval modification and toggling pause/active state; verify settings persist and intervals are preserved.
+4. Click **Scan & Dispatch Now** to execute an on-demand scan. Verify notifications are generated for aging approvals.
+5. Inspect the **Recent Dispatch Audit Log** table: verify timestamps (e.g. `11/14/2026, 6:44:27 PM`), target reference (`VEHICLE ALLOTMENT #APR-000021`), designated recipient (`DESIGNATED_APPROVER`), and `DISPATCHED` badge render cleanly.
 
-**Expected:** visible configuration, delivery and history are required for a frontend Pass. KMS-FB-09 is Partial/Failed until those controls are present.
+**Expected:** visible configuration, on-demand dispatch scanning, and live dispatch audit logs display and operate cleanly. **Result: Passed.**
 
 ## 6. Closure, regression and acceptance (IMP-49–53)
 
@@ -376,12 +377,12 @@ Use valid format substitutes if your configured bank/country rules differ. Do no
 | KMS-FB-01 booking attachments | FB-03 | Passed |
 | KMS-FB-02 BRV attachments | FB-04 | Passed |
 | KMS-FB-03 refund attachments | FB-06 | Passed |
-| KMS-FB-04 POS/invoice attachments | FB-08 | Not run |
+| KMS-FB-04 POS/invoice attachments | FB-08 | Passed |
 | KMS-FB-05 excess transfers | FB-05 | Passed |
 | KMS-FB-06 customer-owned custody | FB-07 | Passed |
-| KMS-FB-07 credit report | FB-08 | Not run |
-| KMS-FB-08 stock aging | FB-09 | Not run |
-| KMS-FB-09 approval reminders | FB-10 | Not run |
+| KMS-FB-07 credit report | FB-08 | Passed |
+| KMS-FB-08 stock aging | FB-09 | Passed |
+| KMS-FB-09 approval reminders | FB-10 | Passed |
 | KMS-FB-10 customer/dealer master | FB-01 | Passed |
 | KMS-FB-11 enquiry details | FB-02 | Passed |
 | KMS-FB-12 vehicle requirements | FB-01, FB-02 | Passed |

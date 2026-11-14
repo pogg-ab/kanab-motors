@@ -78,11 +78,25 @@ export class DocumentsService {
       qb.where('a.entityId = :entityId', { entityId });
       qb.andWhere('a.entityType IN (:...types)', { types: ['invoice', 'pos_sale', 'spare_parts_sale'] });
       qb.orderBy('a.uploadedAt', 'DESC');
-      return qb.getMany();
+      const list = await qb.getMany();
+      return list.map((a) => {
+        try {
+          const decoded = Buffer.from(a.fileName, 'latin1').toString('utf8');
+          if (decoded && !decoded.includes('\ufffd')) a.fileName = decoded;
+        } catch {}
+        return a;
+      });
     }
-    return this.attachmentRepo.find({
+    const list = await this.attachmentRepo.find({
       where: { entityType, entityId },
       order: { uploadedAt: 'DESC' },
+    });
+    return list.map((a) => {
+      try {
+        const decoded = Buffer.from(a.fileName, 'latin1').toString('utf8');
+        if (decoded && !decoded.includes('\ufffd')) a.fileName = decoded;
+      } catch {}
+      return a;
     });
   }
 
@@ -93,11 +107,19 @@ export class DocumentsService {
     documentType?: string,
     userId: number = 1,
   ): Promise<Attachment> {
+    let cleanFileName = file.originalname;
+    try {
+      const decoded = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      if (decoded && !decoded.includes('\ufffd')) cleanFileName = decoded;
+    } catch {
+      cleanFileName = file.originalname;
+    }
+
     const attachment = this.attachmentRepo.create({
       entityType,
       entityId,
       documentType: documentType || 'SUPPORTING_DOC',
-      fileName: file.originalname,
+      fileName: cleanFileName,
       filePath: `/uploads/documents/${file.filename}`,
       contentType: file.mimetype || 'application/octet-stream',
       fileSizeBytes: String(file.size || 0),

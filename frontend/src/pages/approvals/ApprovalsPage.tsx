@@ -91,7 +91,10 @@ export const ApprovalsPage: React.FC = () => {
 
   const handleToggleReminderConfig = async (config: ApprovalReminderConfig) => {
     try {
-      await api.updateApprovalReminderConfig(config.configId, { isActive: !config.isActive });
+      await api.updateApprovalReminderConfig(config.configId, {
+        reminderIntervalHours: config.reminderIntervalHours || 4,
+        isActive: !config.isActive,
+      });
       await loadRemindersData();
     } catch (err: any) {
       alert('Failed to update reminder configuration');
@@ -831,7 +834,7 @@ export const ApprovalsPage: React.FC = () => {
                         reminderConfigs.map((cfg) => (
                           <tr key={cfg.configId} style={{ borderBottom: '1px solid var(--border-color)' }}>
                             <td style={{ padding: '0.75rem 0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                              {(cfg.workflowType || cfg.requestType || 'GENERAL').replace(/_/g, ' ')}
+                              {(cfg.workflowTypeCode || cfg.workflowType || cfg.requestType || 'GENERAL').replace(/_/g, ' ')}
                             </td>
                             <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
                               <input
@@ -899,24 +902,38 @@ export const ApprovalsPage: React.FC = () => {
                           </td>
                         </tr>
                       ) : (
-                        reminderLogs.map((log) => (
-                          <tr key={log.logId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                            <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>
-                              {new Date(log.sentAt).toLocaleString()}
-                            </td>
-                            <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                              {(log.workflowType || log.requestType || 'APPROVAL')} #{log.targetEntityId || log.approvalRequestId || ''}
-                            </td>
-                            <td style={{ padding: '0.5rem 0.75rem', color: 'var(--accent-cyan)' }}>
-                              {log.recipientRole || log.recipientEmail || 'N/A'}
-                            </td>
-                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
-                              <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>
-                                {log.status || (log.sentAt ? 'SENT' : 'DISPATCHED')}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
+                        reminderLogs.map((log: any) => {
+                          const dateVal = log.notificationSentAt || log.sentAt || log.createdAt;
+                          const dateFormatted = dateVal && !isNaN(new Date(dateVal).getTime())
+                            ? new Date(dateVal).toLocaleString()
+                            : new Date().toLocaleString();
+                          const wf = log.workflowTypeCode || log.workflowType || log.entityType || 'APPROVAL';
+                          const refId = log.notificationDetails?.referenceNumber || log.entityId || log.approvalRequestId || log.targetEntityId || '';
+                          const recipient =
+                            log.notificationDetails?.recipientRole ||
+                            log.notificationDetails?.recipientEmail ||
+                            log.recipientRole ||
+                            log.recipientEmail ||
+                            'Approver / Manager';
+                          return (
+                            <tr key={log.reminderLogId || log.logId || Math.random()} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>
+                                {dateFormatted}
+                              </td>
+                              <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {wf.replace(/_/g, ' ')} {refId ? `#${refId}` : ''}
+                              </td>
+                              <td style={{ padding: '0.5rem 0.75rem', color: 'var(--accent-cyan)' }}>
+                                {recipient}
+                              </td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                                <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>
+                                  {log.status || 'DISPATCHED'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>

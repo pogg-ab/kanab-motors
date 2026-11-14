@@ -12,6 +12,17 @@ interface EntityAttachmentsModalProps {
   allowedDocTypes?: string[];
 }
 
+const decodeUtf8Safe = (name: string): string => {
+  if (!name) return '';
+  try {
+    const bytes = new Uint8Array([...name].map((c) => c.charCodeAt(0) & 0xff));
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return decoded && !decoded.includes('\ufffd') ? decoded : name;
+  } catch {
+    return name;
+  }
+};
+
 export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
   isOpen,
   onClose,
@@ -305,7 +316,7 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {att.fileName}
+                          {decodeUtf8Safe(att.fileName)}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                           {att.documentType && (
@@ -334,12 +345,12 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
                       </a>
                       <a
                         href={resolveDocumentUrl(att.filePath)}
-                        download={att.fileName}
+                        download={decodeUtf8Safe(att.fileName)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-secondary btn-sm"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', padding: '0.3rem 0.55rem' }}
-                        title={`Download ${att.fileName}`}
+                        title={`Download ${decodeUtf8Safe(att.fileName)}`}
                       >
                         <Download size={13} />
                         <span>Download</span>

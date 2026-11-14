@@ -102,6 +102,19 @@ export const CreditSalesAndAgingReports: React.FC = () => {
     unitCostOrPrice: Number(r.unitCostOrPrice || r.unit_value || 0),
   }));
 
+  const creditSummary = (creditSalesData as any)?.summary || (creditSalesData as any)?.totals || {};
+  const totalCreditSales = Number(creditSummary.totalCreditSales ?? normalizedCreditRecords.reduce((s: number, r: any) => s + r.totalAmount, 0));
+  const totalCollected = Number(creditSummary.totalCollected ?? normalizedCreditRecords.reduce((s: number, r: any) => s + r.amountPaid, 0));
+  const totalOutstanding = Number(creditSummary.totalOutstanding ?? normalizedCreditRecords.reduce((s: number, r: any) => s + r.outstandingBalance, 0));
+  const totalOverdue = Number(creditSummary.overdueAmount ?? creditSummary.totalOverdue ?? normalizedCreditRecords.filter((r: any) => r.status === 'OVERDUE').reduce((s: number, r: any) => s + r.outstandingBalance, 0));
+
+  const getBucketSummary = (bucketKey: string) => {
+    const matching = normalizedAgingRecords.filter((r: any) => r.ageBucket === bucketKey);
+    const count = matching.length;
+    const value = matching.reduce((sum: number, r: any) => sum + (r.unitCostOrPrice * r.quantity), 0);
+    return { count, value };
+  };
+
   // Filtered Credit Sales
   const filteredCreditSales = normalizedCreditRecords.filter((r: any) => {
     const matchesSearch =
@@ -182,99 +195,134 @@ export const CreditSalesAndAgingReports: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Tab Switcher */}
-      <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-        <div className="flex items-center gap-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '0.5rem' }}>
+      {/* Sub Navigation Tabs & Refresh */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '0.75rem',
+          borderBottom: '1px solid var(--border-color)',
+          paddingBottom: '0.85rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           <button
+            type="button"
             onClick={() => setActiveReportTab('credit_sales')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 ${
-              activeReportTab === 'credit_sales'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-            }`}
+            className={`filter-pill ${activeReportTab === 'credit_sales' ? 'active' : ''}`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 700 }}
           >
-            <CreditCard className="w-4 h-4" />
-            Credit Sales Report (KMSI-14-07)
+            <CreditCard size={16} />
+            <span>Credit Sales Report</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveReportTab('stock_aging')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 ${
-              activeReportTab === 'stock_aging'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-            }`}
+            className={`filter-pill ${activeReportTab === 'stock_aging' ? 'active' : ''}`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 700 }}
           >
-            <Clock className="w-4 h-4" />
-            Stock Aging Tracking (KMSI-14-08)
+            <Clock size={16} />
+            <span>Stock Aging Report</span>
           </button>
         </div>
+
         <button
+          type="button"
           onClick={activeReportTab === 'credit_sales' ? fetchCreditSales : fetchStockAging}
-          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs flex items-center gap-1.5 transition"
+          className="btn btn-secondary btn-sm"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
           title="Refresh Data"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${creditLoading || agingLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw size={14} className={creditLoading || agingLoading ? 'animate-spin' : ''} />
           <span>Refresh</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* SECTION 1: CREDIT SALES REPORT (KMSI-14-07) */}
+      {/* SECTION 1: CREDIT SALES REPORT */}
       {/* ========================================================================= */}
       {activeReportTab === 'credit_sales' && (
-        <div className="space-y-5">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Summary KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-xl">
-              <div className="text-xs text-slate-400 font-medium">Total Credit Sales</div>
-              <div className="text-xl font-bold text-white mt-1">
-                ETB {Number(creditSalesData?.totals.totalCreditSales || 0).toLocaleString()}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#6366f1' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Credit Sales</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
+                  <CreditCard size={16} />
+                </div>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">Total revenue committed on credit</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                ETB {totalCreditSales.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Total revenue committed on credit</div>
             </div>
 
-            <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-xl">
-              <div className="text-xs text-emerald-400 font-medium">Total Collected</div>
-              <div className="text-xl font-bold text-emerald-400 mt-1">
-                ETB {Number(creditSalesData?.totals.totalCollected || 0).toLocaleString()}
+            <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#10b981' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Collected</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                  <CheckCircle size={16} />
+                </div>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">Payments collected & posted</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
+                ETB {totalCollected.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Payments collected & posted</div>
             </div>
 
-            <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-xl">
-              <div className="text-xs text-indigo-400 font-medium">Outstanding Receivables</div>
-              <div className="text-xl font-bold text-indigo-400 mt-1">
-                ETB {Number(creditSalesData?.totals.totalOutstanding || 0).toLocaleString()}
+            <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#0284c7' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Receivables</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(2, 132, 199, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+                  <Clock size={16} />
+                </div>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">Active customer balance due</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0284c7', fontFamily: 'monospace' }}>
+                ETB {totalOutstanding.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Active customer balance due</div>
             </div>
 
-            <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-xl">
-              <div className="text-xs text-rose-400 font-medium">Overdue Balances</div>
-              <div className="text-xl font-bold text-rose-400 mt-1">
-                ETB {Number(creditSalesData?.totals.totalOverdue || 0).toLocaleString()}
+            <div className="card" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: totalOverdue > 0 ? '#ef4444' : '#64748b' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Overdue Balances</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: totalOverdue > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: totalOverdue > 0 ? '#ef4444' : '#64748b' }}>
+                  <AlertTriangle size={16} />
+                </div>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">Past contracted maturity date</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: totalOverdue > 0 ? '#ef4444' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                ETB {totalOverdue.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Past contracted maturity date</div>
             </div>
           </div>
 
           {/* Filters & Export */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-800/30 p-3 rounded-xl border border-slate-700/40">
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="relative flex-1 md:w-64">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <div className="card" style={{ padding: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', flex: 1 }}>
+              <div style={{ position: 'relative', minWidth: '220px', flex: '1 1 200px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                 <input
                   type="text"
                   placeholder="Search customer, reference..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="input"
+                  style={{ width: '100%', paddingLeft: '2.25rem', height: '38px', fontSize: '0.82rem' }}
                   value={creditSearch}
                   onChange={(e) => setCreditSearch(e.target.value)}
                 />
               </div>
 
               <select
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                className="input"
+                style={{ height: '38px', fontSize: '0.82rem', minWidth: '130px' }}
                 value={creditTypeFilter}
                 onChange={(e) => setCreditTypeFilter(e.target.value as any)}
               >
@@ -284,7 +332,8 @@ export const CreditSalesAndAgingReports: React.FC = () => {
               </select>
 
               <select
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                className="input"
+                style={{ height: '38px', fontSize: '0.82rem', minWidth: '150px' }}
                 value={creditBranch}
                 onChange={(e) => setCreditBranch(e.target.value)}
               >
@@ -296,7 +345,8 @@ export const CreditSalesAndAgingReports: React.FC = () => {
               </select>
 
               <select
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                className="input"
+                style={{ height: '38px', fontSize: '0.82rem', minWidth: '130px' }}
                 value={creditStatusFilter}
                 onChange={(e) => setCreditStatusFilter(e.target.value as any)}
               >
@@ -305,118 +355,118 @@ export const CreditSalesAndAgingReports: React.FC = () => {
                 <option value="PENDING">Pending Balance</option>
                 <option value="SETTLED">Fully Settled</option>
               </select>
-
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] text-slate-400">From:</span>
-                <input
-                  type="date"
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none"
-                  value={creditStartDate}
-                  onChange={(e) => setCreditStartDate(e.target.value)}
-                  title="Start Date"
-                />
-              </div>
-
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] text-slate-400">To:</span>
-                <input
-                  type="date"
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none"
-                  value={creditEndDate}
-                  onChange={(e) => setCreditEndDate(e.target.value)}
-                  title="End Date"
-                />
-              </div>
             </div>
 
             <button
+              type="button"
               onClick={exportCreditCsv}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition shrink-0"
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.95rem', fontSize: '0.82rem', fontWeight: 600 }}
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download size={14} />
               <span>Export CSV</span>
             </button>
           </div>
 
           {/* Table */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/50">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-800/60 uppercase tracking-wider text-[11px] text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Reference / Invoice</th>
-                    <th className="px-4 py-3">Customer</th>
-                    <th className="px-4 py-3">Branch</th>
-                    <th className="px-4 py-3">Sale Date</th>
-                    <th className="px-4 py-3">Due Date</th>
-                    <th className="px-4 py-3 text-right">Total Amount</th>
-                    <th className="px-4 py-3 text-right">Amount Paid</th>
-                    <th className="px-4 py-3 text-right">Outstanding</th>
-                    <th className="px-4 py-3 text-center">Status</th>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reference / Invoice</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Branch</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sale Date</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Total Amount</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Amount Paid</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Outstanding</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody>
                   {creditLoading ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
-                        Loading credit sales...
+                      <td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        Loading credit sales report...
                       </td>
                     </tr>
                   ) : filteredCreditSales.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={10} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         No credit sales recorded matching criteria.
                       </td>
                     </tr>
                   ) : (
                     filteredCreditSales.map((r: any) => (
-                      <tr key={r.id} className="hover:bg-slate-800/30 transition">
-                        <td className="px-4 py-3">
+                      <tr key={r.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.85rem 1rem' }}>
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              r.type === 'VEHICLE'
-                                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                            }`}
+                            style={{
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '4px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: r.type === 'VEHICLE' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(2, 132, 199, 0.12)',
+                              color: r.type === 'VEHICLE' ? '#6366f1' : '#0284c7',
+                              border: `1px solid ${r.type === 'VEHICLE' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(2, 132, 199, 0.3)'}`,
+                            }}
                           >
                             {r.type}
                           </span>
                         </td>
-                        <td className="px-4 py-3 font-mono font-medium text-slate-200">{r.referenceNumber}</td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-white">{r.customerName}</div>
-                          {r.customerCode && <div className="text-[10px] text-slate-500 font-mono">{r.customerCode}</div>}
+                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {r.referenceNumber}
                         </td>
-                        <td className="px-4 py-3 text-slate-400">{r.branch}</td>
-                        <td className="px-4 py-3 text-slate-400">{r.saleDate}</td>
-                        <td className="px-4 py-3">
-                          {r.dueDate ? (
-                            <span className={r.status === 'OVERDUE' ? 'text-rose-400 font-semibold' : 'text-slate-400'}>
-                              {r.dueDate}
-                            </span>
-                          ) : (
-                            <span className="text-slate-600">—</span>
-                          )}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.customerName}</div>
+                          {r.customerCode && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.customerCode}</div>}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-medium">
+                        <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{r.branch}</td>
+                        <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>
+                          {r.saleDate ? new Date(r.saleDate).toLocaleDateString() : '—'}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', color: r.status === 'OVERDUE' ? '#ef4444' : 'var(--text-secondary)', fontWeight: r.status === 'OVERDUE' ? 700 : 500 }}>
+                          {r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>
                           ETB {Number(r.totalAmount).toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'monospace', color: '#10b981', fontWeight: 600 }}>
                           ETB {Number(r.amountPaid).toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-rose-400">
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'monospace', color: Number(r.outstandingBalance) > 0 ? '#ef4444' : 'var(--text-secondary)', fontWeight: 700 }}>
                           ETB {Number(r.outstandingBalance).toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              r.status === 'FULLY_SETTLED'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : r.status === 'OVERDUE'
-                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                            }`}
+                            style={{
+                              padding: '0.25rem 0.65rem',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background:
+                                r.status === 'FULLY_SETTLED'
+                                  ? 'rgba(16, 185, 129, 0.12)'
+                                  : r.status === 'OVERDUE'
+                                  ? 'rgba(239, 68, 68, 0.12)'
+                                  : 'rgba(245, 158, 11, 0.12)',
+                              color:
+                                r.status === 'FULLY_SETTLED'
+                                  ? '#10b981'
+                                  : r.status === 'OVERDUE'
+                                  ? '#ef4444'
+                                  : '#f59e0b',
+                              border: `1px solid ${
+                                r.status === 'FULLY_SETTLED'
+                                  ? 'rgba(16, 185, 129, 0.25)'
+                                  : r.status === 'OVERDUE'
+                                  ? 'rgba(239, 68, 68, 0.25)'
+                                  : 'rgba(245, 158, 11, 0.25)'
+                              }`,
+                            }}
                           >
                             {r.status.replace(/_/g, ' ')}
                           </span>
@@ -432,33 +482,44 @@ export const CreditSalesAndAgingReports: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* SECTION 2: STOCK AGING TRACKING REPORT (KMSI-14-08) */}
+      {/* SECTION 2: STOCK AGING REPORT */}
       {/* ========================================================================= */}
       {activeReportTab === 'stock_aging' && (
-        <div className="space-y-5">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Bucket Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
             {[
-              { key: '0-30', label: '0 – 30 Days', color: 'emerald' },
-              { key: '31-60', label: '31 – 60 Days', color: 'cyan' },
-              { key: '61-90', label: '61 – 90 Days', color: 'indigo' },
-              { key: '91-180', label: '91 – 180 Days', color: 'amber' },
-              { key: '>180', label: 'Over 180 Days', color: 'rose' },
+              { key: '0-30', label: '0 – 30 Days', color: '#10b981' },
+              { key: '31-60', label: '31 – 60 Days', color: '#00D2D3' },
+              { key: '61-90', label: '61 – 90 Days', color: '#6366f1' },
+              { key: '91-180', label: '91 – 180 Days', color: '#f59e0b' },
+              { key: '>180', label: 'Over 180 Days', color: '#ef4444' },
             ].map((b) => {
-              const summary = agingData?.bucketSummary?.[b.key] || { count: 0, value: 0 };
+              const summary = agingData?.bucketSummary?.[b.key] || getBucketSummary(b.key);
+              const isSelected = agingBucketFilter === b.key;
               return (
                 <div
                   key={b.key}
-                  onClick={() => setAgingBucketFilter(agingBucketFilter === b.key ? 'ALL' : b.key)}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition ${
-                    agingBucketFilter === b.key
-                      ? 'bg-slate-800 border-indigo-500 shadow-md ring-1 ring-indigo-500'
-                      : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800/80'
-                  }`}
+                  onClick={() => setAgingBucketFilter(isSelected ? 'ALL' : b.key)}
+                  className="card"
+                  style={{
+                    padding: '1rem',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: isSelected ? `2px solid ${b.color}` : '1px solid var(--border-color)',
+                    background: isSelected ? 'rgba(0, 210, 211, 0.08)' : 'var(--bg-secondary)',
+                    transition: 'all 0.15s ease',
+                  }}
                 >
-                  <div className="text-[11px] font-semibold text-slate-400">{b.label}</div>
-                  <div className="text-lg font-bold text-white mt-1">{summary.count} units</div>
-                  <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: b.color }} />
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {b.label}
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.35rem', fontFamily: 'monospace' }}>
+                    {summary.count} units
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontFamily: 'monospace' }}>
                     ETB {Number(summary.value || 0).toLocaleString()}
                   </div>
                 </div>
@@ -467,21 +528,23 @@ export const CreditSalesAndAgingReports: React.FC = () => {
           </div>
 
           {/* Filters & Export */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-800/30 p-3 rounded-xl border border-slate-700/40">
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="relative flex-1 md:w-64">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <div className="card" style={{ padding: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', flex: 1 }}>
+              <div style={{ position: 'relative', minWidth: '220px', flex: '1 1 200px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                 <input
                   type="text"
                   placeholder="Search VIN/Chassis, SKU, item..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="input"
+                  style={{ width: '100%', paddingLeft: '2.25rem', height: '38px', fontSize: '0.82rem' }}
                   value={agingSearch}
                   onChange={(e) => setAgingSearch(e.target.value)}
                 />
               </div>
 
               <select
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                className="input"
+                style={{ height: '38px', fontSize: '0.82rem', minWidth: '150px' }}
                 value={agingTypeFilter}
                 onChange={(e) => setAgingTypeFilter(e.target.value as any)}
               >
@@ -491,7 +554,8 @@ export const CreditSalesAndAgingReports: React.FC = () => {
               </select>
 
               <select
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                className="input"
+                style={{ height: '38px', fontSize: '0.82rem', minWidth: '150px' }}
                 value={agingBucketFilter}
                 onChange={(e) => setAgingBucketFilter(e.target.value)}
               >
@@ -505,85 +569,129 @@ export const CreditSalesAndAgingReports: React.FC = () => {
             </div>
 
             <button
+              type="button"
               onClick={exportAgingCsv}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition shrink-0"
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.95rem', fontSize: '0.82rem', fontWeight: 600 }}
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download size={14} />
               <span>Export CSV</span>
             </button>
           </div>
 
           {/* Table */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/50">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-800/60 uppercase tracking-wider text-[11px] text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3">Unique VIN / Part SKU</th>
-                    <th className="px-4 py-3">Item Description</th>
-                    <th className="px-4 py-3">Warehouse</th>
-                    <th className="px-4 py-3">Stock Entry Date</th>
-                    <th className="px-4 py-3 text-center">Days in Stock</th>
-                    <th className="px-4 py-3 text-center">Aging Bucket</th>
-                    <th className="px-4 py-3 text-right">Quantity</th>
-                    <th className="px-4 py-3 text-right">Unit Value</th>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unique VIN / Part SKU</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item Description</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Warehouse</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stock Entry Date</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Days in Stock</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Aging Bucket</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Quantity</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Unit Value</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody>
                   {agingLoading ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         Calculating stock aging...
                       </td>
                     </tr>
                   ) : filteredAging.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={9} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         No inventory matching selected filters.
                       </td>
                     </tr>
                   ) : (
                     filteredAging.map((r: any, i: number) => (
-                      <tr key={`${r.identifier}-${i}`} className="hover:bg-slate-800/30 transition">
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-semibold text-slate-200">{r.categoryName}</span>
-                            <span
-                              className={`px-1.5 py-0.2 rounded text-[9px] font-semibold inline-block w-fit ${
-                                r.type === 'VEHICLE'
-                                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                  : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                              }`}
-                            >
-                              {r.type}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 font-mono font-semibold text-slate-200">{r.identifier}</td>
-                        <td className="px-4 py-3 font-medium text-white">{r.name}</td>
-                        <td className="px-4 py-3 text-slate-400">{r.warehouseName || 'Main Hub'}</td>
-                        <td className="px-4 py-3 text-slate-400">{r.entryDate}</td>
-                        <td className="px-4 py-3 text-center font-mono font-bold text-white">{r.ageDays}d</td>
-                        <td className="px-4 py-3 text-center">
+                      <tr key={`${r.identifier}-${i}`} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.categoryName}</div>
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              r.ageBucket === '0-30'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : r.ageBucket === '31-60'
-                                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                                : r.ageBucket === '61-90'
-                                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                : r.ageBucket === '91-180'
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold'
-                            }`}
+                            style={{
+                              display: 'inline-block',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              marginTop: '0.2rem',
+                              background: r.type === 'VEHICLE' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(2, 132, 199, 0.12)',
+                              color: r.type === 'VEHICLE' ? '#6366f1' : '#0284c7',
+                              border: `1px solid ${r.type === 'VEHICLE' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(2, 132, 199, 0.25)'}`,
+                            }}
+                          >
+                            {r.type}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {r.identifier}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {r.name}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>
+                          {r.warehouseName || 'Main Hub'}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>
+                          {r.entryDate ? new Date(r.entryDate).toLocaleDateString() : '—'}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {r.ageDays}d
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                          <span
+                            style={{
+                              padding: '0.25rem 0.65rem',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background:
+                                r.ageBucket === '0-30'
+                                  ? 'rgba(16, 185, 129, 0.12)'
+                                  : r.ageBucket === '31-60'
+                                  ? 'rgba(0, 210, 211, 0.12)'
+                                  : r.ageBucket === '61-90'
+                                  ? 'rgba(99, 102, 241, 0.12)'
+                                  : r.ageBucket === '91-180'
+                                  ? 'rgba(245, 158, 11, 0.12)'
+                                  : 'rgba(239, 68, 68, 0.12)',
+                              color:
+                                r.ageBucket === '0-30'
+                                  ? '#10b981'
+                                  : r.ageBucket === '31-60'
+                                  ? '#00D2D3'
+                                  : r.ageBucket === '61-90'
+                                  ? '#6366f1'
+                                  : r.ageBucket === '91-180'
+                                  ? '#f59e0b'
+                                  : '#ef4444',
+                              border: `1px solid ${
+                                r.ageBucket === '0-30'
+                                  ? 'rgba(16, 185, 129, 0.25)'
+                                  : r.ageBucket === '31-60'
+                                  ? 'rgba(0, 210, 211, 0.25)'
+                                  : r.ageBucket === '61-90'
+                                  ? 'rgba(99, 102, 241, 0.25)'
+                                  : r.ageBucket === '91-180'
+                                  ? 'rgba(245, 158, 11, 0.25)'
+                                  : 'rgba(239, 68, 68, 0.25)'
+                              }`,
+                            }}
                           >
                             {r.ageBucket} days
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-medium">{r.quantity}</td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-300">
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>
+                          {r.quantity}
+                        </td>
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-primary)' }}>
                           ETB {Number(r.unitCostOrPrice).toLocaleString()}
                         </td>
                       </tr>

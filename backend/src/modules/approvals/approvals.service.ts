@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ApprovalRequest, ApprovalStatus } from './entities/approval-request.entity';
@@ -10,7 +10,10 @@ import { SubmitApprovalDto } from './dto/submit-approval.dto';
 import { ApprovalDecisionDto } from './dto/approval-decision.dto';
 
 @Injectable()
-export class ApprovalsService {
+export class ApprovalsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ApprovalsService.name);
+  private scanTimer?: NodeJS.Timeout;
+
   constructor(
     @InjectRepository(ApprovalRequest)
     private approvalRequestRepo: Repository<ApprovalRequest>,
@@ -26,6 +29,28 @@ export class ApprovalsService {
     private reminderLogRepo: Repository<ApprovalReminderLog>,
     private dataSource: DataSource,
   ) {}
+
+  onModuleInit() {
+    // Automated background reminder scanner:
+    // Initial run 15 seconds after module startup, then recurring every 15 minutes
+    setTimeout(() => {
+      this.scanPendingApprovals().catch(err => {
+        this.logger.error(`Automated initial reminder scan error: ${err.message}`);
+      });
+    }, 15000);
+
+    this.scanTimer = setInterval(() => {
+      this.scanPendingApprovals().catch(err => {
+        this.logger.error(`Automated recurring reminder scan error: ${err.message}`);
+      });
+    }, 15 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.scanTimer) {
+      clearInterval(this.scanTimer);
+    }
+  }
 
   async getPendingApprovals(): Promise<any[]> {
     return this.approvalRequestRepo

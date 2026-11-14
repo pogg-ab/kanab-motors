@@ -1202,6 +1202,7 @@ export interface ApprovalReminderConfig {
   configId: number;
   requestType: string;
   workflowType?: string;
+  workflowTypeCode?: string;
   intervalHours: number;
   reminderIntervalHours?: number;
   escalationLeadHours?: number;
@@ -1212,9 +1213,13 @@ export interface ApprovalReminderConfig {
 
 export interface ApprovalReminderLog {
   logId: string;
+  reminderLogId?: string;
   approvalRequestId?: string;
   requestType: string;
   workflowType?: string;
+  workflowTypeCode?: string;
+  entityType?: string;
+  entityId?: string;
   targetEntityId?: string;
   notificationIntervalHours: number;
   recipientRole?: string;
@@ -1222,6 +1227,8 @@ export interface ApprovalReminderLog {
   notificationChannel: string;
   status?: string;
   sentAt: string;
+  notificationSentAt?: string;
+  notificationDetails?: Record<string, any>;
   isEscalation: boolean;
 }
 

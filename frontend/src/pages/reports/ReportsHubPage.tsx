@@ -61,6 +61,9 @@ export const ReportsHubPage: React.FC = () => {
   const [stockReport, setStockReport] = useState<CurrentStockReportItem[]>([]);
   const [vehicleStatusReport, setVehicleStatusReport] = useState<VehicleStatusReportItem[]>([]);
   const [financialSummary, setFinancialSummary] = useState<CustomerFinancialSummaryItem[]>([]);
+  const [creditSubTab, setCreditSubTab] = useState<'credit_sales' | 'stock_aging'>('credit_sales');
+  const [creditSalesData, setCreditSalesData] = useState<any>(null);
+  const [stockAgingData, setStockAgingData] = useState<any>(null);
 
   // Filters
   const [startDate, setStartDate] = useState<string>('');
@@ -74,7 +77,7 @@ export const ReportsHubPage: React.FC = () => {
 
   useEffect(() => {
     setInvoiceStatusFilter('ALL');
-  }, [activeTab, salesSubTab, operationalSubTab]);
+  }, [activeTab, salesSubTab, operationalSubTab, creditSubTab]);
 
   const loadAllReports = async () => {
     setLoading(true);
@@ -95,6 +98,8 @@ export const ReportsHubPage: React.FC = () => {
         stkRep,
         vehRep,
         finRep,
+        cSales,
+        sAging,
       ] = await Promise.all([
         api.getDailySalesReport({ startDate: startDate || undefined, endDate: endDate || undefined }).catch(() => []),
         api.getMonthlySalesReport().catch(() => []),
@@ -111,6 +116,8 @@ export const ReportsHubPage: React.FC = () => {
         api.getCurrentStockReport().catch(() => []),
         api.getVehicleInventoryByStatusReport().catch(() => []),
         api.getCustomerFinancialSummary().catch(() => []),
+        api.getCreditSalesReport().catch(() => ({ items: [] })),
+        api.getStockAgingReport().catch(() => ({ items: [] })),
       ]);
 
       setDailySales(daily);
@@ -128,6 +135,8 @@ export const ReportsHubPage: React.FC = () => {
       setStockReport(stkRep);
       setVehicleStatusReport(vehRep);
       setFinancialSummary(finRep);
+      setCreditSalesData(cSales);
+      setStockAgingData(sAging);
     } catch {
       // Ignore
     } finally {
@@ -165,6 +174,48 @@ export const ReportsHubPage: React.FC = () => {
   const filteredVehicleStatusReport = vehicleStatusReport.filter((row) => matchesSearch(row) && matchesStatus(row));
   const filteredFinancialSummary = financialSummary.filter((row) => matchesSearch(row) && matchesStatus(row));
 
+  const creditSalesRecords = ((creditSalesData?.records || creditSalesData?.items || []) as any[]).map((r) => ({
+    id: r.id || r.reference_number || r.referenceNumber,
+    type: (r.type || (r.sale_type === 'SPARE_PARTS' ? 'SPARE_PART' : 'VEHICLE')) as 'VEHICLE' | 'SPARE_PART',
+    referenceNumber: r.referenceNumber || r.reference_number || 'REF-N/A',
+    customerName: r.customerName || r.customer_name || 'Customer',
+    customerCode: r.customerCode || r.customer_code,
+    branch: r.branch || 'Addis Ababa Main',
+    saleDate: r.saleDate || r.sale_date || '',
+    dueDate: r.dueDate || r.due_date,
+    totalAmount: Number(r.totalAmount || r.total_amount || 0),
+    amountPaid: Number(r.amountPaid || r.amount_paid || 0),
+    outstandingBalance: Number(r.outstandingBalance || r.outstanding_balance || 0),
+    status: r.status || (r.payment_status === 'PAID' ? 'FULLY_SETTLED' : r.payment_status === 'OVERDUE' ? 'OVERDUE' : 'PENDING_PAYMENT'),
+  }));
+
+  const filteredCreditSales = creditSalesRecords.filter((r) => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch = !q || r.customerName.toLowerCase().includes(q) || r.referenceNumber.toLowerCase().includes(q) || (r.customerCode && r.customerCode.toLowerCase().includes(q));
+    const matchStatus = invoiceStatusFilter === 'ALL' || r.status === invoiceStatusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const agingRecords = ((stockAgingData?.records || stockAgingData?.items || []) as any[]).map((r) => ({
+    type: (r.type || r.item_type || 'VEHICLE') as 'VEHICLE' | 'SPARE_PART',
+    categoryName: r.categoryName || r.category_name || (r.type === 'SPARE_PART' || r.item_type === 'SPARE_PART' ? 'Spare Parts' : 'Imported Vehicles'),
+    identifier: r.identifier || r.chassis_number || '',
+    name: r.name || r.item_name || 'Standard Model',
+    warehouseName: r.warehouseName || r.warehouse_name || 'Main Warehouse',
+    entryDate: r.entryDate || r.stock_entry_date || '',
+    ageDays: Number(r.ageDays || r.age_in_days || 0),
+    ageBucket: r.ageBucket || (r.aging_bucket ? r.aging_bucket.replace('_TO_', '-').replace('_DAYS', '').replace('OVER_180', '>180') : '0-30'),
+    quantity: Number(r.quantity || 1),
+    unitCostOrPrice: Number(r.unitCostOrPrice || r.unit_value || 0),
+  }));
+
+  const filteredAging = agingRecords.filter((r) => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch = !q || r.identifier.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.categoryName.toLowerCase().includes(q) || r.warehouseName.toLowerCase().includes(q);
+    const matchBucket = invoiceStatusFilter === 'ALL' || r.ageBucket === invoiceStatusFilter;
+    return matchSearch && matchBucket;
+  });
+
   const activeStatusOptions = Array.from(
     new Set(
       (activeTab === 'operational'
@@ -177,9 +228,13 @@ export const ReportsHubPage: React.FC = () => {
               : filteredBookingsReport.map((row) => row.status)
         : activeTab === 'inventory'
           ? filteredVehicleStatusReport.map((row) => row.current_status || row.status)
-          : activeTab === 'financial'
-            ? filteredFinancialSummary.map((row) => row.customer_type)
-            : []
+        : activeTab === 'financial'
+          ? filteredFinancialSummary.map((row) => row.customer_type)
+        : activeTab === 'credit_and_aging'
+          ? creditSubTab === 'credit_sales'
+            ? filteredCreditSales.map((r) => r.status)
+            : ['0-30', '31-60', '61-90', '91-180', '>180']
+          : []
       ).filter(Boolean) as string[],
     ),
   );
@@ -205,6 +260,20 @@ export const ReportsHubPage: React.FC = () => {
         ...filteredStockReport.map((r) => ({ label: r.item_code, value: Number(r.quantity_available), detail: `${r.warehouse_name}` })),
         ...filteredVehicleStatusReport.map((r) => ({ label: r.current_status || r.status || 'Status', value: Number(r.unit_count ?? r.vehicle_count ?? 0), detail: r.warehouse_name || 'All warehouses' })),
       ];
+    }
+    if (activeTab === 'credit_and_aging') {
+      if (creditSubTab === 'credit_sales') {
+        return filteredCreditSales.map((r) => ({
+          label: `${r.customerName} (${r.referenceNumber})`,
+          value: Number(r.totalAmount),
+          detail: r.status.replace(/_/g, ' '),
+        }));
+      }
+      return filteredAging.map((r) => ({
+        label: `${r.identifier} - ${r.name}`,
+        value: Number(r.unitCostOrPrice) * Number(r.quantity),
+        detail: `${r.ageDays}d (${r.ageBucket})`,
+      }));
     }
     return filteredFinancialSummary.map((r) => ({ label: r.full_name, value: Math.abs(Number(r.net_receivable)), detail: Number(r.net_receivable) >= 0 ? 'Receivable' : 'Credit' }));
   };
@@ -457,7 +526,7 @@ export const ReportsHubPage: React.FC = () => {
           { key: 'operational', label: 'Operational Reports', icon: Receipt },
           { key: 'inventory', label: 'Inventory & Fleet Reports', icon: CarFront },
           { key: 'financial', label: 'Customer Financial Reports', icon: DollarSign },
-          { key: 'credit_and_aging', label: 'Credit Sales & Stock Aging (KMSI-14)', icon: CreditCard },
+          { key: 'credit_and_aging', label: 'Credit Sales & Stock Aging', icon: CreditCard },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -497,7 +566,7 @@ export const ReportsHubPage: React.FC = () => {
             style={{ width: '100%', padding: '0.55rem 0.75rem 0.55rem 2.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
           />
         </div>
-        {reportView === 'chart' && activeTab === 'sales' && (
+        {activeTab === 'sales' && (
           <select
             value={salesSubTab}
             onChange={(e) => setSalesSubTab(e.target.value as any)}
@@ -512,7 +581,7 @@ export const ReportsHubPage: React.FC = () => {
             <option value="salesperson">By Salesperson</option>
           </select>
         )}
-        {reportView === 'chart' && activeTab === 'operational' && (
+        {activeTab === 'operational' && (
           <select
             value={operationalSubTab}
             onChange={(e) => setOperationalSubTab(e.target.value as any)}
@@ -522,6 +591,16 @@ export const ReportsHubPage: React.FC = () => {
             <option value="deliveries">Vehicle Deliveries Report</option>
             <option value="enquiries">Enquiries Pipeline</option>
             <option value="bookings">Bookings Queue</option>
+          </select>
+        )}
+        {activeTab === 'credit_and_aging' && (
+          <select
+            value={creditSubTab}
+            onChange={(e) => setCreditSubTab(e.target.value as any)}
+            style={{ padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+          >
+            <option value="credit_sales">Credit Sales Report</option>
+            <option value="stock_aging">Stock Aging Report</option>
           </select>
         )}
         {activeStatusOptions.length > 0 && (
@@ -1320,6 +1399,199 @@ export const ReportsHubPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: CREDIT SALES & STOCK AGING REPORTS */}
+      {reportView === 'table' && activeTab === 'credit_and_aging' && (
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden', marginBottom: '1.25rem', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
+          <ReportFrameHeader
+            title={creditSubTab === 'credit_sales' ? 'Credit Sales Report Table' : 'Stock Aging Report Table'}
+            subtitle="Flip this report frame back to visual analytics."
+            icon={<CreditCard size={20} />}
+          />
+          <div style={{ padding: '1.1rem' }}>
+            {/* Sub-tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setCreditSubTab('credit_sales')}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-color)',
+                  background: creditSubTab === 'credit_sales' ? '#00D2D3' : 'var(--bg-secondary)',
+                  color: creditSubTab === 'credit_sales' ? '#000000' : 'var(--text-primary)',
+                }}
+              >
+                Credit Sales Report
+              </button>
+              <button
+                onClick={() => setCreditSubTab('stock_aging')}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-color)',
+                  background: creditSubTab === 'stock_aging' ? '#00D2D3' : 'var(--bg-secondary)',
+                  color: creditSubTab === 'stock_aging' ? '#000000' : 'var(--text-primary)',
+                }}
+              >
+                Stock Aging Report
+              </button>
+            </div>
+
+            {creditSubTab === 'credit_sales' ? (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700 }}>Customer Credit Sales & Open Receivables</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Outstanding accounts, credit terms & payment schedules</div>
+                  </div>
+                  <button
+                    onClick={() => exportToCSV('credit_sales_report', filteredCreditSales)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(0, 210, 211, 0.06)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Type</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Reference No</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Customer Name</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Branch</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Sale Date</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Due Date</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Total Amount</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Amount Paid</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Outstanding</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'center' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCreditSales.length === 0 ? (
+                        <tr><td colSpan={10} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No credit sales found matching criteria</td></tr>
+                      ) : (
+                        filteredCreditSales.map((r: any) => (
+                          <tr key={r.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.75rem 1rem' }}>
+                              <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, background: r.type === 'VEHICLE' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(2, 132, 199, 0.15)', color: r.type === 'VEHICLE' ? '#6366f1' : '#0284c7' }}>
+                                {r.type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 700 }}>{r.referenceNumber}</td>
+                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{r.customerName}</td>
+                            <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>{r.branch}</td>
+                            <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>{r.saleDate ? new Date(r.saleDate).toLocaleDateString() : '—'}</td>
+                            <td style={{ padding: '0.75rem 1rem', color: r.status === 'OVERDUE' ? '#ef4444' : 'var(--text-secondary)' }}>{r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '—'}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'monospace' }}>{formatETB(r.totalAmount)}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'monospace', color: '#10B981' }}>{formatETB(r.amountPaid)}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: r.outstandingBalance > 0 ? '#ef4444' : 'var(--text-secondary)' }}>{formatETB(r.outstandingBalance)}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                              <span style={{ padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, background: r.status === 'FULLY_SETTLED' ? 'rgba(16, 185, 129, 0.12)' : r.status === 'OVERDUE' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)', color: r.status === 'FULLY_SETTLED' ? '#10B981' : r.status === 'OVERDUE' ? '#ef4444' : '#F59E0B' }}>
+                                {r.status.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700 }}>Current Stock Aging & Dwell Time</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Inventory aging buckets by chassis and spare part SKUs</div>
+                  </div>
+                  <button
+                    onClick={() => exportToCSV('stock_aging_report', filteredAging)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(0, 210, 211, 0.06)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Category</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Identifier / Chassis</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Product Name</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Warehouse</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Stock Entry Date</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'center' }}>Days in Stock</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'center' }}>Aging Bucket</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Quantity</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Unit Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAging.length === 0 ? (
+                        <tr><td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No inventory found matching criteria</td></tr>
+                      ) : (
+                        filteredAging.map((r: any, i: number) => (
+                          <tr key={`${r.identifier}-${i}`} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.75rem 1rem' }}>
+                              <div style={{ fontWeight: 600 }}>{r.categoryName}</div>
+                              <span style={{ padding: '0.15rem 0.45rem', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 700, background: r.type === 'VEHICLE' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(2, 132, 199, 0.12)', color: r.type === 'VEHICLE' ? '#6366f1' : '#0284c7' }}>
+                                {r.type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 700 }}>{r.identifier}</td>
+                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{r.name}</td>
+                            <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>{r.warehouseName || 'Main Warehouse'}</td>
+                            <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>{r.entryDate ? new Date(r.entryDate).toLocaleDateString() : '—'}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>{r.ageDays}d</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                              <span style={{ padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, background: r.ageBucket === '0-30' ? 'rgba(16, 185, 129, 0.12)' : r.ageBucket === '31-60' ? 'rgba(0, 210, 211, 0.12)' : r.ageBucket === '61-90' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(239, 68, 68, 0.12)', color: r.ageBucket === '0-30' ? '#10B981' : r.ageBucket === '31-60' ? '#00D2D3' : r.ageBucket === '61-90' ? '#6366f1' : '#ef4444' }}>
+                                {r.ageBucket} days
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'monospace' }}>{r.quantity}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontFamily: 'monospace' }}>{formatETB(r.unitCostOrPrice)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
