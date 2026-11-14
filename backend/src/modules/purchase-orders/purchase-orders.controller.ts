@@ -38,12 +38,28 @@ export class PurchaseOrdersController {
   // Importer Profile & Bank Accounts (POX-01, POX-03)
   // -------------------------------------------------------------
   @Get('company-profile')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions(
+    'COMPANY_PROFILE_VIEW',
+    'PURCHASE_ORDERS_VIEW',
+    'PURCHASE_ORDERS_CREATE',
+    'PURCHASE_ORDERS_EDIT',
+    'PURCHASE_ORDERS_CONFIRM',
+  )
   @ApiOperation({ summary: 'Get Importer Company Profile (POX-01)' })
   getCompanyProfile() {
     return this.poService.getCompanyProfile();
   }
 
   @Get('bank-accounts')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions(
+    'COMPANY_PROFILE_VIEW',
+    'PURCHASE_ORDERS_VIEW',
+    'PURCHASE_ORDERS_CREATE',
+    'PURCHASE_ORDERS_EDIT',
+    'PURCHASE_ORDERS_CONFIRM',
+  )
   @ApiOperation({ summary: 'Get active Importer Bank Accounts (POX-03)' })
   getBankAccounts() {
     return this.poService.getBankAccounts();

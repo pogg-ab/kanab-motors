@@ -343,11 +343,28 @@ export class VehiclesService {
    */
   async recordCustomerCustody(id: string, dto: RecordCustomerCustodyDto, userId: number = 1): Promise<VehicleUnit> {
     const unit = await this.findOne(id);
+    if (![VehicleStatus.SOLD, VehicleStatus.READY_FOR_DELIVERY].includes(unit.currentStatus)) {
+      throw new BadRequestException('Only a sold or delivery-ready vehicle may be recorded as customer-owned retained stock');
+    }
+    const ownership = await this.dataSource.query(
+      `SELECT b.customer_id
+       FROM allotment_line al
+       JOIN allotment a ON a.allotment_id = al.allotment_id
+       JOIN booking b ON b.booking_id = a.booking_id
+       WHERE al.vehicle_unit_id = $1 AND a.status = 'APPROVED'
+       ORDER BY a.approved_at DESC NULLS LAST LIMIT 1`,
+      [id],
+    );
+    if (!ownership[0] || String(ownership[0].customer_id) !== String(dto.customerId)) {
+      throw new BadRequestException('The selected customer is not the approved buyer of this vehicle');
+    }
     unit.ownershipStatus = 'CUSTOMER_OWNED';
     unit.custodyCustomerId = dto.customerId;
     unit.custodyReason = dto.custodyReason.trim();
     unit.custodyStartDate = dto.custodyStartDate || new Date().toISOString().split('T')[0];
     unit.expectedHandoverDate = dto.expectedHandoverDate;
+    unit.insuranceResponsibility = dto.insuranceResponsibility || 'CUSTOMER_INSURED';
+    unit.storageLocationNotes = dto.storageLocationNotes ? dto.storageLocationNotes.trim() : undefined;
     unit.updatedBy = userId;
 
     const saved = await this.unitRepo.save(unit);

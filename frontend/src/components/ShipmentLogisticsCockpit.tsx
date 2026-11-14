@@ -32,6 +32,7 @@ import {
   ShipmentDocument,
 } from '../api/client';
 import { formatApiError } from '../utils/error';
+import { useAuth } from '../context/AuthContext';
 
 interface ShipmentLogisticsCockpitProps {
   shipmentId: string;
@@ -42,6 +43,9 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
   shipmentId,
   onRefreshShipment,
 }) => {
+  const { hasPermission } = useAuth();
+  const canSelectQuotation = hasPermission('SHIPMENTS_CREATE');
+  const canApproveQuotation = hasPermission('SHIPMENTS_QUOTATION_APPROVE');
   const [overview, setOverview] = useState<ShipmentLogisticsOverview | null>(null);
   const [forwarders, setForwarders] = useState<FreightForwarder[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,6 +59,8 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
   const [showAddTrackingModal, setShowAddTrackingModal] = useState<boolean>(false);
   const [selectingQuoteId, setSelectingQuoteId] = useState<string | null>(null);
   const [selectionReason, setSelectionReason] = useState<string>('');
+  const [decisionModal, setDecisionModal] = useState<{ mode: 'APPROVE' | 'REJECT'; quotationId: string } | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState<string>('');
 
   // Form states
   const [quoteForwarderId, setQuoteForwarderId] = useState<string>('');
@@ -156,6 +162,36 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
       if (onRefreshShipment) onRefreshShipment();
     } catch (err: any) {
       alert(formatApiError(err, 'Failed to select quotation'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleQuoteDecision = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!decisionModal) return;
+    setSaving(true);
+    try {
+      if (decisionModal.mode === 'APPROVE') {
+        await api.approveShipmentQuotation(shipmentId, decisionModal.quotationId, {
+          approvalNotes: decisionNotes.trim() || 'Approved by authorized approver',
+        });
+      } else {
+        if (!decisionNotes.trim()) {
+          alert('Rejection reason is required.');
+          setSaving(false);
+          return;
+        }
+        await api.rejectShipmentQuotation(shipmentId, decisionModal.quotationId, {
+          rejectionReason: decisionNotes.trim(),
+        });
+      }
+      setDecisionModal(null);
+      setDecisionNotes('');
+      await loadOverview();
+      if (onRefreshShipment) onRefreshShipment();
+    } catch (err: any) {
+      alert(formatApiError(err, `Failed to ${decisionModal.mode.toLowerCase()} quotation`));
     } finally {
       setSaving(false);
     }
@@ -414,13 +450,19 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
                 overview.quotations.map((quote) => {
                   const fwd = quote.forwarder || forwarders.find((f) => String(f.freightForwarderId) === String(quote.freightForwarderId));
                   const isSelected = quote.selectionStatus === 'SELECTED';
-                  const isRejected = quote.selectionStatus === 'REJECTED';
+                  const approvalStatus = quote.approvalStatus || (isSelected ? 'PENDING' : 'PENDING');
+                  const isApproved = approvalStatus === 'APPROVED';
+                  const isRejected = quote.selectionStatus === 'REJECTED' || approvalStatus === 'REJECTED';
                   return (
                     <tr
                       key={quote.quotationId}
                       style={{
                         borderBottom: '1px solid var(--border-color)',
-                        background: isSelected ? 'rgba(16, 185, 129, 0.05)' : undefined,
+                        background: isApproved
+                          ? 'rgba(16, 185, 129, 0.08)'
+                          : isSelected
+                            ? 'rgba(245, 158, 11, 0.06)'
+                            : undefined,
                       }}
                     >
                       <td style={{ padding: '0.75rem', fontWeight: 600 }}>
@@ -428,6 +470,16 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
                           <Building2 size={16} color="var(--accent-blue)" />
                           <span>{fwd?.name || ('Forwarder #' + quote.freightForwarderId)}</span>
                         </div>
+                        {quote.selectionReason && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                            Selection note: {quote.selectionReason}
+                          </div>
+                        )}
+                        {quote.rejectionReason && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', marginTop: '0.2rem' }}>
+                            Rejection: {quote.rejectionReason}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
                         {quote.quotationReference || '—'}
@@ -442,30 +494,75 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
                         {quote.estimatedTransitDays ? (quote.estimatedTransitDays + ' days') : '—'}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <span
-                          className={'badge ' + (isSelected ? 'badge-success' : isRejected ? 'badge-outline' : 'badge-primary')}
-                          style={{ fontSize: '0.72rem' }}
-                        >
-                          {quote.selectionStatus}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'center' }}>
+                          <span
+                            className={'badge ' + (isSelected ? 'badge-primary' : isRejected ? 'badge-outline' : 'badge-secondary')}
+                            style={{ fontSize: '0.7rem' }}
+                          >
+                            Selection: {quote.selectionStatus}
+                          </span>
+                          <span
+                            className={'badge ' + (isApproved ? 'badge-success' : isRejected ? 'badge-danger' : 'badge-warning')}
+                            style={{ fontSize: '0.7rem' }}
+                          >
+                            Approval: {approvalStatus}
+                          </span>
+                        </div>
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                        {isSelected ? (
-                          <span style={{ color: 'var(--accent-emerald)', fontWeight: 700, fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <CheckCircle2 size={14} /> Selected
-                          </span>
-                        ) : isRejected ? (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Rejected</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setSelectingQuoteId(quote.quotationId)}
-                            className="btn btn-outline-primary"
-                            style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
-                          >
-                            Select & Approve
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {isApproved ? (
+                            <span style={{ color: 'var(--accent-emerald)', fontWeight: 700, fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <CheckCircle2 size={14} /> Approved
+                            </span>
+                          ) : isRejected ? (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Rejected</span>
+                          ) : isSelected ? (
+                            <>
+                              {canApproveQuotation ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDecisionNotes('');
+                                      setDecisionModal({ mode: 'APPROVE', quotationId: quote.quotationId });
+                                    }}
+                                    className="btn btn-success"
+                                    style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDecisionNotes('');
+                                      setDecisionModal({ mode: 'REJECT', quotationId: quote.quotationId });
+                                    }}
+                                    className="btn btn-outline-danger"
+                                    style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{ color: 'var(--accent-amber)', fontWeight: 600, fontSize: '0.78rem' }}>
+                                  Pending Approval
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            canSelectQuotation && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectingQuoteId(quote.quotationId)}
+                                className="btn btn-outline-primary"
+                                style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                              >
+                                Select for Approval
+                              </button>
+                            )
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1191,18 +1288,18 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
         </div>
       )}
 
-      {/* MODAL: SELECT / APPROVE QUOTATION */}
+      {/* MODAL: SELECT QUOTATION FOR APPROVAL */}
       {selectingQuoteId && (
         <div className="modal-backdrop">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3>Select & Appoint Freight Forwarder</h3>
+              <h3>Select Freight Quotation for Approval</h3>
               <button onClick={() => setSelectingQuoteId(null)} className="modal-close">&times;</button>
             </div>
             <form onSubmit={handleSelectQuote}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Confirming this quotation will assign this freight forwarder to the shipment and mark competing quotations as rejected.
+                  Selecting this quotation submits it for authorization approval before appointing the freight forwarder to the shipment.
                 </p>
                 <div>
                   <label className="form-label">Selection Justification / Notes</label>
@@ -1220,7 +1317,53 @@ export const ShipmentLogisticsCockpit: React.FC<ShipmentLogisticsCockpitProps> =
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} className="btn btn-primary">
-                  {saving ? 'Confirming...' : 'Confirm & Appoint Forwarder'}
+                  {saving ? 'Submitting...' : 'Submit Selection for Approval'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: APPROVE / REJECT QUOTATION */}
+      {decisionModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3>{decisionModal.mode === 'APPROVE' ? 'Approve Selected Quotation' : 'Reject Freight Quotation'}</h3>
+              <button onClick={() => setDecisionModal(null)} className="modal-close">&times;</button>
+            </div>
+            <form onSubmit={handleQuoteDecision}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  {decisionModal.mode === 'APPROVE'
+                    ? 'Approving appoints the selected freight forwarder to the shipment and rejects competing quotations.'
+                    : 'Rejecting records your reason in the decision audit trail and prevents appointing this quotation.'}
+                </p>
+                <div>
+                  <label className="form-label">
+                    {decisionModal.mode === 'APPROVE' ? 'Approval Notes' : 'Rejection Reason *'}
+                  </label>
+                  <textarea
+                    className="input w-full"
+                    rows={3}
+                    required={decisionModal.mode === 'REJECT'}
+                    value={decisionNotes}
+                    onChange={(e) => setDecisionNotes(e.target.value)}
+                    placeholder={decisionModal.mode === 'APPROVE' ? 'Optional approval remarks...' : 'Provide reason for rejection...'}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setDecisionModal(null)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className={decisionModal.mode === 'APPROVE' ? 'btn btn-success' : 'btn btn-danger'}
+                >
+                  {saving ? 'Saving...' : decisionModal.mode === 'APPROVE' ? 'Approve Forwarder' : 'Reject Quotation'}
                 </button>
               </div>
             </form>

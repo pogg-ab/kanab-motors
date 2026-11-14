@@ -144,7 +144,7 @@ export class EnquiriesService {
     }
     if (query.search && query.search.trim() !== '') {
       const s = `%${query.search.trim()}%`;
-      qb.andWhere('(e.enquiryNumber ILIKE :s OR customer.fullName ILIKE :s OR item.itemName ILIKE :s OR e.salespersonName ILIKE :s)', { s });
+      qb.andWhere('(e.enquiryNumber ILIKE :s OR customer.fullName ILIKE :s OR item.itemName ILIKE :s OR e.salespersonName ILIKE :s OR e.leadSource ILIKE :s OR e.branchShowroom ILIKE :s)', { s });
     }
 
     qb.orderBy('e.createdAt', 'DESC');
@@ -193,6 +193,78 @@ export class EnquiriesService {
       changedBy: userId,
       oldValue: { status: enquiry.status },
       newValue: { status: saved.status },
+    });
+    return saved;
+  }
+
+  // KMSI-14-15: Correct & Resubmit / Update Enquiry
+  async updateEnquiry(
+    id: string,
+    dto: Partial<CreateEnquiryDto>,
+    userId: number = 1,
+  ): Promise<SalesEnquiry> {
+    const enquiry = await this.findOne(id);
+    if (enquiry.status !== EnquiryStatus.DRAFT && enquiry.status !== EnquiryStatus.REJECTED) {
+      throw new BadRequestException(`Cannot edit enquiry in ${enquiry.status} state. Only DRAFT or REJECTED enquiries can be modified.`);
+    }
+
+    if (dto.customerId) enquiry.customerId = dto.customerId;
+    if (dto.itemId) {
+      enquiry.itemId = dto.itemId;
+      const product = await this.itemRepo.findOne({ where: { itemId: dto.itemId } });
+      if (product) {
+        enquiry.unitPrice = dto.unitPrice !== undefined ? dto.unitPrice : Number(product.sellingPrice);
+      }
+    } else if (dto.unitPrice !== undefined) {
+      enquiry.unitPrice = dto.unitPrice;
+    }
+    if (dto.quantity !== undefined) enquiry.quantity = dto.quantity;
+    if (dto.salespersonName) enquiry.salespersonName = dto.salespersonName;
+    if (dto.paymentMode) enquiry.paymentMode = dto.paymentMode;
+    if (dto.leadSource !== undefined) enquiry.leadSource = dto.leadSource;
+    if (dto.branchShowroom !== undefined) enquiry.branchShowroom = dto.branchShowroom;
+    if (dto.vehicleCategoryId !== undefined) enquiry.vehicleCategoryId = dto.vehicleCategoryId;
+    if (dto.preferredColor !== undefined) enquiry.preferredColor = dto.preferredColor;
+    if (dto.requiredDeliveryDate !== undefined) enquiry.requiredDeliveryDate = dto.requiredDeliveryDate;
+    if (dto.registrationHomologationNeeded !== undefined) enquiry.registrationHomologationNeeded = dto.registrationHomologationNeeded;
+    if (dto.chargerTypeIncluded !== undefined) enquiry.chargerTypeIncluded = dto.chargerTypeIncluded;
+    if (dto.targetBudget !== undefined) enquiry.targetBudget = dto.targetBudget;
+    if (dto.currency !== undefined) enquiry.currency = dto.currency;
+    if (dto.financingRequired !== undefined) enquiry.financingRequired = dto.financingRequired;
+    if (dto.expectedDeposit !== undefined) enquiry.expectedDeposit = dto.expectedDeposit;
+    if (dto.expectedPaymentTimeline !== undefined) enquiry.expectedPaymentTimeline = dto.expectedPaymentTimeline;
+    if (dto.financeProvider !== undefined) enquiry.financeProvider = dto.financeProvider;
+    if (dto.tradeInVehicle !== undefined) enquiry.tradeInVehicle = dto.tradeInVehicle;
+    if (dto.customerRequirementsNotes !== undefined) enquiry.customerRequirementsNotes = dto.customerRequirementsNotes;
+
+    // Recalculate totals
+    const subtotal = Number(enquiry.unitPrice) * enquiry.quantity;
+    const vat = subtotal * 0.15;
+    enquiry.estimatedSalesValue = subtotal + vat;
+    enquiry.vatAmount = vat;
+
+    // If it was rejected and user is resubmitting (or not draft)
+    if (!dto.isDraft) {
+      enquiry.status = EnquiryStatus.SUBMITTED;
+      enquiry.rejectionReason = null as any;
+      enquiry.salesRepApprovedAt = null as any;
+      enquiry.salesRepApprovedBy = null as any;
+      enquiry.salesRepNotes = null as any;
+      enquiry.salesManagerApprovedAt = null as any;
+      enquiry.salesManagerApprovedBy = null as any;
+      enquiry.salesManagerNotes = null as any;
+    }
+
+    const saved = await this.enquiryRepo.save(enquiry);
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: id,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        status: saved.status,
+        enquiryNumber: saved.enquiryNumber,
+      },
     });
     return saved;
   }

@@ -8,6 +8,7 @@ import { Repository, DataSource } from 'typeorm';
 import { CustomerRefund, RefundStatus } from './entities/customer-refund.entity';
 import { CustomerAccountSummary } from '../customers/entities/customer-account-summary.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { Booking } from '../bookings/entities/booking.entity';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { RefundQueryDto } from './dto/refund-query.dto';
 import { LedgerService } from '../ledger/ledger.service';
@@ -23,6 +24,8 @@ export class RefundsService {
     private readonly summaryRepo: Repository<CustomerAccountSummary>,
     @InjectRepository(Customer)
     private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(Booking)
+    private readonly bookingRepo: Repository<Booking>,
     private readonly ledgerService: LedgerService,
     private readonly auditService: AuditService,
   ) {}
@@ -137,6 +140,16 @@ export class RefundsService {
         refundableBalance: -finalAmount,
       },
     });
+
+    // If refund was associated with a specific booking, deduct from booking's totalAmountDeposited
+    if (refund.bookingId) {
+      const booking = await this.bookingRepo.findOne({ where: { bookingId: refund.bookingId } });
+      if (booking) {
+        booking.totalAmountDeposited = Number(Math.max(0, Number(booking.totalAmountDeposited || 0) - finalAmount).toFixed(2));
+        booking.outstandingBalance = Number(Math.max(0, Number(booking.grossTotal || 0) - booking.totalAmountDeposited).toFixed(2));
+        await this.bookingRepo.save(booking);
+      }
+    }
 
     await this.auditService.log({
       entityType: 'customer_refund',

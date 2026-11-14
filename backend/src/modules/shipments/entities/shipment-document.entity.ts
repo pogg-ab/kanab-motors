@@ -36,6 +36,12 @@ export class ShipmentDocument {
   @Column({ name: 'document_type', length: 60 })
   documentType: string;
 
+  @Column({ name: 'version_number', type: 'int', default: 1 })
+  versionNumber: number;
+
+  @Column({ name: 'supersedes_document_id', type: 'bigint', nullable: true })
+  supersedesDocumentId?: string;
+
   @Column({ name: 'document_reference', length: 100, nullable: true })
   documentReference?: string;
 
@@ -69,6 +75,27 @@ export class ShipmentDocument {
 
   @Column({ name: 'release_date', type: 'date', nullable: true })
   releaseDate?: string;
+
+  @Column({ name: 'original_dispatched_at', type: 'timestamptz', nullable: true })
+  originalDispatchedAt?: Date;
+
+  @Column({ name: 'original_received_at', type: 'timestamptz', nullable: true })
+  originalReceivedAt?: Date;
+
+  @Column({ name: 'electronic_release_at', type: 'timestamptz', nullable: true })
+  electronicReleaseAt?: Date;
+
+  @Column({ name: 'release_payment_status', length: 30, nullable: true })
+  releasePaymentStatus?: string;
+
+  @Column({ name: 'discrepancy_status', length: 30, default: 'NOT_CHECKED' })
+  discrepancyStatus: 'NOT_CHECKED' | 'CLEAR' | 'FLAGGED' | 'OVERRIDDEN';
+
+  @Column({ name: 'discrepancy_details', type: 'jsonb', nullable: true })
+  discrepancyDetails?: Record<string, any>;
+
+  @Column({ name: 'override_reason', type: 'text', nullable: true })
+  overrideReason?: string;
 
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy?: number;

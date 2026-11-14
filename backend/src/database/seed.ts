@@ -65,6 +65,7 @@ export async function seedDatabase(dataSource?: DataSource) {
         'LEDGER_VIEW', 'LEDGER_ADJUST', 'LEDGER_EXPORT',
         'EXCESS_VIEW', 'EXCESS_ROUTE',
         'REFUNDS_VIEW', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'REFUNDS_APPROVE', 'REFUNDS_PROCESS', 'REFUNDS_REJECT',
+        'COMPANY_PROFILE_VIEW', 'COMPANY_PROFILE_EDIT',
         'REPORTS_VIEW', 'REPORTS_EXPORT',
       ],
     },
@@ -80,6 +81,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       name: 'PROCUREMENT',
       description: 'Import & Supply Chain: POs, international shipments & landed costs',
       permissions: [
+        'COMPANY_PROFILE_VIEW',
         'SUPPLIERS_VIEW', 'SUPPLIERS_CREATE', 'SUPPLIERS_EDIT',
         'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_CREATE', 'PURCHASE_ORDERS_EDIT', 'PURCHASE_ORDERS_CONFIRM', 'PURCHASE_ORDERS_CANCEL',
         'SHIPMENTS_VIEW', 'SHIPMENTS_CREATE', 'SHIPMENTS_UPDATE_STAGE', 'SHIPMENTS_DOCS_UPLOAD',
@@ -118,6 +120,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       permissions: [
         'ENQUIRIES_VIEW', 'ENQUIRIES_APPROVE', 'BOOKINGS_VIEW',
         'REFUNDS_VIEW', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_CONFIRM',
+        'SHIPMENTS_VIEW', 'SHIPMENTS_QUOTATION_APPROVE', 'COMPANY_PROFILE_VIEW',
       ],
     },
     {
@@ -125,6 +128,7 @@ export async function seedDatabase(dataSource?: DataSource) {
       description: 'Executive / Auditor: read-only access to all dashboards and reports',
       permissions: [
         'REPORTS_VIEW', 'REPORTS_EXPORT', 'AUDIT_VIEW',
+        'COMPANY_PROFILE_VIEW',
         'CUSTOMERS_VIEW', 'PRODUCTS_VIEW', 'VEHICLES_VIEW',
         'ENQUIRIES_VIEW', 'BOOKINGS_VIEW', 'PAYMENTS_VIEW', 'LEDGER_VIEW',
         'EXCESS_VIEW', 'REFUNDS_VIEW', 'SUPPLIERS_VIEW', 'PURCHASE_ORDERS_VIEW',

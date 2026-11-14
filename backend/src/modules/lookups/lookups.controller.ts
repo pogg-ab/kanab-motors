@@ -28,7 +28,7 @@ export class LookupsController {
     return this.lookupsService.getRegions();
   }
 
-  @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW')
+  @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW', 'PURCHASE_ORDERS_VIEW', 'SHIPMENTS_VIEW')
   @Get('colors')
   @ApiOperation({ summary: 'Get list of vehicle colors' })
   getColors() {
@@ -59,7 +59,7 @@ export class LookupsController {
     return this.lookupsService.deleteColor(id);
   }
 
-  @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW')
+  @RequirePermissions('PRODUCTS_VIEW', 'VEHICLES_VIEW', 'PURCHASE_ORDERS_VIEW', 'SHIPMENTS_VIEW')
   @Get('uoms')
   @ApiOperation({ summary: 'Get list of units of measure' })
   getUnits() {
@@ -73,7 +73,7 @@ export class LookupsController {
     return this.lookupsService.createUnit(body.uomName);
   }
 
-  @RequirePermissions('WAREHOUSES_MANAGE', 'VEHICLES_VIEW')
+  @RequirePermissions('WAREHOUSES_MANAGE', 'VEHICLES_VIEW', 'SHIPMENTS_VIEW', 'SHIPMENTS_RECEIVE_STOCK')
   @Get('warehouses')
   @ApiOperation({ summary: 'Get list of active warehouses' })
   getWarehouses() {

@@ -41,6 +41,21 @@ export class ImportNotification {
   @Column({ length: 20, default: 'INFO' })
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
 
+  @Column({ name: 'delivery_channel', length: 20, default: 'IN_APP' })
+  deliveryChannel: string;
+
+  @Column({ name: 'delivery_status', length: 20, default: 'DELIVERED' })
+  deliveryStatus: 'PENDING' | 'DELIVERED' | 'FAILED';
+
+  @Column({ name: 'delivered_at', type: 'timestamptz', nullable: true })
+  deliveredAt?: Date;
+
+  @Column({ name: 'escalation_level', type: 'int', default: 0 })
+  escalationLevel: number;
+
+  @Column({ name: 'deduplication_key', length: 200, nullable: true })
+  deduplicationKey?: string;
+
   @Column({ name: 'is_read', type: 'boolean', default: false })
   isRead: boolean;
 

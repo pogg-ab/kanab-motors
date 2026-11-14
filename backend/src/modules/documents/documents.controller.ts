@@ -36,7 +36,7 @@ export class DocumentsController {
     return this.documentsService.getDocumentTypes(entityType);
   }
 
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @Get()
   @ApiOperation({ summary: 'Unified Document Center: browse documents across all entity types (Story DA4)' })
   getAllDocuments(
@@ -48,6 +48,7 @@ export class DocumentsController {
   }
 
   @Get(':entityType/:entityId')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiOperation({ summary: 'Get attachments for specific entity (Booking, Payment/BRV, Refund, Spare Parts POS)' })
   getDocumentsForEntity(
     @Param('entityType') entityType: string,
@@ -56,7 +57,18 @@ export class DocumentsController {
     return this.documentsService.getAttachmentsForEntity(entityType, entityId);
   }
 
+  @Get('entity/:entityType/:entityId')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @ApiOperation({ summary: 'Get attachments for specific entity (alias)' })
+  getDocumentsForEntityAlias(
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+  ) {
+    return this.documentsService.getAttachmentsForEntity(entityType, entityId);
+  }
+
   @Post(':entityType/:entityId/upload')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload optional attachment to an entity (KMSI-14-01 to 04)' })
   @UseInterceptors(
@@ -86,9 +98,52 @@ export class DocumentsController {
     return this.documentsService.createAttachment(entityType, entityId, file, docType, userId);
   }
 
+  @Post('entity/:entityType/:entityId')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload optional attachment alias' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: uploadsDir,
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = path.extname(file.originalname);
+          cb(null, `${req.params.entityType}-${req.params.entityId}-${uniqueSuffix}${ext}`);
+        },
+      }),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  uploadDocumentAlias(
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('documentType') docType?: string,
+    @Req() req?: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('A document file is required');
+    }
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.documentsService.createAttachment(entityType, entityId, file, docType, userId);
+  }
+
   @Delete(':attachmentId')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiOperation({ summary: 'Delete attachment' })
   deleteDocument(@Param('attachmentId') attachmentId: string) {
     return this.documentsService.deleteAttachment(attachmentId);
+  }
+
+  @Post('draft/:draftId/claim/:entityType/:entityId')
+  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD')
+  @ApiOperation({ summary: 'Attach pre-submission draft files to the newly created record' })
+  claimDraft(
+    @Param('draftId') draftId: string,
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+  ) {
+    return this.documentsService.claimDraftAttachments(draftId, entityType, entityId);
   }
 }

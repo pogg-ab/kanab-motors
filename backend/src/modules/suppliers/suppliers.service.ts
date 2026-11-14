@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Supplier } from './entities/supplier.entity';
+import { AuditService } from '../audit/audit.service';
 
 export interface CreateSupplierDto {
   supplierName: string;
@@ -32,9 +33,10 @@ export class SuppliersService {
   constructor(
     @InjectRepository(Supplier)
     private readonly supplierRepo: Repository<Supplier>,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
-  async create(dto: CreateSupplierDto): Promise<Supplier> {
+  async create(dto: CreateSupplierDto, userId = 1): Promise<Supplier> {
     await this.ensureSupplierNameIsUnique(dto.supplierName);
     const supplier = this.supplierRepo.create({
       supplierName: dto.supplierName.trim(),
@@ -47,7 +49,9 @@ export class SuppliersService {
       exporterAdCode: dto.exporterAdCode,
       isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
-    return this.supplierRepo.save(supplier);
+    const saved = await this.supplierRepo.save(supplier);
+    await this.auditService?.log({ entityType: 'supplier', entityId: String(saved.supplierId), action: 'INSERT', changedBy: userId, newValue: { ...saved } });
+    return saved;
   }
 
   async findAll(search?: string, isActive?: boolean): Promise<Supplier[]> {
@@ -76,14 +80,17 @@ export class SuppliersService {
     return supplier;
   }
 
-  async update(id: number, dto: UpdateSupplierDto): Promise<Supplier> {
+  async update(id: number, dto: UpdateSupplierDto, userId = 1): Promise<Supplier> {
     const supplier = await this.findOne(id);
+    const oldValue = { ...supplier };
     if (dto.supplierName && dto.supplierName.trim().toLowerCase() !== supplier.supplierName.toLowerCase()) {
       await this.ensureSupplierNameIsUnique(dto.supplierName, id);
       dto.supplierName = dto.supplierName.trim();
     }
     Object.assign(supplier, dto);
-    return this.supplierRepo.save(supplier);
+    const saved = await this.supplierRepo.save(supplier);
+    await this.auditService?.log({ entityType: 'supplier', entityId: String(id), action: 'UPDATE', changedBy: userId, oldValue, newValue: { ...saved } });
+    return saved;
   }
 
   async remove(id: number): Promise<void> {

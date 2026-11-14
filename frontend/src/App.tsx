@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { BrandingProvider } from './context/BrandingContext';
 import { ModalProvider } from './context/ModalContext';
 import { LoginPage } from './pages/auth/LoginPage';
 import { Sidebar } from './components/Sidebar';
@@ -271,11 +272,13 @@ function MainAppContent() {
 export function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <ModalProvider>
-          <MainAppContent />
-        </ModalProvider>
-      </AuthProvider>
+      <BrandingProvider>
+        <AuthProvider>
+          <ModalProvider>
+            <MainAppContent />
+          </ModalProvider>
+        </AuthProvider>
+      </BrandingProvider>
     </ThemeProvider>
   );
 }

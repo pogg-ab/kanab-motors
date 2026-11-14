@@ -38,14 +38,14 @@ export class ProductsController {
     return this.productsService.createItem(dto);
   }
 
-  @RequirePermissions('PRODUCTS_VIEW')
+  @RequirePermissions('PRODUCTS_VIEW', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_CREATE', 'SHIPMENTS_VIEW')
   @Get('items')
   @ApiOperation({ summary: 'List and filter product items with unit counts' })
   findAllItems(@Query() query: ProductQueryDto) {
     return this.productsService.findAllItems(query);
   }
 
-  @RequirePermissions('PRODUCTS_VIEW')
+  @RequirePermissions('PRODUCTS_VIEW', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_CREATE', 'SHIPMENTS_VIEW')
   @Get('items/:id')
   @ApiOperation({ summary: 'Get product item detail' })
   findOneItem(@Param('id', PositiveBigIntIdPipe) id: string) {
@@ -61,7 +61,7 @@ export class ProductsController {
   }
 
   // Reference lookups
-  @RequirePermissions('PRODUCTS_VIEW')
+  @RequirePermissions('PRODUCTS_VIEW', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_CREATE', 'SHIPMENTS_VIEW')
   @Get('categories')
   @ApiOperation({ summary: 'Get product categories' })
   getCategories() {

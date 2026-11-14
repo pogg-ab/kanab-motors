@@ -8,6 +8,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
   BadRequestException,
   UseInterceptors,
   UploadedFile,
@@ -39,6 +40,8 @@ import {
   UpdateFreightForwarderDto,
   CreateFreightQuotationDto,
   SelectFreightQuotationDto,
+  ApproveFreightQuotationDto,
+  RejectFreightQuotationDto,
   CreateShipmentBookingDto,
   CreateShipmentContainerDto,
   CreateShipmentMilestoneDto,
@@ -98,30 +101,138 @@ export class ShipmentsController {
   // Phase 8: Import Reports & Reconciliation (IMP-43 - IMP-48)
   // -------------------------------------------------------------
   @Get('reports/pipeline')
-  @ApiOperation({ summary: 'Shipment Status & Pipeline Report (Story RP1)' })
-  getPipelineReport() {
-    return this.shipmentsService.getPipelineReport();
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_VIEW', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
+  @ApiOperation({ summary: 'Shipment Status & Pipeline Report (Story IMP-43 / RP1)' })
+  getPipelineReport(
+    @Query('businessUnit') businessUnit?: string,
+    @Query('supplier') supplier?: string,
+    @Query('destination') destination?: string,
+    @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.shipmentsService.getPipelineReport({
+      businessUnit,
+      supplier,
+      destination,
+      status,
+      startDate,
+      endDate,
+      search,
+    });
+  }
+
+  @Get('reports/pipeline/export')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_EXPORT', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
+  @ApiOperation({ summary: 'Export Shipment Pipeline Report as CSV (Story IMP-43)' })
+  async exportPipelineReport(
+    @Res() res: any,
+    @Query('businessUnit') businessUnit?: string,
+    @Query('supplier') supplier?: string,
+    @Query('destination') destination?: string,
+    @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
+  ) {
+    const { filename, csv } = await this.shipmentsService.exportPipelineReportCsv({
+      businessUnit,
+      supplier,
+      destination,
+      status,
+      startDate,
+      endDate,
+      search,
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(csv);
   }
 
   @Get('reports/logistics')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_VIEW', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
   @ApiOperation({ summary: 'Shipment and Logistics Tracking Report (Story IMP-45)' })
   getShipmentLogisticsReport() {
     return this.shipmentsService.getShipmentLogisticsReport();
   }
 
+  @Get('reports/logistics/export')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_EXPORT', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
+  @ApiOperation({ summary: 'Export Shipment Logistics Report as CSV (Story IMP-45)' })
+  async exportShipmentLogisticsReport(@Res() res: any) {
+    const { filename, csv } = await this.shipmentsService.exportShipmentLogisticsCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(csv);
+  }
+
   @Get('reports/document-completeness')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_VIEW', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
   @ApiOperation({ summary: 'Document Completeness and Verification Report (Story IMP-46)' })
-  getDocumentCompletenessReport() {
-    return this.shipmentsService.getDocumentCompletenessReport();
+  getDocumentCompletenessReport(
+    @Query('shipmentId') shipmentId?: string,
+    @Query('status') status?: string,
+    @Query('documentType') documentType?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.shipmentsService.getDocumentCompletenessReport({
+      shipmentId,
+      status,
+      documentType,
+      search,
+    });
+  }
+
+  @Get('reports/document-completeness/export')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_EXPORT', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
+  @ApiOperation({ summary: 'Export Document Completeness Report as CSV (Story IMP-46)' })
+  async exportDocumentCompletenessReport(
+    @Res() res: any,
+    @Query('shipmentId') shipmentId?: string,
+    @Query('status') status?: string,
+    @Query('documentType') documentType?: string,
+    @Query('search') search?: string,
+  ) {
+    const { filename, csv } = await this.shipmentsService.exportDocumentCompletenessCsv({
+      shipmentId,
+      status,
+      documentType,
+      search,
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(csv);
   }
 
   @Get('reports/reconciliation')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_VIEW', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
   @ApiOperation({ summary: 'Import Reconciliation Report (Ordered vs Shipped vs Received) (Story IMP-47)' })
   getImportReconciliationReport() {
     return this.shipmentsService.getImportReconciliationReport();
   }
 
+  @Get('reports/reconciliation/export')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_EXPORT', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
+  @ApiOperation({ summary: 'Export Import Reconciliation Report as CSV (Story IMP-47)' })
+  async exportImportReconciliationReport(@Res() res: any) {
+    const { filename, csv } = await this.shipmentsService.exportImportReconciliationCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(csv);
+  }
+
   @Get('reports/monitoring-dashboard')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('REPORTS_VIEW', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW')
   @ApiOperation({ summary: 'Import Monitoring Dashboard Executive Overview (Story IMP-48)' })
   getImportMonitoringDashboard() {
     return this.shipmentsService.getImportMonitoringDashboard();
@@ -131,6 +242,7 @@ export class ShipmentsController {
   // Phase 7: Notifications & Alerts (IMP-40, IMP-41)
   // -------------------------------------------------------------
   @Get('notifications/alerts')
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
   @ApiOperation({ summary: 'Get automated import alerts and notifications (Story IMP-40/41)' })
   getNotifications(
     @Query('unreadOnly') unreadOnly?: string,
@@ -143,15 +255,49 @@ export class ShipmentsController {
   }
 
   @Patch('notifications/:id/read')
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
   @ApiOperation({ summary: 'Mark import notification as read' })
   markNotificationRead(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.shipmentsService.markNotificationRead(id);
   }
 
+  @Post('notifications/:id/escalate')
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
+  @ApiOperation({ summary: 'Escalate an import notification and preserve escalation history' })
+  escalateNotification(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body('recipientRole') recipientRole: string,
+    @Req() req?: any,
+  ) {
+    return this.shipmentsService.escalateNotification(id, recipientRole, req?.user?.userId);
+  }
+
   @Post('notifications/scan-alerts')
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
   @ApiOperation({ summary: 'Trigger automated background scan for approaching deadlines' })
   scanAlerts() {
     return this.shipmentsService.generateAutomatedImportAlerts();
+  }
+
+  @Get('document-requirements/config')
+  @RequirePermissions('SHIPMENTS_DOCS_UPLOAD')
+  @ApiOperation({ summary: 'List configurable document requirements by destination, shipment type and stage' })
+  getDocumentRequirements() {
+    return this.shipmentsService.getDocumentRequirements();
+  }
+
+  @Get('workflow/config')
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
+  @ApiOperation({ summary: 'List configured import workflow transitions and responsible roles' })
+  getWorkflowConfiguration() {
+    return this.shipmentsService.getImportWorkflowConfiguration();
+  }
+
+  @Post('document-requirements/config')
+  @RequirePermissions('SHIPMENTS_UPDATE_STAGE')
+  @ApiOperation({ summary: 'Create or update a document requirement rule' })
+  saveDocumentRequirement(@Body() body: any) {
+    return this.shipmentsService.saveDocumentRequirement(body);
   }
 
   // -------------------------------------------------------------
@@ -281,7 +427,7 @@ export class ShipmentsController {
   @Post(':id/quotations/:quotationId/select')
   @UseGuards(PermissionGuard)
   @RequirePermissions('SHIPMENTS_CREATE')
-  @ApiOperation({ summary: 'Select and approve freight quotation (Story IMP-25)' })
+  @ApiOperation({ summary: 'Select freight quotation for approval (Story IMP-25)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   selectQuotation(
     @Param('id', PositiveBigIntIdPipe) id: string,
@@ -291,6 +437,36 @@ export class ShipmentsController {
   ) {
     if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
     return this.shipmentsService.selectShipmentQuotation(id, quotationId, dto);
+  }
+
+  @Post(':id/quotations/:quotationId/approve')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_QUOTATION_APPROVE')
+  @ApiOperation({ summary: 'Approve selected freight quotation (Story IMP-25)' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  approveQuotation(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Param('quotationId', PositiveBigIntIdPipe) quotationId: string,
+    @Body() dto: ApproveFreightQuotationDto,
+    @Req() req: any,
+  ) {
+    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    return this.shipmentsService.approveShipmentQuotation(id, quotationId, dto);
+  }
+
+  @Post(':id/quotations/:quotationId/reject')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('SHIPMENTS_QUOTATION_APPROVE')
+  @ApiOperation({ summary: 'Reject freight quotation (Story IMP-25)' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  rejectQuotation(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Param('quotationId', PositiveBigIntIdPipe) quotationId: string,
+    @Body() dto: RejectFreightQuotationDto,
+    @Req() req: any,
+  ) {
+    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    return this.shipmentsService.rejectShipmentQuotation(id, quotationId, dto);
   }
 
   // -------------------------------------------------------------
@@ -496,7 +672,9 @@ export class ShipmentsController {
   updateOriginalStatus(
     @Param('docId', PositiveBigIntIdPipe) docId: string,
     @Body() dto: UpdateOriginalDocumentStatusDto,
+    @Req() req: any,
   ) {
+    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
     return this.shipmentsService.updateOriginalDocumentStatus(docId, dto);
   }
 

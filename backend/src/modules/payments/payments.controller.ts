@@ -41,6 +41,35 @@ export class PaymentsController {
     return this.paymentsService.transferExcessPayment(dto, userId);
   }
 
+  @RequirePermissions('PAYMENTS_RECORD')
+  @Post('transfers/:id/approve')
+  @ApiOperation({ summary: 'Approve & execute cross-customer excess transfer (KMS-FB-05)' })
+  approveTransfer(@Param('id', PositiveBigIntIdPipe) id: string, @Req() req?: any) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    const userRole = req?.user?.roleName || req?.user?.role;
+    return this.paymentsService.approveTransfer(id, userId, userRole);
+  }
+
+  @RequirePermissions('PAYMENTS_RECORD')
+  @Post('transfers/:id/reject')
+  @ApiOperation({ summary: 'Reject cross-customer excess transfer (KMS-FB-05)' })
+  rejectTransfer(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body('rejectionReason') rejectionReason: string,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    const userRole = req?.user?.roleName || req?.user?.role;
+    return this.paymentsService.rejectTransfer(id, rejectionReason, userId, userRole);
+  }
+
+  @RequirePermissions('PAYMENTS_VIEW')
+  @Get('transfers')
+  @ApiOperation({ summary: 'Get all payment transfers (KMS-FB-05)' })
+  getAllTransfers(@Query('status') status?: string) {
+    return this.paymentsService.getAllTransfers(status);
+  }
+
   @RequirePermissions('PAYMENTS_VIEW')
   @Get('transfers/:bookingId')
   @ApiOperation({ summary: 'Get payment transfers for a booking (KMSI-14-05)' })

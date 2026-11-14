@@ -89,6 +89,13 @@ export class ApprovalsController {
   }
 
   @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')
+  @Post('reminders/scan')
+  @ApiOperation({ summary: 'Alias for scan-reminders' })
+  scanRemindersAlias() {
+    return this.approvalsService.scanPendingApprovals();
+  }
+
+  @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')
   @Get('reminders/configs')
   @ApiOperation({ summary: 'Get approval reminder interval configurations (KMSI-14-09)' })
   getReminderConfigs() {
@@ -100,9 +107,10 @@ export class ApprovalsController {
   @ApiOperation({ summary: 'Update approval reminder interval configuration (KMSI-14-09)' })
   updateReminderConfig(
     @Param('id') id: string,
-    @Body() body: { reminderIntervalHours: number; isActive: boolean },
+    @Body() body: { reminderIntervalHours?: number; intervalHours?: number; isActive: boolean },
   ) {
-    return this.approvalsService.updateReminderConfig(parseInt(id, 10), body.reminderIntervalHours, body.isActive);
+    const hours = body.reminderIntervalHours ?? body.intervalHours ?? 4;
+    return this.approvalsService.updateReminderConfig(parseInt(id, 10), hours, body.isActive);
   }
 
   @RequirePermissions('ENQUIRIES_APPROVE', 'REFUNDS_APPROVE', 'PURCHASE_ORDERS_CONFIRM')

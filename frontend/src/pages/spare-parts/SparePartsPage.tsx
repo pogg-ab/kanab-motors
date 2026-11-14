@@ -2996,8 +2996,10 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({
   onCancelRequest,
   canCancel,
 }) => {
+  const [showDocuments, setShowDocuments] = useState(false);
   return (
     <div className="modal-backdrop">
+      {showDocuments && <EntityAttachmentsModal isOpen={showDocuments} onClose={() => setShowDocuments(false)} entityType="spare_parts_sale" entityId={sale.saleId} title={`Invoice Supporting Documents — ${sale.saleNumber}`} />}
       <div className="modal-content" style={{ maxWidth: '680px', background: '#ffffff', color: '#0f172a' }}>
         <div className="modal-header" style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
           <div>
@@ -3007,6 +3009,7 @@ const SaleReceiptModal: React.FC<SaleReceiptModalProps> = ({
             <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
               Official Spare Parts Sales Invoice & Delivery Receipt
             </div>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowDocuments(true)}>Supporting Documents</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ textAlign: 'right' }}>

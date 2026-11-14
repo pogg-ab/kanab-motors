@@ -120,6 +120,7 @@ export const SYSTEM_PERMISSIONS: SystemPermission[] = [
   { key: 'PURCHASE_ORDERS_CANCEL', label: 'Cancel Purchase Orders', category: 'International Logistics', description: 'Cancel pending or unfulfilled international POs' },
   { key: 'SHIPMENTS_VIEW', label: 'View International Shipments', category: 'International Logistics', description: 'Track 6-stage logistics pipeline and bills of lading' },
   { key: 'SHIPMENTS_CREATE', label: 'Create Shipments', category: 'International Logistics', description: 'Create new import consignments against open PO lines' },
+  { key: 'SHIPMENTS_QUOTATION_APPROVE', label: 'Approve Freight Quotations', category: 'International Logistics', description: 'Approve or reject selected freight-forwarder quotations' },
   { key: 'SHIPMENTS_UPDATE_STAGE', label: 'Advance Shipment Stages', category: 'International Logistics', description: 'Advance stages: Port Djibouti, Customs, Inland Transit' },
   { key: 'SHIPMENTS_RECEIVE_STOCK', label: 'Receive Vehicles into Yard', category: 'International Logistics', description: 'Perform physical yard intake and stock synchronization' },
   { key: 'SHIPMENTS_DOCS_UPLOAD', label: 'Upload Shipping Documents', category: 'International Logistics', description: 'Upload Bills of Lading, packing lists, and customs decls' },
@@ -127,6 +128,10 @@ export const SYSTEM_PERMISSIONS: SystemPermission[] = [
   { key: 'LANDED_COST_ADD_EXPENSE', label: 'Add Cost Components', category: 'International Logistics', description: 'Record sea freight, insurance, port fees, and tariffs' },
   { key: 'LANDED_COST_ALLOCATE', label: 'Execute Landed Cost Engine', category: 'International Logistics', description: 'Run automated cost allocation (by value, qty, weight)' },
   { key: 'EXCHANGE_RATES_MANAGE', label: 'Manage FX Rates', category: 'International Logistics', description: 'Update official NBE foreign exchange rates (USD/EUR)' },
+
+  // Company Profile & Importer Settings
+  { key: 'COMPANY_PROFILE_VIEW', label: 'View Company Profile & Banks', category: 'System Governance', description: 'View registered company details, importer IEC/AD codes, and bank accounts' },
+  { key: 'COMPANY_PROFILE_EDIT', label: 'Manage Company Profile & Banks', category: 'System Governance', description: 'Create, update, and manage company profile, importer details, and bank accounts' },
 
   // Executive Reports & Analytics
   { key: 'REPORTS_VIEW', label: 'View Analytics & Reports', category: 'Analytics & Reports', description: 'View import bottlenecks, landed costs, and order reports' },
@@ -409,6 +414,7 @@ export class AuthService {
       const role = await this.roleRepo.findOne({ where: { roleId: dto.roleId } });
       if (!role) throw new BadRequestException(`Role with ID ${dto.roleId} not found`);
       user.roleId = dto.roleId;
+      user.role = role;
     }
 
     if (dto.permissions !== undefined) {

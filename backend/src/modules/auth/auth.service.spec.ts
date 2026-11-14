@@ -182,7 +182,52 @@ describe('AuthService (KMSICAMS-9 RBAC & User Management)', () => {
     });
   });
 
-  describe('U5: User Status Toggle (Deactivation/Reactivation)', () => {
+  describe('U5: User Status Toggle & Role Update', () => {
+    it('should update both roleId and loaded role relation when changing a user role', async () => {
+      const existingRole = { roleId: 1, roleName: 'ADMIN', permissions: ['ALL_PERMISSIONS'] };
+      const targetRole = { roleId: 10, roleName: 'APPROVER', permissions: ['PURCHASE_ORDERS_CONFIRM'] };
+      const existingUser = {
+        userId: 17,
+        username: 'approver_uat',
+        email: 'approver@kanabmotors.com',
+        fullName: 'APPROVER',
+        roleId: 1,
+        role: existingRole,
+        permissions: ['ALL_PERMISSIONS'],
+        isActive: true,
+      };
+      const mockQueryBuilder = {
+        addSelect: jest.fn().mockReturnThis(),
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(existingUser),
+      };
+      userRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      roleRepo.findOne.mockResolvedValue(targetRole);
+      userRepo.findOne.mockResolvedValue({
+        ...existingUser,
+        roleId: 10,
+        role: targetRole,
+        permissions: ['PURCHASE_ORDERS_CONFIRM'],
+      });
+
+      const updated = await service.updateUser(17, {
+        roleId: 10,
+        permissions: ['PURCHASE_ORDERS_CONFIRM'],
+      });
+
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 17,
+          roleId: 10,
+          role: targetRole,
+          permissions: ['PURCHASE_ORDERS_CONFIRM'],
+        }),
+      );
+      expect(updated.roleId).toBe(10);
+      expect(updated.role?.roleName).toBe('APPROVER');
+    });
+
     it('should toggle user active status and save to database', async () => {
       const activeUser = {
         userId: 42,

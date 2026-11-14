@@ -134,6 +134,12 @@ export class PurchaseOrder {
   @Column({ name: 'amount_in_words', type: 'text', nullable: true })
   amountInWords?: string;
 
+  @Column({ name: 'supplier_snapshot', type: 'jsonb', nullable: true })
+  supplierSnapshot?: Record<string, any>;
+
+  @Column({ name: 'company_snapshot', type: 'jsonb', nullable: true })
+  companySnapshot?: Record<string, any>;
+
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy?: number;
 

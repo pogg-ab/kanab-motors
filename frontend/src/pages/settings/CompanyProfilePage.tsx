@@ -20,20 +20,125 @@ import {
   ToggleRight,
   ExternalLink,
   CreditCard,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
-import { api, CompanyProfile, CompanyBankAccount } from '../../api/client';
+import { api, CompanyProfile, CompanyBankAccount, resolveCompanyAssetUrl } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { useBranding } from '../../context/BrandingContext';
 import { formatApiError } from '../../utils/error';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { InternationalPhoneInput } from '../../components/InternationalPhoneInput';
+
+type ProfileFieldKey =
+  | 'companyName'
+  | 'tradeName'
+  | 'registrationNo'
+  | 'tin'
+  | 'vatRegistrationNo'
+  | 'address'
+  | 'city'
+  | 'country'
+  | 'phone'
+  | 'email'
+  | 'website'
+  | 'importerIecNo'
+  | 'importerAdCode';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_CHARS_REGEX = /^\+?[0-9\s\-()]+$/;
+const REGULATORY_CODE_REGEX = /^[A-Za-z0-9\-/]{3,50}$/;
+
+function validateProfileField(field: ProfileFieldKey, rawValue: string): string | undefined {
+  const value = (rawValue || '').trim();
+  switch (field) {
+    case 'companyName':
+      if (!value) return 'Registered Company Name is required.';
+      if (value.length > 200) return 'Registered Company Name must be 200 characters or fewer.';
+      return undefined;
+    case 'tradeName':
+      if (value.length > 255) return 'Trading Name must be 255 characters or fewer.';
+      return undefined;
+    case 'registrationNo':
+      if (value.length > 100) return 'Company Registration No. must be 100 characters or fewer.';
+      return undefined;
+    case 'tin':
+      if (!value) return 'TIN (Tax Identification No.) is required.';
+      if (value.length > 100) return 'TIN must be 100 characters or fewer.';
+      return undefined;
+    case 'vatRegistrationNo':
+      if (value.length > 100) return 'VAT Registration No. must be 100 characters or fewer.';
+      return undefined;
+    case 'address':
+      if (value.length > 1000) return 'Full Registered Address must be 1000 characters or fewer.';
+      return undefined;
+    case 'city':
+      if (value.length > 100) return 'City must be 100 characters or fewer.';
+      return undefined;
+    case 'country':
+      if (value.length > 100) return 'Country must be 100 characters or fewer.';
+      return undefined;
+    case 'phone': {
+      if (!value) return undefined;
+      const digits = value.replace(/\D/g, '');
+      if (!PHONE_CHARS_REGEX.test(value) || digits.length < 7 || digits.length > 15) {
+        return 'Enter a valid phone number with country code (7–15 digits) or leave blank.';
+      }
+      return undefined;
+    }
+    case 'email':
+      if (!value) return undefined;
+      if (!EMAIL_REGEX.test(value)) {
+        return 'Enter a valid email address (e.g. import@kanabmotors.com).';
+      }
+      return undefined;
+    case 'website': {
+      if (!value) return undefined;
+      try {
+        const parsed = new URL(value);
+        const validProtocol = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        const validHost = parsed.hostname.includes('.') || parsed.hostname === 'localhost';
+        if (!validProtocol || !validHost) {
+          return 'Enter a valid URL starting with http:// or https:// (e.g. https://www.kanabmotors.com).';
+        }
+        return undefined;
+      } catch {
+        return 'Enter a valid URL starting with http:// or https:// (e.g. https://www.kanabmotors.com).';
+      }
+    }
+    case 'importerIecNo':
+      if (!value) return undefined;
+      if (!REGULATORY_CODE_REGEX.test(value)) {
+        return 'Importer IEC No. must be 3–50 characters (letters, numbers, - or /).';
+      }
+      return undefined;
+    case 'importerAdCode':
+      if (!value) return undefined;
+      if (!REGULATORY_CODE_REGEX.test(value)) {
+        return 'Importer AD Code must be 3–50 characters (letters, numbers, - or /).';
+      }
+      return undefined;
+    default:
+      return undefined;
+  }
+}
 
 export const CompanyProfilePage: React.FC = () => {
   const { hasPermission } = useAuth();
-  const canEdit = hasPermission('USERS_EDIT') || hasPermission('PURCHASE_ORDERS_CONFIRM');
+  const { applyBranding, refreshBranding } = useBranding();
+  const canEdit =
+    hasPermission('COMPANY_PROFILE_EDIT') ||
+    hasPermission('USERS_EDIT');
 
   const [activeTab, setActiveTab] = useState<'profile' | 'bank_accounts'>('profile');
   const [loading, setLoading] = useState<boolean>(true);
   const [savingProfile, setSavingProfile] = useState<boolean>(false);
+  const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
+  const [logoPreviewError, setLogoPreviewError] = useState<boolean>(false);
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileFieldKey, string>>>({});
 
   // Company Profile state
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
@@ -109,6 +214,8 @@ export const CompanyProfilePage: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true);
+    setProfileError(null);
+    setFieldErrors({});
     try {
       const data = await api.getCompanyProfile();
       setProfile(data);
@@ -138,23 +245,145 @@ export const CompanyProfilePage: React.FC = () => {
     }
   };
 
+  const updateProfileField = (field: ProfileFieldKey, value: string) => {
+    setProfileForm((prev) => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      const nextErr = validateProfileField(field, value);
+      setFieldErrors((prev) => {
+        const updated = { ...prev };
+        if (nextErr) updated[field] = nextErr;
+        else delete updated[field];
+        return updated;
+      });
+    }
+  };
+
+  const handleFieldBlur = (field: ProfileFieldKey) => {
+    const err = validateProfileField(field, profileForm[field]);
+    setFieldErrors((prev) => {
+      const updated = { ...prev };
+      if (err) updated[field] = err;
+      else delete updated[field];
+      return updated;
+    });
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
-    if (!profileForm.companyName.trim()) {
-      showToast('error', 'Company name is required');
+    setProfileError(null);
+
+    const fieldsToValidate: ProfileFieldKey[] = [
+      'companyName',
+      'tradeName',
+      'registrationNo',
+      'tin',
+      'vatRegistrationNo',
+      'address',
+      'city',
+      'country',
+      'phone',
+      'email',
+      'website',
+      'importerIecNo',
+      'importerAdCode',
+    ];
+    const nextErrors: Partial<Record<ProfileFieldKey, string>> = {};
+    for (const key of fieldsToValidate) {
+      const err = validateProfileField(key, profileForm[key]);
+      if (err) nextErrors[key] = err;
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      const summary = Object.values(nextErrors).join(' ');
+      setProfileError(summary);
+      showToast('error', summary);
       return;
     }
+    setFieldErrors({});
 
     setSavingProfile(true);
     try {
       const updated = await api.updateCompanyProfile(profile.profileId, profileForm);
       setProfile(updated);
+      setLogoPreviewError(false);
+      applyBranding({
+        companyName: updated.companyName,
+        tradeName: updated.tradeName || '',
+        logo: updated.logo || '',
+        country: updated.country,
+      });
+      await refreshBranding();
       showToast('success', 'Company Profile & Importer settings saved successfully!');
     } catch (err: any) {
-      showToast('error', formatApiError(err, 'Failed to save company profile'));
+      const msg = formatApiError(err, 'Failed to save company profile');
+      setProfileError(msg);
+      showToast('error', msg);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !profile || !canEdit) return;
+    setProfileError(null);
+
+    if (file.size > 5 * 1024 * 1024) {
+      const msg = 'Logo image must be 5 MB or smaller.';
+      setProfileError(msg);
+      showToast('error', msg);
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const res = await api.uploadCompanyLogo(profile.profileId, file);
+      setProfile(res.profile);
+      setProfileForm((prev) => ({ ...prev, logo: res.logoUrl }));
+      setLogoPreviewError(false);
+      applyBranding({
+        companyName: res.profile.companyName,
+        tradeName: res.profile.tradeName || '',
+        logo: res.logoUrl,
+        country: res.profile.country,
+      });
+      await refreshBranding();
+      showToast('success', 'Company logo uploaded and applied across workspace!');
+    } catch (err: any) {
+      const msg = formatApiError(err, 'Failed to upload company logo');
+      setProfileError(msg);
+      showToast('error', msg);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!profile || !canEdit) return;
+    setProfileError(null);
+    setUploadingLogo(true);
+    try {
+      const updated = await api.updateCompanyProfile(profile.profileId, { logo: '' });
+      setProfile(updated);
+      setProfileForm((prev) => ({ ...prev, logo: '' }));
+      setLogoPreviewError(false);
+      applyBranding({
+        companyName: updated.companyName,
+        tradeName: updated.tradeName || '',
+        logo: '',
+        country: updated.country,
+      });
+      await refreshBranding();
+      showToast('success', 'Company logo removed; default branding restored.');
+    } catch (err: any) {
+      const msg = formatApiError(err, 'Failed to remove company logo');
+      setProfileError(msg);
+      showToast('error', msg);
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -258,7 +487,7 @@ export const CompanyProfilePage: React.FC = () => {
     }
   };
 
-  const defaultAccount = bankAccounts.find((b) => b.isDefault);
+  const defaultAccount = bankAccounts.find((b) => b.isDefault && b.isActive);
   const activeForexAccounts = bankAccounts.filter((b) => b.isActive && b.currency !== 'ETB');
 
   return (
@@ -370,7 +599,8 @@ export const CompanyProfilePage: React.FC = () => {
 
       {/* TAB 1: COMPANY PROFILE */}
       {activeTab === 'profile' && (
-        <form onSubmit={handleSaveProfile}>
+        <form onSubmit={handleSaveProfile} noValidate>
+          <ModalErrorAlert error={profileError} onDismiss={() => setProfileError(null)} />
           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
             {/* Left Column: Legal & General Info */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -389,23 +619,37 @@ export const CompanyProfilePage: React.FC = () => {
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.companyName ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.companyName}
-                      onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })}
+                      onChange={(e) => updateProfileField('companyName', e.target.value)}
+                      onBlur={() => handleFieldBlur('companyName')}
                       required
                       placeholder="e.g. KANAB Motors PLC"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.companyName && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.companyName}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="form-label">Trading Name / Brand Name</label>
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.tradeName ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.tradeName}
-                      onChange={(e) => setProfileForm({ ...profileForm, tradeName: e.target.value })}
+                      onChange={(e) => updateProfileField('tradeName', e.target.value)}
+                      onBlur={() => handleFieldBlur('tradeName')}
                       placeholder="e.g. KANAB Motors Ethiopia"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.tradeName && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.tradeName}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -415,46 +659,138 @@ export const CompanyProfilePage: React.FC = () => {
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.registrationNo ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.registrationNo}
-                      onChange={(e) => setProfileForm({ ...profileForm, registrationNo: e.target.value })}
+                      onChange={(e) => updateProfileField('registrationNo', e.target.value)}
+                      onBlur={() => handleFieldBlur('registrationNo')}
                       placeholder="e.g. MOT/AA/01/2020/00491"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.registrationNo && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.registrationNo}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="form-label">TIN (Tax Identification No.) *</label>
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.tin ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.tin}
-                      onChange={(e) => setProfileForm({ ...profileForm, tin: e.target.value })}
+                      onChange={(e) => updateProfileField('tin', e.target.value)}
+                      onBlur={() => handleFieldBlur('tin')}
                       placeholder="e.g. TIN-0092837461"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.tin && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.tin}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="form-label">VAT Registration No.</label>
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.vatRegistrationNo ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.vatRegistrationNo}
-                      onChange={(e) => setProfileForm({ ...profileForm, vatRegistrationNo: e.target.value })}
+                      onChange={(e) => updateProfileField('vatRegistrationNo', e.target.value)}
+                      onBlur={() => handleFieldBlur('vatRegistrationNo')}
                       placeholder="e.g. VAT-ET-99018274"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.vatRegistrationNo && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.vatRegistrationNo}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="form-label">Company Logo URL / Asset Path</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={profileForm.logo}
-                    onChange={(e) => setProfileForm({ ...profileForm, logo: e.target.value })}
-                    placeholder="/assets/logo.png or https://example.com/logo.png"
-                    disabled={!canEdit}
-                  />
+                  <label className="form-label">Company Logo</label>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      padding: '0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '60px',
+                        height: '60px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        padding: '4px',
+                      }}
+                    >
+                      {resolveCompanyAssetUrl(profileForm.logo) && !logoPreviewError ? (
+                        <img
+                          src={resolveCompanyAssetUrl(profileForm.logo)}
+                          alt={profileForm.companyName || 'Company Logo'}
+                          onError={() => setLogoPreviewError(true)}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <ImageIcon size={24} color="#94a3b8" />
+                      )}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {canEdit && (
+                          <>
+                            <input
+                              ref={logoInputRef}
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/x-icon,.png,.jpg,.jpeg,.webp,.svg,.ico"
+                              onChange={handleUploadLogo}
+                              style={{ display: 'none' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => logoInputRef.current?.click()}
+                              disabled={uploadingLogo || loading}
+                              className="btn btn-cyan"
+                              style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                            >
+                              <Upload size={14} />
+                              {uploadingLogo ? 'Uploading...' : 'Upload Logo Image'}
+                            </button>
+                            {profileForm.logo && (
+                              <button
+                                type="button"
+                                onClick={handleRemoveLogo}
+                                disabled={uploadingLogo || loading}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', color: 'var(--accent-rose)' }}
+                              >
+                                <Trash2 size={13} /> Remove Logo
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                        PNG, JPG, WEBP, SVG or ICO (max 5 MB). Automatically updates Sidebar, Login Page, Browser Tab & Icon, and PO documents.
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -471,12 +807,19 @@ export const CompanyProfilePage: React.FC = () => {
                   <label className="form-label">Full Registered Address</label>
                   <textarea
                     className="input"
+                    style={fieldErrors.address ? { borderColor: 'var(--accent-rose)' } : undefined}
                     rows={2}
                     value={profileForm.address}
-                    onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                    onChange={(e) => updateProfileField('address', e.target.value)}
+                    onBlur={() => handleFieldBlur('address')}
                     placeholder="Bole Sub-City, Kebele 03, House No. 492, Addis Ababa, Ethiopia"
                     disabled={!canEdit}
                   />
+                  {fieldErrors.address && (
+                    <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                      {fieldErrors.address}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -485,56 +828,87 @@ export const CompanyProfilePage: React.FC = () => {
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.city ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.city}
-                      onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
+                      onChange={(e) => updateProfileField('city', e.target.value)}
+                      onBlur={() => handleFieldBlur('city')}
                       disabled={!canEdit}
                     />
+                    {fieldErrors.city && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.city}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="form-label">Country</label>
                     <input
                       type="text"
                       className="input"
+                      style={fieldErrors.country ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.country}
-                      onChange={(e) => setProfileForm({ ...profileForm, country: e.target.value })}
+                      onChange={(e) => updateProfileField('country', e.target.value)}
+                      onBlur={() => handleFieldBlur('country')}
                       disabled={!canEdit}
                     />
+                    {fieldErrors.country && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.country}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                  <div>
-                    <label className="form-label">Official Phone</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      placeholder="+251 11 662 4890"
-                      disabled={!canEdit}
-                    />
-                  </div>
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Official Phone</label>
+                  <InternationalPhoneInput
+                    value={profileForm.phone}
+                    onChange={(val) => updateProfileField('phone', val)}
+                    disabled={!canEdit}
+                  />
+                  {fieldErrors.phone && (
+                    <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                      {fieldErrors.phone}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Official Email</label>
                     <input
                       type="email"
                       className="input"
+                      style={fieldErrors.email ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.email}
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      onChange={(e) => updateProfileField('email', e.target.value)}
+                      onBlur={() => handleFieldBlur('email')}
                       placeholder="import@kanabmotors.com"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.email && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.email}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="form-label">Website</label>
                     <input
-                      type="text"
+                      type="url"
                       className="input"
+                      style={fieldErrors.website ? { borderColor: 'var(--accent-rose)' } : undefined}
                       value={profileForm.website}
-                      onChange={(e) => setProfileForm({ ...profileForm, website: e.target.value })}
+                      onChange={(e) => updateProfileField('website', e.target.value)}
+                      onBlur={() => handleFieldBlur('website')}
                       placeholder="https://www.kanabmotors.com"
                       disabled={!canEdit}
                     />
+                    {fieldErrors.website && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                        {fieldErrors.website}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -552,30 +926,44 @@ export const CompanyProfilePage: React.FC = () => {
                 </p>
 
                 <div style={{ marginBottom: '1rem' }}>
-                  <label className="form-label">Importer IEC No. (Importer Exporter Code) *</label>
+                  <label className="form-label">Importer IEC No. (Importer Exporter Code)</label>
                   <input
                     type="text"
                     className="input"
+                    style={fieldErrors.importerIecNo ? { borderColor: 'var(--accent-rose)' } : undefined}
                     value={profileForm.importerIecNo}
-                    onChange={(e) => setProfileForm({ ...profileForm, importerIecNo: e.target.value })}
+                    onChange={(e) => updateProfileField('importerIecNo', e.target.value)}
+                    onBlur={() => handleFieldBlur('importerIecNo')}
                     placeholder="e.g. ETH-IEC-994821"
                     disabled={!canEdit}
                   />
+                  {fieldErrors.importerIecNo && (
+                    <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                      {fieldErrors.importerIecNo}
+                    </div>
+                  )}
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
                     Automatically populates Box 1 (Importer) on Purchase Orders and Bill of Lading manifests.
                   </span>
                 </div>
 
                 <div style={{ marginBottom: '1rem' }}>
-                  <label className="form-label">Importer AD Code (Authorized Dealer Code) *</label>
+                  <label className="form-label">Importer AD Code (Authorized Dealer Code)</label>
                   <input
                     type="text"
                     className="input"
+                    style={fieldErrors.importerAdCode ? { borderColor: 'var(--accent-rose)' } : undefined}
                     value={profileForm.importerAdCode}
-                    onChange={(e) => setProfileForm({ ...profileForm, importerAdCode: e.target.value })}
+                    onChange={(e) => updateProfileField('importerAdCode', e.target.value)}
+                    onBlur={() => handleFieldBlur('importerAdCode')}
                     placeholder="e.g. AD-CBE-0019284"
                     disabled={!canEdit}
                   />
+                  {fieldErrors.importerAdCode && (
+                    <div style={{ color: 'var(--accent-rose)', fontSize: '0.74rem', marginTop: '0.25rem' }}>
+                      {fieldErrors.importerAdCode}
+                    </div>
+                  )}
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
                     Bank branch code registered with NBE for foreign currency remittances & letters of credit.
                   </span>
@@ -719,7 +1107,7 @@ export const CompanyProfilePage: React.FC = () => {
                         {b.ifscCode && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>IFSC: {b.ifscCode}</div>}
                       </td>
                       <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
-                        {b.isDefault ? (
+                        {b.isDefault && b.isActive ? (
                           <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
                             <Star size={11} /> PRIMARY DEFAULT
                           </span>

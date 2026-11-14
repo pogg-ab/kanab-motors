@@ -122,8 +122,10 @@ export const ImportRequisitionsPage: React.FC = () => {
       setProducts(prodsRes.items || []);
       setSuppliers(suppsRes || []);
       setBankAccounts(banksRes || []);
-      if (banksRes && banksRes.length > 0) {
-        setConvertBankAccountId(banksRes[0].bankAccountId);
+      const activeBanks = (banksRes || []).filter((b: CompanyBankAccount) => b.isActive !== false);
+      const preferredBank = activeBanks.find((b: CompanyBankAccount) => b.isDefault) || activeBanks[0];
+      if (preferredBank) {
+        setConvertBankAccountId(preferredBank.bankAccountId);
       }
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load import requisitions'));
@@ -1263,11 +1265,13 @@ export const ImportRequisitionsPage: React.FC = () => {
                       required
                     >
                       <option value="">Select Company Bank Account...</option>
-                      {bankAccounts.map((b) => (
-                        <option key={b.bankAccountId} value={b.bankAccountId}>
-                          {b.bankName} - {b.accountName} ({b.currency})
-                        </option>
-                      ))}
+                      {bankAccounts
+                        .filter((b) => b.isActive !== false)
+                        .map((b) => (
+                          <option key={b.bankAccountId} value={b.bankAccountId}>
+                            {b.bankName} - {b.accountName} ({b.currency}){b.isDefault ? ' [Default]' : ''}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>

@@ -32,6 +32,100 @@ import { formatApiError } from '../../utils/error';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 
 export const ProductsPage: React.FC = () => {
+  const emptySpecs = { modelYear: '', powertrain: '', newOrUsed: 'NEW', fuelEnergyType: '', drivingRangeKm: '' };
+  const [specs, setSpecs] = useState(emptySpecs);
+  const specsPayload = () => ({ ...specs, modelYear: specs.modelYear ? Number(specs.modelYear) : undefined, drivingRangeKm: specs.drivingRangeKm ? Number(specs.drivingRangeKm) : undefined });
+  const specFields = (
+    <div
+      style={{
+        padding: '1.1rem',
+        background: 'var(--bg-secondary)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-color)',
+        marginBottom: '1rem',
+      }}
+    >
+      <div
+        style={{
+          fontSize: '0.85rem',
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          marginBottom: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}
+      >
+        <Car size={16} color="var(--accent-cyan)" />
+        <span>Vehicle Specifications &amp; Powertrain (KMS-FB-16)</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Model Year</label>
+          <input
+            className="input-field"
+            type="number"
+            placeholder="e.g. 2026"
+            min={1990}
+            max={2035}
+            value={specs.modelYear}
+            onChange={(e) => setSpecs({ ...specs, modelYear: e.target.value })}
+          />
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Powertrain</label>
+          <select
+            className="select-field"
+            value={specs.powertrain}
+            onChange={(e) => setSpecs({ ...specs, powertrain: e.target.value })}
+          >
+            <option value="">Select Powertrain</option>
+            <option value="BEV">BEV (Battery Electric)</option>
+            <option value="PHEV">PHEV (Plug-in Hybrid)</option>
+            <option value="HEV">HEV (Hybrid Electric)</option>
+            <option value="ICE">ICE (Internal Combustion)</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Condition (New / Used)</label>
+          <select
+            className="select-field"
+            value={specs.newOrUsed}
+            onChange={(e) => setSpecs({ ...specs, newOrUsed: e.target.value })}
+          >
+            <option value="NEW">Brand New</option>
+            <option value="USED">Pre-Owned / Used</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Fuel / Energy Type</label>
+          <select
+            className="select-field"
+            value={specs.fuelEnergyType}
+            onChange={(e) => setSpecs({ ...specs, fuelEnergyType: e.target.value })}
+          >
+            <option value="">Select Fuel/Energy</option>
+            <option value="ELECTRIC">Electric</option>
+            <option value="PETROL">Petrol</option>
+            <option value="DIESEL">Diesel</option>
+            <option value="HYBRID">Hybrid</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Driving Range (km)</label>
+          <input
+            className="input-field"
+            type="number"
+            placeholder="e.g. 400"
+            min={0}
+            value={specs.drivingRangeKm}
+            onChange={(e) => setSpecs({ ...specs, drivingRangeKm: e.target.value })}
+          />
+        </div>
+      </div>
+    </div>
+  );
   const { showConfirm, showAlert } = useModal();
   const { can } = usePermissions();
   const canCreateProduct = can('PRODUCTS_CREATE');
@@ -177,6 +271,7 @@ export const ProductsPage: React.FC = () => {
   }, [selectedCat, selectedBrand, search]);
 
   const handleOpenCreate = async () => {
+    setSpecs(emptySpecs);
     if (!canCreateProduct) return;
     let currentTaxes = taxConfigs;
     let currentCats = categories;
@@ -237,6 +332,7 @@ export const ProductsPage: React.FC = () => {
     setSubmitting(true);
     try {
       await api.createItem({
+        ...specsPayload(),
         itemCode: formData.itemCode.trim().toUpperCase(),
         itemName: formData.itemName.trim(),
         categoryId: Number(formData.categoryId),
@@ -261,6 +357,7 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleOpenEditProduct = (item: ProductItem) => {
+    setSpecs({ modelYear: String(item.modelYear ?? ''), powertrain: item.powertrain || '', newOrUsed: item.newOrUsed || 'NEW', fuelEnergyType: item.fuelEnergyType || '', drivingRangeKm: String(item.drivingRangeKm ?? '') });
     api.getColors().then(setColors).catch(() => {});
     setEditingProduct(item);
     setEditFormData({
@@ -295,6 +392,7 @@ export const ProductsPage: React.FC = () => {
     setEditProductSubmitting(true);
     try {
       await api.updateItem(editingProduct.itemId, {
+        ...specsPayload(),
         itemCode: editFormData.itemCode.trim().toUpperCase(),
         itemName: editFormData.itemName.trim(),
         categoryId: Number(editFormData.categoryId),
@@ -853,56 +951,41 @@ export const ProductsPage: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {item.itemName}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-                          Model: {item.model || 'Standard'} · UoM: {item.uom?.uomName || 'UNIT'}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                          {item.brand?.brandName ? `${item.brand.brandName} ` : ''}{item.model || item.itemName}{item.modelYear ? ` ${item.modelYear}` : ''}
                         </span>
-                        {item.colour && (
-                          <span
-                            className="badge badge-indigo"
-                            style={{
-                              fontSize: '0.68rem',
-                              padding: '0.15rem 0.5rem',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            <span>🎨</span> {item.colour}
+                        <span className="badge badge-subtle" style={{ fontSize: '0.68rem' }}>
+                          {item.newOrUsed || 'NEW'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', marginTop: '0.15rem' }}>
+                        {item.itemName} · Code: {item.itemCode}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                        {item.powertrain && (
+                          <span className="badge badge-cyan" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                            ⚡ {item.powertrain}
                           </span>
                         )}
-                        {item.engineCapacityCc && (
-                          <span
-                            className="badge badge-emerald"
-                            style={{
-                              fontSize: '0.68rem',
-                              padding: '0.15rem 0.5rem',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            <span>⚡</span> {item.engineCapacityCc}
+                        {item.fuelEnergyType && (
+                          <span className="badge badge-amber" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                            ⛽ {item.fuelEnergyType}
+                          </span>
+                        )}
+                        {item.drivingRangeKm && (
+                          <span className="badge badge-indigo" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                            🛣️ {item.drivingRangeKm} km
                           </span>
                         )}
                         {item.batteryPowerKwh && (
-                          <span
-                            className="badge badge-cyan"
-                            style={{
-                              fontSize: '0.68rem',
-                              padding: '0.15rem 0.5rem',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            <span>🔋</span> {item.batteryPowerKwh} kWh
+                          <span className="badge badge-emerald" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                            🔋 {item.batteryPowerKwh} kWh
+                          </span>
+                        )}
+                        {item.colour && (
+                          <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                            🎨 {item.colour}
                           </span>
                         )}
                       </div>
@@ -1198,6 +1281,7 @@ export const ProductsPage: React.FC = () => {
                 </div>
               </div>
 
+              {specFields}
               <div className="modal-footer">
                 <button
                   type="button"
@@ -1435,6 +1519,7 @@ export const ProductsPage: React.FC = () => {
                 </div>
               </div>
 
+              {specFields}
               <div className="modal-footer">
                 <button
                   type="button"

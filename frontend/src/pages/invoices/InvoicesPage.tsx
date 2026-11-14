@@ -22,12 +22,14 @@ import {
   Sliders,
   Settings2,
   Info,
+  Paperclip,
 } from 'lucide-react';
 import { api, SalesInvoice, Booking, TaxConfiguration } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useModal } from '../../context/ModalContext';
 import { formatApiError } from '../../utils/error';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
+import { EntityAttachmentsModal } from '../../components/EntityAttachmentsModal';
 
 export const InvoicesPage: React.FC = () => {
   const { showConfirm, showAlert } = useModal();
@@ -41,6 +43,7 @@ export const InvoicesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [attachmentInvoice, setAttachmentInvoice] = useState<SalesInvoice | null>(null);
 
   // Story IV14 & IV2: Module Tabs state
   const [activeTab, setActiveTab] = useState<'INVOICES' | 'TAX_RULES' | 'WHT_HUB'>('INVOICES');
@@ -844,6 +847,21 @@ export const InvoicesPage: React.FC = () => {
                           }}
                         >
                           <Eye size={15} />
+                        </button>
+
+                        <button
+                          onClick={() => setAttachmentInvoice(inv)}
+                          title="View & Upload Invoice Attachments / Supporting Documents"
+                          style={{
+                            padding: '0.4rem',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(6, 182, 212, 0.4)',
+                            background: 'rgba(6, 182, 212, 0.15)',
+                            color: 'var(--accent-cyan)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Paperclip size={15} />
                         </button>
 
                         {canCreateInvoice && (
@@ -2265,6 +2283,24 @@ export const InvoicesPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {/* KMS-FB-04: Sales Invoice Attachments Modal */}
+      {attachmentInvoice && (
+        <EntityAttachmentsModal
+          isOpen={!!attachmentInvoice}
+          onClose={() => setAttachmentInvoice(null)}
+          entityType="invoice"
+          entityId={attachmentInvoice.invoiceId}
+          title={`Sales Invoice Attachments — ${attachmentInvoice.invoiceNumber}`}
+          subtitle={`Customer: ${attachmentInvoice.customer?.fullName || 'N/A'} · ETB ${Number(attachmentInvoice.grossTotal).toLocaleString()}`}
+          allowedDocTypes={[
+            'Signed Commercial Invoice',
+            'Withholding Tax Receipt',
+            'Bank Deposit Slip',
+            'Customer Authorization Letter',
+            'Delivery Note / Gate Pass',
+          ]}
+        />
       )}
     </div>
   );

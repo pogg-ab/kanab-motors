@@ -1,5 +1,5 @@
-import { IsNotEmpty, IsNumber, IsPositive, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsNumber, IsPositive, IsString, MinLength, IsOptional, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class TransferExcessPaymentDto {
   @ApiProperty({ example: '1', description: 'Source booking ID that holds excess payments' })
@@ -25,8 +25,14 @@ export class TransferExcessPaymentDto {
   @MinLength(5, { message: 'Transfer reason must be at least 5 characters' })
   transferReason: string;
 
-  @ApiProperty({ example: 'AUTH-2026-TR-001', required: false })
+  @ApiProperty({ example: 'AUTH-2026-TR-001', description: 'Written customer authorization reference' })
   @IsString()
-  authorizationReference?: string;
+  @IsNotEmpty({ message: 'Authorization reference is required' })
+  authorizationReference: string;
+
+  @ApiPropertyOptional({ example: false, description: 'Direct approval flag' })
+  @IsOptional()
+  @IsBoolean()
+  autoApprove?: boolean;
 }
 

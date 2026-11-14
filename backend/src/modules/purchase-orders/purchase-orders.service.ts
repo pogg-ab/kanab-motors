@@ -78,7 +78,10 @@ export class PurchaseOrdersService {
   }
 
   async getBankAccounts(): Promise<CompanyBankAccount[]> {
-    return this.bankAccountRepo.find({ where: { isActive: true }, order: { bankAccountId: 'ASC' } });
+    return this.bankAccountRepo.find({
+      where: { isActive: true },
+      order: { isDefault: 'DESC', bankAccountId: 'ASC' },
+    });
   }
 
   // -------------------------------------------------------------
@@ -123,6 +126,13 @@ export class PurchaseOrdersService {
 
     try {
       const poNumber = await this.generatePONumber(queryRunner.manager);
+      const supplier = await queryRunner.manager.findOneBy(Supplier, { supplierId: dto.supplierId });
+      if (!supplier) throw new BadRequestException(`Supplier #${dto.supplierId} not found`);
+      const companyProfile = await queryRunner.manager.findOne(CompanyProfile, { where: { isDefault: true, isActive: true } });
+      const selectedBank = dto.bankAccountId
+        ? await queryRunner.manager.findOneBy(CompanyBankAccount, { bankAccountId: dto.bankAccountId })
+        : await queryRunner.manager.findOne(CompanyBankAccount, { where: { isDefault: true, isActive: true } });
+      if (!selectedBank?.isActive) throw new BadRequestException('An active importer bank account is required');
       const po = queryRunner.manager.create(PurchaseOrder, {
         poNumber,
         supplierId: dto.supplierId,
@@ -147,7 +157,23 @@ export class PurchaseOrdersService {
         inspectionRequirements: dto.inspectionRequirements || 'Pre-shipment inspection (PSI) by approved international surveyor (SGS/Bureau Veritas)',
         warrantyTerms: dto.warrantyTerms || '12 months or 20,000 km manufacturer warranty from date of handover',
         commercialRemarks: dto.commercialRemarks,
-        bankAccountId: dto.bankAccountId || 1,
+        companyProfileId: companyProfile?.profileId,
+        bankAccountId: selectedBank.bankAccountId,
+        supplierSnapshot: {
+          supplierName: supplier.supplierName,
+          country: supplier.country,
+          exporterIecNo: supplier.exporterIecNo,
+          exporterAdCode: supplier.exporterAdCode,
+        },
+        companySnapshot: companyProfile ? {
+          companyName: companyProfile.companyName,
+          tradeName: companyProfile.tradeName,
+          logo: companyProfile.logo,
+          importerIecNo: companyProfile.importerIecNo,
+          importerAdCode: companyProfile.importerAdCode,
+          registrationNo: companyProfile.registrationNo,
+          tin: companyProfile.tin,
+        } : undefined,
         amountInWords,
         createdBy: dto.userId,
         updatedBy: dto.userId,
@@ -355,6 +381,15 @@ export class PurchaseOrdersService {
 
       const amountInWords = formatAmountInWords(grandTotal, nextCurrency);
 
+      if (dto.bankAccountId !== undefined && dto.bankAccountId !== po.bankAccountId) {
+        const selectedBank = await queryRunner.manager.findOneBy(CompanyBankAccount, {
+          bankAccountId: dto.bankAccountId,
+        });
+        if (!selectedBank?.isActive) {
+          throw new BadRequestException('An active importer bank account is required');
+        }
+      }
+
       Object.assign(po, {
         supplierId: dto.supplierId ?? po.supplierId,
         poDate: dto.poDate ?? po.poDate,
@@ -452,7 +487,31 @@ export class PurchaseOrdersService {
       query.andWhere('po.supplierId = :supplierId', { supplierId });
     }
 
-    return query.getMany();
+    const lines = await query.getMany();
+    if (lines.length === 0) return [];
+
+    try {
+      const shippedTotals: { po_line_id: string; total_shipped: string }[] = await this.dataSource.query(`
+        SELECT po_line_id, COALESCE(SUM(quantity_shipped), 0) AS total_shipped
+        FROM shipment_line
+        WHERE po_line_id IN (${lines.map((_, i) => `$${i + 1}`).join(', ')})
+        GROUP BY po_line_id
+      `, lines.map((l) => l.poLineId));
+
+      const shippedMap = new Map<string, number>();
+      shippedTotals.forEach((row) => shippedMap.set(String(row.po_line_id), Number(row.total_shipped || 0)));
+
+      return lines
+        .map((line) => {
+          const shippedQty = shippedMap.get(String(line.poLineId)) || 0;
+          const remainingQuantity = Math.max(0, Number(line.quantityOrdered) - shippedQty);
+          (line as any).remainingQuantity = remainingQuantity;
+          return line;
+        })
+        .filter((line) => (line as any).remainingQuantity > 0);
+    } catch {
+      return lines;
+    }
   }
 
   // -------------------------------------------------------------
@@ -491,10 +550,12 @@ export class PurchaseOrdersService {
       proformaInvoiceDate: po.proformaInvoiceDate || 'N/A',
       contractReference: po.contractReference || 'N/A',
       importer: {
-        companyName: company?.companyName || 'KANAB Motors PLC',
-        iecNo: company?.importerIecNo || company?.iecNo || 'ETH-IEC-994821',
-        adCode: company?.importerAdCode || company?.adCode || 'AD-CBE-0019284',
-        taxId: company?.tin || company?.taxId || 'TIN-0092837461',
+        companyName: po.companySnapshot?.companyName || company?.companyName || 'KANAB Motors PLC',
+        tradeName: po.companySnapshot?.tradeName || company?.tradeName,
+        logo: (po.companySnapshot as any)?.logo || company?.logo || null,
+        iecNo: po.companySnapshot?.importerIecNo || company?.importerIecNo || company?.iecNo || 'N/A',
+        adCode: po.companySnapshot?.importerAdCode || company?.importerAdCode || company?.adCode || 'N/A',
+        taxId: po.companySnapshot?.tin || company?.tin || company?.taxId || 'N/A',
         address: company?.address || 'Bole Sub-City, Kebele 03, House No. 492, Addis Ababa, Ethiopia',
         city: company?.city || 'Addis Ababa',
         country: company?.country || 'Ethiopia',
@@ -503,10 +564,10 @@ export class PurchaseOrdersService {
       },
       supplier: {
         supplierId: po.supplier?.supplierId,
-        supplierName: po.supplier?.supplierName,
-        exporterIecNo: po.supplier?.exporterIecNo || 'N/A',
-        exporterAdCode: po.supplier?.exporterAdCode || 'N/A',
-        country: po.supplier?.country || po.countryOfOrigin || 'India',
+        supplierName: po.supplierSnapshot?.supplierName || po.supplier?.supplierName,
+        exporterIecNo: po.supplierSnapshot?.exporterIecNo || po.supplier?.exporterIecNo || 'N/A',
+        exporterAdCode: po.supplierSnapshot?.exporterAdCode || po.supplier?.exporterAdCode || 'N/A',
+        country: po.supplierSnapshot?.country || po.supplier?.country || po.countryOfOrigin || 'India',
         address: po.supplier?.address || 'N/A',
         contactPerson: po.supplier?.contactPerson || 'Export Sales Director',
         phone: po.supplier?.phone || 'N/A',
@@ -721,6 +782,27 @@ export class PurchaseOrdersService {
     const existing = await this.lcRepo.findOne({ where: { lcNumber: dto.lcNumber } });
     if (existing) {
       throw new ConflictException(`L/C with reference number ${dto.lcNumber} already exists`);
+    }
+
+    const issueDate = new Date(dto.issueDate);
+    const expiryDate = new Date(dto.expiryDate);
+    if (Number.isNaN(issueDate.getTime()) || Number.isNaN(expiryDate.getTime())) {
+      throw new BadRequestException('L/C issue date and expiry date must be valid dates');
+    }
+    if (expiryDate < issueDate) {
+      throw new BadRequestException('L/C expiry date must be on or after the issue date');
+    }
+    if (dto.latestShipmentDate) {
+      const latestShipmentDate = new Date(dto.latestShipmentDate);
+      if (Number.isNaN(latestShipmentDate.getTime())) {
+        throw new BadRequestException('Latest shipment date must be a valid date');
+      }
+      if (latestShipmentDate < issueDate) {
+        throw new BadRequestException('Latest shipment date cannot be earlier than the L/C issue date');
+      }
+      if (latestShipmentDate > expiryDate) {
+        throw new BadRequestException('Latest shipment date cannot be after the L/C expiry date');
+      }
     }
 
     const lc = this.lcRepo.create({

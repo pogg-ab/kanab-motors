@@ -107,6 +107,12 @@ export class Booking {
   @Column({ name: 'cancellation_reason', type: 'text', nullable: true })
   cancellationReason: string;
 
+  @Column({ name: 'enquiry_preferences', type: 'jsonb', nullable: true })
+  enquiryPreferences?: Record<string, any>;
+
+  @Column({ name: 'customer_requirements_notes', type: 'text', nullable: true })
+  customerRequirementsNotes?: string;
+
   @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
   cancelledAt: Date;
 

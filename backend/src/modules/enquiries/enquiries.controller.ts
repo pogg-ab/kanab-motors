@@ -69,6 +69,18 @@ export class EnquiriesController {
   }
 
   @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update or Correct & Resubmit Sales Enquiry (KMS-FB-15)' })
+  updateEnquiry(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() body: Partial<CreateEnquiryDto>,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.updateEnquiry(id, body, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
   @Post(':id/submit')
   @ApiOperation({ summary: 'Submit draft enquiry for approval (KMSI-14-15)' })
   submitEnquiry(@Param('id', PositiveBigIntIdPipe) id: string, @Req() req?: any) {

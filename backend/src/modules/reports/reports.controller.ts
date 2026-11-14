@@ -148,9 +148,10 @@ export class ReportsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('customerId') customerId?: string,
+    @Query('branch') branch?: string,
     @Query('status') status?: string,
   ) {
-    return this.reportsService.getCreditSalesReport({ startDate, endDate, customerId, status });
+    return this.reportsService.getCreditSalesReport({ startDate, endDate, customerId, branch, status });
   }
 
   @RequirePermissions('REPORTS_VIEW')

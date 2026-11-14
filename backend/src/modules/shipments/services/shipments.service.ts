@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In } from 'typeorm';
@@ -42,6 +43,8 @@ import {
   UpdateFreightForwarderDto,
   CreateFreightQuotationDto,
   SelectFreightQuotationDto,
+  ApproveFreightQuotationDto,
+  RejectFreightQuotationDto,
   CreateShipmentBookingDto,
   CreateShipmentContainerDto,
   CreateShipmentMilestoneDto,
@@ -51,6 +54,7 @@ import {
   VerifyShipmentDocumentDto,
   UpdateOriginalDocumentStatusDto,
 } from '../dto/logistics.dto';
+import { AuditService } from '../../audit/audit.service';
 
 @Injectable()
 export class ShipmentsService {
@@ -101,7 +105,12 @@ export class ShipmentsService {
     private readonly notificationRepo: Repository<ImportNotification>,
     private readonly dataSource: DataSource,
     private readonly landedCostService: LandedCostAllocationService,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
+
+  private async audit(entityType: string, entityId: string, action: 'INSERT' | 'UPDATE', userId?: number, oldValue?: any, newValue?: any) {
+    await this.auditService?.log({ entityType, entityId, action, changedBy: userId, oldValue, newValue });
+  }
 
   async create(dto: CreateShipmentDto): Promise<Shipment> {
     if (!dto.lines || dto.lines.length === 0) {
@@ -303,6 +312,7 @@ export class ShipmentsService {
         'lines.poLine.item',
         'lines.poLine.purchaseOrder',
         'lines.poLine.purchaseOrder.supplier',
+        'lines.poLine.purchaseOrder.companyProfile',
         'lines.receipts',
         'costComponents',
         'costComponents.costComponentType',
@@ -367,11 +377,64 @@ export class ShipmentsService {
       [ShipmentStage.RECEIVED]: [],
     };
 
-    if (!validTransitions[fromStage]?.includes(targetStage)) {
+    let configuredTransition: any[] = [];
+    try {
+      configuredTransition = await this.dataSource.query(
+        `SELECT transition_id FROM import_workflow_transition
+         WHERE workflow_type='SHIPMENT' AND from_status=$1 AND to_status=$2 AND is_active=TRUE`,
+        [fromStage, targetStage],
+      );
+    } catch {
+      configuredTransition = [];
+    }
+    if (configuredTransition.length === 0 && !validTransitions[fromStage]?.includes(targetStage)) {
       throw new BadRequestException(`Invalid shipment stage transition from ${fromStage} to ${targetStage}`);
     }
 
-    // Document Completeness Check (Story D2):
+    // Configurable document completeness rules (IMP-33/37).
+    const firstPo = shipment.lines?.[0]?.poLine?.purchaseOrder;
+    const shipmentType = firstPo?.modeOfShipment || null;
+    const rawRequirements = await this.dataSource.query(
+      `SELECT destination_country, shipment_type, process_stage, document_type, requires_verification
+       FROM shipment_document_requirement
+       WHERE process_stage = $1 AND is_required = TRUE AND is_active = TRUE
+       ORDER BY document_type`,
+      [targetStage],
+    );
+    const hasCountryRule = (rawRequirements || []).some((r: any) => Boolean(r.destination_country));
+    const destinationCountry = hasCountryRule
+      ? await this.resolveShipmentDestinationCountry(shipment)
+      : null;
+    const requirements = (rawRequirements || []).filter((req: any) =>
+      this.isRequirementApplicableToShipment(req, {
+        currentStage: targetStage,
+        destinationCountry,
+        shipmentType,
+      }),
+    );
+    if (requirements.length > 0) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const controlledDocs = await this.shipmentDocRepo.find({ where: { shipmentId: id } });
+      const failures = requirements.filter((r: any) => {
+        const matchingDocs = controlledDocs.filter((d) => d.documentType === r.document_type);
+        if (matchingDocs.length === 0) return true;
+        const hasValidDoc = matchingDocs.some((doc) => {
+          const isExpired =
+            Boolean(doc.expiryDate && String(doc.expiryDate).slice(0, 10) < todayStr) ||
+            doc.verificationStatus === 'EXPIRED';
+          if (isExpired || doc.verificationStatus === 'REJECTED') return false;
+          return r.requires_verification ? doc.verificationStatus === 'VERIFIED' : true;
+        });
+        return !hasValidDoc;
+      });
+      if (failures.length > 0) {
+        throw new BadRequestException(
+          `Document Completeness Check Failed: required verified documents are missing, unverified, or expired: ${failures.map((r: any) => r.document_type).join(', ')}.`,
+        );
+      }
+    }
+
+    // Backward-compatible checks for databases that have not configured rules.
     // 1. Advancing to ETHIOPIAN_CUSTOMS_CLEARANCE requires verified Customs Declaration
     if (targetStage === ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE) {
       const customsAttachment = await this.attachmentRepo.findOne({
@@ -389,7 +452,7 @@ export class ShipmentsService {
         },
       });
 
-      if (!customsAttachment?.filePath && !structuredCustoms) {
+      if (requirements.length === 0 && !structuredCustoms) {
         throw new BadRequestException(
           `Document Completeness Check Failed: Mandatory Customs Declaration document ('CUSTOMS_DECLARATION') must be uploaded or marked VERIFIED in Shipping Document Control before advancing to ${targetStage}.`,
         );
@@ -398,7 +461,7 @@ export class ShipmentsService {
 
     // 2. Advancing to RECEIVED (closure) requires full mandatory import document packet
     if (targetStage === ShipmentStage.RECEIVED) {
-      const requiredDocs = ['CUSTOMS_DECLARATION', 'COMMERCIAL_INVOICE', 'BILL_OF_LADING'];
+      const requiredDocs = requirements.length === 0 ? ['CUSTOMS_DECLARATION', 'COMMERCIAL_INVOICE', 'BILL_OF_LADING'] : [];
       const attached = await this.attachmentRepo.find({
         where: {
           entityType: 'shipment',
@@ -883,10 +946,169 @@ export class ShipmentsService {
     await this.attachmentRepo.remove(attachment);
   }
 
-  async getPipelineReport(): Promise<any> {
-    const shipments = await this.shipmentRepo.find({
-      relations: ['stageHistory', 'costComponents', 'lines'],
-      order: { createdAt: 'DESC' },
+  async getPipelineReport(filters?: {
+    businessUnit?: string;
+    supplier?: string;
+    destination?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }): Promise<any> {
+    let shipments: Shipment[] = [];
+    try {
+      shipments = await this.shipmentRepo.find({
+        relations: [
+          'stageHistory',
+          'costComponents',
+          'lines',
+          'lines.poLine',
+          'lines.poLine.purchaseOrder',
+          'lines.poLine.purchaseOrder.supplier',
+          'bookings',
+          'selectedForwarder',
+        ],
+        order: { createdAt: 'DESC' },
+      });
+    } catch {
+      shipments = await this.shipmentRepo.find({
+        relations: ['stageHistory', 'costComponents', 'lines'],
+        order: { createdAt: 'DESC' },
+      });
+    }
+
+    const requisitions: any[] =
+      (await this.dataSource?.query?.(`
+        SELECT requisition_id, requisition_number, business_unit_id, status, required_delivery_date, created_at
+        FROM import_requisition ORDER BY created_at DESC
+      `)) || [];
+
+    const reqById = new Map<string, any>();
+    for (const r of requisitions) {
+      reqById.set(String(r.requisition_id), r);
+    }
+
+    const purchaseOrdersRaw: any[] =
+      (await this.dataSource?.query?.(`
+        SELECT po.po_id, po.po_number, po.status, po.po_date, po.expected_delivery_date,
+               po.country_of_origin, po.port_of_discharge, po.requisition_id, s.supplier_name
+        FROM purchase_order po JOIN supplier s ON s.supplier_id = po.supplier_id
+        ORDER BY po.created_at DESC
+      `)) || [];
+
+    const purchaseOrders = purchaseOrdersRaw.map((po) => {
+      const req = po.requisition_id ? reqById.get(String(po.requisition_id)) : undefined;
+      return {
+        ...po,
+        business_unit_id: po.business_unit_id || req?.business_unit_id || 'Default Business Unit',
+        destination: po.port_of_discharge || 'Addis Ababa / Modjo',
+      };
+    });
+
+    const mappedShipments = shipments.map((s) => {
+      const firstPo = s.lines?.[0]?.poLine?.purchaseOrder;
+      const req = firstPo?.requisitionId ? reqById.get(String(firstPo.requisitionId)) : undefined;
+      const booking = s.bookings?.[0];
+      const destination = booking?.destinationPort || firstPo?.portOfDischarge || 'Addis Ababa / Modjo';
+      const supplierName = firstPo?.supplier?.supplierName || '—';
+      const businessUnit = req?.business_unit_id || 'Fleet & Commercial Vehicle Assembly';
+      const totalVehicles = (s.lines || []).reduce((sum, l) => sum + Number(l.quantityShipped || 0), 0);
+
+      return {
+        shipmentId: s.shipmentId,
+        shipmentNumber: s.shipmentNumber,
+        currentStage: s.currentStage,
+        billOfLadingNumber: s.billOfLadingNumber || null,
+        expectedArrivalDate: s.expectedArrivalDate || null,
+        actualArrivalDate: s.actualArrivalDate || null,
+        createdAt: s.createdAt,
+        poNumber: firstPo?.poNumber || null,
+        poId: firstPo?.poId || null,
+        supplierName,
+        originCountry: firstPo?.countryOfOrigin || booking?.originPort || null,
+        destination,
+        businessUnit,
+        forwarderName: s.selectedForwarder?.name || null,
+        totalVehicles,
+        linesCount: s.lines?.length || 0,
+        costsCount: s.costComponents?.length || 0,
+      };
+    });
+
+    const businessUnitsSet = new Set<string>();
+    const suppliersSet = new Set<string>();
+    const destinationsSet = new Set<string>();
+    mappedShipments.forEach((s) => {
+      if (s.businessUnit) businessUnitsSet.add(s.businessUnit);
+      if (s.supplierName && s.supplierName !== '—') suppliersSet.add(s.supplierName);
+      if (s.destination) destinationsSet.add(s.destination);
+    });
+    purchaseOrders.forEach((po) => {
+      if (po.business_unit_id) businessUnitsSet.add(po.business_unit_id);
+      if (po.supplier_name) suppliersSet.add(po.supplier_name);
+      if (po.destination) destinationsSet.add(po.destination);
+    });
+    requisitions.forEach((r) => {
+      if (r.business_unit_id) businessUnitsSet.add(r.business_unit_id);
+    });
+
+    const fBu = filters?.businessUnit?.trim().toLowerCase();
+    const fSupplier = filters?.supplier?.trim().toLowerCase();
+    const fDest = filters?.destination?.trim().toLowerCase();
+    const fStatus = filters?.status?.trim().toUpperCase();
+    const fStart = filters?.startDate?.trim();
+    const fEnd = filters?.endDate?.trim();
+    const fSearch = filters?.search?.trim().toLowerCase();
+
+    const inDateRange = (dateVal?: any) => {
+      if (!fStart && !fEnd) return true;
+      if (!dateVal) return false;
+      const d = String(dateVal).slice(0, 10);
+      if (fStart && d < fStart) return false;
+      if (fEnd && d > fEnd) return false;
+      return true;
+    };
+
+    const filteredShipments = mappedShipments.filter((s) => {
+      if (fBu && s.businessUnit.toLowerCase() !== fBu) return false;
+      if (fSupplier && !s.supplierName.toLowerCase().includes(fSupplier)) return false;
+      if (fDest && !s.destination.toLowerCase().includes(fDest)) return false;
+      if (fStatus && s.currentStage !== fStatus) return false;
+      const keyDate = s.expectedArrivalDate || s.actualArrivalDate || s.createdAt;
+      if (!inDateRange(keyDate)) return false;
+      if (fSearch) {
+        const hay = `${s.shipmentNumber} ${s.billOfLadingNumber || ''} ${s.poNumber || ''} ${s.supplierName} ${s.destination} ${s.forwarderName || ''}`.toLowerCase();
+        if (!hay.includes(fSearch)) return false;
+      }
+      return true;
+    });
+
+    const filteredPOs = purchaseOrders.filter((po) => {
+      if (fBu && String(po.business_unit_id || '').toLowerCase() !== fBu) return false;
+      if (fSupplier && !String(po.supplier_name || '').toLowerCase().includes(fSupplier)) return false;
+      if (fDest && !String(po.destination || '').toLowerCase().includes(fDest)) return false;
+      if (fStatus && !Object.values(ShipmentStage).includes(fStatus as ShipmentStage) && String(po.status || '').toUpperCase() !== fStatus) {
+        return false;
+      }
+      if (!inDateRange(po.expected_delivery_date || po.po_date)) return false;
+      if (fSearch) {
+        const hay = `${po.po_number} ${po.supplier_name || ''} ${po.country_of_origin || ''} ${po.destination || ''}`.toLowerCase();
+        if (!hay.includes(fSearch)) return false;
+      }
+      return true;
+    });
+
+    const filteredReqs = requisitions.filter((r) => {
+      if (fBu && String(r.business_unit_id || '').toLowerCase() !== fBu) return false;
+      if (fStatus && !Object.values(ShipmentStage).includes(fStatus as ShipmentStage) && String(r.status || '').toUpperCase() !== fStatus) {
+        return false;
+      }
+      if (!inDateRange(r.required_delivery_date || r.created_at)) return false;
+      if (fSearch) {
+        const hay = `${r.requisition_number} ${r.business_unit_id || ''} ${r.status || ''}`.toLowerCase();
+        if (!hay.includes(fSearch)) return false;
+      }
+      return true;
     });
 
     const stageCounts: Record<string, number> = {};
@@ -897,7 +1119,7 @@ export class ShipmentsService {
     let totalActiveShipments = 0;
     let totalInlandTransit = 0;
 
-    for (const s of shipments) {
+    for (const s of filteredShipments) {
       stageCounts[s.currentStage] = (stageCounts[s.currentStage] || 0) + 1;
       if (s.currentStage !== ShipmentStage.RECEIVED) {
         totalActiveShipments++;
@@ -908,18 +1130,84 @@ export class ShipmentsService {
     }
 
     return {
-      totalShipments: shipments.length,
+      totalShipments: filteredShipments.length,
+      totalRequisitions: filteredReqs.length,
+      totalPurchaseOrders: filteredPOs.length,
       totalActiveShipments,
       totalInlandTransit,
       stageBreakdown: stageCounts,
-      recentShipments: shipments.slice(0, 10).map((s) => ({
-        shipmentId: s.shipmentId,
-        shipmentNumber: s.shipmentNumber,
-        currentStage: s.currentStage,
-        expectedArrivalDate: s.expectedArrivalDate,
-        linesCount: s.lines?.length || 0,
-        costsCount: s.costComponents?.length || 0,
-      })),
+      shipments: filteredShipments,
+      recentShipments: filteredShipments.slice(0, 20),
+      requisitions: filteredReqs,
+      purchaseOrders: filteredPOs,
+      filterOptions: {
+        businessUnits: Array.from(businessUnitsSet).sort(),
+        suppliers: Array.from(suppliersSet).sort(),
+        destinations: Array.from(destinationsSet).sort(),
+        stages: Object.values(ShipmentStage),
+      },
+    };
+  }
+
+  private toCsvCell(val: unknown): string {
+    if (val === null || val === undefined) return '';
+    const str = val instanceof Date ? val.toISOString() : String(val);
+    if (/[",\r\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  private buildCsv(headers: string[], rows: unknown[][]): string {
+    return [
+      headers.map((h) => this.toCsvCell(h)).join(','),
+      ...rows.map((r) => r.map((cell) => this.toCsvCell(cell)).join(',')),
+    ].join('\r\n');
+  }
+
+  async exportPipelineReportCsv(filters?: {
+    businessUnit?: string;
+    supplier?: string;
+    destination?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }): Promise<{ filename: string; csv: string }> {
+    const report = await this.getPipelineReport(filters);
+    const headers = [
+      'Shipment No',
+      'Current Stage',
+      'PO Number',
+      'Supplier',
+      'Business Unit',
+      'Destination',
+      'Forwarder',
+      'Bill of Lading',
+      'Total Vehicles',
+      'Expected Arrival',
+      'Actual Arrival',
+      'Lines Count',
+      'Costs Count',
+    ];
+    const rows = (report.shipments || []).map((s: any) => [
+      s.shipmentNumber,
+      s.currentStage,
+      s.poNumber || '',
+      s.supplierName || '',
+      s.businessUnit || '',
+      s.destination || '',
+      s.forwarderName || '',
+      s.billOfLadingNumber || '',
+      s.totalVehicles ?? 0,
+      s.expectedArrivalDate || '',
+      s.actualArrivalDate || '',
+      s.linesCount ?? 0,
+      s.costsCount ?? 0,
+    ]);
+    return {
+      filename: `import-pipeline-report-${new Date().toISOString().slice(0, 10)}.csv`,
+      csv: this.buildCsv(headers, rows),
     };
   }
 
@@ -955,13 +1243,33 @@ export class ShipmentsService {
     return this.findOne(shipmentId);
   }
 
-  // Story IMP-24 & IMP-25: Freight Quotation Management & Selection
-  async getShipmentQuotations(shipmentId: string): Promise<ShipmentFreightQuotation[]> {
-    return this.quotationRepo.find({
+  // Story IMP-24 & IMP-25: Freight Quotation Management, Selection & Approval
+  async getShipmentQuotations(shipmentId: string): Promise<any[]> {
+    const quotations = await this.quotationRepo.find({
       where: { shipmentId },
-      relations: ['forwarder', 'creator', 'selector'],
+      relations: ['forwarder', 'creator', 'selector', 'approver'],
       order: { quotationDate: 'DESC' },
     });
+
+    let historyRows: any[] = [];
+    try {
+      historyRows =
+        (await this.dataSource?.query?.(
+          `SELECT dh.*, u.full_name AS decided_by_name, u.email AS decided_by_email
+           FROM freight_quotation_decision_history dh
+           LEFT JOIN app_user u ON u.user_id = dh.decided_by
+           WHERE dh.shipment_id = $1
+           ORDER BY dh.decided_at DESC, dh.decision_history_id DESC`,
+          [shipmentId],
+        )) || [];
+    } catch {
+      historyRows = [];
+    }
+
+    return quotations.map((q) => ({
+      ...q,
+      decisionHistory: historyRows.filter((h) => String(h.quotation_id) === String(q.quotationId)),
+    }));
   }
 
   async addShipmentQuotation(shipmentId: string, dto: CreateFreightQuotationDto): Promise<ShipmentFreightQuotation> {
@@ -979,9 +1287,12 @@ export class ShipmentsService {
       additionalTerms: dto.additionalTerms,
       attachmentId: dto.attachmentId,
       selectionStatus: 'PENDING',
+      approvalStatus: 'PENDING',
       createdBy: dto.userId,
     });
-    return this.quotationRepo.save(quotation);
+    const saved = await this.quotationRepo.save(quotation);
+    await this.audit('shipment_freight_quotation', saved.quotationId, 'INSERT', dto.userId, undefined, { ...saved });
+    return saved;
   }
 
   async selectShipmentQuotation(
@@ -996,25 +1307,138 @@ export class ShipmentsService {
     if (!quotation) {
       throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
     }
+    if (quotation.approvalStatus === 'APPROVED') {
+      throw new BadRequestException(`Quotation #${quotationId} is already approved`);
+    }
 
-    // Mark other quotations as REJECTED
+    // Reset previously selected (unapproved) quotations back to PENDING
     await this.quotationRepo.update(
-      { shipmentId },
-      { selectionStatus: 'REJECTED' },
+      { shipmentId, selectionStatus: 'SELECTED', approvalStatus: 'PENDING' },
+      { selectionStatus: 'PENDING' },
     );
 
     quotation.selectionStatus = 'SELECTED';
+    quotation.approvalStatus = 'PENDING';
     quotation.selectionReason = dto.selectionReason;
     quotation.selectedBy = dto.userId;
     quotation.selectedAt = new Date();
+    quotation.approvedBy = undefined;
+    quotation.approvedAt = undefined;
+    quotation.rejectionReason = undefined;
 
     const saved = await this.quotationRepo.save(quotation);
 
-    // Also update shipment selectedForwarderId
+    await this.dataSource?.query?.(
+      `INSERT INTO freight_quotation_decision_history
+       (quotation_id, shipment_id, decision, reason, decided_by)
+       VALUES ($1, $2, 'SELECTED', $3, $4)`,
+      [quotationId, shipmentId, dto.selectionReason, dto.userId || null],
+    );
+    await this.audit('shipment_freight_quotation', quotationId, 'UPDATE', dto.userId, undefined, {
+      selectionStatus: 'SELECTED',
+      approvalStatus: 'PENDING',
+      selectionReason: dto.selectionReason,
+    });
+
+    return saved;
+  }
+
+  async approveShipmentQuotation(
+    shipmentId: string,
+    quotationId: string,
+    dto: ApproveFreightQuotationDto,
+  ): Promise<ShipmentFreightQuotation> {
+    await this.findOne(shipmentId);
+    const quotation = await this.quotationRepo.findOne({
+      where: { quotationId, shipmentId },
+    });
+    if (!quotation) {
+      throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
+    }
+    if (quotation.selectionStatus !== 'SELECTED') {
+      throw new BadRequestException('Freight quotation must be selected before approval');
+    }
+    if (quotation.approvalStatus !== 'PENDING') {
+      throw new BadRequestException(`Freight quotation is already ${quotation.approvalStatus}`);
+    }
+    if (quotation.selectedBy && dto.userId && Number(quotation.selectedBy) === Number(dto.userId) && !dto.allowSelfApproval) {
+      throw new BadRequestException(
+        'Separation of duties: a different authorized approver must approve the selected freight quotation',
+      );
+    }
+
+    // Reject competing quotations on this shipment once winner is approved
+    const allQuotes = await this.quotationRepo.find({ where: { shipmentId } });
+    for (const other of allQuotes) {
+      if (String(other.quotationId) !== String(quotationId) && other.selectionStatus !== 'REJECTED') {
+        other.selectionStatus = 'REJECTED';
+        if (other.approvalStatus === 'PENDING') {
+          other.approvalStatus = 'REJECTED';
+        }
+        await this.quotationRepo.save(other);
+      }
+    }
+
+    quotation.approvalStatus = 'APPROVED';
+    quotation.approvedBy = dto.userId;
+    quotation.approvedAt = new Date();
+    const saved = await this.quotationRepo.save(quotation);
+
+    // Assign approved forwarder on shipment
     await this.shipmentRepo.update(
       { shipmentId },
       { selectedForwarderId: quotation.freightForwarderId },
     );
+
+    const decisionReason = dto.approvalNotes?.trim() || quotation.selectionReason || 'Approved by authorized approver';
+    await this.dataSource?.query?.(
+      `INSERT INTO freight_quotation_decision_history
+       (quotation_id, shipment_id, decision, reason, decided_by)
+       VALUES ($1, $2, 'APPROVED', $3, $4)`,
+      [quotationId, shipmentId, decisionReason, dto.userId || null],
+    );
+    await this.audit('shipment_freight_quotation', quotationId, 'UPDATE', dto.userId, undefined, {
+      approvalStatus: 'APPROVED',
+      selectedForwarderId: quotation.freightForwarderId,
+      decisionReason,
+    });
+
+    return saved;
+  }
+
+  async rejectShipmentQuotation(
+    shipmentId: string,
+    quotationId: string,
+    dto: RejectFreightQuotationDto,
+  ): Promise<ShipmentFreightQuotation> {
+    await this.findOne(shipmentId);
+    const quotation = await this.quotationRepo.findOne({
+      where: { quotationId, shipmentId },
+    });
+    if (!quotation) {
+      throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
+    }
+    if (quotation.approvalStatus === 'APPROVED') {
+      throw new BadRequestException('Approved freight quotation cannot be rejected');
+    }
+
+    quotation.selectionStatus = 'REJECTED';
+    quotation.approvalStatus = 'REJECTED';
+    quotation.rejectionReason = dto.rejectionReason;
+    quotation.approvedBy = dto.userId;
+    quotation.approvedAt = new Date();
+    const saved = await this.quotationRepo.save(quotation);
+
+    await this.dataSource?.query?.(
+      `INSERT INTO freight_quotation_decision_history
+       (quotation_id, shipment_id, decision, reason, decided_by)
+       VALUES ($1, $2, 'REJECTED', $3, $4)`,
+      [quotationId, shipmentId, dto.rejectionReason, dto.userId || null],
+    );
+    await this.audit('shipment_freight_quotation', quotationId, 'UPDATE', dto.userId, undefined, {
+      approvalStatus: 'REJECTED',
+      rejectionReason: dto.rejectionReason,
+    });
 
     return saved;
   }
@@ -1047,7 +1471,9 @@ export class ShipmentsService {
       notes: dto.notes,
       createdBy: dto.userId,
     });
-    return this.bookingRepo.save(booking);
+    const saved = await this.bookingRepo.save(booking);
+    await this.audit('shipment_booking', saved.bookingId, 'INSERT', dto.userId, undefined, { ...saved });
+    return saved;
   }
 
   async updateShipmentBooking(bookingId: string, dto: Partial<CreateShipmentBookingDto>): Promise<ShipmentBooking> {
@@ -1055,8 +1481,11 @@ export class ShipmentsService {
     if (!booking) {
       throw new NotFoundException(`Shipment booking #${bookingId} not found`);
     }
+    const oldValue = { ...booking };
     Object.assign(booking, dto);
-    return this.bookingRepo.save(booking);
+    const saved = await this.bookingRepo.save(booking);
+    await this.audit('shipment_booking', bookingId, 'UPDATE', dto.userId, oldValue, { ...saved });
+    return saved;
   }
 
   // Story IMP-27: Container Management
@@ -1081,8 +1510,11 @@ export class ShipmentsService {
     if (!container) {
       throw new NotFoundException(`Container #${containerId} not found`);
     }
+    const oldValue = { ...container };
     Object.assign(container, dto);
-    return this.containerRepo.save(container);
+    const saved = await this.containerRepo.save(container);
+    await this.audit('shipment_container', containerId, 'UPDATE', undefined, oldValue, { ...saved });
+    return saved;
   }
 
   // Story IMP-28: Cargo Milestones
@@ -1166,7 +1598,9 @@ export class ShipmentsService {
       currency: dto.currency || 'USD',
       coverageType: dto.coverageType || 'All Risks (Institute Cargo Clauses A)',
     });
-    return this.insuranceRepo.save(insurance);
+    const saved = await this.insuranceRepo.save(insurance);
+    await this.audit('shipment_insurance', saved.insuranceId, 'INSERT', undefined, undefined, { ...saved });
+    return saved;
   }
 
   // Story IMP-30: Cargo Tracking & ECTN
@@ -1191,8 +1625,11 @@ export class ShipmentsService {
     if (!tracking) {
       throw new NotFoundException(`Cargo tracking #${trackingId} not found`);
     }
+    const oldValue = { ...tracking };
     Object.assign(tracking, dto);
-    return this.cargoTrackingRepo.save(tracking);
+    const saved = await this.cargoTrackingRepo.save(tracking);
+    await this.audit('shipment_cargo_tracking', trackingId, 'UPDATE', undefined, oldValue, { ...saved });
+    return saved;
   }
 
   // =========================================================================
@@ -1234,6 +1671,11 @@ export class ShipmentsService {
 
   async addShipmentDocument(shipmentId: string, dto: CreateShipmentDocumentDto): Promise<ShipmentDocument> {
     await this.findOne(shipmentId);
+    if (dto.supersedesDocumentId) {
+      const previous = await this.shipmentDocRepo.findOne({ where: { shipmentDocumentId: dto.supersedesDocumentId, shipmentId } });
+      if (!previous) throw new BadRequestException('Superseded document does not belong to this shipment');
+      dto.versionNumber = dto.versionNumber || previous.versionNumber + 1;
+    }
     const doc = this.shipmentDocRepo.create({
       shipmentId,
       ...dto,
@@ -1241,7 +1683,31 @@ export class ShipmentsService {
       originalDocumentStatus: dto.originalDocumentStatus || 'NOT_RECEIVED',
       createdBy: dto.userId,
     });
-    return this.shipmentDocRepo.save(doc);
+    const saved = await this.shipmentDocRepo.save(doc);
+    await this.audit('shipment_document', saved.shipmentDocumentId, 'INSERT', dto.userId, undefined, { ...saved });
+    return saved;
+  }
+
+  private async checkDocumentConsistency(doc: ShipmentDocument): Promise<string[]> {
+    const issues: string[] = [];
+    const shipment = await this.findOne(doc.shipmentId);
+    const po = doc.poId ? await this.poRepo.findOne({ where: { poId: doc.poId }, relations: ['lettersOfCredit'] }) : undefined;
+    if (doc.issueDate && doc.expiryDate && new Date(doc.issueDate) > new Date(doc.expiryDate)) {
+      issues.push('Issue date is after expiry date');
+    }
+    if (doc.expiryDate && new Date(doc.expiryDate) < new Date(new Date().toISOString().split('T')[0])) {
+      issues.push('Document is expired');
+    }
+    if (doc.documentType === 'BILL_OF_LADING' && shipment.billOfLadingNumber && doc.documentReference !== shipment.billOfLadingNumber) {
+      issues.push(`Bill of Lading reference does not match shipment reference ${shipment.billOfLadingNumber}`);
+    }
+    if (doc.documentType === 'COMMERCIAL_INVOICE' && po?.proformaInvoiceNo && doc.documentReference && doc.documentReference !== po.proformaInvoiceNo) {
+      issues.push(`Invoice reference does not match PO proforma invoice ${po.proformaInvoiceNo}`);
+    }
+    if (po?.lettersOfCredit?.length && !doc.documentReference) {
+      issues.push('Document reference is required for a Letter of Credit transaction');
+    }
+    return issues;
   }
 
   async verifyShipmentDocument(docId: string, dto: VerifyShipmentDocumentDto): Promise<ShipmentDocument> {
@@ -1249,6 +1715,7 @@ export class ShipmentsService {
     if (!doc) {
       throw new NotFoundException(`Shipment document #${docId} not found`);
     }
+    const oldValue = { ...doc };
     doc.verificationStatus = dto.status;
     doc.verifiedBy = dto.userId;
     doc.verifiedAt = new Date();
@@ -1256,7 +1723,19 @@ export class ShipmentsService {
     if (dto.issueDate !== undefined) doc.issueDate = dto.issueDate;
     if (dto.originalDocumentStatus !== undefined) doc.originalDocumentStatus = dto.originalDocumentStatus;
     if (dto.notes !== undefined) doc.verificationNotes = dto.notes;
-    return this.shipmentDocRepo.save(doc);
+    const issues = await this.checkDocumentConsistency(doc);
+    doc.discrepancyDetails = issues.length ? { issues } : undefined;
+    doc.discrepancyStatus = issues.length ? 'FLAGGED' : 'CLEAR';
+    if (dto.status === 'VERIFIED' && issues.length > 0) {
+      if (!dto.overrideReason?.trim()) {
+        throw new BadRequestException(`Document consistency checks failed: ${issues.join('; ')}. Provide an authorized override reason to continue.`);
+      }
+      doc.discrepancyStatus = 'OVERRIDDEN';
+      doc.overrideReason = dto.overrideReason.trim();
+    }
+    const saved = await this.shipmentDocRepo.save(doc);
+    await this.audit('shipment_document', docId, 'UPDATE', dto.userId, oldValue, { ...saved });
+    return saved;
   }
 
   async updateOriginalDocumentStatus(docId: string, dto: UpdateOriginalDocumentStatusDto): Promise<ShipmentDocument> {
@@ -1264,9 +1743,37 @@ export class ShipmentsService {
     if (!doc) {
       throw new NotFoundException(`Shipment document #${docId} not found`);
     }
+    const oldValue = { ...doc };
     doc.originalDocumentStatus = dto.status;
     if (dto.releaseDate) doc.releaseDate = dto.releaseDate;
-    return this.shipmentDocRepo.save(doc);
+    if (dto.originalDispatchedAt) doc.originalDispatchedAt = new Date(dto.originalDispatchedAt);
+    if (dto.originalReceivedAt) doc.originalReceivedAt = new Date(dto.originalReceivedAt);
+    if (dto.electronicReleaseAt) doc.electronicReleaseAt = new Date(dto.electronicReleaseAt);
+    if (dto.releasePaymentStatus) doc.releasePaymentStatus = dto.releasePaymentStatus;
+    const saved = await this.shipmentDocRepo.save(doc);
+    await this.audit('shipment_document', docId, 'UPDATE', dto.userId, oldValue, { ...saved });
+    return saved;
+  }
+
+  async getDocumentRequirements(): Promise<any[]> {
+    return this.dataSource.query(`SELECT * FROM shipment_document_requirement ORDER BY process_stage, document_type`);
+  }
+
+  async getImportWorkflowConfiguration(): Promise<any[]> {
+    return this.dataSource.query(`SELECT * FROM import_workflow_transition ORDER BY workflow_type, from_status, to_status`);
+  }
+
+  async saveDocumentRequirement(body: any): Promise<any> {
+    const rows = await this.dataSource.query(
+      `INSERT INTO shipment_document_requirement
+       (destination_country, shipment_type, process_stage, document_type, is_required, requires_verification, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (destination_country, shipment_type, process_stage, document_type)
+       DO UPDATE SET is_required=EXCLUDED.is_required, requires_verification=EXCLUDED.requires_verification, is_active=EXCLUDED.is_active
+       RETURNING *`,
+      [body.destinationCountry || null, body.shipmentType || null, body.processStage, body.documentType, body.isRequired !== false, body.requiresVerification !== false, body.isActive !== false],
+    );
+    return rows[0];
   }
 
   // Story IMP-31: Shipment Logistics Cockpit Overview
@@ -1284,6 +1791,7 @@ export class ShipmentsService {
 
     const activeBooking = bookings.find((b) => b.bookingStatus === 'CONFIRMED') || bookings[0] || null;
     const selectedQuotation = quotations.find((q) => q.selectionStatus === 'SELECTED') || null;
+    const todayStr = new Date().toISOString().slice(0, 10);
 
     // Calculate action items / alerts
     const alerts: string[] = [];
@@ -1291,6 +1799,8 @@ export class ShipmentsService {
       alerts.push('No freight quotation recorded yet.');
     } else if (!selectedQuotation) {
       alerts.push('Freight quotations recorded but none selected yet.');
+    } else if (selectedQuotation.approvalStatus !== 'APPROVED') {
+      alerts.push('Selected freight quotation is pending executive approval.');
     }
 
     if (!activeBooking) {
@@ -1301,9 +1811,12 @@ export class ShipmentsService {
       alerts.push('No container allocations recorded for this shipment.');
     }
 
-    const unverifiedDocs = docs.filter((d) => d.verificationStatus === 'PENDING' || d.verificationStatus === 'REJECTED');
+    const unverifiedDocs = docs.filter((d) => {
+      const isExpired = Boolean(d.expiryDate && String(d.expiryDate).slice(0, 10) < todayStr) || d.verificationStatus === 'EXPIRED';
+      return d.verificationStatus === 'PENDING' || d.verificationStatus === 'REJECTED' || isExpired;
+    });
     if (unverifiedDocs.length > 0) {
-      alerts.push(`${unverifiedDocs.length} shipping documents awaiting verification or rejected.`);
+      alerts.push(`${unverifiedDocs.length} shipping documents awaiting verification, rejected, or expired.`);
     }
 
     return {
@@ -1352,12 +1865,36 @@ export class ShipmentsService {
     return this.notificationRepo.save(n);
   }
 
+  async escalateNotification(id: string, recipientRole: string, userId?: number): Promise<ImportNotification> {
+    const notification = await this.notificationRepo.findOne({ where: { notificationId: id } });
+    if (!notification) throw new NotFoundException('Notification not found');
+    notification.escalationLevel = Number(notification.escalationLevel || 0) + 1;
+    notification.recipientRole = recipientRole;
+    const saved = await this.notificationRepo.save(notification);
+    await this.dataSource.query(
+      `INSERT INTO import_notification_escalation
+       (notification_id, escalation_level, recipient_role, recipient_user_id, delivery_status)
+       VALUES ($1,$2,$3,$4,'DELIVERED')`,
+      [id, saved.escalationLevel, recipientRole, userId || null],
+    );
+    return saved;
+  }
+
   // Story IMP-40: Automated scan of upcoming deadlines and alerts
   async generateAutomatedImportAlerts(): Promise<number> {
     let createdCount = 0;
     const now = new Date();
     const upcomingDays = 7;
     const futureLimit = new Date(now.getTime() + upcomingDays * 24 * 60 * 60 * 1000);
+
+    const notify = async (data: Partial<ImportNotification> & { eventType: string; entityType: string; entityId: string; title: string; message: string; deduplicationKey: string }) => {
+      const existing = await this.notificationRepo.findOne({ where: { deduplicationKey: data.deduplicationKey } });
+      if (existing) return;
+      await this.notificationRepo.save(this.notificationRepo.create({
+        severity: 'WARNING', deliveryChannel: 'IN_APP', deliveryStatus: 'DELIVERED', deliveredAt: new Date(), escalationLevel: 0, ...data,
+      }));
+      createdCount++;
+    };
 
     // 1. Container Free Time / Demurrage
     const containers = await this.containerRepo.find({
@@ -1367,27 +1904,90 @@ export class ShipmentsService {
 
     for (const c of containers) {
       if (c.emptyReturnDueDate && new Date(c.emptyReturnDueDate) <= futureLimit) {
-        const existing = await this.notificationRepo.findOne({
-          where: {
-            eventType: 'CONTAINER_RETURN_DEADLINE_APPROACHING',
-            entityType: 'CONTAINER',
-            entityId: c.containerId,
-          },
-        });
-        if (!existing) {
-          await this.notificationRepo.save(
-            this.notificationRepo.create({
-              eventType: 'CONTAINER_RETURN_DEADLINE_APPROACHING',
-              recipientRole: 'LOGISTICS_OFFICER',
-              entityType: 'CONTAINER',
-              entityId: c.containerId,
-              title: `Container ${c.containerNumber} Demurrage Deadline Approaching`,
-              message: `Container ${c.containerNumber} on Shipment ${c.shipment?.shipmentNumber} is due for empty return on ${c.emptyReturnDueDate}.`,
-              severity: 'WARNING',
-            }),
-          );
-          createdCount++;
+        await notify({ eventType: 'CONTAINER_RETURN_DEADLINE_APPROACHING', recipientRole: 'LOGISTICS_OFFICER', entityType: 'CONTAINER', entityId: c.containerId, title: `Container ${c.containerNumber} Demurrage Deadline Approaching`, message: `Container ${c.containerNumber} on Shipment ${c.shipment?.shipmentNumber} is due for empty return on ${c.emptyReturnDueDate}.`, deduplicationKey: `CONTAINER_RETURN:${c.containerId}:${c.emptyReturnDueDate}` });
+      }
+    }
+
+    const milestones = await this.milestoneRepo.find({ relations: ['shipment'] });
+    for (const m of milestones) {
+      if (!m.isCompleted && m.plannedDate && new Date(m.plannedDate) < now) {
+        await notify({ eventType: 'SHIPMENT_MILESTONE_OVERDUE', recipientRole: 'LOGISTICS_OFFICER', entityType: 'SHIPMENT_MILESTONE', entityId: m.milestoneId, title: `Shipment milestone overdue: ${m.milestoneName}`, message: `${m.shipment?.shipmentNumber || 'Shipment'} milestone was due on ${m.plannedDate}.`, severity: 'CRITICAL', deduplicationKey: `MILESTONE_OVERDUE:${m.milestoneId}:${m.plannedDate}` });
+      }
+    }
+
+    const tracking = await this.cargoTrackingRepo.find({ relations: ['shipment'] });
+    for (const t of tracking) {
+      if (t.status !== 'APPROVED' && t.deadlineDate && new Date(t.deadlineDate) <= futureLimit) {
+        await notify({ eventType: 'SHIPPING_DOCUMENT_DEADLINE', recipientRole: 'LOGISTICS_OFFICER', entityType: 'CARGO_TRACKING', entityId: t.trackingId, title: `${t.documentName} deadline approaching`, message: `${t.shipment?.shipmentNumber || 'Shipment'} requirement is due on ${t.deadlineDate}.`, deduplicationKey: `TRACKING_DEADLINE:${t.trackingId}:${t.deadlineDate}` });
+      }
+    }
+
+    const pos = await this.poRepo.find({ relations: ['paymentSchedules', 'lettersOfCredit'] });
+    for (const po of pos) {
+      for (const schedule of po.paymentSchedules || []) {
+        if (schedule.status !== 'PAID' && schedule.dueDate && new Date(schedule.dueDate) <= futureLimit) {
+          const overdue = new Date(schedule.dueDate) < now;
+          await notify({ eventType: overdue ? 'PAYMENT_OVERDUE' : 'PAYMENT_DUE_SOON', recipientRole: overdue ? 'FINANCE_MANAGER' : 'FINANCE_OFFICER', entityType: 'PO_PAYMENT_SCHEDULE', entityId: schedule.paymentScheduleId, title: `${overdue ? 'Overdue' : 'Upcoming'} payment for ${po.poNumber}`, message: `${schedule.milestoneName} is due on ${schedule.dueDate}.`, severity: overdue ? 'CRITICAL' : 'WARNING', deduplicationKey: `PAYMENT:${schedule.paymentScheduleId}:${schedule.dueDate}:${overdue}` });
         }
+      }
+      for (const lc of po.lettersOfCredit || []) {
+        if (lc.expiryDate && new Date(lc.expiryDate) <= futureLimit) {
+          await notify({ eventType: 'LC_EXPIRY_APPROACHING', recipientRole: 'FINANCE_MANAGER', entityType: 'PO_LETTER_OF_CREDIT', entityId: lc.lcId, title: `L/C expiry approaching for ${po.poNumber}`, message: `Letter of Credit ${lc.lcNumber} expires on ${lc.expiryDate}.`, deduplicationKey: `LC_EXPIRY:${lc.lcId}:${lc.expiryDate}` });
+        }
+      }
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const docs = (await this.shipmentDocRepo.find({ relations: ['shipment'] })) || [];
+    for (const doc of docs) {
+      const isDateExpired = Boolean(doc.expiryDate && String(doc.expiryDate).slice(0, 10) < todayStr);
+      const effectiveStatus = isDateExpired || doc.verificationStatus === 'EXPIRED' ? 'EXPIRED' : doc.verificationStatus;
+      if (effectiveStatus !== 'VERIFIED') {
+        await notify({
+          eventType:
+            effectiveStatus === 'EXPIRED'
+              ? 'DOCUMENT_EXPIRED'
+              : effectiveStatus === 'REJECTED'
+                ? 'DOCUMENT_REJECTED'
+                : 'MISSING_OR_UNVERIFIED_DOCUMENT',
+          recipientRole: 'LOGISTICS_OFFICER',
+          entityType: 'SHIPMENT_DOCUMENT',
+          entityId: doc.shipmentDocumentId,
+          title: `${doc.documentType} ${effectiveStatus.toLowerCase()}`,
+          message:
+            effectiveStatus === 'EXPIRED'
+              ? `${doc.shipment?.shipmentNumber || 'Shipment'} document expired on ${doc.expiryDate || 'N/A'}.`
+              : `${doc.shipment?.shipmentNumber || 'Shipment'} requires document action.`,
+          severity: effectiveStatus === 'EXPIRED' || effectiveStatus === 'REJECTED' ? 'CRITICAL' : 'WARNING',
+          deduplicationKey: `DOCUMENT:${doc.shipmentDocumentId}:${effectiveStatus}:${doc.expiryDate || ''}`,
+        });
+      }
+    }
+
+    try {
+      const docsReport = await this.getDocumentCompletenessReport();
+      for (const entry of docsReport.documents || []) {
+        if (entry.isMissing) {
+          await notify({
+            eventType: 'REQUIRED_DOCUMENT_MISSING',
+            recipientRole: 'LOGISTICS_OFFICER',
+            entityType: 'SHIPMENT',
+            entityId: String(entry.shipmentId),
+            title: `Missing required ${entry.documentType} for ${entry.shipmentNumber}`,
+            message: `Shipment ${entry.shipmentNumber} is missing required document ${entry.documentType} (${entry.requiredAtStage || 'IMPORT'}).`,
+            severity: 'WARNING',
+            deduplicationKey: `DOC_MISSING:${entry.shipmentId}:${entry.documentType}`,
+          });
+        }
+      }
+    } catch {
+      // Safe fallback if requirement tables are unavailable in isolated unit test mocks
+    }
+
+    const delayedShipments = await this.shipmentRepo.find();
+    for (const shipment of delayedShipments) {
+      if (shipment.currentStage !== ShipmentStage.RECEIVED && shipment.expectedArrivalDate && new Date(shipment.expectedArrivalDate) < now) {
+        await notify({ eventType: 'SHIPMENT_DELAYED', recipientRole: 'MANAGEMENT', entityType: 'SHIPMENT', entityId: shipment.shipmentId, title: `Shipment ${shipment.shipmentNumber} delayed`, message: `Expected arrival was ${shipment.expectedArrivalDate}; current stage is ${shipment.currentStage}.`, severity: 'CRITICAL', deduplicationKey: `SHIPMENT_DELAYED:${shipment.shipmentId}:${shipment.expectedArrivalDate}` });
       }
     }
 
@@ -1412,6 +2012,9 @@ export class ShipmentsService {
       const verifiedDocs = s.documents?.filter((d) => d.verificationStatus === 'VERIFIED').length || 0;
       const totalDocs = s.documents?.length || 0;
       const primaryInsurance = (s as any).insurances?.[0];
+      const overdueMilestones = s.milestones?.filter((m) => !m.isCompleted && m.plannedDate && new Date(m.plannedDate) < new Date()).length || 0;
+      const containerDeadlines = s.containers?.filter((c) => c.containerStatus !== 'RETURNED' && c.emptyReturnDueDate).map((c) => ({ containerNumber: c.containerNumber, dueDate: c.emptyReturnDueDate, overdue: new Date(c.emptyReturnDueDate!) < new Date() })) || [];
+      const isDelayed = s.currentStage !== ShipmentStage.RECEIVED && Boolean(s.expectedArrivalDate && new Date(s.expectedArrivalDate) < new Date());
 
       return {
         shipmentId: s.shipmentId,
@@ -1435,53 +2038,473 @@ export class ShipmentsService {
         insurancePolicyNumber: primaryInsurance?.policyNumber || null,
         expectedArrivalDate: s.expectedArrivalDate,
         actualArrivalDate: s.actualArrivalDate,
+        isDelayed,
+        overdueMilestones,
+        containerDeadlines,
+        outstandingActions: [
+          ...(s.selectedForwarder ? [] : ['SELECT_FORWARDER']),
+          ...(activeBooking ? [] : ['CONFIRM_BOOKING']),
+          ...(overdueMilestones ? ['COMPLETE_OVERDUE_MILESTONES'] : []),
+          ...(verifiedDocs < totalDocs ? ['VERIFY_DOCUMENTS'] : []),
+        ],
       };
     });
   }
 
+  private static readonly STAGE_ORDER: ShipmentStage[] = [
+    ShipmentStage.ORDERED,
+    ShipmentStage.SHIPPED,
+    ShipmentStage.AT_DJIBOUTI_PORT,
+    ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE,
+    ShipmentStage.IN_TRANSIT_INLAND,
+    ShipmentStage.RECEIVED,
+  ];
+
+  private async getActiveCompanyCountry(): Promise<string | null> {
+    try {
+      const rows = await this.dataSource?.query?.(
+        `SELECT country FROM company_profile WHERE is_active = TRUE ORDER BY is_default DESC, profile_id ASC LIMIT 1`,
+      );
+      const raw = rows?.[0]?.country;
+      return raw ? String(raw).trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolveShipmentDestinationCountry(
+    shipment: Shipment,
+    cachedCompanyCountry?: string | null,
+  ): Promise<string | null> {
+    const firstPo = shipment.lines?.[0]?.poLine?.purchaseOrder;
+    const explicit =
+      firstPo?.companySnapshot?.country ||
+      firstPo?.companyProfile?.country ||
+      null;
+    if (explicit) return String(explicit).trim();
+    if (cachedCompanyCountry !== undefined) return cachedCompanyCountry;
+    return this.getActiveCompanyCountry();
+  }
+
+  private isRequirementApplicableToShipment(
+    req: {
+      destination_country?: string | null;
+      shipment_type?: string | null;
+      process_stage?: string | null;
+    },
+    ctx: {
+      currentStage: ShipmentStage;
+      destinationCountry: string | null;
+      shipmentType: string | null;
+    },
+  ): boolean {
+    const currentStageIdx = ShipmentsService.STAGE_ORDER.indexOf(ctx.currentStage);
+    const reqStageIdx = ShipmentsService.STAGE_ORDER.indexOf(req.process_stage as ShipmentStage);
+    if (currentStageIdx === -1 || reqStageIdx === -1 || reqStageIdx > currentStageIdx) {
+      return false;
+    }
+    if (req.destination_country) {
+      if (
+        !ctx.destinationCountry ||
+        String(req.destination_country).trim().toLowerCase() !==
+          String(ctx.destinationCountry).trim().toLowerCase()
+      ) {
+        return false;
+      }
+    }
+    if (req.shipment_type) {
+      if (
+        !ctx.shipmentType ||
+        String(req.shipment_type).trim().toUpperCase() !==
+          String(ctx.shipmentType).trim().toUpperCase()
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // Story IMP-46: Document Completeness Report
-  async getDocumentCompletenessReport(): Promise<any> {
-    const docs = await this.shipmentDocRepo.find({
-      relations: ['shipment', 'purchaseOrder', 'verifier'],
-      order: { createdAt: 'DESC' },
+  async getDocumentCompletenessReport(filters?: {
+    shipmentId?: string;
+    status?: string;
+    documentType?: string;
+    search?: string;
+  }): Promise<any> {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const docs =
+      (await this.shipmentDocRepo.find({
+        relations: ['shipment', 'purchaseOrder', 'verifier'],
+        order: { createdAt: 'DESC' },
+      })) || [];
+
+    let shipments: Shipment[] = [];
+    try {
+      shipments =
+        (await this.shipmentRepo.find({
+          relations: [
+            'lines',
+            'lines.poLine',
+            'lines.poLine.purchaseOrder',
+            'lines.poLine.purchaseOrder.companyProfile',
+            'bookings',
+          ],
+          order: { createdAt: 'DESC' },
+        })) || [];
+    } catch {
+      shipments = [];
+    }
+
+    let requirements: any[] = [];
+    try {
+      requirements =
+        (await this.dataSource?.query?.(`
+          SELECT requirement_id, destination_country, shipment_type, process_stage, document_type, is_required, requires_verification
+          FROM shipment_document_requirement
+          WHERE is_required = TRUE AND is_active = TRUE
+          ORDER BY process_stage, document_type
+        `)) || [];
+    } catch {
+      requirements = [];
+    }
+
+    const needsCompanyCountryLookup = requirements.some((r) => Boolean(r.destination_country));
+    const activeCompanyCountry = needsCompanyCountryLookup
+      ? await this.getActiveCompanyCountry()
+      : null;
+
+    let uploadedAttachments: Attachment[] = [];
+    try {
+      uploadedAttachments =
+        (await this.attachmentRepo?.find?.({
+          where: { entityType: 'shipment' },
+        })) || [];
+    } catch {
+      uploadedAttachments = [];
+    }
+
+    const applicableReqMapByShipmentId = new Map<string, Map<string, any>>();
+    for (const s of shipments) {
+      const firstPo = s.lines?.[0]?.poLine?.purchaseOrder;
+      const shipmentType = firstPo?.modeOfShipment || null;
+      const destinationCountry = needsCompanyCountryLookup
+        ? await this.resolveShipmentDestinationCountry(s, activeCompanyCountry)
+        : null;
+
+      const dedupByDocType = new Map<string, any>();
+      for (const req of requirements) {
+        if (
+          !this.isRequirementApplicableToShipment(req, {
+            currentStage: s.currentStage,
+            destinationCountry,
+            shipmentType,
+          })
+        ) {
+          continue;
+        }
+        if (!dedupByDocType.has(req.document_type)) {
+          dedupByDocType.set(req.document_type, req);
+        }
+      }
+      applicableReqMapByShipmentId.set(String(s.shipmentId), dedupByDocType);
+    }
+
+    const entries: any[] = [];
+    const seenDocKeys = new Set<string>();
+
+    for (const d of docs) {
+      const key = `${d.shipmentId}:${d.documentType}`;
+
+      const isDateExpired = Boolean(d.expiryDate && String(d.expiryDate).slice(0, 10) < todayStr);
+      const isExpired = isDateExpired || d.verificationStatus === 'EXPIRED';
+      const hasAttachment = Boolean(
+        d.attachmentId ||
+          uploadedAttachments.some(
+            (a) => String(a.entityId) === String(d.shipmentId) && a.documentType === d.documentType && a.filePath,
+          ),
+      );
+      const hasEvidence = Boolean(
+        hasAttachment ||
+          (d.documentReference && d.documentReference !== '—') ||
+          d.receivedDate ||
+          ['VERIFIED', 'REJECTED', 'EXPIRED'].includes(d.verificationStatus),
+      );
+
+      const applicableReq = applicableReqMapByShipmentId
+        .get(String(d.shipmentId))
+        ?.get(d.documentType);
+
+      // Auto-seeded checklist placeholders without uploaded evidence or stage/country applicability
+      // should not produce false MISSING counts or alerts ahead of their required stage.
+      if (!hasEvidence && !applicableReq) {
+        continue;
+      }
+
+      seenDocKeys.add(key);
+
+      let effectiveStatus: string = d.verificationStatus || 'PENDING';
+      if (!hasEvidence) {
+        effectiveStatus = 'MISSING';
+      } else if (isExpired) {
+        effectiveStatus = 'EXPIRED';
+      }
+
+      entries.push({
+        shipmentDocumentId: d.shipmentDocumentId,
+        shipmentId: d.shipmentId,
+        shipmentNumber: d.shipment?.shipmentNumber,
+        poNumber: d.purchaseOrder?.poNumber || '—',
+        documentType: d.documentType,
+        requiredAtStage: applicableReq?.process_stage || null,
+        documentReference: d.documentReference || '—',
+        verificationStatus: effectiveStatus,
+        storedVerificationStatus: d.verificationStatus,
+        originalStatus: d.originalDocumentStatus,
+        originalDocumentStatus: d.originalDocumentStatus,
+        issueDate: d.issueDate,
+        expiryDate: d.expiryDate,
+        isExpired,
+        isMissing: effectiveStatus === 'MISSING',
+        verifiedBy: d.verifier?.fullName || '—',
+        verifiedByEmail: d.verifier?.email || d.verifier?.fullName || '—',
+        verifiedAt: d.verifiedAt,
+      });
+    }
+
+    for (const s of shipments) {
+      const firstPo = s.lines?.[0]?.poLine?.purchaseOrder;
+      const dedupByDocType = applicableReqMapByShipmentId.get(String(s.shipmentId)) || new Map<string, any>();
+
+      for (const [docType, req] of dedupByDocType.entries()) {
+        const key = `${s.shipmentId}:${docType}`;
+        if (seenDocKeys.has(key)) continue;
+
+        const fallbackAttachment = uploadedAttachments.find(
+          (a) => String(a.entityId) === String(s.shipmentId) && a.documentType === docType && a.filePath,
+        );
+
+        if (fallbackAttachment) {
+          entries.push({
+            shipmentDocumentId: `ATT-${fallbackAttachment.attachmentId}`,
+            shipmentId: s.shipmentId,
+            shipmentNumber: s.shipmentNumber,
+            poNumber: firstPo?.poNumber || '—',
+            documentType: docType,
+            requiredAtStage: req.process_stage,
+            documentReference: fallbackAttachment.fileName || 'Uploaded Attachment',
+            verificationStatus: 'PENDING',
+            storedVerificationStatus: 'PENDING',
+            originalStatus: 'NOT_RECEIVED',
+            originalDocumentStatus: 'NOT_RECEIVED',
+            issueDate: null,
+            expiryDate: null,
+            isExpired: false,
+            isMissing: false,
+            verifiedBy: '—',
+            verifiedByEmail: '—',
+            verifiedAt: null,
+          });
+        } else {
+          entries.push({
+            shipmentDocumentId: `MISSING-${s.shipmentId}-${docType}`,
+            shipmentId: s.shipmentId,
+            shipmentNumber: s.shipmentNumber,
+            poNumber: firstPo?.poNumber || '—',
+            documentType: docType,
+            requiredAtStage: req.process_stage,
+            documentReference: '—',
+            verificationStatus: 'MISSING',
+            storedVerificationStatus: 'MISSING',
+            originalStatus: 'NOT_RECEIVED',
+            originalDocumentStatus: 'NOT_RECEIVED',
+            issueDate: null,
+            expiryDate: null,
+            isExpired: false,
+            isMissing: true,
+            verifiedBy: '—',
+            verifiedByEmail: '—',
+            verifiedAt: null,
+          });
+        }
+      }
+    }
+
+    const fShipmentId = filters?.shipmentId?.trim();
+    const fStatus = filters?.status?.trim().toUpperCase();
+    const fDocType = filters?.documentType?.trim().toUpperCase();
+    const fSearch = filters?.search?.trim().toLowerCase();
+
+    const filtered = entries.filter((item) => {
+      if (fShipmentId && String(item.shipmentId) !== fShipmentId) return false;
+      if (fStatus && item.verificationStatus !== fStatus) return false;
+      if (fDocType && item.documentType !== fDocType) return false;
+      if (fSearch) {
+        const hay = `${item.shipmentNumber || ''} ${item.poNumber || ''} ${item.documentType || ''} ${item.documentReference || ''} ${item.verificationStatus || ''}`.toLowerCase();
+        if (!hay.includes(fSearch)) return false;
+      }
+      return true;
     });
 
     const statusCounts: Record<string, number> = {
+      MISSING: 0,
       PENDING: 0,
       VERIFIED: 0,
       REJECTED: 0,
       EXPIRED: 0,
     };
 
-    for (const d of docs) {
+    for (const d of filtered) {
       statusCounts[d.verificationStatus] = (statusCounts[d.verificationStatus] || 0) + 1;
     }
 
     return {
-      totalDocuments: docs.length,
+      totalDocuments: filtered.length,
+      uploadedDocumentsCount: filtered.filter((d) => !d.isMissing).length,
+      missingCount: statusCounts.MISSING || 0,
+      expiredCount: statusCounts.EXPIRED || 0,
+      unverifiedCount:
+        (statusCounts.MISSING || 0) +
+        (statusCounts.PENDING || 0) +
+        (statusCounts.REJECTED || 0) +
+        (statusCounts.EXPIRED || 0),
       statusCounts,
-      documents: docs.map((d) => ({
-        shipmentDocumentId: d.shipmentDocumentId,
-        shipmentNumber: d.shipment?.shipmentNumber,
-        poNumber: d.purchaseOrder?.poNumber || '—',
-        documentType: d.documentType,
-        documentReference: d.documentReference || '—',
-        verificationStatus: d.verificationStatus,
-        originalStatus: d.originalDocumentStatus,
-        originalDocumentStatus: d.originalDocumentStatus,
-        issueDate: d.issueDate,
-        expiryDate: d.expiryDate,
-        verifiedBy: d.verifier?.fullName || '—',
-        verifiedByEmail: d.verifier?.email || d.verifier?.fullName || '—',
-        verifiedAt: d.verifiedAt,
-      })),
+      documents: filtered,
+    };
+  }
+
+  async exportDocumentCompletenessCsv(filters?: {
+    shipmentId?: string;
+    status?: string;
+    documentType?: string;
+    search?: string;
+  }): Promise<{ filename: string; csv: string }> {
+    const report = await this.getDocumentCompletenessReport(filters);
+    const headers = [
+      'Shipment No',
+      'PO Number',
+      'Document Type',
+      'Required Stage',
+      'Document Reference',
+      'Verification Status',
+      'Original Status',
+      'Issue Date',
+      'Expiry Date',
+      'Expired Flag',
+      'Missing Flag',
+      'Verified By',
+      'Verified At',
+    ];
+    const rows = (report.documents || []).map((d: any) => [
+      d.shipmentNumber || '',
+      d.poNumber || '',
+      d.documentType || '',
+      d.requiredAtStage || '',
+      d.documentReference || '',
+      d.verificationStatus || '',
+      d.originalDocumentStatus || '',
+      d.issueDate || '',
+      d.expiryDate || '',
+      d.isExpired ? 'YES' : 'NO',
+      d.isMissing ? 'YES' : 'NO',
+      d.verifiedBy || '',
+      d.verifiedAt || '',
+    ]);
+    return {
+      filename: `document-completeness-report-${new Date().toISOString().slice(0, 10)}.csv`,
+      csv: this.buildCsv(headers, rows),
+    };
+  }
+
+  async exportShipmentLogisticsCsv(): Promise<{ filename: string; csv: string }> {
+    const rowsData = await this.getShipmentLogisticsReport();
+    const headers = [
+      'Shipment No',
+      'Current Stage',
+      'Forwarder',
+      'Booking Ref',
+      'Vessel',
+      'Voyage',
+      'Origin Port',
+      'Destination Port',
+      'Containers',
+      'Milestones Progress',
+      'Documents Verified',
+      'Insurance Policy',
+      'Expected Arrival',
+      'Actual Arrival',
+      'Delayed',
+      'Outstanding Actions',
+    ];
+    const rows = rowsData.map((r: any) => [
+      r.shipmentNumber,
+      r.currentStage,
+      r.forwarderName || '',
+      r.bookingReference || '',
+      r.vesselName || '',
+      r.voyageNumber || '',
+      r.originPort || '',
+      r.destinationPort || '',
+      r.containersCount ?? 0,
+      r.milestonesProgress || '',
+      r.documentsVerified || '',
+      r.insurancePolicyNumber || '',
+      r.expectedArrivalDate || '',
+      r.actualArrivalDate || '',
+      r.isDelayed ? 'YES' : 'NO',
+      (r.outstandingActions || []).join('; '),
+    ]);
+    return {
+      filename: `shipment-logistics-report-${new Date().toISOString().slice(0, 10)}.csv`,
+      csv: this.buildCsv(headers, rows),
+    };
+  }
+
+  async exportImportReconciliationCsv(): Promise<{ filename: string; csv: string }> {
+    const rowsData = await this.getImportReconciliationReport();
+    const headers = [
+      'PO Number',
+      'PO Date',
+      'Supplier',
+      'Item Code',
+      'Item Name',
+      'Currency',
+      'Ordered Qty',
+      'Shipped Qty',
+      'Received Qty',
+      'Outstanding Qty',
+      'Payment Commitments',
+      'Confirmed Payments',
+      'Outstanding Payment',
+      'Landed Cost (ETB)',
+      'Variance Status',
+    ];
+    const rows = rowsData.map((r: any) => [
+      r.poNumber,
+      r.poDate || '',
+      r.supplierName || '',
+      r.itemCode || '',
+      r.itemName || '',
+      r.currency || '',
+      r.orderedQuantity ?? 0,
+      r.shippedQuantity ?? 0,
+      r.receivedQuantity ?? 0,
+      r.outstandingQuantity ?? 0,
+      r.paymentCommitments ?? 0,
+      r.confirmedPayments ?? 0,
+      r.outstandingPayment ?? 0,
+      r.landedCostTotalEtb ?? 0,
+      r.varianceStatus || '',
+    ]);
+    return {
+      filename: `import-reconciliation-report-${new Date().toISOString().slice(0, 10)}.csv`,
+      csv: this.buildCsv(headers, rows),
     };
   }
 
   // Story IMP-47: Import Reconciliation Report
   async getImportReconciliationReport(): Promise<any> {
     const pos = await this.poRepo.find({
-      relations: ['lines', 'lines.item', 'supplier'],
+      relations: ['lines', 'lines.item', 'supplier', 'paymentSchedules', 'paymentSchedules.transactions'],
       order: { createdAt: 'DESC' },
     });
 
@@ -1498,6 +2521,15 @@ export class ShipmentsService {
         const receivedQty = lineShipments.reduce((sum, sl) => sum + Number(sl.quantityReceived || 0), 0);
         const orderedQty = Number(line.quantityOrdered || 0);
         const outstandingQty = Math.max(0, orderedQty - receivedQty);
+        const commitmentTotal = (po.paymentSchedules || []).reduce((sum, schedule) => sum + Number(schedule.amountDue || 0), 0);
+        const confirmedPayments = (po.paymentSchedules || []).reduce(
+          (sum, schedule) => sum + (schedule.transactions || []).filter((t: any) => t.status === 'CONFIRMED').reduce((s: number, t: any) => s + Number(t.amountPaid || 0), 0),
+          0,
+        );
+        const landedRows = lineShipments.length
+          ? await this.lineCostRepo.find({ where: { shipmentLineId: In(lineShipments.map((sl) => sl.shipmentLineId)), isCurrent: true } })
+          : [];
+        const landedCostTotalEtb = landedRows.reduce((sum, row) => sum + Number(row.allocatedCostEtb || 0), 0);
 
         let varianceStatus = 'NOT_SHIPPED';
         if (receivedQty >= orderedQty && orderedQty > 0) {
@@ -1523,6 +2555,10 @@ export class ShipmentsService {
           shippedQuantity: shippedQty,
           receivedQuantity: receivedQty,
           outstandingQuantity: outstandingQty,
+          paymentCommitments: commitmentTotal,
+          confirmedPayments,
+          outstandingPayment: Math.max(0, commitmentTotal - confirmedPayments),
+          landedCostTotalEtb,
           varianceStatus,
           status: outstandingQty === 0 ? 'FULLY_RECEIVED' : receivedQty > 0 ? 'PARTIALLY_RECEIVED' : 'IN_PIPELINE',
         });
@@ -1543,14 +2579,35 @@ export class ShipmentsService {
     ]);
 
     const activeContainers = containers.filter((c) => c.containerStatus !== 'RETURNED').length;
+    const notifications = await this.getImportNotifications({ unreadOnly: true });
+    const upcomingPayments = notifications.filter((n) => n.eventType === 'PAYMENT_DUE_SOON').length;
+    const overdueMilestones = notifications.filter((n) => n.eventType === 'SHIPMENT_MILESTONE_OVERDUE').length;
+    const delayedShipments = logistics.filter((s: any) => s.isDelayed).length;
+
+    const missingDocumentsCount = docsReport.statusCounts.MISSING || 0;
+    const expiredDocumentsCount = docsReport.statusCounts.EXPIRED || 0;
+    const rejectedDocumentsCount = docsReport.statusCounts.REJECTED || 0;
+    const pendingDocumentsCount = docsReport.statusCounts.PENDING || 0;
+    const verifiedDocumentsCount = docsReport.statusCounts.VERIFIED || 0;
 
     return {
       activeShipmentsCount: pipeline.totalActiveShipments,
       totalShipmentsCount: pipeline.totalShipments,
       inlandTransitCount: pipeline.totalInlandTransit,
       activeContainersCount: activeContainers,
-      unverifiedDocumentsCount: (docsReport.statusCounts.PENDING || 0) + (docsReport.statusCounts.REJECTED || 0),
+      missingDocumentsCount,
+      expiredDocumentsCount,
+      rejectedDocumentsCount,
+      pendingDocumentsCount,
+      verifiedDocumentsCount,
+      totalRequiredDocumentsCount: docsReport.totalDocuments || 0,
+      unverifiedDocumentsCount:
+        missingDocumentsCount + pendingDocumentsCount + rejectedDocumentsCount + expiredDocumentsCount,
+      documentStatusCounts: docsReport.statusCounts,
       freightForwardersCount: forwarders.length,
+      upcomingPaymentsCount: upcomingPayments,
+      overdueMilestonesCount: overdueMilestones,
+      delayedShipmentsCount: delayedShipments,
       stageBreakdown: pipeline.stageBreakdown,
       recentShipments: logistics.slice(0, 10),
     };

@@ -283,7 +283,7 @@ export const FinancialCommitmentsReport: React.FC = () => {
               ) : (
                 data?.activeLettersOfCredit.map((lc: any, idx: number) => (
                   <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 700 }}>{lc.lcReference}</td>
+                    <td style={{ padding: '0.75rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>{lc.lcNumber || lc.lcReference || '—'}</td>
                     <td style={{ padding: '0.75rem' }}>{lc.purchaseOrder?.poNumber || '—'}</td>
                     <td style={{ padding: '0.75rem' }}>{lc.issuingBank}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600 }}>

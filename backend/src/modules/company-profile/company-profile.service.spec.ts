@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { CompanyProfileService } from './company-profile.service';
 import { CompanyProfile } from '../purchase-orders/entities/company-profile.entity';
 import { CompanyBankAccount } from '../purchase-orders/entities/company-bank-account.entity';
 import { PurchaseOrder } from '../purchase-orders/entities/purchase-order.entity';
+import { CreateBankAccountDto } from './dto/bank-account.dto';
+import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
 
 describe('CompanyProfileService', () => {
   let service: CompanyProfileService;
@@ -194,6 +198,112 @@ describe('CompanyProfileService', () => {
       expect(res.isActive).toBe(false);
       expect(res.status).toBe('INACTIVE');
       expect(res.isDefault).toBe(false);
+    });
+
+    it('clears isDefault and promotes an active replacement when deactivating the default bank via updateBankAccount', async () => {
+      const deactivatedDefault = { ...mockBankAccount, bankAccountId: 2, isDefault: true, isActive: true, status: 'ACTIVE' };
+      const replacementActive = { ...mockBankAccount, bankAccountId: 1, isDefault: false, isActive: true, status: 'ACTIVE' };
+      mockBankRepo.findOne
+        .mockResolvedValueOnce(deactivatedDefault)
+        .mockResolvedValueOnce(replacementActive);
+      mockBankRepo.save.mockImplementation((b) => Promise.resolve(b));
+
+      const res = await service.updateBankAccount(2, { isActive: false }, 1);
+      expect(res.isActive).toBe(false);
+      expect(res.isDefault).toBe(false);
+      expect(replacementActive.isDefault).toBe(true);
+    });
+  });
+
+  describe('DTO validation for blank vs invalid optional fields', () => {
+    it('allows empty optional IFSC/SWIFT/currency on CreateBankAccountDto while rejecting malformed values', async () => {
+      const validWithBlanks = plainToInstance(CreateBankAccountDto, {
+        accountName: 'KANAB UAT',
+        bankName: 'UAT Import Bank A',
+        accountNumber: '100000000001',
+        bankBranch: 'UAT Main',
+        ifscCode: '',
+        swiftCode: '',
+        currency: 'USD',
+      });
+      expect(await validate(validWithBlanks)).toHaveLength(0);
+
+      const invalidCodes = plainToInstance(CreateBankAccountDto, {
+        accountName: 'KANAB UAT',
+        bankName: 'UAT Import Bank A',
+        accountNumber: '100000000001',
+        ifscCode: 'BAD',
+        swiftCode: 'BAD',
+      });
+      const errors = await validate(invalidCodes);
+      expect(errors.map((e) => e.property)).toEqual(expect.arrayContaining(['ifscCode', 'swiftCode']));
+    });
+
+    it('allows empty optional email/website/phone/importer codes on UpdateCompanyProfileDto while rejecting blank required or malformed values', async () => {
+      const clearedOptionalFields = plainToInstance(UpdateCompanyProfileDto, {
+        companyName: 'KANAB Motors PLC',
+        tin: 'TIN-0092837461',
+        phone: '',
+        email: '',
+        website: '',
+        importerIecNo: '',
+        importerAdCode: '',
+      });
+      expect(await validate(clearedOptionalFields)).toHaveLength(0);
+
+      const validFormattedFields = plainToInstance(UpdateCompanyProfileDto, {
+        companyName: 'KANAB Motors PLC',
+        tin: 'TIN-0092837461',
+        phone: '+251 11 662 4899',
+        email: 'company@example.test',
+        website: 'https://example.test',
+        importerIecNo: 'ETH-IEC-994821',
+        importerAdCode: 'AD-CBE-0019284',
+      });
+      expect(await validate(validFormattedFields)).toHaveLength(0);
+
+      const invalidFields = plainToInstance(UpdateCompanyProfileDto, {
+        companyName: '   ',
+        tin: '   ',
+        phone: '123',
+        email: 'wrong-email',
+        website: 'not a url',
+        importerIecNo: 'X!',
+        importerAdCode: 'bad code',
+      });
+      const errors = await validate(invalidFields);
+      expect(errors.map((e) => e.property)).toEqual(
+        expect.arrayContaining(['companyName', 'tin', 'phone', 'email', 'website', 'importerIecNo', 'importerAdCode']),
+      );
+    });
+  });
+
+  describe('public branding & logo upload persistence', () => {
+    it('returns non-sensitive branding fields only from getPublicBranding', async () => {
+      mockProfileRepo.findOne.mockResolvedValueOnce({
+        ...mockProfile,
+        logo: '/api/uploads/company/company-logo-1.png',
+      });
+
+      const branding = await service.getPublicBranding();
+      expect(branding).toEqual({
+        companyName: 'KANAB Motors PLC',
+        tradeName: 'KANAB Motors Ethiopia',
+        logo: '/api/uploads/company/company-logo-1.png',
+        country: 'Ethiopia',
+      });
+      expect((branding as any).tin).toBeUndefined();
+      expect((branding as any).importerIecNo).toBeUndefined();
+      expect((branding as any).bankAccounts).toBeUndefined();
+    });
+
+    it('updates profile logo path in updateLogo', async () => {
+      mockProfileRepo.findOne.mockResolvedValueOnce({ ...mockProfile });
+      mockProfileRepo.save.mockImplementation((p) => Promise.resolve(p));
+
+      const updated = await service.updateLogo(1, '/api/uploads/company/new-logo.png', 7);
+      expect(updated.logo).toBe('/api/uploads/company/new-logo.png');
+      expect(updated.updatedBy).toBe(7);
     });
   });
 });

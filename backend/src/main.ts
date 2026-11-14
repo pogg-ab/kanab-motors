@@ -3,6 +3,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
+import { ShipmentsService } from './modules/shipments/services/shipments.service';
+import { ApprovalsService } from './modules/approvals/approvals.service';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
 import { seedDatabase } from './database/seed';
@@ -244,6 +246,15 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
+  const operationalScan = setInterval(async () => {
+    try {
+      await app.get(ShipmentsService).generateAutomatedImportAlerts();
+      await app.get(ApprovalsService).scanPendingApprovals();
+    } catch (error) {
+      console.error('Operational deadline/reminder scan failed:', error);
+    }
+  }, 15 * 60 * 1000);
+  operationalScan.unref();
   console.log(`🚀 KANAB Motors Backend running on: http://localhost:${port}/api`);
   console.log(`📚 Swagger API Documentation available at: http://localhost:${port}/api/docs`);
 }

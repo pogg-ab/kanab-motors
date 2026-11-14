@@ -114,7 +114,7 @@ export const SuppliersPage: React.FC = () => {
   const loadForwarders = async () => {
     setLoadingForwarders(true);
     try {
-      const data = await api.getFreightForwarders();
+      const data = await api.getFreightForwarders(false);
       setForwarders(data);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load freight forwarders'));

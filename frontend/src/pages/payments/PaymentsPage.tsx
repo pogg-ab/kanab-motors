@@ -16,6 +16,8 @@ import {
   ChevronRight,
   ExternalLink,
   XCircle,
+  ArrowRightLeft,
+  Paperclip,
 } from 'lucide-react';
 import {
   api,
@@ -53,11 +55,19 @@ export const PaymentsPage: React.FC = () => {
   // KMSICAMS-14 States (KMSI-14-02, KMSI-14-05)
   const [attachmentPayment, setAttachmentPayment] = useState<CustomerPayment | null>(null);
   const [showExcessTransferModal, setShowExcessTransferModal] = useState(false);
+  const [excessTransfers, setExcessTransfers] = useState<any[]>([]);
+  const [showTransfersReviewModal, setShowTransfersReviewModal] = useState(false);
+  const [rejectingTransfer, setRejectingTransfer] = useState<any | null>(null);
+  const [transferRejectReason, setTransferRejectReason] = useState('Insufficient authorization evidence');
+  const [processingTransferAction, setProcessingTransferAction] = useState(false);
+  const [transfersReviewError, setTransfersReviewError] = useState<string | null>(null);
+  const [transfersReviewSuccess, setTransfersReviewSuccess] = useState<string | null>(null);
   const [excessTransferData, setExcessTransferData] = useState({
     fromBookingId: '',
     toBookingId: '',
     amount: '',
     reason: '',
+    authorizationReference: '',
   });
   const [excessTransferSubmitting, setExcessTransferSubmitting] = useState(false);
   const [excessTransferError, setExcessTransferError] = useState<string | null>(null);
@@ -136,14 +146,16 @@ export const PaymentsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [payRes, custRes, bkgRes] = await Promise.all([
+      const [payRes, custRes, bkgRes, transfersRes] = await Promise.all([
         api.getPayments(),
         api.getCustomers(),
         api.getBookings(),
+        api.getExcessTransfers().catch(() => []),
       ]);
       setPayments(payRes.items || []);
       setCustomers(custRes.items || []);
       setBookings(bkgRes.items || []);
+      setExcessTransfers(transfersRes || []);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load payments data'));
     } finally {
@@ -151,6 +163,46 @@ export const PaymentsPage: React.FC = () => {
     }
   };
 
+  const handleApproveTransfer = async (transferId: string) => {
+    if (!window.confirm('Approve and execute this excess payment transfer across customer accounts?')) return;
+    setProcessingTransferAction(true);
+    setTransfersReviewError(null);
+    setTransfersReviewSuccess(null);
+    try {
+      await api.approveExcessTransfer(transferId);
+      setTransfersReviewSuccess('Excess transfer approved and ledger entries posted!');
+      showToast('success', 'Excess transfer approved and ledger entries posted!');
+      loadData();
+    } catch (err: any) {
+      const msg = formatApiError(err, 'Failed to approve excess transfer');
+      setTransfersReviewError(msg);
+    } finally {
+      setProcessingTransferAction(false);
+    }
+  };
+
+  const handleConfirmRejectTransfer = async () => {
+    if (!rejectingTransfer) return;
+    if (!transferRejectReason.trim()) {
+      alert('Please provide a reason for rejecting the transfer.');
+      return;
+    }
+    setProcessingTransferAction(true);
+    setTransfersReviewError(null);
+    setTransfersReviewSuccess(null);
+    try {
+      await api.rejectExcessTransfer(rejectingTransfer.transferId, transferRejectReason.trim());
+      setTransfersReviewSuccess('Excess transfer request rejected.');
+      showToast('success', 'Excess transfer request rejected.');
+      setRejectingTransfer(null);
+      loadData();
+    } catch (err: any) {
+      const msg = formatApiError(err, 'Failed to reject excess transfer');
+      setTransfersReviewError(msg);
+    } finally {
+      setProcessingTransferAction(false);
+    }
+  };
 
   const handleExcessTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,19 +219,31 @@ export const PaymentsPage: React.FC = () => {
       setExcessTransferError('Please provide a detailed customer authorization reason (min 5 chars).');
       return;
     }
+    if (!excessTransferData.authorizationReference.trim()) {
+      setExcessTransferError('Please provide the written customer authorization reference.');
+      return;
+    }
+
+    const destination = bookings.find((b) => String(b.bookingId) === String(excessTransferData.toBookingId));
+    if (!destination) {
+      setExcessTransferError('Destination booking could not be resolved.');
+      return;
+    }
 
     setExcessTransferSubmitting(true);
     setExcessTransferError(null);
     try {
-      await api.transferExcessPayment({
-        fromBookingId: excessTransferData.fromBookingId,
-        toBookingId: excessTransferData.toBookingId,
-        amount: amt,
-        authorizationReason: excessTransferData.reason.trim(),
+      const res: any = await api.transferExcessPayment({
+        sourceBookingId: excessTransferData.fromBookingId,
+        destinationBookingId: excessTransferData.toBookingId,
+        destinationCustomerId: destination.customerId,
+        transferAmount: amt,
+        transferReason: excessTransferData.reason.trim(),
+        authorizationReference: excessTransferData.authorizationReference.trim(),
       });
-      showToast('success', `Successfully transferred ETB ${amt.toLocaleString()} across bookings!`);
+      showToast('success', res?.message || 'Excess transfer request submitted for finance approval!');
       setShowExcessTransferModal(false);
-      setExcessTransferData({ fromBookingId: '', toBookingId: '', amount: '', reason: '' });
+      setExcessTransferData({ fromBookingId: '', toBookingId: '', amount: '', reason: '', authorizationReference: '' });
       loadData();
     } catch (err: any) {
       setExcessTransferError(formatApiError(err, 'Failed to transfer excess payment'));
@@ -332,10 +396,56 @@ export const PaymentsPage: React.FC = () => {
             Refresh
           </button>
           {canRecordPayment && (
-            <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Plus size={16} />
-              Record BRV Deposit
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowTransfersReviewModal(true)}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}
+                title="Review and approve cross-customer excess deposit transfers (KMS-FB-05)"
+              >
+                <ArrowRightLeft size={16} />
+                <span>Review Transfers</span>
+                {excessTransfers.filter((t) => t.status === 'PENDING_APPROVAL').length > 0 && (
+                  <span
+                    style={{
+                      background: 'var(--accent-amber)',
+                      color: '#000',
+                      borderRadius: '999px',
+                      padding: '0.1rem 0.45rem',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {excessTransfers.filter((t) => t.status === 'PENDING_APPROVAL').length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExcessTransferData({
+                    fromBookingId: '',
+                    toBookingId: '',
+                    amount: '',
+                    reason: '',
+                    authorizationReference: '',
+                  });
+                  setExcessTransferError(null);
+                  setShowExcessTransferModal(true);
+                }}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-cyan)' }}
+                title="Transfer excess customer deposits across bookings (KMS-FB-05)"
+              >
+                <ArrowRightLeft size={16} />
+                Transfer Excess
+              </button>
+              <button onClick={() => setShowCreateModal(true)} className="btn btn-cyan" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plus size={16} />
+                Record BRV Deposit
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -635,6 +745,21 @@ export const PaymentsPage: React.FC = () => {
                             </>
                           )}
                           <button
+                            onClick={() => setAttachmentPayment(p)}
+                            className="btn btn-secondary"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              padding: '0.35rem 0.6rem',
+                              fontSize: '0.75rem',
+                            }}
+                            title="Manage Payment Supporting Documents / Bank Slip (KMS-FB-02)"
+                          >
+                            <Paperclip size={13} />
+                            Docs
+                          </button>
+                          <button
                             onClick={() => setSelectedReceipt(p)}
                             className="btn btn-secondary"
                             style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
@@ -909,7 +1034,7 @@ export const PaymentsPage: React.FC = () => {
                   >
                     <option value="">Select Source Booking with Deposited Funds</option>
                     {bookings
-                      .filter((b) => Number(b.totalAmountDeposited || 0) > 0)
+                      .filter((b) => Number(b.totalAmountDeposited || 0) > Number(b.grossTotal || 0))
                       .map((b) => (
                         <option key={b.bookingId} value={b.bookingId}>
                           {b.bookingNumber} — {b.customer?.fullName} (Deposited: ETB {Number(b.totalAmountDeposited).toLocaleString()} | Outstanding: ETB {Number(b.outstandingBalance).toLocaleString()})
@@ -947,6 +1072,18 @@ export const PaymentsPage: React.FC = () => {
                     placeholder="Enter amount to transfer"
                     value={excessTransferData.amount}
                     onChange={(e) => setExcessTransferData({ ...excessTransferData, amount: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Written Authorization Reference *</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. AUTH-2026-TR-001"
+                    value={excessTransferData.authorizationReference}
+                    onChange={(e) => setExcessTransferData({ ...excessTransferData, authorizationReference: e.target.value })}
                     required
                   />
                 </div>
@@ -1269,6 +1406,222 @@ export const PaymentsPage: React.FC = () => {
                   style={{ background: '#10b981', borderColor: '#059669' }}
                 >
                   ✓ Approve Installment (CEO)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* KMS-FB-05: Excess Transfers Review & Approval Modal */}
+      {showTransfersReviewModal && (
+        <div className="modal-backdrop" style={{ zIndex: 1100, overflowY: 'auto', padding: '1.5rem 0' }}>
+          <div className="modal-content" style={{ maxWidth: '980px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', margin: 'auto' }}>
+            <div className="modal-header" style={{ flexShrink: 0 }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  Cross-Customer Excess Transfers Review &amp; Approval
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
+                  KMS-FB-05: Authorize and execute cross-customer deposit adjustments prior to ledger posting
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowTransfersReviewModal(false);
+                  setTransfersReviewError(null);
+                  setTransfersReviewSuccess(null);
+                }}
+                style={{ padding: '0.4rem 0.65rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem', overflowY: 'auto', flex: 1 }}>
+              <ModalErrorAlert error={transfersReviewError} onDismiss={() => setTransfersReviewError(null)} />
+              {transfersReviewSuccess && (
+                <div style={{
+                  padding: '0.75rem 1rem',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--accent-emerald)',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.82rem',
+                }}>
+                  <CheckCircle2 size={16} />
+                  <span>{transfersReviewSuccess}</span>
+                </div>
+              )}
+              {excessTransfers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  No cross-customer transfer requests recorded.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>Transfer #</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>From Booking</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>To Booking / Customer</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Amount</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'left' }}>Authorization &amp; Reason</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Status</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {excessTransfers.map((t) => (
+                        <tr key={t.transferId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                            TR-{String(t.transferId).padStart(5, '0')}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem' }}>
+                            <div style={{ fontWeight: 600 }}>{t.sourceBooking?.bookingNumber || `#${t.sourceBookingId}`}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {t.sourceBooking?.customer?.fullName || 'Customer'}
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem' }}>
+                            <div style={{ fontWeight: 600 }}>{t.destinationBooking?.bookingNumber || `#${t.destinationBookingId}`}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {t.destinationCustomer?.fullName || t.destinationBooking?.customer?.fullName || 'Customer'}
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                            ETB {Number(t.transferAmount || 0).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                              Ref: {t.authorizationReference}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: '240px' }}>
+                              {t.transferReason}
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            <span
+                              className={`badge ${
+                                t.status === 'APPROVED'
+                                  ? 'badge-emerald'
+                                  : t.status === 'REJECTED'
+                                  ? 'badge-rose'
+                                  : 'badge-amber'
+                              }`}
+                              style={{ fontSize: '0.7rem' }}
+                            >
+                              {t.status || 'PENDING_APPROVAL'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            {(!t.status || t.status === 'PENDING_APPROVAL') ? (
+                              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                                <button
+                                  type="button"
+                                  disabled={processingTransferAction}
+                                  onClick={() => handleApproveTransfer(t.transferId)}
+                                  className="btn btn-emerald btn-sm"
+                                  style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem' }}
+                                  title="Approve and execute ledger balance transfer"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={processingTransferAction}
+                                  onClick={() => {
+                                    setRejectingTransfer(t);
+                                    setTransferRejectReason('Insufficient customer authorization evidence');
+                                  }}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', color: 'var(--accent-rose)' }}
+                                  title="Reject transfer request"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {t.status === 'APPROVED' ? `✓ Executed` : `✕ ${t.rejectionReason || 'Rejected'}`}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowTransfersReviewModal(false);
+                  setTransfersReviewError(null);
+                  setTransfersReviewSuccess(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Transfer Modal */}
+      {rejectingTransfer && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-rose)', margin: 0 }}>
+                Reject Excess Transfer Request
+              </h3>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setRejectingTransfer(null)}
+                style={{ padding: '0.35rem 0.6rem' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: '1.25rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                Please provide a business justification for rejecting transfer TR-{String(rejectingTransfer.transferId).padStart(5, '0')} (ETB {Number(rejectingTransfer.transferAmount).toLocaleString()}):
+              </p>
+              <textarea
+                className="textarea-field"
+                rows={3}
+                value={transferRejectReason}
+                onChange={(e) => setTransferRejectReason(e.target.value)}
+                placeholder="Reason for rejecting transfer..."
+              />
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setRejectingTransfer(null)}
+                  disabled={processingTransferAction}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ background: 'var(--accent-rose)', borderColor: 'var(--accent-rose)' }}
+                  onClick={handleConfirmRejectTransfer}
+                  disabled={processingTransferAction}
+                >
+                  {processingTransferAction ? 'Rejecting...' : 'Confirm Rejection'}
                 </button>
               </div>
             </div>

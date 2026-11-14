@@ -50,6 +50,80 @@ export const CustomersPage: React.FC = () => {
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const emptyContact = { contactPerson: '', email: '', preferredContactMethod: 'PHONE', businessOccupation: '' };
+  const [newContact, setNewContact] = useState(emptyContact);
+  const [editContact, setEditContact] = useState(emptyContact);
+  const contactFields = (value: typeof emptyContact, setValue: (v: typeof emptyContact) => void) => (
+    <div
+      style={{
+        padding: '1.1rem',
+        background: 'var(--bg-secondary)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-color)',
+        marginBottom: '1rem',
+      }}
+    >
+      <div
+        style={{
+          fontSize: '0.85rem',
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          marginBottom: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}
+      >
+        <Briefcase size={16} color="var(--accent-cyan)" />
+        <span>Contact &amp; Business Information</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Contact Person</label>
+          <input
+            className="input-field"
+            type="text"
+            placeholder="e.g. Amina Test"
+            value={value.contactPerson}
+            onChange={(e) => setValue({ ...value, contactPerson: e.target.value })}
+          />
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Email Address</label>
+          <input
+            className="input-field"
+            type="email"
+            placeholder="e.g. buyer@example.com"
+            value={value.email}
+            onChange={(e) => setValue({ ...value, email: e.target.value })}
+          />
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Business / Occupation</label>
+          <input
+            className="input-field"
+            type="text"
+            placeholder="e.g. Engineer, Dealership"
+            value={value.businessOccupation}
+            onChange={(e) => setValue({ ...value, businessOccupation: e.target.value })}
+          />
+        </div>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Preferred Contact Method</label>
+          <select
+            className="select-field"
+            value={value.preferredContactMethod || 'PHONE'}
+            onChange={(e) => setValue({ ...value, preferredContactMethod: e.target.value })}
+          >
+            <option value="PHONE">Phone Call</option>
+            <option value="EMAIL">Email</option>
+            <option value="SMS">SMS</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
 
@@ -245,7 +319,8 @@ export const CustomersPage: React.FC = () => {
         );
       }
 
-      await api.createCustomer(payload);
+      await api.createCustomer({ ...payload, ...newContact });
+      setNewContact(emptyContact);
       setIsCreateOpen(false);
       fetchCustomers();
     } catch (err: any) {
@@ -293,6 +368,7 @@ export const CustomersPage: React.FC = () => {
   const handleOpenEdit = (cust: Customer) => {
     if (!canEditCustomer) return;
     setEditingCustomer(cust);
+    setEditContact({ contactPerson: cust.contactPerson || '', email: cust.email || '', preferredContactMethod: cust.preferredContactMethod || 'PHONE', businessOccupation: cust.businessOccupation || '' });
     setEditFormData({
       customerType: cust.customerType,
       fullName: cust.fullName,
@@ -354,7 +430,7 @@ export const CustomersPage: React.FC = () => {
         payload.regionId = Number(editFormData.regionId);
       }
 
-      const updated = await api.updateCustomer(editingCustomer.customerId, payload);
+      const updated = await api.updateCustomer(editingCustomer.customerId, { ...payload, ...editContact });
       setEditingCustomer(null);
       await fetchCustomers();
       if (selectedCustomer && selectedCustomer.customerId === editingCustomer.customerId) {
@@ -619,7 +695,7 @@ export const CustomersPage: React.FC = () => {
                 type="text"
                 className="input"
                 style={{ paddingLeft: '2.4rem', height: '38px', fontSize: '0.85rem' }}
-                placeholder="Search name, code, mobile, TIN..."
+                placeholder="Search name, code, phone, TIN, contact, email, occupation..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -668,8 +744,13 @@ export const CustomersPage: React.FC = () => {
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.fullName}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        {c.addressTown || 'Town not specified'}
+                        {c.contactPerson ? `Contact: ${c.contactPerson} • ` : ''}{c.businessOccupation ? `${c.businessOccupation} • ` : ''}{c.addressTown || 'Town not specified'}
                       </div>
+                      {c.email && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', marginTop: '0.15rem' }}>
+                          ✉ {c.email} {c.preferredContactMethod ? `(${c.preferredContactMethod})` : ''}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <span
@@ -934,6 +1015,7 @@ export const CustomersPage: React.FC = () => {
                 </div>
 
                 {/* Address Town */}
+                {contactFields(newContact, setNewContact)}
                 <div className="form-group">
                   <label className="form-label">Address / Town</label>
                   <input
@@ -1239,6 +1321,7 @@ export const CustomersPage: React.FC = () => {
                 </div>
 
                 {/* Address */}
+                {contactFields(editContact, setEditContact)}
                 <div className="form-group">
                   <label className="form-label">Address / Town</label>
                   <input
@@ -1505,6 +1588,24 @@ export const CustomersPage: React.FC = () => {
                       Contact & Location
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Contact Person</div>
+                        <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{selectedCustomer.contactPerson || 'Not provided'}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Email Address</div>
+                        <div style={{ fontWeight: 600, marginTop: '0.2rem', color: 'var(--accent-cyan)' }}>{selectedCustomer.email || 'Not provided'}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Preferred Contact Method</div>
+                        <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>
+                          <span className="badge badge-subtle">{selectedCustomer.preferredContactMethod || 'PHONE'}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Business / Occupation</div>
+                        <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{selectedCustomer.businessOccupation || 'Not provided'}</div>
+                      </div>
                       <div>
                         <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Registered Mobile</div>
                         <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{selectedCustomer.mobileNumber}</div>

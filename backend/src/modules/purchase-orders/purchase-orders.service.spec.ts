@@ -235,6 +235,49 @@ describe('PurchaseOrdersService (KMSICAMS-12 Phases 2, 3, 4)', () => {
         }),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('should reject L/C expiry date earlier than issue date', async () => {
+      lcRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.createLetterOfCredit({
+          poId: '1',
+          lcNumber: 'LC-2026-BAD-DATE-1',
+          issuingBank: 'Commercial Bank of Ethiopia',
+          amount: 28000,
+          currency: 'USD',
+          issueDate: '2026-11-20',
+          expiryDate: '2026-11-18',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject L/C latest shipment date later than expiry date', async () => {
+      lcRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.createLetterOfCredit({
+          poId: '1',
+          lcNumber: 'LC-2026-BAD-DATE-2',
+          issuingBank: 'Commercial Bank of Ethiopia',
+          amount: 28000,
+          currency: 'USD',
+          issueDate: '2026-11-11',
+          expiryDate: '2026-11-18',
+          latestShipmentDate: '2026-11-20',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('Importer Bank Account Default Selection', () => {
+    it('should fetch only active bank accounts ordered with default account first', async () => {
+      await service.getBankAccounts();
+      expect(bankAccountRepo.find).toHaveBeenCalledWith({
+        where: { isActive: true },
+        order: { isDefault: 'DESC', bankAccountId: 'ASC' },
+      });
+    });
   });
 });
 

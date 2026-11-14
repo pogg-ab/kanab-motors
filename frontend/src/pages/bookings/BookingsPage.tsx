@@ -13,6 +13,7 @@ import {
   FileText,
   DollarSign,
   TrendingUp,
+  Eye,
 } from 'lucide-react';
 import {
   api,
@@ -45,7 +46,23 @@ export const BookingsPage: React.FC = () => {
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
   const [attachmentBooking, setAttachmentBooking] = useState<Booking | null>(null);
+  const [showDraftAttachments, setShowDraftAttachments] = useState(false);
+  const [bookingDraftId, setBookingDraftId] = useState(() => String(900000000 + Math.floor(Math.random() * 999999)));
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
+
+  // Helper for Brand + Model + Year + (New/Used)
+  const getVehicleLabel = (item?: any) => {
+    if (!item) return 'Vehicle Item';
+    const brandStr = typeof item.brand === 'object' ? (item.brand?.brandName || '') : (item.brand || item.brandName || item.make || '');
+    const brand = typeof brandStr === 'string' ? brandStr : '';
+    const modelStr = item.model || item.itemName || '';
+    const model = typeof modelStr === 'string' ? modelStr : '';
+    const year = item.modelYear ? ` ${item.modelYear}` : '';
+    const condition = item.newOrUsed ? ` (${item.newOrUsed})` : item.isNewVehicle === false ? ' (Used)' : item.isNewVehicle === true ? ' (New)' : '';
+    const brandPart = brand && !model.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ` : '';
+    return `${brandPart}${model}${year}${condition}`.trim();
+  };
 
   // Create Form State
   const [newBooking, setNewBooking] = useState<{
@@ -58,6 +75,8 @@ export const BookingsPage: React.FC = () => {
     requiredAdvanceAmount: number;
     salespersonName: string;
     targetDeliveryDate: string;
+    paymentMethod: string;
+    customerRequirementsNotes?: string;
   }>({
     customerId: '',
     itemId: '',
@@ -66,6 +85,8 @@ export const BookingsPage: React.FC = () => {
     requiredAdvanceAmount: 0,
     salespersonName: user?.fullName || '',
     targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    paymentMethod: 'BANK_DEPOSIT',
+    customerRequirementsNotes: '',
   });
 
   // Transfer Form State
@@ -220,19 +241,34 @@ export const BookingsPage: React.FC = () => {
 
     setSaving(true);
     try {
-      await api.createBooking({
-        customerId: newBooking.customerId,
-        itemId: newBooking.itemId,
-        enquiryId: newBooking.enquiryId,
-        slipId: newBooking.slipId,
-        quantity: newBooking.quantity,
-        unitPrice: newBooking.unitPrice,
-        requiredAdvanceAmount: newBooking.requiredAdvanceAmount,
+      const payload: any = {
+        customerId: String(newBooking.customerId),
+        itemId: String(newBooking.itemId),
+        quantity: Number(newBooking.quantity || 1),
+        unitPrice: Number(newBooking.unitPrice || 0),
+        requiredAdvanceAmount: Number(newBooking.requiredAdvanceAmount || 0),
         salespersonName: trimmedSp,
         targetDeliveryDate: newBooking.targetDeliveryDate ? new Date(newBooking.targetDeliveryDate).toISOString() : undefined,
-      });
+        paymentMethod: newBooking.paymentMethod || 'BANK_DEPOSIT',
+      };
+      if (newBooking.enquiryId && newBooking.enquiryId.trim()) {
+        payload.enquiryId = newBooking.enquiryId.trim();
+      }
+      if (newBooking.slipId && newBooking.slipId.trim()) {
+        payload.slipId = newBooking.slipId.trim();
+      }
+      if (newBooking.customerRequirementsNotes?.trim()) {
+        payload.customerRequirementsNotes = newBooking.customerRequirementsNotes.trim();
+      }
+
+      const created = await api.createBooking(payload);
+      try {
+        await api.claimDraftAttachments(bookingDraftId, 'booking', created.bookingId);
+      } catch {}
       showToast('success', 'Advance Booking created successfully!');
       setShowCreateModal(false);
+      setShowDraftAttachments(false);
+      setBookingDraftId(String(900000000 + Math.floor(Math.random() * 999999)));
       setCreateError(null);
       setNewBooking({
         customerId: '',
@@ -242,6 +278,8 @@ export const BookingsPage: React.FC = () => {
         requiredAdvanceAmount: 0,
         salespersonName: user?.fullName || '',
         targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        paymentMethod: 'BANK_DEPOSIT',
+        customerRequirementsNotes: '',
       });
       loadData();
     } catch (err: any) {
@@ -352,6 +390,8 @@ export const BookingsPage: React.FC = () => {
                   requiredAdvanceAmount: 0,
                   salespersonName: user?.fullName || '',
                   targetDeliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  paymentMethod: 'BANK_DEPOSIT',
+                  customerRequirementsNotes: '',
                 });
                 setCreateError(null);
                 setShowCreateModal(true);
@@ -565,6 +605,9 @@ export const BookingsPage: React.FC = () => {
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                           {new Date(b.bookingDate).toLocaleDateString()}
                         </div>
+                        <span className="badge badge-subtle" style={{ fontSize: '0.62rem', marginTop: '0.25rem', display: 'inline-block' }}>
+                          {b.paymentMethod || 'BANK_DEPOSIT'}
+                        </span>
                       </td>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{custName}</div>
@@ -574,12 +617,12 @@ export const BookingsPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {b.item?.itemName || 'Vehicle Item'}
+                          {getVehicleLabel(b.item)}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                           Ordered: <strong>{b.quantity}</strong> unit(s) • ETB {Number(b.unitPrice || 0).toLocaleString()}/unit
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem', fontSize: '0.7rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem', fontSize: '0.72rem' }}>
                           <span style={{ color: (b.allottedQuantity || 0) > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)', fontWeight: 600 }}>
                             Allotted: {b.allottedQuantity || 0}
                           </span>
@@ -591,18 +634,25 @@ export const BookingsPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          ETB {total.toLocaleString()}
+                          Gross: ETB {total.toLocaleString()}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          Bal: ETB {Number(b.outstandingBalance || 0).toLocaleString()}
+                        <div style={{ fontSize: '0.72rem', color: Number(b.outstandingBalance || 0) > 0 ? 'var(--accent-amber)' : 'var(--accent-emerald)', fontWeight: 600, marginTop: '0.1rem' }}>
+                          Outstanding: ETB {Number(b.outstandingBalance || 0).toLocaleString()}
                         </div>
+                        {paid > total && (
+                          <div style={{ marginTop: '0.2rem' }}>
+                            <span className="badge badge-cyan" style={{ fontSize: '0.62rem', fontWeight: 700 }} title="Transferable excess deposit (KMS-FB-05)">
+                              Excess: ETB {(paid - total).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '1rem', minWidth: '220px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: '0.35rem' }}>
                           <span style={{ color: isAdvMet ? 'var(--accent-emerald)' : 'var(--accent-amber)', fontWeight: 600 }}>
-                            Paid: ETB {paid.toLocaleString()}
+                            Receipts (BRV): ETB {paid.toLocaleString()}
                           </span>
-                          <span style={{ color: 'var(--text-muted)' }}>Req: ETB {adv.toLocaleString()}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>Min Adv: ETB {adv.toLocaleString()}</span>
                         </div>
                         <div style={{ width: '100%', height: '7px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
                           <div
@@ -613,6 +663,10 @@ export const BookingsPage: React.FC = () => {
                               transition: 'width 0.3s ease',
                             }}
                           />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                          <span>{pct}% of Gross Settled</span>
+                          <span>{isAdvMet ? '✓ Advance Satisfied' : 'Pending Min Advance'}</span>
                         </div>
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -665,6 +719,14 @@ export const BookingsPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: '0.45rem', justifyContent: 'center', alignItems: 'center' }}>
+                            <button
+                              onClick={() => setDetailBooking(b)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                              title="View Full Booking Details & Retained Preferences"
+                            >
+                              <Eye size={13} /> View
+                            </button>
                             <button
                               onClick={() => setAttachmentBooking(b)}
                               className="btn btn-secondary btn-sm"
@@ -833,7 +895,7 @@ export const BookingsPage: React.FC = () => {
                       <option value="">Select Vehicle Item...</option>
                       {products.map((p) => (
                         <option key={p.itemId} value={p.itemId}>
-                          {p.itemName} (ETB {Number(p.sellingPrice).toLocaleString()})
+                          {getVehicleLabel(p)} (ETB {Number(p.sellingPrice).toLocaleString()})
                         </option>
                       ))}
                     </select>
@@ -893,7 +955,7 @@ export const BookingsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label className="form-label">Salesperson Full Name *</label>
                     <input
@@ -919,9 +981,40 @@ export const BookingsPage: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label className="form-label">Booking Payment Method *</label>
+                    <select
+                      className="input"
+                      value={newBooking.paymentMethod || 'BANK_DEPOSIT'}
+                      onChange={(e) => setNewBooking({ ...newBooking, paymentMethod: e.target.value })}
+                    >
+                      <option value="BANK_DEPOSIT">Bank Deposit Slip (CPO / Direct)</option>
+                      <option value="BANK_TRANSFER">Bank Electronic Transfer</option>
+                      <option value="LETTER_OF_CREDIT">Letter of Credit (LC)</option>
+                      <option value="CASH">Cash Office Receipt</option>
+                      <option value="CHEQUE">Certified Corporate Cheque</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Customer Requirements & Notes</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    placeholder="Specific requests, accessories, charger preferences, color specifications, or delivery instructions..."
+                    value={newBooking.customerRequirementsNotes || ''}
+                    onChange={(e) => setNewBooking({ ...newBooking, customerRequirementsNotes: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div className="modal-footer">
+                <button type="button" onClick={() => setShowDraftAttachments(true)} className="btn btn-secondary">
+                  <Paperclip size={14} /> Add Documents
+                </button>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
@@ -974,6 +1067,34 @@ export const BookingsPage: React.FC = () => {
                   </span>
                   ) to another active booking for customer <strong>{selectedBooking.customer?.fullName}</strong>.
                 </p>
+
+                {bookings.filter((b) => String(b.bookingId) !== String(selectedBooking.bookingId) && b.bookingStatus !== 'CANCELLED' && String(b.customerId) === String(selectedBooking.customerId)).length === 0 && (
+                  <div
+                    style={{
+                      padding: '0.85rem 1rem',
+                      background: 'rgba(6, 182, 212, 0.08)',
+                      border: '1px solid rgba(6, 182, 212, 0.25)',
+                      borderRadius: 'var(--radius-md)',
+                      marginBottom: '1rem',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--accent-cyan)', marginBottom: '0.25rem' }}>
+                      Looking for Cross-Customer Transfer?
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      {selectedBooking.customer?.fullName} does not have a second booking. To transfer excess funds across different customers (e.g. to <strong>UAT Buyer B</strong>), use the authorized <strong>Customer Payments &amp; BRV → Transfer Excess</strong> workflow.
+                    </div>
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <a
+                        href="/payments"
+                        className="btn btn-cyan btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                      >
+                        Go to Customer Payments &amp; BRV ➔
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ marginBottom: '1rem' }}>
                   <label className="form-label">Select Destination Booking *</label>
@@ -1109,6 +1230,247 @@ export const BookingsPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {showDraftAttachments && (
+        <EntityAttachmentsModal
+          isOpen={showDraftAttachments}
+          onClose={() => setShowDraftAttachments(false)}
+          entityType="booking_draft"
+          entityId={bookingDraftId}
+          title="Advance Booking Supporting Documents"
+          subtitle="These files will be attached automatically when the booking is submitted."
+        />
+      )}
+
+      {detailBooking && (
+        <div className="modal-backdrop" style={{ overflowY: 'auto', padding: '1.5rem 0' }}>
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: '820px',
+              width: '95%',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              margin: 'auto',
+            }}
+          >
+            <div className="modal-header" style={{ flexShrink: 0 }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  Booking Details — {detailBooking.bookingNumber}
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Created on {new Date(detailBooking.bookingDate).toLocaleDateString()} · Status: <strong style={{ color: 'var(--accent-emerald)' }}>{detailBooking.bookingStatus}</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDetailBooking(null)}
+                style={{ padding: '0.35rem 0.65rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem',
+                overflowY: 'auto',
+                flex: 1,
+              }}
+            >
+              {/* Section 1: Customer & Vehicle Overview */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+                    Customer Information
+                  </div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {detailBooking.customer?.fullName || 'Customer'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    Code: <strong style={{ color: 'var(--text-primary)' }}>{detailBooking.customer?.customerCode}</strong> · {detailBooking.customer?.customerType}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    Mobile: {detailBooking.customer?.mobileNumber || '—'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.6rem' }}>
+                    Vehicle Order Summary
+                  </div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                    {getVehicleLabel(detailBooking.item)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    Quantity Ordered: <strong>{detailBooking.quantity}</strong> unit(s) @ ETB {Number(detailBooking.unitPrice || 0).toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    Allotted: <strong style={{ color: 'var(--accent-emerald)' }}>{detailBooking.allottedQuantity || 0}</strong> · Remaining: <strong style={{ color: 'var(--accent-cyan)' }}>{detailBooking.remainingQuantity ?? detailBooking.quantity}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Financial & Advance Deposit Breakdown */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+                  Financial Balances &amp; Deposit Reconciliation (KMS-FB-17)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+                  <div style={{ padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Gross Order Value</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem' }}>
+                      ETB {Number(detailBooking.grossTotal || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Confirmed BRV Receipts</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.15rem' }}>
+                      ETB {Number(detailBooking.totalAmountDeposited || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Required Min Advance</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--accent-amber)', marginTop: '0.15rem' }}>
+                      ETB {Number(detailBooking.requiredAdvanceAmount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Outstanding Balance</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: Number(detailBooking.outstandingBalance || 0) > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginTop: '0.15rem' }}>
+                      ETB {Number(detailBooking.outstandingBalance || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <span>Payment Method: <strong style={{ color: 'var(--text-primary)' }}>{detailBooking.paymentMethod || 'BANK_DEPOSIT'}</strong></span>
+                  {Number(detailBooking.totalAmountDeposited || 0) > Number(detailBooking.grossTotal || 0) && (
+                    <span className="badge badge-cyan" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                      Available Transferable Excess: ETB {(Number(detailBooking.totalAmountDeposited || 0) - Number(detailBooking.grossTotal || 0)).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 3: Retained Customer Requirements & Enquiry Preferences */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+                  Retained Customer Requirements &amp; Preferences (KMS-FB-13, KMS-FB-14)
+                </div>
+                {detailBooking.customerRequirementsNotes && (
+                  <div style={{ padding: '0.75rem', background: 'rgba(6, 182, 212, 0.08)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.85rem' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>SPECIAL REQUIREMENTS &amp; NOTES:</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: '0.2rem', fontStyle: 'italic' }}>
+                      &quot;{detailBooking.customerRequirementsNotes}&quot;
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem', fontSize: '0.8rem' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Branch / Showroom</span>
+                    <strong>{detailBooking.enquiryPreferences?.branchShowroom || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Lead Source</span>
+                    <strong>{detailBooking.enquiryPreferences?.leadSource || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Preferred Colour</span>
+                    <strong>{detailBooking.enquiryPreferences?.preferredColor || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Target Customer Budget</span>
+                    <strong>
+                      {detailBooking.enquiryPreferences?.targetBudget
+                        ? `${detailBooking.enquiryPreferences.currency || 'ETB'} ${Number(detailBooking.enquiryPreferences.targetBudget).toLocaleString()}`
+                        : '—'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Expected Deposit</span>
+                    <strong>
+                      {detailBooking.enquiryPreferences?.expectedDeposit
+                        ? `ETB ${Number(detailBooking.enquiryPreferences.expectedDeposit).toLocaleString()}`
+                        : '—'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Payment Timeline</span>
+                    <strong>{detailBooking.enquiryPreferences?.expectedPaymentTimeline || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Bank / Finance Provider</span>
+                    <strong>
+                      {detailBooking.enquiryPreferences?.financingRequired
+                        ? detailBooking.enquiryPreferences?.financeProvider || 'Financing Required'
+                        : 'Direct / Cash'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Charger Included</span>
+                    <strong>{detailBooking.enquiryPreferences?.chargerTypeIncluded ? 'Yes (Home / Fast)' : 'No'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Registration &amp; Homologation</span>
+                    <strong>{detailBooking.enquiryPreferences?.registrationHomologationNeeded ? 'Yes (Required)' : 'No'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Required Delivery Date</span>
+                    <strong>{detailBooking.enquiryPreferences?.requiredDeliveryDate ? new Date(detailBooking.enquiryPreferences.requiredDeliveryDate).toLocaleDateString() : '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Target Delivery Date</span>
+                    <strong>{detailBooking.targetDeliveryDate ? new Date(detailBooking.targetDeliveryDate).toLocaleDateString() : '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Trade-In Vehicle</span>
+                    <strong>{detailBooking.enquiryPreferences?.tradeInVehicle ? 'Yes (Customer Trade-in)' : 'No'}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, borderTop: '1px solid var(--border-color)', padding: '0.85rem 1.25rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const b = detailBooking;
+                  setDetailBooking(null);
+                  setAttachmentBooking(b);
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Paperclip size={14} /> View Supporting Documents
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDetailBooking(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {attachmentBooking && (
+        <EntityAttachmentsModal
+          isOpen={!!attachmentBooking}
+          onClose={() => setAttachmentBooking(null)}
+          entityType="booking"
+          entityId={attachmentBooking.bookingId}
+          title={`Booking Supporting Documents — ${attachmentBooking.bookingNumber}`}
+          subtitle={`Customer: ${attachmentBooking.customer?.fullName || 'N/A'} · Vehicle: ${getVehicleLabel(attachmentBooking.item)}`}
+        />
       )}
     </div>
   );

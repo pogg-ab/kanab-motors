@@ -20,6 +20,7 @@
     "migration:generate": "npm run typeorm:win -- migration:generate",
     "seed": "node --max-semi-space-size=128 ./node_modules/ts-node/dist/bin.js -r tsconfig-paths/register ./src/database/seed.ts",
     "test": "node --max-semi-space-size=128 ./node_modules/jest/bin/jest.js --runInBand",
+    "test:e2e": "node --max-semi-space-size=128 ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "test:watch": "node --max-semi-space-size=128 ./node_modules/jest/bin/jest.js --watch --runInBand",
     "test:cov": "node --max-semi-space-size=128 ./node_modules/jest/bin/jest.js --coverage"
   },

@@ -72,6 +72,14 @@ export class DocumentsService {
   }
 
   async getAttachmentsForEntity(entityType: string, entityId: string): Promise<Attachment[]> {
+    // KMS-FB-04: Attachments uploaded to a POS sale or associated invoice are mutually accessible
+    if (entityType === 'invoice' || entityType === 'pos_sale' || entityType === 'spare_parts_sale') {
+      const qb = this.attachmentRepo.createQueryBuilder('a');
+      qb.where('a.entityId = :entityId', { entityId });
+      qb.andWhere('a.entityType IN (:...types)', { types: ['invoice', 'pos_sale', 'spare_parts_sale'] });
+      qb.orderBy('a.uploadedAt', 'DESC');
+      return qb.getMany();
+    }
     return this.attachmentRepo.find({
       where: { entityType, entityId },
       order: { uploadedAt: 'DESC' },
@@ -105,5 +113,22 @@ export class DocumentsService {
     }
     await this.attachmentRepo.remove(att);
     return { success: true };
+  }
+
+  async claimDraftAttachments(draftId: string, entityType: string, entityId: string): Promise<{ claimed: number }> {
+    if (!draftId || !/^\d+$/.test(String(draftId).trim())) {
+      return { claimed: 0 };
+    }
+    try {
+      const cleanDraftId = String(draftId).trim();
+      const cleanEntityId = String(entityId).trim();
+      const result = await this.attachmentRepo.update(
+        { entityType: `${entityType}_draft`, entityId: cleanDraftId },
+        { entityType, entityId: cleanEntityId },
+      );
+      return { claimed: result.affected || 0 };
+    } catch {
+      return { claimed: 0 };
+    }
   }
 }

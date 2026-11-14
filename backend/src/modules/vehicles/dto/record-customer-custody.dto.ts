@@ -20,5 +20,15 @@ export class RecordCustomerCustodyDto {
   @IsOptional()
   @IsString()
   expectedHandoverDate?: string;
+
+  @ApiPropertyOptional({ example: 'CUSTOMER_INSURED' })
+  @IsOptional()
+  @IsString()
+  insuranceResponsibility?: string;
+
+  @ApiPropertyOptional({ example: 'Stored in Covered Bay 4 at Kality Warehouse' })
+  @IsOptional()
+  @IsString()
+  storageLocationNotes?: string;
 }
 

@@ -9,6 +9,7 @@ import {
   Query,
   ParseIntPipe,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { SuppliersService, CreateSupplierDto, UpdateSupplierDto } from './suppliers.service';
@@ -24,8 +25,8 @@ export class SuppliersController {
   @UseGuards(PermissionGuard)
   @RequirePermissions('SUPPLIERS_CREATE')
   @ApiOperation({ summary: 'Create a new international or local supplier (Story F1)' })
-  create(@Body() dto: CreateSupplierDto) {
-    return this.suppliersService.create(dto);
+  create(@Body() dto: CreateSupplierDto, @Req() req?: any) {
+    return this.suppliersService.create(dto, req?.user?.userId);
   }
 
   @Get()
@@ -51,8 +52,9 @@ export class SuppliersController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateSupplierDto,
+    @Req() req?: any,
   ) {
-    return this.suppliersService.update(id, dto);
+    return this.suppliersService.update(id, dto, req?.user?.userId);
   }
 
   @Delete(':id')

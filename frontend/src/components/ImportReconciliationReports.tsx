@@ -12,8 +12,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { usePermissions } from '../authz/usePermissions';
 import { formatApiError } from '../utils/error';
 
 interface Props {
@@ -21,19 +23,24 @@ interface Props {
 }
 
 export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = 'logistics' }) => {
+  const { any } = usePermissions();
+  const canExportReports = any(['REPORTS_EXPORT', 'SHIPMENTS_VIEW', 'PURCHASE_ORDERS_VIEW']);
   const [subTab, setSubTab] = useState<'logistics' | 'documents' | 'reconciliation'>(initialSubTab);
   const [loading, setLoading] = useState<boolean>(true);
+  const [exporting, setExporting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Data states
   const [logisticsData, setLogisticsData] = useState<any[]>([]);
   const [documentsData, setDocumentsData] = useState<any[]>([]);
+  const [docStatusCounts, setDocStatusCounts] = useState<Record<string, number>>({});
+  const [docStatusFilter, setDocStatusFilter] = useState<string>('');
   const [reconciliationData, setReconciliationData] = useState<any[]>([]);
   const [search, setSearch] = useState<string>('');
 
   useEffect(() => {
     loadData();
-  }, [subTab]);
+  }, [subTab, docStatusFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -43,9 +50,12 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
         const data = await api.getShipmentLogisticsReport();
         setLogisticsData(Array.isArray(data) ? data : []);
       } else if (subTab === 'documents') {
-        const data = await api.getDocumentCompletenessReport();
+        const data = await api.getDocumentCompletenessReport(
+          docStatusFilter ? { status: docStatusFilter } : undefined,
+        );
         const list = Array.isArray(data) ? data : ((data as any)?.documents || []);
         setDocumentsData(list);
+        setDocStatusCounts((data as any)?.statusCounts || {});
       } else if (subTab === 'reconciliation') {
         const data = await api.getImportReconciliationReport();
         setReconciliationData(Array.isArray(data) ? data : []);
@@ -54,6 +64,26 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
       setError(formatApiError(err, 'Failed to load report data'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      if (subTab === 'logistics') {
+        await api.exportShipmentLogisticsCsv();
+      } else if (subTab === 'documents') {
+        await api.exportDocumentCompletenessCsv({
+          status: docStatusFilter || undefined,
+          search: search || undefined,
+        });
+      } else {
+        await api.exportImportReconciliationCsv();
+      }
+    } catch (err: any) {
+      setError(formatApiError(err, 'Failed to export report CSV'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -131,8 +161,8 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
             </div>
           </div>
 
-          {/* Search bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Search bar + Export */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', width: '320px' }}>
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
@@ -144,6 +174,12 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
                 style={{ paddingLeft: '32px', height: '36px', fontSize: '0.8rem' }}
               />
             </div>
+            {canExportReports && (
+              <button type="button" onClick={handleExportCsv} disabled={exporting} className="btn btn-outline-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Download size={14} />
+                <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+              </button>
+            )}
           </div>
 
           {/* Table */}
@@ -249,44 +285,72 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
       {subTab === 'documents' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
             <div className="card" style={{ padding: '1.25rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Required Records</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Required & Uploaded</span>
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{documentsData.length}</div>
+            </div>
+            <div className="card" style={{ padding: '1.25rem', borderLeft: '3px solid var(--accent-rose)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-rose)', fontWeight: 600, textTransform: 'uppercase' }}>Missing Required</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-rose)', marginTop: '0.25rem' }}>
+                {docStatusCounts.MISSING ?? documentsData.filter(d => d.verificationStatus === 'MISSING' || d.isMissing).length}
+              </div>
+            </div>
+            <div className="card" style={{ padding: '1.25rem', borderLeft: '3px solid var(--accent-amber)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', fontWeight: 600, textTransform: 'uppercase' }}>Expired (By Date/Status)</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-amber)', marginTop: '0.25rem' }}>
+                {docStatusCounts.EXPIRED ?? documentsData.filter(d => d.verificationStatus === 'EXPIRED' || d.isExpired).length}
+              </div>
             </div>
             <div className="card" style={{ padding: '1.25rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Verified Documents</span>
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.25rem' }}>
-                {documentsData.filter(d => d.verificationStatus === 'VERIFIED').length}
+                {docStatusCounts.VERIFIED ?? documentsData.filter(d => d.verificationStatus === 'VERIFIED').length}
               </div>
             </div>
             <div className="card" style={{ padding: '1.25rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Pending Review</span>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-amber)', marginTop: '0.25rem' }}>
-                {documentsData.filter(d => d.verificationStatus === 'PENDING').length}
-              </div>
-            </div>
-            <div className="card" style={{ padding: '1.25rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Originals Released</span>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.25rem' }}>
-                {documentsData.filter(d => d.originalDocumentStatus === 'RELEASED_TO_AGENT' || d.originalDocumentStatus === 'ENDORSED_TO_BANK').length}
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Pending / Rejected</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-indigo)', marginTop: '0.25rem' }}>
+                {(docStatusCounts.PENDING ?? documentsData.filter(d => d.verificationStatus === 'PENDING').length) +
+                  (docStatusCounts.REJECTED ?? documentsData.filter(d => d.verificationStatus === 'REJECTED').length)}
               </div>
             </div>
           </div>
 
-          {/* Search bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ position: 'relative', width: '320px' }}>
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search doc type, shipment, ref..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+          {/* Search, Filter & Export */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', width: '280px' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search doc type, shipment, ref..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="input"
+                  style={{ paddingLeft: '32px', height: '36px', fontSize: '0.8rem' }}
+                />
+              </div>
+              <select
                 className="input"
-                style={{ paddingLeft: '32px', height: '36px', fontSize: '0.8rem' }}
-              />
+                style={{ height: '36px', fontSize: '0.8rem', minWidth: '170px' }}
+                value={docStatusFilter}
+                onChange={e => setDocStatusFilter(e.target.value)}
+              >
+                <option value="">All Statuses</option>
+                <option value="MISSING">MISSING (Never Uploaded)</option>
+                <option value="EXPIRED">EXPIRED</option>
+                <option value="PENDING">PENDING</option>
+                <option value="REJECTED">REJECTED</option>
+                <option value="VERIFIED">VERIFIED</option>
+              </select>
             </div>
+            {canExportReports && (
+              <button type="button" onClick={handleExportCsv} disabled={exporting} className="btn btn-outline-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Download size={14} />
+                <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+              </button>
+            )}
           </div>
 
           {/* Table */}
@@ -298,7 +362,7 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
                     <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>SHIPMENT #</th>
                     <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>DOCUMENT TYPE</th>
                     <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>REFERENCE #</th>
-                    <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUE DATE</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>ISSUE / EXPIRY DATE</th>
                     <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>VERIFICATION STATUS</th>
                     <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>ORIGINAL PAPER STATUS</th>
                     <th style={{ padding: '0.85rem 1rem', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>VERIFIED BY</th>
@@ -315,7 +379,7 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
                   ) : documentsData.length === 0 ? (
                     <tr>
                       <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                        No shipping documents recorded.
+                        No shipping documents matching filter.
                       </td>
                     </tr>
                   ) : (
@@ -326,7 +390,8 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
                           !q ||
                           row.shipmentNumber?.toLowerCase().includes(q) ||
                           row.documentType?.toLowerCase().includes(q) ||
-                          row.documentReference?.toLowerCase().includes(q)
+                          row.documentReference?.toLowerCase().includes(q) ||
+                          row.verificationStatus?.toLowerCase().includes(q)
                         );
                       })
                       .map((doc, idx) => (
@@ -335,16 +400,34 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
                             {doc.shipmentNumber}
                           </td>
                           <td style={{ padding: '0.85rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {doc.documentType?.replace(/_/g, ' ')}
+                            <div>{doc.documentType?.replace(/_/g, ' ')}</div>
+                            {doc.requiredAtStage && (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                Req @ {doc.requiredAtStage.replace(/_/g, ' ')}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                             {doc.documentReference || '—'}
                           </td>
                           <td style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            {doc.issueDate ? new Date(doc.issueDate).toLocaleDateString() : '—'}
+                            <div>{doc.issueDate ? new Date(doc.issueDate).toLocaleDateString() : '—'}</div>
+                            {doc.expiryDate && (
+                              <div style={{ fontSize: '0.72rem', color: doc.isExpired ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
+                                Exp: {new Date(doc.expiryDate).toLocaleDateString()}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                            <span className={`badge ${doc.verificationStatus === 'VERIFIED' ? 'badge-emerald' : doc.verificationStatus === 'REJECTED' ? 'badge-rose' : 'badge-amber'}`}>
+                            <span
+                              className={`badge ${
+                                doc.verificationStatus === 'VERIFIED'
+                                  ? 'badge-emerald'
+                                  : doc.verificationStatus === 'REJECTED' || doc.verificationStatus === 'MISSING' || doc.verificationStatus === 'EXPIRED'
+                                    ? 'badge-rose'
+                                    : 'badge-amber'
+                              }`}
+                            >
                               {doc.verificationStatus}
                             </span>
                           </td>
@@ -401,8 +484,8 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
             </div>
           </div>
 
-          {/* Search bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Search bar + Export */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', width: '320px' }}>
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
@@ -414,6 +497,12 @@ export const ImportReconciliationReports: React.FC<Props> = ({ initialSubTab = '
                 style={{ paddingLeft: '32px', height: '36px', fontSize: '0.8rem' }}
               />
             </div>
+            {canExportReports && (
+              <button type="button" onClick={handleExportCsv} disabled={exporting} className="btn btn-outline-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Download size={14} />
+                <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+              </button>
+            )}
           </div>
 
           {/* Matrix Table */}

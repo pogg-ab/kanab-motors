@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useBranding } from '../../context/BrandingContext';
 import { formatApiError } from '../../utils/error';
 
 interface DemoAccount {
@@ -88,6 +89,18 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { branding, resolvedLogoUrl, refreshBranding } = useBranding();
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  React.useEffect(() => {
+    refreshBranding();
+  }, [refreshBranding]);
+
+  React.useEffect(() => {
+    setLogoFailed(false);
+  }, [resolvedLogoUrl]);
+
+  const companyDisplayName = branding.companyName?.trim() || 'KANAB MOTORS';
 
   const [email, setEmail] = useState('admin@kanabmotors.com');
   const [password, setPassword] = useState('Admin@123');
@@ -169,15 +182,29 @@ export const LoginPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '54px',
-            height: '54px',
+            width: resolvedLogoUrl && !logoFailed ? '72px' : '54px',
+            height: resolvedLogoUrl && !logoFailed ? '72px' : '54px',
             borderRadius: '16px',
-            background: 'linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan))',
-            boxShadow: '0 8px 24px -4px rgba(79, 70, 229, 0.4)',
+            background: resolvedLogoUrl && !logoFailed
+              ? 'rgba(255, 255, 255, 0.96)'
+              : 'linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan))',
+            border: resolvedLogoUrl && !logoFailed ? '1px solid var(--border-color)' : 'none',
+            boxShadow: '0 8px 24px -4px rgba(79, 70, 229, 0.35)',
             marginBottom: '1rem',
             color: '#ffffff',
+            overflow: 'hidden',
+            padding: resolvedLogoUrl && !logoFailed ? '6px' : 0,
           }}>
-            <ShieldCheck size={28} />
+            {resolvedLogoUrl && !logoFailed ? (
+              <img
+                src={resolvedLogoUrl}
+                alt={companyDisplayName}
+                onError={() => setLogoFailed(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : (
+              <ShieldCheck size={28} />
+            )}
           </div>
 
           <h1 style={{
@@ -187,7 +214,7 @@ export const LoginPage: React.FC = () => {
             letterSpacing: '-0.02em',
             margin: '0 0 0.4rem 0',
           }}>
-            KANAB MOTORS
+            {companyDisplayName}
           </h1>
           <p style={{
             fontSize: '0.85rem',
@@ -195,7 +222,9 @@ export const LoginPage: React.FC = () => {
             margin: 0,
             fontWeight: 500,
           }}>
-            Enterprise Sales, Inventory & Customer Management
+            {branding.tradeName
+              ? `${branding.tradeName} · Enterprise Sales, Inventory & Customer Management`
+              : 'Enterprise Sales, Inventory & Customer Management'}
           </p>
         </div>
 

@@ -3,7 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
   CustomerLedgerTransaction,
   LedgerTransactionType,
@@ -46,7 +46,7 @@ export class LedgerService {
    * Uses row-level lock (SELECT ... FOR UPDATE) on customer_account_summary
    * to guarantee that simultaneous transactions for the same customer never corrupt the running balance.
    */
-  async postTransaction(dto: PostLedgerEntryDto): Promise<CustomerLedgerTransaction> {
+  async postTransaction(dto: PostLedgerEntryDto, managerOverride?: EntityManager): Promise<CustomerLedgerTransaction> {
     const debit = Number(dto.debitAmount || 0);
     const credit = Number(dto.creditAmount || 0);
 
@@ -57,7 +57,7 @@ export class LedgerService {
       throw new BadRequestException('Either Debit or Credit must be greater than zero');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const execute = async (manager: EntityManager) => {
       // 1. Lock customer summary row for update to serialize postings for this customer
       let summary = await manager
         .createQueryBuilder(CustomerAccountSummary, 's')
@@ -173,7 +173,8 @@ export class LedgerService {
       await manager.save(summary);
 
       return savedEntry;
-    });
+    };
+    return managerOverride ? execute(managerOverride) : this.dataSource.transaction(execute);
   }
 
   /**

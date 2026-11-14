@@ -62,6 +62,22 @@ export class CustomerPaymentTransfer {
   @JoinColumn({ name: 'transferred_by' })
   transferredByUser?: AppUser;
 
+  @Column({ length: 30, default: 'PENDING_APPROVAL' })
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+
+  @Column({ name: 'approved_by', type: 'int', nullable: true })
+  approvedBy?: number;
+
+  @ManyToOne(() => AppUser, { nullable: true })
+  @JoinColumn({ name: 'approved_by' })
+  approver?: AppUser;
+
+  @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+  approvedAt?: Date;
+
+  @Column({ name: 'rejection_reason', type: 'text', nullable: true })
+  rejectionReason?: string;
+
   @CreateDateColumn({ name: 'transferred_at', type: 'timestamptz' })
   transferredAt: Date;
 }

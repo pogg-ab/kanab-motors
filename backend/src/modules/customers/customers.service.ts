@@ -93,6 +93,10 @@ export class CustomersService {
       mobileNumber: trimmedMobile,
       tinNumber: dto.tinNumber?.trim() || null,
       withholdingTaxFlag: dto.withholdingTaxFlag ?? false,
+      contactPerson: dto.contactPerson?.trim() || null,
+      email: dto.email?.trim() || null,
+      preferredContactMethod: dto.preferredContactMethod || 'PHONE',
+      businessOccupation: dto.businessOccupation?.trim() || null,
       createdBy: userId,
     });
 
@@ -170,7 +174,7 @@ export class CustomersService {
     if (query.search && query.search.trim() !== '') {
       const s = `%${query.search.trim()}%`;
       qb.andWhere(
-        '(c.fullName ILIKE :s OR c.customerCode ILIKE :s OR c.mobileNumber ILIKE :s OR c.tinNumber ILIKE :s)',
+        '(c.fullName ILIKE :s OR c.customerCode ILIKE :s OR c.mobileNumber ILIKE :s OR c.tinNumber ILIKE :s OR c.contactPerson ILIKE :s OR c.email ILIKE :s OR c.preferredContactMethod ILIKE :s OR c.businessOccupation ILIKE :s)',
         { s },
       );
     }

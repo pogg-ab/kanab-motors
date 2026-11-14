@@ -87,6 +87,12 @@ export class VehicleUnit {
   @Column({ name: 'expected_handover_date', type: 'date', nullable: true })
   expectedHandoverDate?: string;
 
+  @Column({ name: 'insurance_responsibility', length: 100, nullable: true })
+  insuranceResponsibility?: string;
+
+  @Column({ name: 'storage_location_notes', type: 'text', nullable: true })
+  storageLocationNotes?: string;
+
   @Column({ name: 'handover_completed_at', type: 'timestamptz', nullable: true })
   handoverCompletedAt?: Date;
 

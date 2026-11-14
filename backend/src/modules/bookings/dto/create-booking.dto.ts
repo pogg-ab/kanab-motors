@@ -57,4 +57,9 @@ export class CreateBookingDto {
   @IsString()
   @IsOptional()
   paymentMethod?: string;
+
+  @ApiPropertyOptional({ example: 'Customer requested fast delivery and charging kit' })
+  @IsString()
+  @IsOptional()
+  customerRequirementsNotes?: string;
 }

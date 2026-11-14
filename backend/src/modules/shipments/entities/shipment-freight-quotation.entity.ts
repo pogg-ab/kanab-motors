@@ -60,6 +60,22 @@ export class ShipmentFreightQuotation {
   @Column({ name: 'selection_status', length: 20, default: 'PENDING' })
   selectionStatus: 'PENDING' | 'SELECTED' | 'REJECTED';
 
+  @Column({ name: 'approval_status', length: 20, default: 'PENDING' })
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  @Column({ name: 'approved_by', type: 'int', nullable: true })
+  approvedBy?: number;
+
+  @ManyToOne(() => AppUser, { nullable: true })
+  @JoinColumn({ name: 'approved_by' })
+  approver?: AppUser;
+
+  @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+  approvedAt?: Date;
+
+  @Column({ name: 'rejection_reason', type: 'text', nullable: true })
+  rejectionReason?: string;
+
   @Column({ name: 'selection_reason', type: 'text', nullable: true })
   selectionReason?: string;
 

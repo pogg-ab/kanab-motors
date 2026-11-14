@@ -134,6 +134,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   // Letter of Credit Action Modal
   const [showAddLCModal, setShowAddLCModal] = useState<boolean>(false);
+  const [lcError, setLcError] = useState<string | null>(null);
   const [lcNumber, setLcNumber] = useState<string>('');
   const [lcIssuingBank, setLcIssuingBank] = useState<string>('Commercial Bank of Ethiopia');
   const [lcAdvisingBank, setLcAdvisingBank] = useState<string>('State Bank of India, Mumbai');
@@ -191,9 +192,12 @@ export const PurchaseOrdersPage: React.FC = () => {
       setSuppliers(suppsData);
       setProducts(prodsRes.items || []);
       setExchangeRates(rates || []);
-      setBankAccounts(banksRes || []);
-      if (banksRes && banksRes.length > 0 && !bankAccountId) {
-        setBankAccountId(banksRes[0].bankAccountId);
+      const banksList = banksRes || [];
+      setBankAccounts(banksList);
+      const activeBanks = banksList.filter((b: CompanyBankAccount) => b.isActive !== false);
+      const preferredBank = activeBanks.find((b: CompanyBankAccount) => b.isDefault) || activeBanks[0];
+      if (preferredBank && !bankAccountId) {
+        setBankAccountId(preferredBank.bankAccountId);
       }
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load purchase orders'));
@@ -237,7 +241,9 @@ export const PurchaseOrdersPage: React.FC = () => {
     setExpectedDeliveryDate('');
     setProformaInvoiceNo('');
     setProformaInvoiceDate('');
-    if (bankAccounts.length > 0) setBankAccountId(bankAccounts[0].bankAccountId);
+    const activeBanks = bankAccounts.filter((b) => b.isActive !== false);
+    const preferredBank = activeBanks.find((b) => b.isDefault) || activeBanks[0];
+    setBankAccountId(preferredBank?.bankAccountId ?? '');
     setLines([{ itemId: '', quantityOrdered: 10, unitPrice: 2500, hsnSacCode: '8711.20', uom: 'PCS' }]);
     setPoError(null);
     setEditingOrder(null);
@@ -265,7 +271,9 @@ export const PurchaseOrdersPage: React.FC = () => {
     setExpectedDeliveryDate(po.expectedDeliveryDate || '');
     setProformaInvoiceNo(po.proformaInvoiceNo || '');
     setProformaInvoiceDate(po.proformaInvoiceDate || '');
-    setBankAccountId(po.bankAccountId || (bankAccounts[0]?.bankAccountId ?? ''));
+    const activeBanks = bankAccounts.filter((b) => b.isActive !== false);
+    const preferredBank = activeBanks.find((b) => b.isDefault) || activeBanks[0];
+    setBankAccountId(po.bankAccountId || (preferredBank?.bankAccountId ?? ''));
     setLines(
       po.lines.map((l) => ({
         itemId: l.itemId,
@@ -302,6 +310,10 @@ export const PurchaseOrdersPage: React.FC = () => {
       const prod = products.find((p) => p.itemId === val);
       if (prod && !updated[index].unitPrice) {
         updated[index].unitPrice = Number(prod.sellingPrice) > 0 ? Number(prod.sellingPrice) : 2500;
+      }
+      const productUom = prod?.uom?.uomCode || prod?.uom?.uomName;
+      if (productUom) {
+        updated[index].uom = productUom;
       }
     }
     setLines(updated);
@@ -485,8 +497,26 @@ export const PurchaseOrdersPage: React.FC = () => {
   // Letter of Credit Handlers
   const handleAddLC = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOrder || !lcNumber || !lcAmount || !lcExpiryDate) {
-      showToast('error', 'Please fill in all mandatory L/C fields');
+    setLcError(null);
+    if (!selectedOrder || !lcNumber.trim() || !lcIssuingBank.trim() || !lcAmount || !lcIssueDate || !lcExpiryDate) {
+      const msg = 'Please fill in all mandatory L/C fields';
+      setLcError(msg);
+      showToast('error', msg);
+      return;
+    }
+    if (lcExpiryDate < lcIssueDate) {
+      const msg = 'L/C expiry date must be on or after the issue date';
+      setLcError(msg);
+      return;
+    }
+    if (lcLatestShipmentDate && lcLatestShipmentDate < lcIssueDate) {
+      const msg = 'Latest shipment date cannot be earlier than the L/C issue date';
+      setLcError(msg);
+      return;
+    }
+    if (lcLatestShipmentDate && lcLatestShipmentDate > lcExpiryDate) {
+      const msg = 'Latest shipment date cannot be after the L/C expiry date';
+      setLcError(msg);
       return;
     }
     try {
@@ -503,12 +533,15 @@ export const PurchaseOrdersPage: React.FC = () => {
       });
       showToast('success', `Letter of Credit ${lcNumber} recorded successfully`);
       setShowAddLCModal(false);
+      setLcError(null);
       setLcNumber('');
       setLcAmount('');
       const refreshed = await api.getPurchaseOrder(selectedOrder.poId);
       setSelectedOrder(refreshed);
     } catch (err: any) {
-      showToast('error', formatApiError(err, 'Failed to record Letter of Credit'));
+      const msg = formatApiError(err, 'Failed to record Letter of Credit');
+      setLcError(msg);
+      showToast('error', msg);
     }
   };
 
@@ -1267,7 +1300,10 @@ export const PurchaseOrdersPage: React.FC = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowAddLCModal(true)}
+                      onClick={() => {
+                        setLcError(null);
+                        setShowAddLCModal(true);
+                      }}
                       className="btn btn-cyan btn-sm"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                     >
@@ -1489,11 +1525,13 @@ export const PurchaseOrdersPage: React.FC = () => {
                         onChange={(e) => setBankAccountId(Number(e.target.value) || '')}
                       >
                         <option value="">Select Bank Account...</option>
-                        {bankAccounts.map((b) => (
-                          <option key={b.bankAccountId} value={b.bankAccountId}>
-                            {b.bankName} - {b.accountName} ({b.currency})
-                          </option>
-                        ))}
+                        {bankAccounts
+                          .filter((b) => b.isActive !== false || String(b.bankAccountId) === String(bankAccountId))
+                          .map((b) => (
+                            <option key={b.bankAccountId} value={b.bankAccountId}>
+                              {b.bankName} - {b.accountName} ({b.currency}){b.isDefault ? ' [Default]' : ''}{b.isActive === false ? ' [Inactive]' : ''}
+                            </option>
+                          ))}
                       </select>
                     </div>
                   </div>
@@ -1517,17 +1555,17 @@ export const PurchaseOrdersPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                  <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)' }}>
                     <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '30%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PRODUCT *</th>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '12%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>HSN/SAC</th>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '15%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY *</th>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UOM</th>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '18%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UNIT PRICE ({currency}) *</th>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '15%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
-                          <th style={{ padding: '0.65rem 0.85rem', width: '5%' }}></th>
+                          <th style={{ padding: '0.6rem 0.5rem', width: '28%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PRODUCT *</th>
+                          <th style={{ padding: '0.6rem 0.5rem', width: '13%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>HSN/SAC</th>
+                          <th style={{ padding: '0.6rem 0.5rem', width: '10%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>QTY *</th>
+                          <th style={{ padding: '0.6rem 0.5rem', width: '12%', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UOM</th>
+                          <th style={{ padding: '0.6rem 0.5rem', width: '17%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>UNIT PRICE ({currency}) *</th>
+                          <th style={{ padding: '0.6rem 0.5rem', width: '15%', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>LINE TOTAL</th>
+                          <th style={{ padding: '0.6rem 0.4rem', width: '5%' }}></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1535,9 +1573,10 @@ export const PurchaseOrdersPage: React.FC = () => {
                           const total = Number(l.quantityOrdered || 0) * Number(l.unitPrice || 0);
                           return (
                             <tr key={idx}>
-                              <td>
+                              <td style={{ padding: '0.5rem 0.45rem' }}>
                                 <select
                                   className="input w-full text-xs"
+                                  style={{ minWidth: '175px', padding: '0.4rem 0.5rem' }}
                                   value={l.itemId}
                                   onChange={(e) => handleLineChange(idx, 'itemId', e.target.value)}
                                   required
@@ -1550,47 +1589,51 @@ export const PurchaseOrdersPage: React.FC = () => {
                                   ))}
                                 </select>
                               </td>
-                              <td>
+                              <td style={{ padding: '0.5rem 0.45rem' }}>
                                 <input
                                   type="text"
                                   className="input w-full text-xs font-mono"
+                                  style={{ minWidth: '88px', padding: '0.4rem 0.55rem' }}
                                   value={l.hsnSacCode || '8711.20'}
                                   onChange={(e) => handleLineChange(idx, 'hsnSacCode', e.target.value)}
                                 />
                               </td>
-                              <td>
+                              <td style={{ padding: '0.5rem 0.45rem' }}>
                                 <input
                                   type="number"
                                   min="1"
                                   className="input w-full text-xs"
+                                  style={{ minWidth: '72px', padding: '0.4rem 0.55rem' }}
                                   value={l.quantityOrdered}
                                   onChange={(e) => handleLineChange(idx, 'quantityOrdered', e.target.value)}
                                   required
                                 />
                               </td>
-                              <td>
+                              <td style={{ padding: '0.5rem 0.45rem' }}>
                                 <input
                                   type="text"
                                   className="input w-full text-xs"
-                                  value={l.uom || 'PCS'}
+                                  style={{ minWidth: '78px', padding: '0.4rem 0.55rem', textAlign: 'center' }}
+                                  value={l.uom ?? 'PCS'}
                                   onChange={(e) => handleLineChange(idx, 'uom', e.target.value)}
                                 />
                               </td>
-                              <td>
+                              <td style={{ padding: '0.5rem 0.45rem' }}>
                                 <input
                                   type="number"
                                   min="0.01"
                                   step="0.01"
                                   className="input w-full text-xs font-mono"
+                                  style={{ minWidth: '105px', padding: '0.4rem 0.55rem', textAlign: 'right' }}
                                   value={l.unitPrice}
                                   onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
                                   required
                                 />
                               </td>
-                              <td className="font-mono font-bold text-xs">
+                              <td className="font-mono font-bold text-xs" style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                 {currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
-                              <td>
+                              <td style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveLine(idx)}
@@ -1860,6 +1903,7 @@ export const PurchaseOrdersPage: React.FC = () => {
             </div>
             <form onSubmit={handleAddLC}>
               <div className="modal-body space-y-3 text-xs">
+                <ModalErrorAlert error={lcError} onDismiss={() => setLcError(null)} />
                 <div>
                   <label className="form-label">L/C Reference Number *</label>
                   <input

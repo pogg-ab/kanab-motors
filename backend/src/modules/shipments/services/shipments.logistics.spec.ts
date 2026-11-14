@@ -159,7 +159,7 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
         { provide: getRepositoryToken(ShipmentCargoTracking), useValue: mockCargoTrackingRepo },
         { provide: getRepositoryToken(ShipmentDocument), useValue: mockShipmentDocRepo },
         { provide: getRepositoryToken(ImportNotification), useValue: mockNotificationRepo },
-        { provide: DataSource, useValue: {} },
+        { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([]) } },
         { provide: LandedCostAllocationService, useValue: {} },
       ],
     }).compile();
@@ -173,7 +173,7 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
     expect(forwarders[0].name).toBe('Bolloré Logistics');
   });
 
-  it('should record competing quotation and select approved quotation (Story IMP-24, IMP-25)', async () => {
+  it('should record competing quotation, select pending approval, then approve separately with separation of duties (Story IMP-24, IMP-25)', async () => {
     const quote = await service.addShipmentQuotation('10', {
       freightForwarderId: '1',
       freightAmount: 4200,
@@ -181,11 +181,217 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
     });
     expect(quote.freightAmount).toBe(4200);
 
+    mockShipmentRepo.update.mockClear();
     const selected = await service.selectShipmentQuotation('10', '100', {
       selectionReason: 'Lowest transit time and bonded warehouse facilities at Mojo dry port',
+      userId: 2,
     });
     expect(selected.selectionStatus).toBe('SELECTED');
+    expect(selected.approvalStatus).toBe('PENDING');
     expect(selected.selectionReason).toContain('Lowest transit time');
+    expect(mockShipmentRepo.update).not.toHaveBeenCalled();
+
+    // Same user cannot self-approve without explicit override
+    mockQuotationRepo.findOne.mockResolvedValueOnce({ ...selected });
+    await expect(
+      service.approveShipmentQuotation('10', '100', { userId: 2 }),
+    ).rejects.toThrow('Separation of duties');
+
+    // Different authorized approver approves and appoints forwarder
+    mockQuotationRepo.findOne.mockResolvedValueOnce({ ...selected });
+    mockQuotationRepo.find.mockResolvedValueOnce([
+      { ...selected },
+      { quotationId: '101', shipmentId: '10', freightForwarderId: '2', selectionStatus: 'PENDING', approvalStatus: 'PENDING' },
+    ]);
+    const approved = await service.approveShipmentQuotation('10', '100', {
+      approvalNotes: 'Executive approval granted',
+      userId: 5,
+    });
+    expect(approved.approvalStatus).toBe('APPROVED');
+    expect(approved.approvedBy).toBe(5);
+    expect(mockShipmentRepo.update).toHaveBeenCalledWith(
+      { shipmentId: '10' },
+      { selectedForwarderId: '1' },
+    );
+
+    // Reject workflow test
+    mockQuotationRepo.findOne.mockResolvedValueOnce({
+      quotationId: '102',
+      shipmentId: '10',
+      freightForwarderId: '3',
+      selectionStatus: 'SELECTED',
+      approvalStatus: 'PENDING',
+    });
+    const rejected = await service.rejectShipmentQuotation('10', '102', {
+      rejectionReason: 'Incomplete port destination fee breakdown',
+      userId: 5,
+    });
+    expect(rejected.selectionStatus).toBe('REJECTED');
+    expect(rejected.approvalStatus).toBe('REJECTED');
+    expect(rejected.rejectionReason).toContain('Incomplete');
+  });
+
+  it('should detect missing required docs and derive expiry from expiryDate in document completeness report (Story IMP-46, IMP-48)', async () => {
+    const mockDataSource = (service as any).dataSource;
+    const mockAttachRepo = (service as any).attachmentRepo;
+    mockAttachRepo.find = jest.fn().mockResolvedValue([]);
+    mockShipmentRepo.find.mockResolvedValueOnce([
+      {
+        shipmentId: '10',
+        shipmentNumber: 'SHP-2026-0001',
+        currentStage: ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE,
+        lines: [],
+        bookings: [],
+      },
+    ]);
+    mockShipmentDocRepo.find.mockResolvedValueOnce([
+      {
+        shipmentDocumentId: '701',
+        shipmentId: '10',
+        shipment: { shipmentNumber: 'SHP-2026-0001' },
+        documentType: 'COMMERCIAL_INVOICE',
+        documentReference: 'INV-OLD-1',
+        verificationStatus: 'VERIFIED',
+        expiryDate: '2020-01-01',
+        originalDocumentStatus: 'NOT_RECEIVED',
+      },
+    ]);
+    mockDataSource.query.mockResolvedValueOnce([
+      {
+        requirement_id: '1',
+        process_stage: 'ETHIOPIAN_CUSTOMS_CLEARANCE',
+        document_type: 'CUSTOMS_DECLARATION',
+        is_required: true,
+        requires_verification: true,
+      },
+    ]);
+
+    const report = await service.getDocumentCompletenessReport();
+    expect(report.statusCounts.EXPIRED).toBe(1);
+    expect(report.statusCounts.MISSING).toBe(1);
+    expect(report.missingCount).toBe(1);
+    expect(report.expiredCount).toBe(1);
+    const missingEntry = report.documents.find((d: any) => d.documentType === 'CUSTOMS_DECLARATION');
+    expect(missingEntry?.verificationStatus).toBe('MISSING');
+    expect(missingEntry?.isMissing).toBe(true);
+    const expiredEntry = report.documents.find((d: any) => d.documentType === 'COMMERCIAL_INVOICE');
+    expect(expiredEntry?.verificationStatus).toBe('EXPIRED');
+    expect(expiredEntry?.isExpired).toBe(true);
+  });
+
+  it('should match destination_country against company country rather than port and skip future stages (IMP-46)', async () => {
+    const mockDataSource = (service as any).dataSource;
+    const mockAttachRepo = (service as any).attachmentRepo;
+    mockAttachRepo.find = jest.fn().mockResolvedValue([]);
+    mockShipmentRepo.find.mockResolvedValueOnce([
+      {
+        shipmentId: '12',
+        shipmentNumber: 'SHP-2026-0012',
+        currentStage: ShipmentStage.AT_DJIBOUTI_PORT,
+        lines: [
+          {
+            quantityShipped: 2,
+            poLine: {
+              purchaseOrder: {
+                poNumber: 'PO-12',
+                modeOfShipment: 'SEA',
+                portOfDischarge: 'Djibouti Port',
+                companySnapshot: { country: 'Ethiopia' },
+              },
+            },
+          },
+        ],
+        bookings: [{ destinationPort: 'Djibouti Port' }],
+      },
+    ]);
+    mockShipmentDocRepo.find.mockResolvedValueOnce([
+      {
+        shipmentDocumentId: '799',
+        shipmentId: '12',
+        shipment: { shipmentNumber: 'SHP-2026-0012' },
+        documentType: 'BILL_OF_LADING',
+        verificationStatus: 'PENDING',
+        originalDocumentStatus: 'NOT_RECEIVED',
+      },
+    ]);
+    mockDataSource.query.mockResolvedValueOnce([
+      {
+        requirement_id: '10',
+        destination_country: 'Ethiopia',
+        shipment_type: 'SEA',
+        process_stage: 'AT_DJIBOUTI_PORT',
+        document_type: 'PACKING_LIST',
+        is_required: true,
+        requires_verification: true,
+      },
+      {
+        requirement_id: '11',
+        destination_country: 'Kenya',
+        shipment_type: 'SEA',
+        process_stage: 'AT_DJIBOUTI_PORT',
+        document_type: 'KENYA_IDF',
+        is_required: true,
+        requires_verification: true,
+      },
+      {
+        requirement_id: '12',
+        destination_country: null,
+        shipment_type: null,
+        process_stage: 'RECEIVED',
+        document_type: 'BILL_OF_LADING',
+        is_required: true,
+        requires_verification: true,
+      },
+    ]);
+
+    const report = await service.getDocumentCompletenessReport();
+    expect(report.missingCount).toBe(1);
+    expect(report.documents.map((d: any) => d.documentType)).toEqual(['PACKING_LIST']);
+  });
+
+  it('should filter pipeline report and build CSV export (Story IMP-43)', async () => {
+    const mockDataSource = (service as any).dataSource;
+    mockShipmentRepo.find.mockResolvedValueOnce([
+      {
+        shipmentId: '10',
+        shipmentNumber: 'SHP-2026-0001',
+        currentStage: ShipmentStage.SHIPPED,
+        expectedArrivalDate: '2026-06-15',
+        lines: [{ quantityShipped: 4, poLine: { purchaseOrder: { poNumber: 'PO-1', portOfDischarge: 'Djibouti', supplier: { supplierName: 'TVS India' } } } }],
+        bookings: [],
+        costComponents: [],
+      },
+      {
+        shipmentId: '11',
+        shipmentNumber: 'SHP-2026-0002',
+        currentStage: ShipmentStage.RECEIVED,
+        expectedArrivalDate: '2026-07-01',
+        lines: [{ quantityShipped: 2, poLine: { purchaseOrder: { poNumber: 'PO-2', portOfDischarge: 'Modjo', supplier: { supplierName: 'Bajaj Auto' } } } }],
+        bookings: [],
+        costComponents: [],
+      },
+    ]);
+    mockDataSource.query.mockResolvedValue([]);
+
+    const filtered = await service.getPipelineReport({ supplier: 'TVS', status: 'SHIPPED' });
+    expect(filtered.totalShipments).toBe(1);
+    expect(filtered.shipments[0].shipmentNumber).toBe('SHP-2026-0001');
+
+    mockShipmentRepo.find.mockResolvedValueOnce([
+      {
+        shipmentId: '10',
+        shipmentNumber: 'SHP-2026-0001',
+        currentStage: ShipmentStage.SHIPPED,
+        expectedArrivalDate: '2026-06-15',
+        lines: [{ quantityShipped: 4, poLine: { purchaseOrder: { poNumber: 'PO-1', portOfDischarge: 'Djibouti', supplier: { supplierName: 'TVS India' } } } }],
+        bookings: [],
+        costComponents: [],
+      },
+    ]);
+    const csvExport = await service.exportPipelineReportCsv({ supplier: 'TVS' });
+    expect(csvExport.filename).toContain('import-pipeline-report-');
+    expect(csvExport.csv).toContain('Shipment No,Current Stage,PO Number');
+    expect(csvExport.csv).toContain('SHP-2026-0001,SHIPPED,PO-1,TVS India');
   });
 
   it('should record vessel booking and container allocations (Story IMP-26, IMP-27)', async () => {

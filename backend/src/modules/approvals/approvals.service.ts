@@ -147,13 +147,13 @@ export class ApprovalsService {
 
     const pendingRequests = await this.dataSource.query(`
       SELECT 
-        ar.approval_request_id AS id,
-        ar.request_number AS reference_number,
-        ar.workflow_type_code,
-        ar.entity_type,
-        ar.entity_id,
+        ar.approval_request_id::text AS id,
+        ar.request_number::text AS reference_number,
+        ar.workflow_type_code::text AS workflow_type_code,
+        ar.entity_type::text AS entity_type,
+        ar.entity_id::bigint AS entity_id,
         ar.requested_at AS submission_date,
-        COALESCE(u.full_name, 'System') AS requesting_user,
+        COALESCE(u.full_name, 'System')::text AS requesting_user,
         ROUND(EXTRACT(EPOCH FROM (NOW() - ar.requested_at)) / 3600.0, 1) AS hours_elapsed
       FROM approval_request ar
       LEFT JOIN app_user u ON u.user_id = ar.requested_by
@@ -163,12 +163,12 @@ export class ApprovalsService {
       
       SELECT
         se.enquiry_id::text AS id,
-        se.enquiry_number AS reference_number,
-        'SALES_ENQUIRY' AS workflow_type_code,
-        'sales_enquiry' AS entity_type,
-        se.enquiry_id AS entity_id,
+        se.enquiry_number::text AS reference_number,
+        'SALES_ENQUIRY'::text AS workflow_type_code,
+        'sales_enquiry'::text AS entity_type,
+        se.enquiry_id::bigint AS entity_id,
         se.created_at AS submission_date,
-        COALESCE(u.full_name, se.salesperson_name) AS requesting_user,
+        COALESCE(u.full_name, se.salesperson_name)::text AS requesting_user,
         ROUND(EXTRACT(EPOCH FROM (NOW() - se.created_at)) / 3600.0, 1) AS hours_elapsed
       FROM sales_enquiry se
       LEFT JOIN app_user u ON u.user_id = se.created_by
@@ -178,12 +178,12 @@ export class ApprovalsService {
       
       SELECT
         cr.refund_id::text AS id,
-        cr.refund_number AS reference_number,
-        'CUSTOMER_REFUND' AS workflow_type_code,
-        'customer_refund' AS entity_type,
-        cr.refund_id AS entity_id,
+        cr.refund_number::text AS reference_number,
+        'CUSTOMER_REFUND'::text AS workflow_type_code,
+        'customer_refund'::text AS entity_type,
+        cr.refund_id::bigint AS entity_id,
         cr.created_at AS submission_date,
-        'Customer / Sales' AS requesting_user,
+        'Customer / Sales'::text AS requesting_user,
         ROUND(EXTRACT(EPOCH FROM (NOW() - cr.created_at)) / 3600.0, 1) AS hours_elapsed
       FROM customer_refund cr
       WHERE cr.status = 'REQUESTED'
@@ -204,6 +204,11 @@ export class ApprovalsService {
           .getOne();
 
         if (!recent) {
+          const recipientRole = req.workflow_type_code === 'SALES_ENQUIRY'
+            ? (req.entity_type === 'sales_enquiry' ? 'SALES_MANAGER' : 'SALES_APPROVER')
+            : req.workflow_type_code === 'CUSTOMER_REFUND'
+              ? 'FINANCE_MANAGER'
+              : 'DESIGNATED_APPROVER';
           const log = this.reminderLogRepo.create({
             workflowTypeCode: req.workflow_type_code,
             entityType: req.entity_type,
@@ -214,10 +219,21 @@ export class ApprovalsService {
               requestingUser: req.requesting_user,
               submissionDate: req.submission_date,
               hoursElapsed: hours,
+              recipientRole,
+              deliveryStatus: 'DELIVERED',
               link: `/${req.entity_type.replace(/_/g, '-')}/${req.entity_id}`,
             },
           });
           await this.reminderLogRepo.save(log);
+          const reminderWindow = Math.floor(hours / intervalHours);
+          await this.dataSource.query(
+            `INSERT INTO import_notification
+             (event_type, recipient_role, entity_type, entity_id, title, message, severity,
+              delivery_channel, delivery_status, delivered_at, deduplication_key)
+             VALUES ('APPROVAL_REMINDER',$1,$2,$3,$4,$5,'WARNING','IN_APP','DELIVERED',now(),$6)
+             ON CONFLICT (deduplication_key) WHERE deduplication_key IS NOT NULL DO NOTHING`,
+            [recipientRole, req.entity_type, String(req.entity_id), `Approval pending: ${req.reference_number}`, `${req.workflow_type_code} has been pending for ${hours} hours.`, `APPROVAL:${req.entity_type}:${req.entity_id}:${reminderWindow}`],
+          );
           notificationsGenerated++;
           newLogs.push(log);
         }

@@ -150,6 +150,31 @@ export class SelectFreightQuotationDto {
   userId?: number;
 }
 
+export class ApproveFreightQuotationDto {
+  @IsOptional()
+  @IsString()
+  approvalNotes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  allowSelfApproval?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  userId?: number;
+}
+
+export class RejectFreightQuotationDto {
+  @IsString()
+  rejectionReason: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  userId?: number;
+}
+
 // -------------------------------------------------------------
 // IMP-26: Shipment Booking & Vessel Details
 // -------------------------------------------------------------
@@ -402,6 +427,16 @@ export class CreateShipmentDocumentDto {
   documentType: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  versionNumber?: number;
+
+  @IsOptional()
+  @IsString()
+  supersedesDocumentId?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(100)
   documentReference?: string;
@@ -461,6 +496,10 @@ export class VerifyShipmentDocumentDto {
   notes?: string;
 
   @IsOptional()
+  @IsString()
+  overrideReason?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   userId?: number;
@@ -473,6 +512,22 @@ export class UpdateOriginalDocumentStatusDto {
   @IsOptional()
   @IsDateString()
   releaseDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  originalDispatchedAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  originalReceivedAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  electronicReleaseAt?: string;
+
+  @IsOptional()
+  @IsString()
+  releasePaymentStatus?: string;
 
   @IsOptional()
   @Type(() => Number)

@@ -16,6 +16,7 @@ import {
   Clock,
   Layers,
   Printer,
+  RotateCcw,
 } from 'lucide-react';
 import {
   api,
@@ -23,6 +24,7 @@ import {
   PreAdvanceSlip,
   Customer,
   ProductItem,
+  ProductCategory,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useAuth } from '../../context/AuthContext';
@@ -47,6 +49,25 @@ export const EnquiriesPage: React.FC = () => {
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingEnquiry, setEditingEnquiry] = useState<SalesEnquiry | null>(null);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [requirements, setRequirements] = useState({
+    leadSource: 'WALK_IN',
+    branchShowroom: '',
+    vehicleCategoryId: '',
+    preferredColor: '',
+    requiredDeliveryDate: '',
+    registrationHomologationNeeded: false,
+    chargerTypeIncluded: false,
+    targetBudget: '',
+    currency: 'ETB',
+    financingRequired: false,
+    expectedDeposit: '',
+    expectedPaymentTimeline: '',
+    financeProvider: '',
+    tradeInVehicle: false,
+    customerRequirementsNotes: '',
+  });
   const [formData, setFormData] = useState({
     customerId: '',
     itemId: '',
@@ -118,14 +139,30 @@ export const EnquiriesPage: React.FC = () => {
     };
   }, [selectedQuote, selectedSlip]);
 
+  const getVehicleLabel = (item?: any) => {
+    if (!item) return 'Vehicle Item';
+    const brandStr = typeof item.brand === 'object' ? (item.brand?.brandName || '') : (item.brand || item.brandName || item.make || '');
+    const brand = typeof brandStr === 'string' ? brandStr : '';
+    const modelStr = item.model || item.itemName || 'Vehicle';
+    const model = typeof modelStr === 'string' ? modelStr : 'Vehicle';
+    const year = item.modelYear ? ` ${item.modelYear}` : '';
+    const condition = item.newOrUsed ? ` (${item.newOrUsed})` : item.isNewVehicle === false ? ' (Used)' : item.isNewVehicle === true ? ' (New)' : '';
+    if (brand && model && !model.toLowerCase().includes(brand.toLowerCase())) {
+      return `${brand} ${model}${year}${condition}`.trim();
+    }
+    return `${model}${year}${condition}`.trim();
+  };
+
   const fetchDependencies = async () => {
     try {
-      const [custRes, itemRes] = await Promise.all([
+      const [custRes, itemRes, catRes] = await Promise.all([
         api.getCustomers({ limit: 100 }),
         api.getItems({ limit: 100 }),
+        api.getCategories().catch(() => []),
       ]);
       setCustomers(custRes.items);
       setItems(itemRes.items);
+      setCategories(catRes || []);
     } catch (err) {
       console.error('Failed to load dependencies:', err);
     }
@@ -157,6 +194,7 @@ export const EnquiriesPage: React.FC = () => {
 
   const handleOpenCreate = () => {
     if (!canCreateEnquiry) return;
+    setEditingEnquiry(null);
     const defaultItem = items[0];
     setFormData({
       customerId: customers[0]?.customerId || '',
@@ -165,6 +203,54 @@ export const EnquiriesPage: React.FC = () => {
       unitPrice: defaultItem ? defaultItem.sellingPrice.toString() : '',
       salespersonName: user?.fullName || '',
       paymentMode: 'BANK_DEPOSIT',
+    });
+    setRequirements({
+      leadSource: 'WALK_IN',
+      branchShowroom: '',
+      vehicleCategoryId: '',
+      preferredColor: '',
+      requiredDeliveryDate: '',
+      registrationHomologationNeeded: false,
+      chargerTypeIncluded: false,
+      targetBudget: '',
+      currency: 'ETB',
+      financingRequired: false,
+      expectedDeposit: '',
+      expectedPaymentTimeline: '',
+      financeProvider: '',
+      tradeInVehicle: false,
+      customerRequirementsNotes: '',
+    });
+    setFormError(null);
+    setIsCreateOpen(true);
+  };
+
+  const handleStartEdit = (enq: SalesEnquiry) => {
+    setEditingEnquiry(enq);
+    setFormData({
+      customerId: enq.customerId,
+      itemId: enq.itemId,
+      quantity: enq.quantity,
+      unitPrice: enq.unitPrice ? enq.unitPrice.toString() : '',
+      salespersonName: enq.salespersonName || user?.fullName || '',
+      paymentMode: enq.paymentMode || 'BANK_DEPOSIT',
+    });
+    setRequirements({
+      leadSource: enq.leadSource || 'WALK_IN',
+      branchShowroom: enq.branchShowroom || '',
+      vehicleCategoryId: enq.vehicleCategoryId ? enq.vehicleCategoryId.toString() : '',
+      preferredColor: enq.preferredColor || '',
+      requiredDeliveryDate: enq.requiredDeliveryDate || '',
+      registrationHomologationNeeded: !!enq.registrationHomologationNeeded,
+      chargerTypeIncluded: !!enq.chargerTypeIncluded,
+      targetBudget: enq.targetBudget !== undefined && enq.targetBudget !== null ? enq.targetBudget.toString() : '',
+      currency: enq.currency || 'ETB',
+      financingRequired: !!enq.financingRequired,
+      expectedDeposit: enq.expectedDeposit !== undefined && enq.expectedDeposit !== null ? enq.expectedDeposit.toString() : '',
+      expectedPaymentTimeline: enq.expectedPaymentTimeline || '',
+      financeProvider: enq.financeProvider || '',
+      tradeInVehicle: !!enq.tradeInVehicle,
+      customerRequirementsNotes: enq.customerRequirementsNotes || '',
     });
     setFormError(null);
     setIsCreateOpen(true);
@@ -226,18 +312,33 @@ export const EnquiriesPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await api.createEnquiry({
+      const payload: any = {
+        ...requirements,
+        vehicleCategoryId: requirements.vehicleCategoryId ? Number(requirements.vehicleCategoryId) : undefined,
+        targetBudget: requirements.targetBudget === '' ? undefined : Number(requirements.targetBudget),
+        expectedDeposit: requirements.expectedDeposit === '' ? undefined : Number(requirements.expectedDeposit),
+        requiredDeliveryDate: requirements.requiredDeliveryDate || undefined,
         customerId: formData.customerId,
         itemId: formData.itemId,
         quantity: formData.quantity,
         unitPrice: currentPrice,
         salespersonName: trimmedSp,
         paymentMode: formData.paymentMode,
-      });
+      };
+
+      if (editingEnquiry) {
+        await api.updateEnquiry(editingEnquiry.enquiryId, {
+          ...payload,
+          isDraft: false,
+        });
+      } else {
+        await api.createEnquiry(payload);
+      }
       setIsCreateOpen(false);
+      setEditingEnquiry(null);
       fetchEnquiries();
     } catch (err: any) {
-      setFormError(formatApiError(err, 'Failed to create enquiry'));
+      setFormError(formatApiError(err, editingEnquiry ? 'Failed to resubmit enquiry' : 'Failed to create enquiry'));
     } finally {
       setSubmitting(false);
     }
@@ -595,6 +696,9 @@ export const EnquiriesPage: React.FC = () => {
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
                         {new Date(enq.createdAt).toLocaleDateString()}
                       </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.15rem', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                        {enq.leadSource || 'WALK_IN'} {enq.branchShowroom ? `· ${enq.branchShowroom}` : ''}
+                      </div>
                       <div style={{ marginTop: '0.2rem' }}>
                         {(() => {
                           const daysRemaining = 30 - Math.floor((Date.now() - new Date(enq.createdAt).getTime()) / (1000 * 60 * 60 * 24));
@@ -617,9 +721,19 @@ export const EnquiriesPage: React.FC = () => {
                       </div>
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{enq.item?.itemName}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        Code: {enq.item?.itemCode}
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getVehicleLabel(enq.item)}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span>Code: {enq.item?.itemCode}</span>
+                        {enq.preferredColor && (
+                          <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
+                            {enq.preferredColor}
+                          </span>
+                        )}
+                        {enq.chargerTypeIncluded && (
+                          <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem', color: 'var(--accent-emerald)' }}>
+                            ⚡ Charger
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
@@ -632,6 +746,19 @@ export const EnquiriesPage: React.FC = () => {
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                         VAT (15%): ETB {Number(enq.vatAmount).toLocaleString()}
                       </div>
+                      {enq.targetBudget ? (
+                        <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>
+                          Target: {enq.currency || 'ETB'} {Number(enq.targetBudget).toLocaleString()}
+                        </div>
+                      ) : null}
+                      {enq.customerRequirementsNotes ? (
+                        <div
+                          style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          title={enq.customerRequirementsNotes}
+                        >
+                          📝 {enq.customerRequirementsNotes}
+                        </div>
+                      ) : null}
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
@@ -660,7 +787,7 @@ export const EnquiriesPage: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                         {enq.status === 'SUBMITTED' && (canApproveEnquiry || canRejectEnquiry) && (
                           <>
                             {canApproveEnquiry && (
@@ -704,9 +831,30 @@ export const EnquiriesPage: React.FC = () => {
                           </span>
                         )}
                         {enq.status === 'REJECTED' && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }} title={enq.rejectionReason}>
-                            {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 20)}...` : 'Rejected'}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }} title={enq.rejectionReason}>
+                              {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 24)}...` : 'Rejected'}
+                            </span>
+                            {canCreateEnquiry && (
+                              <button
+                                className="btn btn-sm"
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '0.2rem 0.55rem',
+                                  background: 'rgba(245, 158, 11, 0.15)',
+                                  color: 'var(--accent-amber)',
+                                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                }}
+                                onClick={() => handleStartEdit(enq)}
+                                title="Correct and resubmit this rejected enquiry for dual approval"
+                              >
+                                <RotateCcw size={12} /> Correct & Resubmit
+                              </button>
+                            )}
+                          </div>
                         )}
                         {(enq.status === 'APPROVED' || enq.status === 'CONVERTED') && (
                           <button
@@ -766,14 +914,21 @@ export const EnquiriesPage: React.FC = () => {
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Create Sales Enquiry</h3>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {editingEnquiry ? `Correct & Resubmit Enquiry — ${editingEnquiry.enquiryNumber}` : 'Create Sales Enquiry'}
+                  </h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Capture customer vehicle interest with real-time VAT calculation
+                    {editingEnquiry
+                      ? 'Update rejected enquiry requirements and resubmit for two-stage approval'
+                      : 'Capture customer vehicle interest with real-time VAT calculation'}
                   </span>
                 </div>
               </div>
               <button
-                onClick={() => setIsCreateOpen(false)}
+                onClick={() => {
+                  setIsCreateOpen(false);
+                  setEditingEnquiry(null);
+                }}
                 className="btn btn-secondary"
                 style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
               >
@@ -784,6 +939,17 @@ export const EnquiriesPage: React.FC = () => {
             <form onSubmit={handleCreateEnquiry}>
               <div className="modal-body">
                 <ModalErrorAlert error={formError} onDismiss={() => setFormError(null)} />
+
+                {editingEnquiry && editingEnquiry.rejectionReason && (
+                  <div style={{ padding: '0.85rem', background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: 'var(--radius-md)', marginBottom: '1rem' }}>
+                    <div style={{ fontWeight: 700, color: 'var(--accent-rose)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <AlertCircle size={15} /> Previous Rejection Reason to Correct:
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                      {editingEnquiry.rejectionReason}
+                    </div>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label className="form-label">Customer *</label>
@@ -812,7 +978,7 @@ export const EnquiriesPage: React.FC = () => {
                     >
                       {items.map((i) => (
                         <option key={i.itemId} value={i.itemId}>
-                          {i.itemCode} — {i.itemName}
+                          {getVehicleLabel(i)} — {i.itemCode}
                         </option>
                       ))}
                     </select>
@@ -876,6 +1042,191 @@ export const EnquiriesPage: React.FC = () => {
                 </div>
 
                 {/* Live Value Calculation Preview Box */}
+                <fieldset style={{ border: '1px solid var(--border-color)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+                  <legend style={{ padding: '0 0.5rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                    Vehicle Requirements, Budget & Client Preferences
+                  </legend>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Lead Source</label>
+                      <select
+                        className="select-field"
+                        value={requirements.leadSource}
+                        onChange={(e) => setRequirements({ ...requirements, leadSource: e.target.value })}
+                      >
+                        {['WALK_IN', 'REFERRAL', 'WEBSITE', 'SOCIAL_MEDIA', 'PHONE', 'CAMPAIGN', 'OTHER'].map((v) => (
+                          <option key={v} value={v}>
+                            {v.replace(/_/g, ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Branch / Showroom</label>
+                      <input
+                        className="input-field"
+                        type="text"
+                        placeholder="e.g. Bole Flagship Showroom"
+                        value={requirements.branchShowroom}
+                        onChange={(e) => setRequirements({ ...requirements, branchShowroom: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Vehicle Category</label>
+                      <select
+                        className="select-field"
+                        value={requirements.vehicleCategoryId}
+                        onChange={(e) => setRequirements({ ...requirements, vehicleCategoryId: e.target.value })}
+                      >
+                        <option value="">Select Category...</option>
+                        {categories.map((c) => (
+                          <option key={c.categoryId} value={c.categoryId}>
+                            {c.categoryName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Preferred Colour</label>
+                      <input
+                        className="input-field"
+                        type="text"
+                        placeholder="e.g. Pearl White, Midnight Black"
+                        value={requirements.preferredColor}
+                        onChange={(e) => setRequirements({ ...requirements, preferredColor: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Required Delivery Date</label>
+                      <input
+                        className="input-field"
+                        type="date"
+                        value={requirements.requiredDeliveryDate}
+                        onChange={(e) => setRequirements({ ...requirements, requiredDeliveryDate: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Budget Currency</label>
+                      <select
+                        className="select-field"
+                        value={requirements.currency}
+                        onChange={(e) => setRequirements({ ...requirements, currency: e.target.value })}
+                      >
+                        <option value="ETB">ETB — Ethiopian Birr</option>
+                        <option value="USD">USD — US Dollar</option>
+                        <option value="EUR">EUR — Euro</option>
+                        <option value="GBP">GBP — British Pound</option>
+                        <option value="CNY">CNY — Chinese Yuan</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Target Budget</label>
+                      <input
+                        className="input-field"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Customer budget expectation"
+                        value={requirements.targetBudget}
+                        onChange={(e) => setRequirements({ ...requirements, targetBudget: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Expected Deposit (Target, not receipt)</label>
+                      <input
+                        className="input-field"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Expected initial deposit amount"
+                        value={requirements.expectedDeposit}
+                        onChange={(e) => setRequirements({ ...requirements, expectedDeposit: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Expected Payment Timeline</label>
+                    <input
+                      className="input-field"
+                      type="text"
+                      placeholder="e.g. 50% upon allocation, balance before delivery"
+                      value={requirements.expectedPaymentTimeline}
+                      onChange={(e) => setRequirements({ ...requirements, expectedPaymentTimeline: e.target.value })}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', margin: '0.5rem 0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={requirements.registrationHomologationNeeded}
+                        onChange={(e) => setRequirements({ ...requirements, registrationHomologationNeeded: e.target.checked })}
+                      />
+                      Registration / Homologation Needed
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={requirements.chargerTypeIncluded}
+                        onChange={(e) => setRequirements({ ...requirements, chargerTypeIncluded: e.target.checked })}
+                      />
+                      Home / Fast Charger Included
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={requirements.financingRequired}
+                        onChange={(e) => setRequirements({ ...requirements, financingRequired: e.target.checked })}
+                      />
+                      Bank Financing Required
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={requirements.tradeInVehicle}
+                        onChange={(e) => setRequirements({ ...requirements, tradeInVehicle: e.target.checked })}
+                      />
+                      Customer Has Trade-In Vehicle
+                    </label>
+                  </div>
+
+                  {requirements.financingRequired && (
+                    <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                      <label className="form-label">Bank / Finance Provider</label>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. Commercial Bank of Ethiopia, Dashen Bank"
+                        value={requirements.financeProvider}
+                        onChange={(e) => setRequirements({ ...requirements, financeProvider: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                    <label className="form-label">Customer Requirements & Special Notes</label>
+                    <textarea
+                      className="input-field"
+                      rows={3}
+                      placeholder="Special customer requests, accessories, specific battery preferences, or delivery instructions..."
+                      value={requirements.customerRequirementsNotes}
+                      onChange={(e) => setRequirements({ ...requirements, customerRequirementsNotes: e.target.value })}
+                    />
+                  </div>
+                </fieldset>
                 <div style={{
                   padding: '1.25rem',
                   background: 'rgba(15, 23, 42, 0.8)',
@@ -902,11 +1253,18 @@ export const EnquiriesPage: React.FC = () => {
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setEditingEnquiry(null);
+                  }}
+                >
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? 'Submitting...' : 'Submit Enquiry'}
+                  {submitting ? 'Submitting...' : editingEnquiry ? 'Correct & Resubmit for Approval' : 'Submit Enquiry'}
                 </button>
               </div>
             </form>
@@ -1258,7 +1616,7 @@ export const EnquiriesPage: React.FC = () => {
               </div>
 
               {/* Customer Box */}
-              <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.85rem', fontSize: '0.78rem' }}>
+              <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: '1.6fr 1.4fr', gap: '0.85rem', fontSize: '0.78rem' }}>
                 <div>
                   <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Customer Information</div>
                   <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', marginTop: '0.15rem' }}>{selectedQuote.customer?.fullName}</div>
@@ -1266,10 +1624,10 @@ export const EnquiriesPage: React.FC = () => {
                   <div style={{ color: '#475569' }}>Phone: {selectedQuote.customer?.mobileNumber}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Sales Attribution</div>
+                  <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Sales Attribution & Channel</div>
                   <div style={{ color: '#0f172a', marginTop: '0.15rem' }}>Salesperson: <strong>{selectedQuote.salespersonName}</strong></div>
+                  <div style={{ color: '#475569' }}>Channel: <strong>{selectedQuote.leadSource || 'WALK_IN'}</strong> {selectedQuote.branchShowroom ? `· ${selectedQuote.branchShowroom}` : ''}</div>
                   <div style={{ color: '#475569' }}>Payment Mode: {selectedQuote.paymentMode?.replace(/_/g, ' ') || 'Bank Deposit'}</div>
-                  <div style={{ color: '#475569' }}>Quote Status: <strong>{selectedQuote.status}</strong></div>
                 </div>
               </div>
 
@@ -1288,7 +1646,7 @@ export const EnquiriesPage: React.FC = () => {
                 <tbody>
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '8px', color: '#0f172a' }}>
-                      <strong style={{ color: '#0f172a' }}>{selectedQuote.item?.itemName}</strong>
+                      <strong style={{ color: '#0f172a' }}>{getVehicleLabel(selectedQuote.item)}</strong>
                       <div style={{ fontSize: '7pt', color: '#64748b' }}>Code: {selectedQuote.item?.itemCode}</div>
                     </td>
                     <td style={{ padding: '8px', textAlign: 'center', color: '#0f172a', fontWeight: 700 }}>
@@ -1309,6 +1667,26 @@ export const EnquiriesPage: React.FC = () => {
                   </tr>
                 </tbody>
               </table>
+
+              {/* Client Specifications & Retained Preferences */}
+              {(selectedQuote.preferredColor || selectedQuote.targetBudget || selectedQuote.customerRequirementsNotes || selectedQuote.chargerTypeIncluded) && (
+                <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', marginBottom: '1.25rem', fontSize: '0.72rem', color: '#334155' }}>
+                  <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.65rem' }}>Client Specifications & Retained Preferences:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    {selectedQuote.preferredColor && <div>Colour: <strong>{selectedQuote.preferredColor}</strong></div>}
+                    {selectedQuote.targetBudget && <div>Target Budget: <strong>{selectedQuote.currency || 'ETB'} {Number(selectedQuote.targetBudget).toLocaleString()}</strong></div>}
+                    {selectedQuote.expectedDeposit && <div>Expected Deposit: <strong>{selectedQuote.currency || 'ETB'} {Number(selectedQuote.expectedDeposit).toLocaleString()}</strong></div>}
+                    {selectedQuote.financeProvider && <div>Financing: <strong>{selectedQuote.financeProvider}</strong></div>}
+                    {selectedQuote.chargerTypeIncluded && <div>Charger: <strong>Included</strong></div>}
+                    {selectedQuote.registrationHomologationNeeded && <div>Homologation: <strong>Required</strong></div>}
+                  </div>
+                  {selectedQuote.customerRequirementsNotes && (
+                    <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.35rem', marginTop: '0.35rem' }}>
+                      Notes: <em>{selectedQuote.customerRequirementsNotes}</em>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Financial Summary & Terms */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>

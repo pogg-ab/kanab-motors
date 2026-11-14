@@ -4,6 +4,46 @@ export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? 'http://localhost:3052/api' : '/api');
 
+export function resolveCompanyAssetUrl(assetPath?: string | null): string | undefined {
+  const trimmed = assetPath?.trim();
+  if (!trimmed) return undefined;
+  if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed;
+
+  const base = API_BASE_URL.replace(/\/$/, '');
+  if (trimmed.startsWith('/api/')) {
+    return base.startsWith('http') ? `${base}${trimmed.slice(4)}` : trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    return `${base}${trimmed}`;
+  }
+  return trimmed;
+}
+
+export function resolveDocumentUrl(docPath?: string | null): string {
+  if (!docPath) return '#';
+  const trimmed = docPath.trim();
+  if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed;
+
+  const base = API_BASE_URL.replace(/\/$/, '');
+  if (trimmed.startsWith('/api/')) {
+    return base.startsWith('http') ? `${base}${trimmed.slice(4)}` : trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    return `${base}${trimmed}`;
+  }
+  if (trimmed.startsWith('uploads/')) {
+    return `${base}/${trimmed}`;
+  }
+  return `${base}/${trimmed.replace(/^\//, '')}`;
+}
+
+export interface CompanyBranding {
+  companyName: string;
+  tradeName?: string;
+  logo?: string;
+  country?: string;
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -131,6 +171,10 @@ export interface Attachment {
 }
 
 export interface Customer {
+  contactPerson?: string;
+  email?: string;
+  preferredContactMethod?: string;
+  businessOccupation?: string;
   customerId: string;
   customerCode: string;
   customerType: 'DIRECT_POS' | 'DEALER' | 'GOVERNMENT';
@@ -190,6 +234,11 @@ export interface TaxConfiguration {
 }
 
 export interface ProductItem {
+  modelYear?: number;
+  powertrain?: string;
+  newOrUsed?: string;
+  fuelEnergyType?: string;
+  drivingRangeKm?: number;
   itemId: string;
   itemCode: string;
   itemName: string;
@@ -232,6 +281,13 @@ export interface VehicleUnit {
   | 'READY_FOR_DELIVERY'
   | 'SOLD'
   | 'DELIVERED';
+  ownershipStatus?: string;
+  custodyCustomer?: any;
+  custodyReason?: string;
+  custodyStartDate?: string;
+  expectedHandoverDate?: string;
+  insuranceResponsibility?: string;
+  storageLocationNotes?: string;
   createdAt: string;
 }
 
@@ -274,6 +330,21 @@ export interface SalesEnquiry {
   paymentMode: string;
   status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CONVERTED';
   rejectionReason?: string;
+  leadSource?: string;
+  branchShowroom?: string;
+  vehicleCategoryId?: number;
+  preferredColor?: string;
+  requiredDeliveryDate?: string;
+  registrationHomologationNeeded?: boolean;
+  chargerTypeIncluded?: boolean;
+  targetBudget?: number;
+  currency?: string;
+  financingRequired?: boolean;
+  expectedDeposit?: number;
+  expectedPaymentTimeline?: string;
+  financeProvider?: string;
+  tradeInVehicle?: boolean;
+  customerRequirementsNotes?: string;
   createdAt: string;
 }
 
@@ -329,6 +400,9 @@ export interface Booking {
   cancellationReason?: string;
   allottedQuantity?: number;
   remainingQuantity?: number;
+  paymentMethod?: string;
+  customerRequirementsNotes?: string;
+  enquiryPreferences?: any;
   createdAt: string;
 }
 
@@ -757,10 +831,23 @@ export interface ShipmentFreightQuotation {
   additionalTerms?: string;
   attachmentId?: string;
   selectionStatus: 'PENDING' | 'SELECTED' | 'REJECTED';
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approvedBy?: number;
+  approver?: { fullName?: string; email?: string };
+  approvedAt?: string;
+  rejectionReason?: string;
   selectionReason?: string;
   selectedBy?: number;
-  selector?: { fullName?: string };
+  selector?: { fullName?: string; email?: string };
   selectedAt?: string;
+  decisionHistory?: Array<{
+    decision_history_id: string;
+    decision: string;
+    reason?: string;
+    decided_by?: number;
+    decided_by_name?: string;
+    decided_at: string;
+  }>;
   createdBy?: number;
   creator?: { fullName?: string };
   createdAt: string;
@@ -1114,7 +1201,9 @@ export interface CustomerPaymentTransfer {
 export interface ApprovalReminderConfig {
   configId: number;
   requestType: string;
+  workflowType?: string;
   intervalHours: number;
+  reminderIntervalHours?: number;
   escalationLeadHours?: number;
   isActive: boolean;
   notifyRole?: string;
@@ -1125,10 +1214,13 @@ export interface ApprovalReminderLog {
   logId: string;
   approvalRequestId?: string;
   requestType: string;
+  workflowType?: string;
+  targetEntityId?: string;
   notificationIntervalHours: number;
   recipientRole?: string;
   recipientEmail?: string;
   notificationChannel: string;
+  status?: string;
   sentAt: string;
   isEscalation: boolean;
 }
@@ -1302,6 +1394,7 @@ export const api = {
       })
       .then((r) => r.data),
   createEnquiry: (data: any) => apiClient.post<SalesEnquiry>('/enquiries', data).then((r) => r.data),
+  updateEnquiry: (id: string, data: any) => apiClient.patch<SalesEnquiry>(`/enquiries/${id}`, data).then((r) => r.data),
   updateEnquiryStatus: (id: string, status: string, rejectionReason?: string) =>
     apiClient.patch<SalesEnquiry>(`/enquiries/${id}/status`, { status, rejectionReason }).then((r) => r.data),
   getPreAdvanceSlips: (params?: { status?: string; search?: string }) =>
@@ -1428,10 +1521,21 @@ export const api = {
     apiClient.post<PurchaseOrder>('/import-requisitions/' + id + '/convert-to-po', { ...data, userId }).then((r) => r.data),
 
   // Company Profile Settings & Importer Bank Accounts
+  getCompanyBranding: () =>
+    apiClient.get<CompanyBranding>('/company-profile/branding').then((r) => r.data),
   getCompanyProfile: () =>
     apiClient.get<CompanyProfile>('/company-profile').then((r) => r.data),
   updateCompanyProfile: (id: number, data: Partial<CompanyProfile>) =>
     apiClient.put<CompanyProfile>('/company-profile/' + id, data).then((r) => r.data),
+  uploadCompanyLogo: (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient
+      .post<{ logoUrl: string; profile: CompanyProfile }>(`/company-profile/${id}/logo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
   getCompanyBankAccounts: () =>
     apiClient.get<CompanyBankAccount[]>('/company-profile/bank-accounts').then((r) => r.data),
   createCompanyBankAccount: (data: Partial<CompanyBankAccount>) =>
@@ -1503,8 +1607,34 @@ export const api = {
     apiClient.get<ExchangeRateDefault[]>('/shipments/lookups/exchange-rates').then((r) => r.data),
   updateExchangeRate: (currency: string, rateToEtb: number) =>
     apiClient.put(`/shipments/lookups/exchange-rates/${currency}`, { rateToEtb }).then((r) => r.data),
-  getShipmentPipelineReport: () =>
-    apiClient.get<any>('/shipments/reports/pipeline').then((r) => r.data),
+  getShipmentPipelineReport: (params?: {
+    businessUnit?: string;
+    supplier?: string;
+    destination?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }) => apiClient.get<any>('/shipments/reports/pipeline', { params }).then((r) => r.data),
+  exportShipmentPipelineCsv: async (params?: {
+    businessUnit?: string;
+    supplier?: string;
+    destination?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }) => {
+    const res = await apiClient.get('/shipments/reports/pipeline/export', { params, responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `import-pipeline-report-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
   // KMSICAMS-12 Part II: Freight Forwarders (IMP-23)
   getFreightForwarders: (activeOnly = true) =>
     apiClient.get<FreightForwarder[]>('/shipments/freight-forwarders', { params: { activeOnly } }).then((r) => r.data),
@@ -1522,6 +1652,10 @@ export const api = {
     apiClient.post<ShipmentFreightQuotation>('/shipments/' + shipmentId + '/quotations', data).then((r) => r.data),
   selectShipmentQuotation: (shipmentId: string, quotationId: string, data: any) =>
     apiClient.post<ShipmentFreightQuotation>('/shipments/' + shipmentId + '/quotations/' + quotationId + '/select', data).then((r) => r.data),
+  approveShipmentQuotation: (shipmentId: string, quotationId: string, data?: { approvalNotes?: string; allowSelfApproval?: boolean }) =>
+    apiClient.post<ShipmentFreightQuotation>('/shipments/' + shipmentId + '/quotations/' + quotationId + '/approve', data || {}).then((r) => r.data),
+  rejectShipmentQuotation: (shipmentId: string, quotationId: string, data: { rejectionReason: string }) =>
+    apiClient.post<ShipmentFreightQuotation>('/shipments/' + shipmentId + '/quotations/' + quotationId + '/reject', data).then((r) => r.data),
   getShipmentBookings: (shipmentId: string) =>
     apiClient.get<ShipmentBooking[]>('/shipments/' + shipmentId + '/bookings').then((r) => r.data),
   createShipmentBooking: (shipmentId: string, data: any) =>
@@ -1574,10 +1708,52 @@ export const api = {
   // Phase 8: Reporting & Reconciliation (IMP-45 - IMP-48)
   getShipmentLogisticsReport: () =>
     apiClient.get<any[]>('/shipments/reports/logistics').then((r) => r.data),
-  getDocumentCompletenessReport: () =>
-    apiClient.get<any>('/shipments/reports/document-completeness').then((r) => r.data),
+  exportShipmentLogisticsCsv: async () => {
+    const res = await apiClient.get('/shipments/reports/logistics/export', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `shipment-logistics-report-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+  getDocumentCompletenessReport: (params?: {
+    shipmentId?: string;
+    status?: string;
+    documentType?: string;
+    search?: string;
+  }) => apiClient.get<any>('/shipments/reports/document-completeness', { params }).then((r) => r.data),
+  exportDocumentCompletenessCsv: async (params?: {
+    shipmentId?: string;
+    status?: string;
+    documentType?: string;
+    search?: string;
+  }) => {
+    const res = await apiClient.get('/shipments/reports/document-completeness/export', { params, responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `document-completeness-report-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
   getImportReconciliationReport: () =>
     apiClient.get<any[]>('/shipments/reports/reconciliation').then((r) => r.data),
+  exportImportReconciliationCsv: async () => {
+    const res = await apiClient.get('/shipments/reports/reconciliation/export', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `import-reconciliation-report-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
   getImportMonitoringDashboard: () =>
     apiClient.get<any>('/shipments/reports/monitoring-dashboard').then((r) => r.data),
 
@@ -1873,17 +2049,19 @@ export const api = {
   // KMSICAMS-14 Client Feedback Methods
   // Polymorphic Attachments (KMSI-14-01, KMSI-14-02, KMSI-14-03, KMSI-14-04)
   getEntityAttachments: (entityType: string, entityId: string) =>
-    apiClient.get<Attachment[]>(`/documents/entity/${entityType}/${entityId}`).then((r) => r.data),
+    apiClient.get<Attachment[]>(`/documents/${entityType}/${entityId}`).then((r) => r.data),
   uploadEntityAttachment: (entityType: string, entityId: string, file: File, documentType?: string) => {
     const formData = new FormData();
     formData.append('file', file);
     if (documentType) formData.append('documentType', documentType);
-    return apiClient.post<Attachment>(`/documents/entity/${entityType}/${entityId}`, formData, {
+    return apiClient.post<Attachment>(`/documents/${entityType}/${entityId}/upload`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
   },
   deleteEntityAttachment: (attachmentId: string) =>
     apiClient.delete(`/documents/${attachmentId}`).then((r) => r.data),
+  claimDraftAttachments: (draftId: string, entityType: string, entityId: string) =>
+    apiClient.post(`/documents/draft/${draftId}/claim/${entityType}/${entityId}`).then((r) => r.data),
 
   // Two-Stage Sales Enquiry Approvals (KMSI-14-15)
   submitEnquiryForApproval: (id: string) =>
@@ -1894,30 +2072,39 @@ export const api = {
     apiClient.post<SalesEnquiry>(`/enquiries/${id}/sales-manager-approval`, data).then((r) => r.data),
 
   // Excess Payment Transfer (KMSI-14-05)
-  transferExcessPayment: (data: { fromBookingId: string; toBookingId: string; amount: number; authorizationReason: string }) =>
+  transferExcessPayment: (data: { sourceBookingId: string; destinationBookingId: string; destinationCustomerId: string; transferAmount: number; transferReason: string; authorizationReference: string; autoApprove?: boolean }) =>
     apiClient.post<CustomerPaymentTransfer>('/payments/transfer-excess', data).then((r) => r.data),
   getPaymentTransfers: (bookingId: string) =>
     apiClient.get<CustomerPaymentTransfer[]>(`/payments/transfers/${bookingId}`).then((r) => r.data),
+  getExcessTransfers: (status?: string) =>
+    apiClient.get<CustomerPaymentTransfer[]>('/payments/transfers', { params: { status } }).then((r) => r.data),
+  approveExcessTransfer: (transferId: string) =>
+    apiClient.post<CustomerPaymentTransfer>(`/payments/transfers/${transferId}/approve`).then((r) => r.data),
+  rejectExcessTransfer: (transferId: string, rejectionReason: string) =>
+    apiClient.post<CustomerPaymentTransfer>(`/payments/transfers/${transferId}/reject`, { rejectionReason }).then((r) => r.data),
 
   // Customer Custody Vehicles (KMSI-14-06)
-  recordVehicleCustody: (vehicleUnitId: string, data: { customerId: string; custodyReason: string; expectedHandoverDate?: string }) =>
-    apiClient.post<VehicleUnit>(`/vehicles/units/${vehicleUnitId}/custody`, data).then((r) => r.data),
+  recordVehicleCustody: (vehicleUnitId: string, data: { customerId: string; custodyReason: string; custodyStartDate?: string; expectedHandoverDate?: string; insuranceResponsibility?: string; storageLocationNotes?: string }) =>
+    apiClient.post<VehicleUnit>(`/vehicles/${vehicleUnitId}/custody`, data).then((r) => r.data),
   releaseVehicleCustody: (vehicleUnitId: string) =>
-    apiClient.post<VehicleUnit>(`/vehicles/units/${vehicleUnitId}/handover`).then((r) => r.data),
+    apiClient.post<VehicleUnit>(`/vehicles/${vehicleUnitId}/release-custody`).then((r) => r.data),
 
   // Financial & Inventory Reports (KMSI-14-07, KMSI-14-08)
-  getCreditSalesReport: (params?: { startDate?: string; endDate?: string; customerId?: string }) =>
+  getCreditSalesReport: (params?: { startDate?: string; endDate?: string; customerId?: string; branch?: string; status?: string }) =>
     apiClient.get<CreditSalesReport>('/reports/credit-sales', { params }).then((r) => r.data),
   getStockAgingReport: (params?: { category?: string; warehouseId?: number; agingBucket?: string }) =>
     apiClient.get<StockAgingReport>('/reports/stock-aging', { params }).then((r) => r.data),
 
   // Automated Approval Reminders (KMSI-14-09)
   scanApprovalReminders: () =>
-    apiClient.post<{ scannedAt: string; pendingApprovalsFound: number; remindersCreated: number; details: any[] }>('/approvals/reminders/scan').then((r) => r.data),
+    apiClient.post<{ scannedAt: string; pendingApprovalsFound: number; remindersCreated: number; details: any[] }>('/approvals/scan-reminders').then((r) => r.data),
   getApprovalReminderConfigs: () =>
     apiClient.get<ApprovalReminderConfig[]>('/approvals/reminders/configs').then((r) => r.data),
-  updateApprovalReminderConfig: (id: number, data: { intervalHours?: number; escalationLeadHours?: number; isActive?: boolean }) =>
-    apiClient.put<ApprovalReminderConfig>(`/approvals/reminders/configs/${id}`, data).then((r) => r.data),
+  updateApprovalReminderConfig: (id: number, data: { reminderIntervalHours?: number; intervalHours?: number; escalationLeadHours?: number; isActive?: boolean }) =>
+    apiClient.put<ApprovalReminderConfig>(`/approvals/reminders/configs/${id}`, {
+      reminderIntervalHours: data.reminderIntervalHours ?? data.intervalHours,
+      isActive: data.isActive,
+    }).then((r) => r.data),
   getApprovalReminderLogs: (limit?: number) =>
     apiClient.get<ApprovalReminderLog[]>('/approvals/reminders/logs', { params: { limit } }).then((r) => r.data),
 

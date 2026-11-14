@@ -202,9 +202,9 @@ export class ReportsService {
   }
 
   // =========================================================================
-  // 5. CREDIT SALES REPORT (KMSI-14-07)
+  // 5. CREDIT SALES REPORT (KMSI-14-07, KMS-FB-07)
   // =========================================================================
-  async getCreditSalesReport(filters?: { startDate?: string; endDate?: string; customerId?: string; status?: string }): Promise<any> {
+  async getCreditSalesReport(filters?: { startDate?: string; endDate?: string; customerId?: string; branch?: string; status?: string }): Promise<any> {
     let query = `
       WITH credit_records AS (
         SELECT 
@@ -213,22 +213,32 @@ export class ReportsService {
           si.invoice_number AS reference_number,
           si.customer_id::text AS customer_id,
           c.full_name AS customer_name,
+          COALESCE(se.branch_showroom, 'UNASSIGNED') AS branch,
           p.item_name AS item_description,
           si.created_at::date AS sale_date,
           si.net_payable AS total_amount,
-          si.deposits_applied AS amount_paid,
+          GREATEST(0, si.net_payable - si.outstanding_balance) AS amount_paid,
           si.outstanding_balance AS outstanding_balance,
           (si.created_at::date + interval '30 days')::date AS due_date,
           CASE 
             WHEN si.outstanding_balance <= 0 THEN 'PAID'
             WHEN (si.created_at::date + interval '30 days') < CURRENT_DATE THEN 'OVERDUE'
-            WHEN si.deposits_applied > 0 THEN 'PARTIALLY_PAID'
+            WHEN (si.net_payable - si.outstanding_balance) > 0 THEN 'PARTIALLY_PAID'
             ELSE 'UNPAID'
           END AS payment_status
         FROM sales_invoice si
         JOIN customer c ON c.customer_id = si.customer_id
         JOIN product_item p ON p.item_id = si.item_id
+        JOIN booking bk ON bk.booking_id = si.booking_id
+        LEFT JOIN sales_enquiry se ON se.enquiry_id = bk.enquiry_id
         WHERE si.status = 'APPROVED'
+          AND (
+            si.deposits_applied < si.net_payable
+            OR si.outstanding_balance > 0
+            OR se.financing_required = true
+            OR bk.payment_method IN ('LETTER_OF_CREDIT', 'CREDIT')
+            OR se.payment_mode IN ('LETTER_OF_CREDIT', 'CREDIT')
+          )
         
         UNION ALL
         
@@ -238,10 +248,11 @@ export class ReportsService {
           sps.sale_number AS reference_number,
           COALESCE(sps.customer_id::text, '0') AS customer_id,
           COALESCE(c.full_name, sps.customer_name) AS customer_name,
+          COALESCE(w.warehouse_name, 'UNASSIGNED') AS branch,
           'Spare Parts POS Counter Sale' AS item_description,
           sps.sale_date::date AS sale_date,
           sps.grand_total AS total_amount,
-          COALESCE(sps.amount_paid, 0) AS amount_paid,
+          COALESCE(sps.grand_total - sps.outstanding_balance, sps.amount_paid, 0) AS amount_paid,
           COALESCE(sps.outstanding_balance, sps.grand_total - COALESCE(sps.amount_paid, 0)) AS outstanding_balance,
           COALESCE(sps.credit_due_date, (sps.sale_date::date + interval '30 days')::date) AS due_date,
           CASE 
@@ -252,7 +263,9 @@ export class ReportsService {
           END AS payment_status
         FROM spare_parts_sale sps
         LEFT JOIN customer c ON c.customer_id = sps.customer_id
-        WHERE sps.status = 'COMPLETED' AND (sps.payment_method = 'CREDIT' OR sps.outstanding_balance > 0)
+        LEFT JOIN warehouse w ON w.warehouse_id = sps.warehouse_id
+        WHERE sps.status = 'COMPLETED' 
+          AND (sps.payment_method IN ('CREDIT', 'CUSTOMER_CREDIT') OR sps.outstanding_balance > 0 OR sps.credit_due_date IS NOT NULL)
       )
       SELECT * FROM credit_records WHERE 1=1
     `;
@@ -269,6 +282,10 @@ export class ReportsService {
     if (filters?.customerId) {
       params.push(filters.customerId);
       query += ` AND customer_id = $${params.length}`;
+    }
+    if (filters?.branch) {
+      params.push(filters.branch);
+      query += ` AND branch = $${params.length}`;
     }
     if (filters?.status) {
       params.push(filters.status);
@@ -303,26 +320,32 @@ export class ReportsService {
           vu.chassis_number AS identifier,
           vu.engine_number AS secondary_identifier,
           pi.item_name AS item_name,
+          pc.category_name AS category_name,
           COALESCE(b.brand_name, 'Kanab') AS brand_name,
           COALESCE(pi.model, 'Standard') AS model,
           COALESCE(w.warehouse_name, 'Main Warehouse') AS warehouse_name,
           vu.current_warehouse_id AS warehouse_id,
-          vu.created_at::date AS stock_entry_date,
-          (CURRENT_DATE - vu.created_at::date)::int AS age_in_days,
+          COALESCE(vu.custody_start_date::date, vu.created_at::date) AS stock_entry_date,
+          (CURRENT_DATE - COALESCE(vu.custody_start_date::date, vu.created_at::date))::int AS age_in_days,
           CASE 
-            WHEN (CURRENT_DATE - vu.created_at::date) <= 30 THEN '0_TO_30_DAYS'
-            WHEN (CURRENT_DATE - vu.created_at::date) <= 60 THEN '31_TO_60_DAYS'
-            WHEN (CURRENT_DATE - vu.created_at::date) <= 90 THEN '61_TO_90_DAYS'
-            WHEN (CURRENT_DATE - vu.created_at::date) <= 180 THEN '91_TO_180_DAYS'
+            WHEN (CURRENT_DATE - COALESCE(vu.custody_start_date::date, vu.created_at::date)) <= 30 THEN '0_TO_30_DAYS'
+            WHEN (CURRENT_DATE - COALESCE(vu.custody_start_date::date, vu.created_at::date)) <= 60 THEN '31_TO_60_DAYS'
+            WHEN (CURRENT_DATE - COALESCE(vu.custody_start_date::date, vu.created_at::date)) <= 90 THEN '61_TO_90_DAYS'
+            WHEN (CURRENT_DATE - COALESCE(vu.custody_start_date::date, vu.created_at::date)) <= 180 THEN '91_TO_180_DAYS'
             ELSE 'OVER_180_DAYS'
           END AS aging_bucket,
-          vu.current_status AS status,
+          vu.current_status::text AS status,
           COALESCE(vu.ownership_status, 'COMPANY_OWNED') AS ownership_status,
           c.full_name AS custody_customer_name,
-          COALESCE(pi.selling_price, 0) AS unit_value
+          CASE 
+            WHEN vu.ownership_status = 'CUSTOMER_OWNED' THEN 0 
+            ELSE COALESCE(pi.selling_price, 0) 
+          END AS unit_value,
+          COALESCE(pi.selling_price, 0) AS market_value
         FROM vehicle_unit vu
         JOIN product_item pi ON pi.item_id = vu.item_id
         LEFT JOIN brand b ON b.brand_id = pi.brand_id
+        LEFT JOIN product_category pc ON pc.category_id = pi.category_id
         LEFT JOIN warehouse w ON w.warehouse_id = vu.current_warehouse_id
         LEFT JOIN customer c ON c.customer_id = vu.custody_customer_id
         WHERE vu.current_status != 'DELIVERED'
@@ -335,28 +358,31 @@ export class ReportsService {
           COALESCE(pi.part_number, pi.item_code) AS identifier,
           pi.item_code AS secondary_identifier,
           pi.item_name AS item_name,
+          pc.category_name AS category_name,
           COALESCE(b.brand_name, 'OEM') AS brand_name,
           COALESCE(pi.model, 'Spare Part') AS model,
           COALESCE(w.warehouse_name, 'Spare Parts Depot') AS warehouse_name,
           sb.warehouse_id AS warehouse_id,
-          sb.created_at::date AS stock_entry_date,
-          (CURRENT_DATE - sb.created_at::date)::int AS age_in_days,
+          sb.updated_at::date AS stock_entry_date,
+          (CURRENT_DATE - sb.updated_at::date)::int AS age_in_days,
           CASE 
-            WHEN (CURRENT_DATE - sb.created_at::date) <= 30 THEN '0_TO_30_DAYS'
-            WHEN (CURRENT_DATE - sb.created_at::date) <= 60 THEN '31_TO_60_DAYS'
-            WHEN (CURRENT_DATE - sb.created_at::date) <= 90 THEN '61_TO_90_DAYS'
-            WHEN (CURRENT_DATE - sb.created_at::date) <= 180 THEN '91_TO_180_DAYS'
+            WHEN (CURRENT_DATE - sb.updated_at::date) <= 30 THEN '0_TO_30_DAYS'
+            WHEN (CURRENT_DATE - sb.updated_at::date) <= 60 THEN '31_TO_60_DAYS'
+            WHEN (CURRENT_DATE - sb.updated_at::date) <= 90 THEN '61_TO_90_DAYS'
+            WHEN (CURRENT_DATE - sb.updated_at::date) <= 180 THEN '91_TO_180_DAYS'
             ELSE 'OVER_180_DAYS'
           END AS aging_bucket,
           'IN_STOCK' AS status,
           'COMPANY_OWNED' AS ownership_status,
           NULL AS custody_customer_name,
-          (sb.current_balance * pi.selling_price) AS unit_value
+          (sb.quantity_on_hand * COALESCE(pi.selling_price, 0)) AS unit_value,
+          (sb.quantity_on_hand * COALESCE(pi.selling_price, 0)) AS market_value
         FROM stock_balance sb
         JOIN product_item pi ON pi.item_id = sb.item_id
         LEFT JOIN brand b ON b.brand_id = pi.brand_id
+        LEFT JOIN product_category pc ON pc.category_id = pi.category_id
         LEFT JOIN warehouse w ON w.warehouse_id = sb.warehouse_id
-        WHERE sb.current_balance > 0 AND pi.item_type != 'VEHICLE'
+        WHERE sb.quantity_on_hand > 0 AND pi.item_type != 'VEHICLE'
       )
       SELECT * FROM stock_entries WHERE 1=1
     `;
@@ -387,13 +413,19 @@ export class ReportsService {
       'OVER_180_DAYS': items.filter((i: any) => i.aging_bucket === 'OVER_180_DAYS').length,
     };
 
-    const totalValuation = items.reduce((acc: number, curr: any) => acc + Number(curr.unit_value || 0), 0);
+    // KMS-FB-06: Customer-owned vehicles retained onsite are strictly excluded from company-owned asset inventory valuation
+    const companyOwnedItems = items.filter((i: any) => i.ownership_status !== 'CUSTOMER_OWNED');
+    const customerOwnedItems = items.filter((i: any) => i.ownership_status === 'CUSTOMER_OWNED');
+    const totalCompanyValuation = companyOwnedItems.reduce((acc: number, curr: any) => acc + Number(curr.unit_value || 0), 0);
+    const customerOwnedValuation = customerOwnedItems.reduce((acc: number, curr: any) => acc + Number(curr.market_value || 0), 0);
 
     return {
       buckets,
       totalItems: items.length,
-      totalValuation,
-      customerOwnedRetainedCount: items.filter((i: any) => i.ownership_status === 'CUSTOMER_OWNED').length,
+      totalValuation: totalCompanyValuation,
+      companyOwnedValuation: totalCompanyValuation,
+      customerOwnedValuation,
+      customerOwnedRetainedCount: customerOwnedItems.length,
       items,
     };
   }

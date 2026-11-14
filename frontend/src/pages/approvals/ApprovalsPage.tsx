@@ -185,14 +185,27 @@ export const ApprovalsPage: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={loadData}
-            className="btn btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <RefreshCw size={15} className={loading ? 'spin' : ''} />
-            Refresh Queue
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                loadRemindersData();
+                setShowReminderModal(true);
+              }}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Bell size={15} />
+              Reminder Engine
+            </button>
+            <button
+              onClick={loadData}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              Refresh Queue
+            </button>
+          </div>
         </div>
       </div>
 
@@ -739,6 +752,182 @@ export const ApprovalsPage: React.FC = () => {
                     : 'Confirm Rejection'}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* KMSICAMS-14 (KMSI-14-09): Automated Approval Reminders Modal */}
+      {showReminderModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ padding: '0.6rem', background: 'rgba(6, 182, 212, 0.15)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--accent-cyan)' }}>
+                  <Bell size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Approval Reminder Engine & Dispatch Scanner
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Automated background reminder scheduler and audit tracking for aging approvals
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowReminderModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>✕</button>
+            </div>
+
+            <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '1.5rem' }}>
+              {/* Manual Dispatch Trigger */}
+              <div style={{ background: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.25)', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                    Trigger Immediate Approval Scan
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                    Scans all pending workflows (Shipments, Enquiries, Refunds, POs) and dispatches reminder notifications.
+                  </div>
+                  {scanResult && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', marginTop: '0.35rem', fontWeight: 600 }}>
+                      ✓ Scan complete at {scanResult.scannedAt}: {scanResult.count} reminders evaluated/dispatched.
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleScanReminders}
+                  disabled={scanningReminders}
+                  className="btn btn-cyan"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
+                >
+                  <Play size={14} className={scanningReminders ? 'spin' : ''} />
+                  {scanningReminders ? 'Scanning...' : 'Scan & Dispatch Now'}
+                </button>
+              </div>
+
+              {/* Reminder Configurations */}
+              <div style={{ marginBottom: '1.75rem' }}>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Configured Workflow Intervals
+                </h4>
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', color: 'var(--text-muted)' }}>WORKFLOW / ENTITY</th>
+                        <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>INTERVAL (HOURS)</th>
+                        <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>STATUS</th>
+                        <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reminderConfigs.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            No reminder configurations loaded.
+                          </td>
+                        </tr>
+                      ) : (
+                        reminderConfigs.map((cfg) => (
+                          <tr key={cfg.configId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.75rem 0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {(cfg.workflowType || cfg.requestType || 'GENERAL').replace(/_/g, ' ')}
+                            </td>
+                            <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                              <input
+                                type="number"
+                                min="1"
+                                max="168"
+                                defaultValue={cfg.reminderIntervalHours || cfg.intervalHours || 4}
+                                onBlur={async (e) => {
+                                  const hours = parseInt(e.target.value, 10);
+                                  const currentVal = cfg.reminderIntervalHours || cfg.intervalHours;
+                                  if (hours > 0 && hours !== currentVal) {
+                                    await api.updateApprovalReminderConfig(cfg.configId, {
+                                      reminderIntervalHours: hours,
+                                      isActive: cfg.isActive,
+                                    });
+                                    loadRemindersData();
+                                  }
+                                }}
+                                style={{ width: '65px', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', textAlign: 'center', fontSize: '0.8rem' }}
+                              />
+                            </td>
+                            <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                              <span className={`badge ${cfg.isActive ? 'badge-emerald' : 'badge-subtle'}`}>
+                                {cfg.isActive ? 'Active' : 'Disabled'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleReminderConfig(cfg)}
+                                className={`btn btn-sm ${cfg.isActive ? 'btn-secondary' : 'btn-cyan'}`}
+                                style={{ padding: '0.25rem 0.6rem', fontSize: '0.72rem' }}
+                              >
+                                {cfg.isActive ? 'Pause' : 'Activate'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent Dispatch History */}
+              <div>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Recent Dispatch Audit Log
+                </h4>
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden', maxHeight: '200px', overflowY: 'auto' }}>
+                  <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)' }}>TIME</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)' }}>WORKFLOW</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)' }}>RECIPIENT</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', color: 'var(--text-muted)' }}>STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reminderLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            No dispatch events logged yet. Click &quot;Scan &amp; Dispatch Now&quot; to test reminders.
+                          </td>
+                        </tr>
+                      ) : (
+                        reminderLogs.map((log) => (
+                          <tr key={log.logId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>
+                              {new Date(log.sentAt).toLocaleString()}
+                            </td>
+                            <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {(log.workflowType || log.requestType || 'APPROVAL')} #{log.targetEntityId || log.approvalRequestId || ''}
+                            </td>
+                            <td style={{ padding: '0.5rem 0.75rem', color: 'var(--accent-cyan)' }}>
+                              {log.recipientRole || log.recipientEmail || 'N/A'}
+                            </td>
+                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                              <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>
+                                {log.status || (log.sentAt ? 'SENT' : 'DISPATCHED')}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" onClick={() => setShowReminderModal(false)} className="btn btn-secondary">
+                Close
+              </button>
             </div>
           </div>
         </div>

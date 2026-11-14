@@ -96,7 +96,10 @@ export const VehiclesPage: React.FC = () => {
   const [custodyFormData, setCustodyFormData] = useState({
     customerId: '',
     custodyReason: 'Customer requested deferred handover pending showroom / warehouse readiness',
+    custodyStartDate: new Date().toISOString().split('T')[0],
     expectedHandoverDate: '',
+    insuranceResponsibility: 'CUSTOMER_INSURED',
+    storageLocationNotes: '',
   });
   const [custodySubmitting, setCustodySubmitting] = useState(false);
   const [custodyError, setCustodyError] = useState<string | null>(null);
@@ -164,12 +167,14 @@ export const VehiclesPage: React.FC = () => {
 
   const fetchDependencies = async () => {
     try {
-      const [itms, whs] = await Promise.all([
+      const [itms, whs, custs] = await Promise.all([
         api.getItems({ limit: 100 }),
         api.getWarehouses(),
+        api.getCustomers(),
       ]);
       setItems(itms.items);
       setWarehouses(whs);
+      setCustomersList(Array.isArray(custs) ? custs : (custs as any).items || []);
     } catch (err) {
       console.error('Failed to load vehicle dependencies:', err);
     }
@@ -515,7 +520,10 @@ export const VehiclesPage: React.FC = () => {
       await api.recordVehicleCustody(custodyModalUnit.vehicleUnitId, {
         customerId: custodyFormData.customerId,
         custodyReason: custodyFormData.custodyReason.trim(),
+        custodyStartDate: custodyFormData.custodyStartDate || undefined,
         expectedHandoverDate: custodyFormData.expectedHandoverDate || undefined,
+        insuranceResponsibility: custodyFormData.insuranceResponsibility,
+        storageLocationNotes: custodyFormData.storageLocationNotes?.trim() || undefined,
       });
       setCustodyModalUnit(null);
       fetchVehicles();
@@ -929,19 +937,40 @@ export const VehiclesPage: React.FC = () => {
                       </div>
                     </td>
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                      <span
-                        className={`badge ${
-                          v.currentStatus === 'AVAILABLE_FOR_SALE'
-                            ? 'badge-emerald'
-                            : v.currentStatus === 'RECEIVED'
-                            ? 'badge-amber'
-                            : v.currentStatus === 'ALLOTTED'
-                            ? 'badge-indigo'
-                            : 'badge-purple'
-                        }`}
-                      >
-                        {v.currentStatus}
-                      </span>
+                      {v.ownershipStatus === 'CUSTOMER_OWNED' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'center' }}>
+                          <span className="badge badge-amber" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
+                            CUSTOMER-OWNED (RETAINED)
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Owner: {v.custodyCustomer?.fullName || 'Customer'}
+                          </span>
+                          {v.custodyStartDate && (
+                            <span style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                              ⏱ {Math.max(0, Math.floor((Date.now() - new Date(v.custodyStartDate).getTime()) / (1000 * 3600 * 24)))}d in storage
+                            </span>
+                          )}
+                          {v.insuranceResponsibility && (
+                            <span className="badge badge-subtle" style={{ fontSize: '0.6rem' }}>
+                              🛡️ {v.insuranceResponsibility.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span
+                          className={`badge ${
+                            v.currentStatus === 'AVAILABLE_FOR_SALE'
+                              ? 'badge-emerald'
+                              : v.currentStatus === 'RECEIVED'
+                              ? 'badge-amber'
+                              : v.currentStatus === 'ALLOTTED'
+                              ? 'badge-indigo'
+                              : 'badge-purple'
+                          }`}
+                        >
+                          {v.currentStatus}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -951,13 +980,44 @@ export const VehiclesPage: React.FC = () => {
                     <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center' }}>
                         <button
-                          className="btn btn-primary btn-sm"
+                          className="btn btn-secondary btn-sm"
                           onClick={() => setSelectedVehicleForDetail(v)}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
-                          title="View Full Lifecycle & Audit Trail"
+                          title="View Vehicle Details"
                         >
-                          <Eye size={12} /> Lifecycle
+                          <Eye size={12} /> View
                         </button>
+                        {v.ownershipStatus !== 'CUSTOMER_OWNED' && v.currentStatus !== 'DELIVERED' && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              setCustodyModalUnit(v);
+                              setCustodyError(null);
+                              setCustodyFormData({
+                                customerId: '',
+                                custodyReason: 'Customer collecting T+7',
+                                custodyStartDate: new Date().toISOString().split('T')[0],
+                                expectedHandoverDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+                                insuranceResponsibility: 'CUSTOMER_INSURED',
+                                storageLocationNotes: 'Main Showroom Bay A',
+                              });
+                            }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                            title="Record Customer Custody Retention (KMS-FB-06)"
+                          >
+                            <Shield size={12} /> Custody
+                          </button>
+                        )}
+                        {v.ownershipStatus === 'CUSTOMER_OWNED' && v.currentStatus !== 'DELIVERED' && (
+                          <button
+                            className="btn btn-emerald btn-sm"
+                            onClick={() => handleCompleteHandover(v.vehicleUnitId)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                            title="Complete physical handover to customer (KMS-FB-06)"
+                          >
+                            <CheckCircle2 size={12} /> Handover
+                          </button>
+                        )}
                         {canEditVehicle && (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -1266,7 +1326,7 @@ export const VehiclesPage: React.FC = () => {
       {/* KMSICAMS-14 (KMSI-14-06): Customer-Owned Stock Retention Modal */}
       {custodyModalUnit && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '540px' }}>
+          <div className="modal-content" style={{ maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <div>
                 <h3 className="modal-title">Record Customer Physical Custody</h3>
@@ -1307,13 +1367,51 @@ export const VehiclesPage: React.FC = () => {
                   </select>
                 </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Custody Start Date *</label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={custodyFormData.custodyStartDate}
+                      onChange={(e) => setCustodyFormData({ ...custodyFormData, custodyStartDate: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Expected Handover Date</label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={custodyFormData.expectedHandoverDate}
+                      onChange={(e) => setCustodyFormData({ ...custodyFormData, expectedHandoverDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 <div className="form-group">
-                  <label className="form-label">Expected Handover Date (Optional)</label>
+                  <label className="form-label">Insurance & Risk Responsibility *</label>
+                  <select
+                    className="select-field"
+                    value={custodyFormData.insuranceResponsibility}
+                    onChange={(e) => setCustodyFormData({ ...custodyFormData, insuranceResponsibility: e.target.value })}
+                    required
+                  >
+                    <option value="CUSTOMER_INSURED">Customer Comprehensive Motor Insurance</option>
+                    <option value="DEALERSHIP_COMPREHENSIVE">Dealership Premises Comprehensive Policy</option>
+                    <option value="SHARED_TRANSIT_ONLY">Shared / Transit & Storage Only</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Storage / Yard Bay Location Notes</label>
                   <input
-                    type="date"
+                    type="text"
                     className="input-field"
-                    value={custodyFormData.expectedHandoverDate}
-                    onChange={(e) => setCustodyFormData({ ...custodyFormData, expectedHandoverDate: e.target.value })}
+                    placeholder="e.g. Kality Main Plant - Covered Bay 4, Row B"
+                    value={custodyFormData.storageLocationNotes}
+                    onChange={(e) => setCustodyFormData({ ...custodyFormData, storageLocationNotes: e.target.value })}
                   />
                 </div>
 
@@ -1353,7 +1451,7 @@ export const VehiclesPage: React.FC = () => {
 
       {statusModalUnit && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '480px' }}>
+          <div className="modal-content" style={{ maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div
@@ -2044,7 +2142,7 @@ export const VehiclesPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                   <CarFront size={20} color="var(--accent-cyan)" />
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                    Vehicle Lifecycle: {selectedVehicleForDetail.chassisNumber}
+                    Vehicle Details — {selectedVehicleForDetail.chassisNumber}
                   </h2>
                   <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>
                     {selectedVehicleForDetail.currentStatus.replace(/_/g, ' ')}
@@ -2122,16 +2220,16 @@ export const VehiclesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 4 Detail Grid Sections */}
+            {/* Real Vehicle & Custody Details */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
-              {/* Section 1: Basic & Warehouse Info */}
+              {/* Column 1: Vehicle & Warehouse Specs */}
               <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <CarFront size={14} /> Basic & Warehouse Information
+                  <CarFront size={14} /> Vehicle & Warehouse Details
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Chassis Number:</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Chassis Number (VIN):</span>
                     <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{selectedVehicleForDetail.chassisNumber}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2139,129 +2237,109 @@ export const VehiclesPage: React.FC = () => {
                     <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)' }}>{selectedVehicleForDetail.engineNumber}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Brand / Model:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{selectedVehicleForDetail.item?.brand?.brandName || 'Bajaj'} · {selectedVehicleForDetail.item?.itemName}</strong>
+                    <span style={{ color: 'var(--text-muted)' }}>Model / Specification:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{selectedVehicleForDetail.item?.itemName}</strong>
                   </div>
-                  {selectedVehicleForDetail.item?.colour && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Colour / Finish:</span>
-                      <strong style={{ color: '#818cf8' }}>🎨 {selectedVehicleForDetail.item.colour}</strong>
-                    </div>
-                  )}
-                  {(selectedVehicleForDetail.item?.engineCapacityCc || selectedVehicleForDetail.item?.batteryPowerKwh) && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Engine / Power:</span>
-                      <strong style={{ color: '#34d399' }}>
-                        {selectedVehicleForDetail.item.engineCapacityCc ? `⚡ ${selectedVehicleForDetail.item.engineCapacityCc}` : `🔋 ${selectedVehicleForDetail.item.batteryPowerKwh} kWh`}
-                      </strong>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Item Code:</span>
+                    <span className="mono-code">{selectedVehicleForDetail.item?.itemCode || '—'}</span>
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Current Warehouse:</span>
-                    <strong style={{ color: 'var(--accent-cyan)' }}>{selectedVehicleForDetail.currentWarehouse?.warehouseName || 'Kality Assembly Plant Warehouse'}</strong>
+                    <strong style={{ color: 'var(--accent-cyan)' }}>{selectedVehicleForDetail.currentWarehouse?.warehouseName || 'Unassigned'}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Bay / Location:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Zone A · Bay 04 · Floor Slot 12</strong>
+                    <span style={{ color: 'var(--text-muted)' }}>Import / Production Notes:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{selectedVehicleForDetail.productionImportInfo || '—'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Section 2: Import & Landed Cost Integration (Module 12) */}
+              {/* Column 2: Ownership & Custody Retention (KMS-FB-06) */}
               <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-emerald)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Ship size={14} /> Import & Financial Valuation (Module 12)
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-amber)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Shield size={14} /> Custody & Retention Status
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Supplier:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Bajaj Auto Ltd (Mumbai)</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Purchase Order Ref:</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>PO-202610-001</strong>
+                    <span style={{ color: 'var(--text-muted)' }}>Ownership Status:</span>
+                    <span className={`badge ${selectedVehicleForDetail.ownershipStatus === 'CUSTOMER_OWNED' ? 'badge-amber' : 'badge-subtle'}`}>
+                      {selectedVehicleForDetail.ownershipStatus === 'CUSTOMER_OWNED' ? 'CUSTOMER-OWNED (RETAINED)' : 'COMPANY-OWNED'}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Shipment & Customs:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>SHP-202610-001 · ECC-DECL-88192</strong>
+                    <span style={{ color: 'var(--text-muted)' }}>Lifecycle Status:</span>
+                    <span className="badge badge-cyan">{selectedVehicleForDetail.currentStatus.replace(/_/g, ' ')}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Base Invoice FOB:</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>168,000.00 ETB</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '0.35rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Capitalized Landed Cost:</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>508,862.50 ETB</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 3: Sales, Reservation & Allotment */}
-              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-indigo)', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <User size={14} /> Booking & Customer Allotment
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Assigned Booking:</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-indigo)' }}>
-                      {selectedVehicleForDetail.currentStatus === 'ALLOTTED' || selectedVehicleForDetail.currentStatus === 'SOLD' ? 'BK-2026-00125' : 'None (Unallocated)'}
-                    </strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>
-                      {selectedVehicleForDetail.currentStatus === 'ALLOTTED' || selectedVehicleForDetail.currentStatus === 'SOLD' ? 'ABC Trading Plc' : 'Open for Booking'}
-                    </strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Sales Invoice:</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-                      {selectedVehicleForDetail.currentStatus === 'SOLD' || selectedVehicleForDetail.currentStatus === 'DELIVERED' ? 'INV-2026-0089' : 'Pending Invoice'}
-                    </strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Allocation Concurrency:</span>
-                    <span className="badge badge-emerald" style={{ fontSize: '0.65rem' }}>Strict 1:1 Locked</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 4: Movement History & Audit Trail */}
-              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#c084fc', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Clock size={14} /> Movement History & Audit Log
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.74rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>● Stock Intake (Import Receipt):</span>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-05 09:30</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>● PDI Inspection (Available for Sale):</span>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-06 14:15</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>● Customer Booking Reservation:</span>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-07 11:20</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>● VIN Chassis Allotment:</span>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>2026-10-08 16:40</span>
-                  </div>
+                  {selectedVehicleForDetail.ownershipStatus === 'CUSTOMER_OWNED' ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Owning Customer:</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{selectedVehicleForDetail.custodyCustomer?.fullName || 'Registered Buyer'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Retention Reason:</span>
+                        <strong style={{ color: 'var(--accent-amber)' }}>{selectedVehicleForDetail.custodyReason || 'Customer collecting T+7'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Custody Start Date:</span>
+                        <span>{selectedVehicleForDetail.custodyStartDate ? new Date(selectedVehicleForDetail.custodyStartDate).toLocaleDateString() : '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Expected Handover:</span>
+                        <span>{selectedVehicleForDetail.expectedHandoverDate ? new Date(selectedVehicleForDetail.expectedHandoverDate).toLocaleDateString() : '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Insurance:</span>
+                        <span className="badge badge-subtle">{selectedVehicleForDetail.insuranceResponsibility?.replace(/_/g, ' ') || 'CUSTOMER INSURED'}</span>
+                      </div>
+                      {selectedVehicleForDetail.storageLocationNotes && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Storage Location:</span>
+                          <span>{selectedVehicleForDetail.storageLocationNotes}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ padding: '0.75rem', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Vehicle is in company inventory. Click <strong>Custody</strong> in the actions column when the vehicle is sold or ready to record customer-owned retention on premises.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setSelectedVehicleForDetail(null)}
-              >
-                Close Lifecycle Window
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <div>
+                {selectedVehicleForDetail.ownershipStatus === 'CUSTOMER_OWNED' && selectedVehicleForDetail.currentStatus !== 'DELIVERED' && (
+                  <span className="badge badge-amber" style={{ fontSize: '0.75rem' }}>
+                    Custody: Customer-Owned Retained Onsite (KMS-FB-06)
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                {selectedVehicleForDetail.ownershipStatus === 'CUSTOMER_OWNED' && selectedVehicleForDetail.currentStatus !== 'DELIVERED' && (
+                  <button
+                    type="button"
+                    className="btn btn-emerald"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    onClick={async () => {
+                      await handleCompleteHandover(selectedVehicleForDetail.vehicleUnitId);
+                      setSelectedVehicleForDetail(null);
+                    }}
+                  >
+                    <CheckCircle2 size={15} /> Complete Physical Handover
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setSelectedVehicleForDetail(null)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

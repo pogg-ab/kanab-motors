@@ -1,11 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { CompanyProfile } from '../purchase-orders/entities/company-profile.entity';
 import { CompanyBankAccount } from '../purchase-orders/entities/company-bank-account.entity';
 import { PurchaseOrder } from '../purchase-orders/entities/purchase-order.entity';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
 import { CreateBankAccountDto, UpdateBankAccountDto } from './dto/bank-account.dto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class CompanyProfileService {
@@ -16,6 +17,7 @@ export class CompanyProfileService {
     private readonly bankRepo: Repository<CompanyBankAccount>,
     @InjectRepository(PurchaseOrder)
     private readonly poRepo: Repository<PurchaseOrder>,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   async getProfile(): Promise<CompanyProfile> {
@@ -67,12 +69,50 @@ export class CompanyProfileService {
     return profile;
   }
 
+  async getPublicBranding(): Promise<{
+    companyName: string;
+    tradeName?: string;
+    logo?: string;
+    country: string;
+  }> {
+    const profile = await this.getProfile();
+    return {
+      companyName: profile.companyName,
+      tradeName: profile.tradeName,
+      logo: profile.logo,
+      country: profile.country,
+    };
+  }
+
+  async updateLogo(id: number, logoPath: string, userId?: number): Promise<CompanyProfile> {
+    const profile = await this.profileRepo.findOne({ where: { profileId: id } });
+    if (!profile) {
+      throw new NotFoundException(`Company Profile #${id} not found`);
+    }
+
+    const oldValue = { ...profile };
+    profile.logo = logoPath;
+    if (userId) profile.updatedBy = userId;
+
+    const saved = await this.profileRepo.save(profile);
+    await this.auditService?.log({
+      entityType: 'company_profile',
+      entityId: String(id),
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue,
+      newValue: { ...saved },
+    });
+    return saved;
+  }
+
   async updateProfile(id: number, dto: UpdateCompanyProfileDto, userId?: number): Promise<CompanyProfile> {
     const profile = await this.profileRepo.findOne({ where: { profileId: id } });
     if (!profile) {
       throw new NotFoundException(`Company Profile #${id} not found`);
     }
 
+    const oldValue = { ...profile };
     if (dto.companyName !== undefined) profile.companyName = dto.companyName.trim();
     if (dto.tradeName !== undefined) profile.tradeName = dto.tradeName.trim();
     if (dto.logo !== undefined) profile.logo = dto.logo;
@@ -116,7 +156,9 @@ export class CompanyProfileService {
     if (dto.isActive !== undefined) profile.isActive = dto.isActive;
     if (userId) profile.updatedBy = userId;
 
-    return this.profileRepo.save(profile);
+    const saved = await this.profileRepo.save(profile);
+    await this.auditService?.log({ entityType: 'company_profile', entityId: String(id), action: 'UPDATE', changedBy: userId, oldValue, newValue: { ...saved } });
+    return saved;
   }
 
   async getBankAccounts(profileId?: number): Promise<CompanyBankAccount[]> {
@@ -163,7 +205,27 @@ export class CompanyProfileService {
       updatedBy: userId,
     });
 
-    return this.bankRepo.save(bankAccount);
+    const saved = await this.bankRepo.save(bankAccount);
+    await this.auditService?.log({ entityType: 'company_bank_account', entityId: String(saved.bankAccountId), action: 'INSERT', changedBy: userId, newValue: { ...saved, accountNumber: '***' } });
+    return saved;
+  }
+
+  private async promoteReplacementDefaultBank(companyProfileId?: number | null, excludeBankAccountId?: number): Promise<void> {
+    const where: Record<string, any> = {
+      companyProfileId: companyProfileId || undefined,
+      isActive: true,
+    };
+    if (excludeBankAccountId !== undefined) {
+      where.bankAccountId = Not(excludeBankAccountId);
+    }
+    const replacement = await this.bankRepo.findOne({
+      where,
+      order: { bankAccountId: 'ASC' },
+    });
+    if (replacement) {
+      replacement.isDefault = true;
+      await this.bankRepo.save(replacement);
+    }
   }
 
   async updateBankAccount(id: number, dto: UpdateBankAccountDto, userId?: number): Promise<CompanyBankAccount> {
@@ -172,6 +234,8 @@ export class CompanyProfileService {
       throw new NotFoundException(`Bank Account #${id} not found`);
     }
 
+    const oldValue = { ...bankAccount, accountNumber: '***' };
+    const wasDefault = bankAccount.isDefault;
     if (dto.accountName !== undefined) bankAccount.accountName = dto.accountName.trim();
     if (dto.bankName !== undefined) bankAccount.bankName = dto.bankName.trim();
     if (dto.accountNumber !== undefined) bankAccount.accountNumber = dto.accountNumber.trim();
@@ -179,16 +243,6 @@ export class CompanyProfileService {
     if (dto.ifscCode !== undefined) bankAccount.ifscCode = dto.ifscCode?.trim();
     if (dto.swiftCode !== undefined) bankAccount.swiftCode = dto.swiftCode?.trim();
     if (dto.currency !== undefined) bankAccount.currency = dto.currency?.trim();
-
-    if (dto.isDefault === true && !bankAccount.isDefault) {
-      await this.bankRepo.update(
-        { companyProfileId: bankAccount.companyProfileId || undefined },
-        { isDefault: false },
-      );
-      bankAccount.isDefault = true;
-    } else if (dto.isDefault === false) {
-      bankAccount.isDefault = false;
-    }
 
     if (dto.isActive !== undefined) {
       bankAccount.isActive = dto.isActive;
@@ -198,9 +252,34 @@ export class CompanyProfileService {
       bankAccount.isActive = dto.status === 'ACTIVE';
     }
 
+    if (dto.isDefault === true) {
+      if (!bankAccount.isActive) {
+        throw new BadRequestException('Cannot set an inactive bank account as primary default.');
+      }
+      if (!bankAccount.isDefault) {
+        await this.bankRepo.update(
+          { companyProfileId: bankAccount.companyProfileId || undefined },
+          { isDefault: false },
+        );
+        bankAccount.isDefault = true;
+      }
+    } else if (dto.isDefault === false) {
+      bankAccount.isDefault = false;
+    }
+
+    const deactivatedDefault = !bankAccount.isActive && (wasDefault || bankAccount.isDefault);
+    if (!bankAccount.isActive) {
+      bankAccount.isDefault = false;
+    }
+
     if (userId) bankAccount.updatedBy = userId;
 
-    return this.bankRepo.save(bankAccount);
+    const saved = await this.bankRepo.save(bankAccount);
+    if (deactivatedDefault) {
+      await this.promoteReplacementDefaultBank(bankAccount.companyProfileId, bankAccount.bankAccountId);
+    }
+    await this.auditService?.log({ entityType: 'company_bank_account', entityId: String(id), action: 'UPDATE', changedBy: userId, oldValue, newValue: { ...saved, accountNumber: '***' } });
+    return saved;
   }
 
   async deactivateBankAccount(id: number, userId?: number): Promise<CompanyBankAccount> {
@@ -209,15 +288,22 @@ export class CompanyProfileService {
       throw new NotFoundException(`Bank Account #${id} not found`);
     }
 
+    const oldValue = { ...bankAccount, accountNumber: '***' };
+    const wasDefault = bankAccount.isDefault;
     bankAccount.isActive = false;
     bankAccount.status = 'INACTIVE';
     bankAccount.isDefault = false;
     if (userId) bankAccount.updatedBy = userId;
 
-    return this.bankRepo.save(bankAccount);
+    const saved = await this.bankRepo.save(bankAccount);
+    if (wasDefault) {
+      await this.promoteReplacementDefaultBank(bankAccount.companyProfileId, bankAccount.bankAccountId);
+    }
+    await this.auditService?.log({ entityType: 'company_bank_account', entityId: String(id), action: 'UPDATE', changedBy: userId, oldValue, newValue: { ...saved, accountNumber: '***' } });
+    return saved;
   }
 
-  async deleteBankAccount(id: number): Promise<{ success: boolean; message: string }> {
+  async deleteBankAccount(id: number, userId?: number): Promise<{ success: boolean; message: string }> {
     const bankAccount = await this.bankRepo.findOne({ where: { bankAccountId: id } });
     if (!bankAccount) {
       throw new NotFoundException(`Bank Account #${id} not found`);
@@ -232,6 +318,7 @@ export class CompanyProfileService {
     }
 
     await this.bankRepo.remove(bankAccount);
+    await this.auditService?.log({ entityType: 'company_bank_account', entityId: String(id), action: 'DELETE', changedBy: userId, oldValue: { ...bankAccount, accountNumber: '***' } });
     return { success: true, message: `Bank account #${id} deleted successfully.` };
   }
 }

@@ -18,6 +18,7 @@ import {
   Check,
   FileText,
   Calendar,
+  Paperclip,
 } from 'lucide-react';
 import {
   api,
@@ -707,6 +708,16 @@ export const SettlementPage: React.FC = () => {
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', alignItems: 'center' }}>
+                            <button
+                              onClick={() => setAttachmentRefund(r)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                              title="Supporting Documents"
+                            >
+                              <Paperclip size={13} />
+                              <span>Docs</span>
+                            </button>
+
                             {r.status === 'REQUESTED' && canReviewRefund && (
                               <button
                                 onClick={() => handleAdvanceWorkflow(r.refundId, 'review')}

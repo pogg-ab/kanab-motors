@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Printer, Download, X, Building2, CheckCircle2 } from 'lucide-react';
+import { resolveCompanyAssetUrl } from '../api/client';
 
 interface ClientPODocumentModalProps {
   data: any;
@@ -83,13 +84,27 @@ export const ClientPODocumentModal: React.FC<ClientPODocumentModalProps> = ({ da
         >
           {/* Header Title & Ref */}
           <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#0f172a', margin: 0, letterSpacing: '0.05em' }}>
-                  PURCHASE ORDER
-                </h1>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
-                  International Import Commercial Order & Specification Document
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                {resolveCompanyAssetUrl(data.importer?.logo) && (
+                  <img
+                    src={resolveCompanyAssetUrl(data.importer?.logo)}
+                    alt={data.importer?.companyName || 'Company Logo'}
+                    style={{
+                      maxHeight: '52px',
+                      maxWidth: '120px',
+                      objectFit: 'contain',
+                      borderRadius: '4px',
+                    }}
+                  />
+                )}
+                <div>
+                  <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#0f172a', margin: 0, letterSpacing: '0.05em' }}>
+                    PURCHASE ORDER
+                  </h1>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                    {data.importer?.companyName || 'KANAB Motors PLC'} · International Import Commercial Order & Specification Document
+                  </div>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>

@@ -25,6 +25,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import { TAB_PERMISSIONS, canAccessAny } from '../authz/permissions';
 
 interface SidebarProps {
@@ -46,7 +47,21 @@ interface NavItem {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose }) => {
   const { hasPermission } = useAuth();
+  const { branding, resolvedLogoUrl } = useBranding();
+  const [logoFailed, setLogoFailed] = React.useState(false);
   const navRef = React.useRef<HTMLElement>(null);
+
+  React.useEffect(() => {
+    setLogoFailed(false);
+  }, [resolvedLogoUrl]);
+
+  const companyDisplayName = branding.companyName?.trim() || 'KANAB MOTORS';
+  const companyInitials = companyDisplayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || '')
+    .join('') || 'KM';
 
   const executiveItems = [
     {
@@ -416,38 +431,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
             background: 'var(--bg-navbar)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
             <div
               style={{
                 width: '42px',
                 height: '42px',
                 borderRadius: '12px',
-                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))',
+                background: resolvedLogoUrl && !logoFailed
+                  ? 'rgba(255, 255, 255, 0.95)'
+                  : 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))',
+                border: resolvedLogoUrl && !logoFailed ? '1px solid var(--border-color)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 14px rgba(0, 210, 211, 0.35)',
+                boxShadow: '0 4px 14px rgba(0, 210, 211, 0.25)',
                 fontWeight: 900,
-                fontSize: '1.2rem',
+                fontSize: '1.1rem',
                 color: '#031726',
                 letterSpacing: '-0.02em',
+                overflow: 'hidden',
+                flexShrink: 0,
+                padding: resolvedLogoUrl && !logoFailed ? '3px' : 0,
               }}
             >
-              KM
+              {resolvedLogoUrl && !logoFailed ? (
+                <img
+                  src={resolvedLogoUrl}
+                  alt={companyDisplayName}
+                  onError={() => setLogoFailed(true)}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              ) : (
+                companyInitials
+              )}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div
+                title={companyDisplayName}
                 style={{
                   fontWeight: 800,
-                  fontSize: '1.1rem',
+                  fontSize: '1.05rem',
                   letterSpacing: '-0.02em',
                   color: 'var(--text-primary)',
                   lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
-                KANAB MOTORS
+                {companyDisplayName}
               </div>
               <div
+                title={branding.tradeName || 'Enterprise SIMS'}
                 style={{
                   fontSize: '0.68rem',
                   color: 'var(--accent-cyan)',
@@ -455,9 +490,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
                   letterSpacing: '0.06em',
                   marginTop: '0.15rem',
                   textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
-                Enterprise SIMS
+                {branding.tradeName || 'Enterprise SIMS'}
               </div>
             </div>
           </div>

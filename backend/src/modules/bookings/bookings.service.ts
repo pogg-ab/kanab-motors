@@ -88,12 +88,13 @@ export class BookingsService {
 
     // Story B3: Every booking comes from an approved enquiry, a slip and a payment
     let slip: PreAdvanceSlip | null = null;
-    let enquiryId = dto.enquiryId;
+    let enquiryId = (dto.enquiryId && String(dto.enquiryId).trim()) ? String(dto.enquiryId).trim() : null;
+    const cleanSlipId = (dto.slipId && String(dto.slipId).trim()) ? String(dto.slipId).trim() : null;
 
-    if (dto.slipId) {
-      slip = await this.slipRepo.findOne({ where: { slipId: dto.slipId } });
+    if (cleanSlipId) {
+      slip = await this.slipRepo.findOne({ where: { slipId: cleanSlipId } });
       if (slip) {
-        enquiryId = slip.enquiryId;
+        enquiryId = slip.enquiryId ? String(slip.enquiryId) : null;
         slip.status = PreAdvanceSlipStatus.CONVERTED;
         await this.slipRepo.save(slip);
       }
@@ -105,11 +106,32 @@ export class BookingsService {
       }
     }
 
+    let enquiryPref: any = null;
+    let fallbackNotes: string | undefined = dto.customerRequirementsNotes;
     if (enquiryId) {
       const enquiry = await this.enquiryRepo.findOne({ where: { enquiryId } });
       if (enquiry) {
         enquiry.status = EnquiryStatus.CONVERTED;
         await this.enquiryRepo.save(enquiry);
+        enquiryPref = {
+          leadSource: enquiry.leadSource,
+          branchShowroom: enquiry.branchShowroom,
+          vehicleCategoryId: enquiry.vehicleCategoryId,
+          preferredColor: enquiry.preferredColor,
+          requiredDeliveryDate: enquiry.requiredDeliveryDate,
+          registrationHomologationNeeded: enquiry.registrationHomologationNeeded,
+          chargerTypeIncluded: enquiry.chargerTypeIncluded,
+          targetBudget: enquiry.targetBudget,
+          currency: enquiry.currency,
+          financingRequired: enquiry.financingRequired,
+          expectedDeposit: enquiry.expectedDeposit,
+          expectedPaymentTimeline: enquiry.expectedPaymentTimeline,
+          financeProvider: enquiry.financeProvider,
+          tradeInVehicle: enquiry.tradeInVehicle,
+        };
+        if (!fallbackNotes && enquiry.customerRequirementsNotes) {
+          fallbackNotes = enquiry.customerRequirementsNotes;
+        }
       }
     }
 
@@ -129,6 +151,8 @@ export class BookingsService {
       bookingStatus: BookingStatus.APPROVED, // auto-approved on creation
       salespersonName: spName,
       paymentMethod: dto.paymentMethod || 'BANK_DEPOSIT',
+      customerRequirementsNotes: fallbackNotes,
+      enquiryPreferences: enquiryPref,
       createdBy: userId,
     });
 
@@ -170,7 +194,7 @@ export class BookingsService {
       );
     }
 
-    return this.create(
+    const booking = await this.create(
       {
         customerId: enquiry.customerId,
         itemId: enquiry.itemId,
@@ -181,6 +205,23 @@ export class BookingsService {
       },
       userId,
     );
+    booking.enquiryPreferences = {
+      leadSource: enquiry.leadSource,
+      branchShowroom: enquiry.branchShowroom,
+      preferredColor: enquiry.preferredColor,
+      requiredDeliveryDate: enquiry.requiredDeliveryDate,
+      registrationHomologationNeeded: enquiry.registrationHomologationNeeded,
+      chargerTypeIncluded: enquiry.chargerTypeIncluded,
+      targetBudget: enquiry.targetBudget,
+      currency: enquiry.currency,
+      financingRequired: enquiry.financingRequired,
+      expectedDeposit: enquiry.expectedDeposit,
+      expectedPaymentTimeline: enquiry.expectedPaymentTimeline,
+      financeProvider: enquiry.financeProvider,
+      tradeInVehicle: enquiry.tradeInVehicle,
+    };
+    booking.customerRequirementsNotes = enquiry.customerRequirementsNotes;
+    return this.bookingRepo.save(booking);
   }
 
   async findAll(query: BookingQueryDto) {

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { api, Attachment } from '../api/client';
-import { Paperclip, Upload, Trash2, Download, X, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { api, Attachment, resolveDocumentUrl } from '../api/client';
+import { Paperclip, Upload, Trash2, Download, ExternalLink, X, FileText, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface EntityAttachmentsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  entityType: 'booking' | 'payment' | 'refund' | 'spare_parts_sale';
+  entityType: 'booking' | 'booking_draft' | 'payment' | 'refund' | 'spare_parts_sale' | 'invoice';
   entityId: string;
   title: string;
   subtitle?: string;
@@ -37,7 +37,7 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
       const data = await api.getEntityAttachments(entityType, entityId);
       setAttachments(data || []);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to load attachments');
+      setError(err?.response?.data?.message || err?.message || 'Failed to load attachments');
     } finally {
       setLoading(false);
     }
@@ -63,11 +63,11 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
     setSuccess(null);
     try {
       await api.uploadEntityAttachment(entityType, entityId, selectedFile, documentType);
-      setSuccess('Attachment uploaded successfully');
+      setSuccess('Attachment uploaded successfully!');
       setSelectedFile(null);
       await fetchAttachments();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to upload attachment');
+      setError(err?.response?.data?.message || err?.message || 'Failed to upload attachment');
     } finally {
       setUploading(false);
     }
@@ -77,10 +77,10 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
     if (!window.confirm('Are you sure you want to delete this attachment?')) return;
     try {
       await api.deleteEntityAttachment(attachmentId);
-      setSuccess('Attachment deleted');
+      setSuccess('Attachment deleted successfully');
       await fetchAttachments();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to delete attachment');
+      setError(err?.response?.data?.message || err?.message || 'Failed to delete attachment');
     }
   };
 
@@ -93,55 +93,107 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-100">
+    <div className="modal-backdrop" style={{ zIndex: 1200, overflowY: 'auto', padding: '1.5rem 0' }}>
+      <div className="modal-content" style={{ maxWidth: '680px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', margin: 'auto' }}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
-              <Paperclip className="w-5 h-5" />
+        <div className="modal-header" style={{ flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'rgba(0, 210, 211, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-cyan)',
+              }}
+            >
+              <Paperclip size={18} />
             </div>
             <div>
-              <h3 className="font-semibold text-lg text-white">{title}</h3>
-              {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                {title}
+              </h3>
+              {subtitle && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                  {subtitle}
+                </p>
+              )}
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
+            className="btn btn-secondary"
+            style={{ padding: '0.35rem 0.65rem' }}
           >
-            <X className="w-5 h-5" />
+            <X size={16} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        {/* Modal Body */}
+        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1 }}>
           {error && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-lg text-sm flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid var(--accent-rose)',
+                color: 'var(--accent-rose)',
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <AlertTriangle size={16} />
               <span>{error}</span>
             </div>
           )}
 
           {success && (
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-lg text-sm flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 shrink-0" />
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid var(--accent-emerald)',
+                color: 'var(--accent-emerald)',
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <CheckCircle2 size={16} />
               <span>{success}</span>
             </div>
           )}
 
           {/* Upload Form */}
-          <form onSubmit={handleUpload} className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-xl space-y-3">
-            <div className="font-medium text-sm text-slate-200 flex items-center gap-2">
-              <Upload className="w-4 h-4 text-indigo-400" />
-              <span>Upload New Attachment</span>
+          <form
+            onSubmit={handleUpload}
+            style={{
+              padding: '1rem',
+              background: 'var(--bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Upload size={15} color="var(--accent-cyan)" />
+              <span>Upload New Supporting Document</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Document Type / Label</label>
+                <label className="form-label" style={{ fontSize: '0.75rem' }}>Document Type / Label</label>
                 {allowedDocTypes && allowedDocTypes.length > 0 ? (
                   <select
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="select-field"
                     value={documentType}
                     onChange={(e) => setDocumentType(e.target.value)}
                   >
@@ -154,34 +206,41 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
                 ) : (
                   <input
                     type="text"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="input-field"
                     value={documentType}
-                    placeholder="e.g. Deposit Slip, Authorization"
+                    placeholder="e.g. Deposit Slip, ID Copy, PO"
                     onChange={(e) => setDocumentType(e.target.value)}
                   />
                 )}
               </div>
+
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Choose File</label>
+                <label className="form-label" style={{ fontSize: '0.75rem' }}>Choose File (PDF, Image, Doc)</label>
                 <input
                   type="file"
-                  className="w-full text-xs text-slate-300 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
+                  className="input-field"
+                  style={{ padding: '0.4rem', fontSize: '0.75rem' }}
                   onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                 />
               </div>
             </div>
-            <div className="flex justify-end pt-1">
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="submit"
                 disabled={!selectedFile || uploading}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition flex items-center gap-2 shadow"
+                className="btn btn-cyan"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', padding: '0.45rem 0.9rem' }}
               >
                 {uploading ? (
-                  <>Uploading...</>
+                  <>
+                    <Loader2 size={14} className="spin" />
+                    <span>Uploading...</span>
+                  </>
                 ) : (
                   <>
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload File
+                    <Upload size={14} />
+                    <span>Upload Attachment</span>
                   </>
                 )}
               </button>
@@ -190,53 +249,109 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
 
           {/* Attachments List */}
           <div>
-            <h4 className="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.65rem' }}>
               Attached Documents ({attachments.length})
-            </h4>
+            </div>
+
             {loading ? (
-              <div className="py-8 text-center text-slate-400 text-sm">Loading attachments...</div>
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <Loader2 size={20} className="spin" style={{ margin: '0 auto 0.5rem auto', display: 'block' }} />
+                Loading attachments...
+              </div>
             ) : attachments.length === 0 ? (
-              <div className="py-8 border border-dashed border-slate-800 rounded-xl text-center text-slate-500 text-sm">
-                No attachments uploaded yet.
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '2rem',
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.82rem',
+                }}
+              >
+                No documents uploaded yet for this record.
               </div>
             ) : (
-              <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/30">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {attachments.map((att) => (
-                  <div key={att.attachmentId} className="p-3.5 flex items-center justify-between hover:bg-slate-800/40 transition">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 bg-slate-800 text-slate-300 rounded-lg shrink-0">
-                        <FileText className="w-4 h-4 text-indigo-400" />
+                  <div
+                    key={att.attachmentId}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--accent-cyan)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <FileText size={16} />
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-200 truncate">{att.fileName}</p>
-                        <p className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {att.fileName}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                           {att.documentType && (
-                            <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[11px] font-medium">
+                            <span className="badge badge-subtle" style={{ fontSize: '0.62rem' }}>
                               {att.documentType}
                             </span>
                           )}
                           <span>{formatFileSize(att.fileSizeBytes)}</span>
                           <span>•</span>
                           <span>{new Date(att.uploadedAt).toLocaleDateString()}</span>
-                        </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
                       <a
-                        href={att.filePath}
+                        href={resolveDocumentUrl(att.filePath)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition"
-                        title="Download / View"
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', padding: '0.3rem 0.55rem' }}
+                        title="Open file in new tab"
                       >
-                        <Download className="w-4 h-4" />
+                        <ExternalLink size={13} />
+                        <span>View</span>
+                      </a>
+                      <a
+                        href={resolveDocumentUrl(att.filePath)}
+                        download={att.fileName}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', padding: '0.3rem 0.55rem' }}
+                        title={`Download ${att.fileName}`}
+                      >
+                        <Download size={13} />
+                        <span>Download</span>
                       </a>
                       <button
+                        type="button"
                         onClick={() => handleDelete(att.attachmentId)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
-                        title="Delete"
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', padding: '0.3rem 0.55rem', color: 'var(--accent-rose)' }}
+                        title="Delete file"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
@@ -247,10 +362,11 @@ export const EntityAttachmentsModal: React.FC<EntityAttachmentsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-800 bg-slate-950/60 flex justify-end">
+        <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', padding: '0.85rem 1.25rem', flexShrink: 0 }}>
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition"
+            className="btn btn-secondary"
           >
             Close
           </button>

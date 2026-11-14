@@ -25,6 +25,9 @@ export const CreditSalesAndAgingReports: React.FC = () => {
   const [creditSearch, setCreditSearch] = useState('');
   const [creditTypeFilter, setCreditTypeFilter] = useState<'ALL' | 'VEHICLE' | 'SPARE_PART'>('ALL');
   const [creditStatusFilter, setCreditStatusFilter] = useState<'ALL' | 'OVERDUE' | 'PENDING' | 'SETTLED'>('ALL');
+  const [creditStartDate, setCreditStartDate] = useState('');
+  const [creditEndDate, setCreditEndDate] = useState('');
+  const [creditBranch, setCreditBranch] = useState('ALL');
 
   // Stock Aging State
   const [agingData, setAgingData] = useState<StockAgingReport | null>(null);
@@ -36,7 +39,11 @@ export const CreditSalesAndAgingReports: React.FC = () => {
   const fetchCreditSales = async () => {
     setCreditLoading(true);
     try {
-      const data = await api.getCreditSalesReport();
+      const data = await api.getCreditSalesReport({
+        startDate: creditStartDate || undefined,
+        endDate: creditEndDate || undefined,
+        branch: creditBranch !== 'ALL' ? creditBranch : undefined,
+      });
       setCreditSalesData(data);
     } catch (err) {
       console.error('Failed to fetch credit sales report:', err);
@@ -63,10 +70,40 @@ export const CreditSalesAndAgingReports: React.FC = () => {
     } else {
       fetchStockAging();
     }
-  }, [activeReportTab]);
+  }, [activeReportTab, creditStartDate, creditEndDate, creditBranch]);
+
+  // Normalized records
+  const normalizedCreditRecords = (creditSalesData?.records || (creditSalesData as any)?.items || []).map((r: any) => ({
+    id: r.id || r.reference_number || r.referenceNumber,
+    type: (r.type || (r.sale_type === 'SPARE_PARTS' ? 'SPARE_PART' : 'VEHICLE')) as 'VEHICLE' | 'SPARE_PART',
+    referenceNumber: r.referenceNumber || r.reference_number || 'REF-N/A',
+    customerName: r.customerName || r.customer_name || 'Customer',
+    customerCode: r.customerCode || r.customer_code,
+    branch: r.branch || 'Addis Ababa Main',
+    saleDate: r.saleDate || r.sale_date || '',
+    dueDate: r.dueDate || r.due_date,
+    currency: r.currency || 'ETB',
+    totalAmount: Number(r.totalAmount || r.total_amount || 0),
+    amountPaid: Number(r.amountPaid || r.amount_paid || 0),
+    outstandingBalance: Number(r.outstandingBalance || r.outstanding_balance || 0),
+    status: r.status || (r.payment_status === 'PAID' ? 'FULLY_SETTLED' : r.payment_status === 'OVERDUE' ? 'OVERDUE' : 'PENDING_PAYMENT'),
+  }));
+
+  const normalizedAgingRecords = (agingData?.records || (agingData as any)?.items || []).map((r: any) => ({
+    type: (r.type || r.item_type || 'VEHICLE') as 'VEHICLE' | 'SPARE_PART',
+    categoryName: r.categoryName || r.category_name || (r.type === 'SPARE_PART' || r.item_type === 'SPARE_PART' ? 'Spare Parts' : 'Imported Vehicles'),
+    identifier: r.identifier || r.chassis_number || '',
+    name: r.name || r.item_name || 'Standard Model',
+    warehouseName: r.warehouseName || r.warehouse_name || 'Main Warehouse',
+    entryDate: r.entryDate || r.stock_entry_date || '',
+    ageDays: Number(r.ageDays || r.age_in_days || 0),
+    ageBucket: r.ageBucket || (r.aging_bucket ? r.aging_bucket.replace('_TO_', '-').replace('_DAYS', '').replace('OVER_180', '>180') : '0-30'),
+    quantity: Number(r.quantity || 1),
+    unitCostOrPrice: Number(r.unitCostOrPrice || r.unit_value || 0),
+  }));
 
   // Filtered Credit Sales
-  const filteredCreditSales = (creditSalesData?.records || []).filter((r) => {
+  const filteredCreditSales = normalizedCreditRecords.filter((r: any) => {
     const matchesSearch =
       r.customerName.toLowerCase().includes(creditSearch.toLowerCase()) ||
       r.referenceNumber.toLowerCase().includes(creditSearch.toLowerCase()) ||
@@ -81,10 +118,11 @@ export const CreditSalesAndAgingReports: React.FC = () => {
   });
 
   // Filtered Stock Aging
-  const filteredAging = (agingData?.records || []).filter((r) => {
+  const filteredAging = normalizedAgingRecords.filter((r: any) => {
     const matchesSearch =
       r.identifier.toLowerCase().includes(agingSearch.toLowerCase()) ||
       r.name.toLowerCase().includes(agingSearch.toLowerCase()) ||
+      (r.categoryName && r.categoryName.toLowerCase().includes(agingSearch.toLowerCase())) ||
       (r.warehouseName && r.warehouseName.toLowerCase().includes(agingSearch.toLowerCase()));
     const matchesBucket = agingBucketFilter === 'ALL' || r.ageBucket === agingBucketFilter;
     const matchesType = agingTypeFilter === 'ALL' || r.type === agingTypeFilter;
@@ -92,13 +130,14 @@ export const CreditSalesAndAgingReports: React.FC = () => {
   });
 
   const exportCreditCsv = () => {
-    if (!creditSalesData?.records) return;
-    const headers = ['Type', 'Reference No', 'Customer Name', 'Customer Code', 'Sale Date', 'Due Date', 'Currency', 'Total Amount', 'Amount Paid', 'Outstanding Balance', 'Status'];
-    const rows = filteredCreditSales.map((r) => [
+    if (!normalizedCreditRecords.length) return;
+    const headers = ['Type', 'Reference No', 'Customer Name', 'Customer Code', 'Branch', 'Sale Date', 'Due Date', 'Currency', 'Total Amount', 'Amount Paid', 'Outstanding Balance', 'Status'];
+    const rows = filteredCreditSales.map((r: any) => [
       r.type,
       r.referenceNumber,
       `"${r.customerName}"`,
       r.customerCode || '',
+      `"${r.branch}"`,
       r.saleDate,
       r.dueDate || '',
       r.currency,
@@ -107,7 +146,7 @@ export const CreditSalesAndAgingReports: React.FC = () => {
       r.outstandingBalance,
       r.status,
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e: any) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -118,10 +157,11 @@ export const CreditSalesAndAgingReports: React.FC = () => {
   };
 
   const exportAgingCsv = () => {
-    if (!agingData?.records) return;
-    const headers = ['Type', 'VIN / SKU Identifier', 'Product Name', 'Warehouse', 'Stock Entry Date', 'Age (Days)', 'Age Bucket', 'Quantity', 'Unit Value / Price'];
-    const rows = filteredAging.map((r) => [
+    if (!normalizedAgingRecords.length) return;
+    const headers = ['Type', 'Category', 'VIN / SKU Identifier', 'Product Name', 'Warehouse', 'Stock Entry Date', 'Age (Days)', 'Age Bucket', 'Quantity', 'Unit Value / Price'];
+    const rows = filteredAging.map((r: any) => [
       r.type,
+      `"${r.categoryName}"`,
       r.identifier,
       `"${r.name}"`,
       `"${r.warehouseName || ''}"`,
@@ -131,7 +171,7 @@ export const CreditSalesAndAgingReports: React.FC = () => {
       r.quantity,
       r.unitCostOrPrice,
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e: any) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -245,6 +285,18 @@ export const CreditSalesAndAgingReports: React.FC = () => {
 
               <select
                 className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                value={creditBranch}
+                onChange={(e) => setCreditBranch(e.target.value)}
+              >
+                <option value="ALL">All Branches</option>
+                <option value="Addis Ababa Main">Addis Ababa Main</option>
+                <option value="Kality Assembly Plant">Kality Assembly Plant</option>
+                <option value="Bole Showroom">Bole Showroom</option>
+                <option value="Hawassa Branch">Hawassa Branch</option>
+              </select>
+
+              <select
+                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
                 value={creditStatusFilter}
                 onChange={(e) => setCreditStatusFilter(e.target.value as any)}
               >
@@ -253,6 +305,28 @@ export const CreditSalesAndAgingReports: React.FC = () => {
                 <option value="PENDING">Pending Balance</option>
                 <option value="SETTLED">Fully Settled</option>
               </select>
+
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-slate-400">From:</span>
+                <input
+                  type="date"
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none"
+                  value={creditStartDate}
+                  onChange={(e) => setCreditStartDate(e.target.value)}
+                  title="Start Date"
+                />
+              </div>
+
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-slate-400">To:</span>
+                <input
+                  type="date"
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none"
+                  value={creditEndDate}
+                  onChange={(e) => setCreditEndDate(e.target.value)}
+                  title="End Date"
+                />
+              </div>
             </div>
 
             <button
@@ -273,6 +347,7 @@ export const CreditSalesAndAgingReports: React.FC = () => {
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Reference / Invoice</th>
                     <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Branch</th>
                     <th className="px-4 py-3">Sale Date</th>
                     <th className="px-4 py-3">Due Date</th>
                     <th className="px-4 py-3 text-right">Total Amount</th>
@@ -284,18 +359,18 @@ export const CreditSalesAndAgingReports: React.FC = () => {
                 <tbody className="divide-y divide-slate-800/60">
                   {creditLoading ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                         Loading credit sales...
                       </td>
                     </tr>
                   ) : filteredCreditSales.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                         No credit sales recorded matching criteria.
                       </td>
                     </tr>
                   ) : (
-                    filteredCreditSales.map((r) => (
+                    filteredCreditSales.map((r: any) => (
                       <tr key={r.id} className="hover:bg-slate-800/30 transition">
                         <td className="px-4 py-3">
                           <span
@@ -313,6 +388,7 @@ export const CreditSalesAndAgingReports: React.FC = () => {
                           <div className="font-medium text-white">{r.customerName}</div>
                           {r.customerCode && <div className="text-[10px] text-slate-500 font-mono">{r.customerCode}</div>}
                         </td>
+                        <td className="px-4 py-3 text-slate-400">{r.branch}</td>
                         <td className="px-4 py-3 text-slate-400">{r.saleDate}</td>
                         <td className="px-4 py-3">
                           {r.dueDate ? (
@@ -468,18 +544,21 @@ export const CreditSalesAndAgingReports: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredAging.map((r, i) => (
+                    filteredAging.map((r: any, i: number) => (
                       <tr key={`${r.identifier}-${i}`} className="hover:bg-slate-800/30 transition">
                         <td className="px-4 py-3">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              r.type === 'VEHICLE'
-                                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                            }`}
-                          >
-                            {r.type}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold text-slate-200">{r.categoryName}</span>
+                            <span
+                              className={`px-1.5 py-0.2 rounded text-[9px] font-semibold inline-block w-fit ${
+                                r.type === 'VEHICLE'
+                                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                                  : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                              }`}
+                            >
+                              {r.type}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 font-mono font-semibold text-slate-200">{r.identifier}</td>
                         <td className="px-4 py-3 font-medium text-white">{r.name}</td>
