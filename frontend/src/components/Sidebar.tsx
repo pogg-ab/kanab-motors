@@ -422,6 +422,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       >
         {/* Brand Header */}
         <div
+          onClick={() => handleItemClick('dashboard')}
+          title="Go to Executive Dashboard"
           style={{
             padding: '1.35rem 1.25rem',
             borderBottom: '1px solid var(--border-color)',
@@ -429,6 +431,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--bg-navbar)',
+            cursor: 'pointer',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>

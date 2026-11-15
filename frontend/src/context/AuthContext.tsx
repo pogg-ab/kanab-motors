@@ -58,6 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(res.access_token);
     localStorage.setItem('kanab_token', res.access_token);
     localStorage.setItem('kanab_user', JSON.stringify(res.user));
+    // Super Admin / Admin default opening page is always Executive Dashboard
+    if (res.user.role?.roleName === 'ADMIN' || res.user.role?.roleName === 'SUPER_ADMIN' || res.user.permissions?.includes('ALL_PERMISSIONS')) {
+      localStorage.setItem('kanab_active_tab', 'dashboard');
+    }
+    sessionStorage.removeItem('kanab_admin_navigated');
   };
 
   const logout = () => {
@@ -65,6 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     localStorage.removeItem('kanab_token');
     localStorage.removeItem('kanab_user');
+    localStorage.removeItem('kanab_active_tab');
+    sessionStorage.removeItem('kanab_admin_navigated');
   };
 
   const hasPermission = (permissionKey: string): boolean => {

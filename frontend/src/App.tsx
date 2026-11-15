@@ -35,8 +35,17 @@ import { CompanyProfilePage } from './pages/settings/CompanyProfilePage';
 import { canAccessTab, getFirstAuthorizedTab } from './authz/permissions';
 
 function MainAppContent() {
-  const { isAuthenticated, loading, hasPermission } = useAuth();
+  const { user, isAuthenticated, loading, hasPermission } = useAuth();
+  const isAdmin =
+    user?.role?.roleName === 'ADMIN' ||
+    user?.role?.roleName === 'SUPER_ADMIN' ||
+    user?.permissions?.includes('ALL_PERMISSIONS');
+
   const [activeTab, setActiveTab] = useState<string>(() => {
+    const sessionNavigated = sessionStorage.getItem('kanab_admin_navigated');
+    if (!sessionNavigated) {
+      return 'dashboard';
+    }
     return localStorage.getItem('kanab_active_tab') || 'dashboard';
   });
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
@@ -45,12 +54,17 @@ function MainAppContent() {
   const canAccessActiveTab = canAccessTab(activeTab, hasPermission);
 
   useEffect(() => {
-    if (!loading && isAuthenticated && !canAccessActiveTab) {
-      setActiveTab(fallbackTab);
-      localStorage.setItem('kanab_active_tab', fallbackTab);
-      setSelectedShipmentId(null);
+    if (!loading && isAuthenticated) {
+      if (isAdmin && !sessionStorage.getItem('kanab_admin_navigated')) {
+        setActiveTab('dashboard');
+        localStorage.setItem('kanab_active_tab', 'dashboard');
+      } else if (!canAccessActiveTab) {
+        setActiveTab(fallbackTab);
+        localStorage.setItem('kanab_active_tab', fallbackTab);
+        setSelectedShipmentId(null);
+      }
     }
-  }, [activeTab, canAccessActiveTab, fallbackTab, isAuthenticated, loading]);
+  }, [activeTab, canAccessActiveTab, fallbackTab, isAuthenticated, loading, isAdmin]);
 
   if (loading) {
     return (
@@ -89,6 +103,7 @@ function MainAppContent() {
     if (!canAccessTab(tab, hasPermission)) {
       return;
     }
+    sessionStorage.setItem('kanab_admin_navigated', 'true');
     setActiveTab(tab);
     localStorage.setItem('kanab_active_tab', tab);
     setIsMobileNavOpen(false);
