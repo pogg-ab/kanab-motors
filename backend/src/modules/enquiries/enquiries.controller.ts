@@ -60,14 +60,14 @@ export class EnquiriesController {
 
   // --- Reports (Commission & Financing) ---
   @RequirePermissions('ENQUIRIES_VIEW')
-  @Get('reports/commission')
+  @Get(['reports/commission', 'reports/commissions'])
   @ApiOperation({ summary: 'Commission Agent Sales Tracking & Commission Payable Report (New Story 1)' })
   getCommissionReport() {
     return this.enquiriesService.getCommissionReport();
   }
 
   @RequirePermissions('ENQUIRIES_VIEW')
-  @Get('reports/financing')
+  @Get(['reports/financing', 'reports/financings'])
   @ApiOperation({ summary: 'Bank & Microfinance Financing Performance Report (New Story 3)' })
   getFinancingReport() {
     return this.enquiriesService.getFinancingReport();
@@ -184,6 +184,16 @@ export class EnquiriesController {
   }
 
   @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch('inspections/:inspectionId/complete')
+  patchCompleteInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: CompleteInspectionDto,
+    @Req() req?: any,
+  ) {
+    return this.completeInspection(inspectionId, dto, req);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
   @Post('inspections/:inspectionId/extend')
   @ApiOperation({ summary: 'Extend active inspection deadline with mandatory reason (New Story 2)' })
   extendInspection(
@@ -193,6 +203,16 @@ export class EnquiriesController {
   ) {
     const userId = req?.user?.userId ? Number(req.user.userId) : 1;
     return this.enquiriesService.extendInspection(inspectionId, dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch('inspections/:inspectionId/extend')
+  patchExtendInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: ExtendInspectionDto,
+    @Req() req?: any,
+  ) {
+    return this.extendInspection(inspectionId, dto, req);
   }
 
   @RequirePermissions('ENQUIRIES_CREATE')
@@ -207,9 +227,19 @@ export class EnquiriesController {
     return this.enquiriesService.cancelInspection(inspectionId, dto, userId);
   }
 
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch('inspections/:inspectionId/cancel')
+  patchCancelInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: CancelInspectionDto,
+    @Req() req?: any,
+  ) {
+    return this.cancelInspection(inspectionId, dto, req);
+  }
+
   // --- Financing Status Endpoint (New Story 3) ---
   @RequirePermissions('ENQUIRIES_CREATE')
-  @Patch(':id/financing')
+  @Patch([':id/financing', ':id/financing-status'])
   @ApiOperation({ summary: 'Update financing application, approval, and disbursement status (New Story 3)' })
   updateFinancingStatus(
     @Param('id', PositiveBigIntIdPipe) id: string,
