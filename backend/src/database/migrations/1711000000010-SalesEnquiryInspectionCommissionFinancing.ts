@@ -109,6 +109,34 @@ export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements M
       CREATE INDEX IF NOT EXISTS idx_cvi_status ON customer_vehicle_inspection(status);
       CREATE INDEX IF NOT EXISTS idx_cvi_deadline ON customer_vehicle_inspection(inspection_deadline);
     `);
+
+    // 7. Ensure customer_payment_transfer columns and table exist (KMS-FB-05 / KMSI-14-05)
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS customer_payment_transfer (
+        transfer_id BIGSERIAL PRIMARY KEY,
+        source_booking_id BIGINT NOT NULL REFERENCES booking(booking_id),
+        source_customer_id BIGINT NOT NULL REFERENCES customer(customer_id),
+        destination_booking_id BIGINT NOT NULL REFERENCES booking(booking_id),
+        destination_customer_id BIGINT NOT NULL REFERENCES customer(customer_id),
+        transfer_amount NUMERIC(18,2) NOT NULL,
+        transfer_reason TEXT NOT NULL,
+        authorization_reference VARCHAR(150),
+        transferred_by INT,
+        status VARCHAR(30) DEFAULT 'PENDING_APPROVAL',
+        approved_by INT,
+        approved_at TIMESTAMPTZ,
+        rejection_reason TEXT,
+        transferred_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_cpt_source_booking ON customer_payment_transfer(source_booking_id);
+      CREATE INDEX IF NOT EXISTS idx_cpt_dest_booking ON customer_payment_transfer(destination_booking_id);
+
+      ALTER TABLE customer_payment_transfer
+        ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'PENDING_APPROVAL',
+        ADD COLUMN IF NOT EXISTS approved_by INT,
+        ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
