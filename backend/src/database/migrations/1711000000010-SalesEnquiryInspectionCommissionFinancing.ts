@@ -2,7 +2,6 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements MigrationInterface {
   name = 'SalesEnquiryInspectionCommissionFinancing1711000000010';
-  transaction = false;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Sequence for inspection numbers
