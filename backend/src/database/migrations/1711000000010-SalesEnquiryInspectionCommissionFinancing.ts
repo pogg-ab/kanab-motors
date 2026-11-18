@@ -2,6 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements MigrationInterface {
   name = 'SalesEnquiryInspectionCommissionFinancing1711000000010';
+  transaction = false;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Sequence for inspection numbers
@@ -9,14 +10,19 @@ export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements M
       CREATE SEQUENCE IF NOT EXISTS inspection_number_seq START WITH 1 INCREMENT BY 1;
     `);
 
-    // 2. Add CANCELLED and EXPIRED to sales_enquiry_status_enum
+    // 2. Add CANCELLED and EXPIRED to enquiry_status_enum and sales_enquiry_status_enum
     await queryRunner.query(`
       DO $$
       BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enquiry_status_enum') THEN
+          ALTER TYPE enquiry_status_enum ADD VALUE IF NOT EXISTS 'CANCELLED';
+          ALTER TYPE enquiry_status_enum ADD VALUE IF NOT EXISTS 'EXPIRED';
+        END IF;
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sales_enquiry_status_enum') THEN
           ALTER TYPE sales_enquiry_status_enum ADD VALUE IF NOT EXISTS 'CANCELLED';
           ALTER TYPE sales_enquiry_status_enum ADD VALUE IF NOT EXISTS 'EXPIRED';
         END IF;
+      EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
     `);
 
@@ -58,7 +64,7 @@ export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements M
         ADD COLUMN IF NOT EXISTS customer_contribution_amount NUMERIC(18, 2) DEFAULT 0;
     `);
 
-    // 5. Create customer_vehicle_inspection table
+    // 5. Create customer_vehicle_inspection table with vehicle_unit(vehicle_unit_id) FK
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS customer_vehicle_inspection (
         inspection_id BIGSERIAL PRIMARY KEY,
@@ -69,7 +75,7 @@ export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements M
         vehicle_model VARCHAR(200),
         engine_number VARCHAR(100),
         vin_chassis_number VARCHAR(100),
-        vehicle_unit_id BIGINT REFERENCES vehicle_unit(unit_id),
+        vehicle_unit_id BIGINT REFERENCES vehicle_unit(vehicle_unit_id),
         inspection_start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         allowed_duration_minutes INT NOT NULL DEFAULT 120,
         inspection_deadline TIMESTAMPTZ,

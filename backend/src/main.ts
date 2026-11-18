@@ -184,10 +184,15 @@ async function ensureSequences() {
 
       DO $$
       BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enquiry_status_enum') THEN
+          ALTER TYPE enquiry_status_enum ADD VALUE IF NOT EXISTS 'CANCELLED';
+          ALTER TYPE enquiry_status_enum ADD VALUE IF NOT EXISTS 'EXPIRED';
+        END IF;
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sales_enquiry_status_enum') THEN
           ALTER TYPE sales_enquiry_status_enum ADD VALUE IF NOT EXISTS 'CANCELLED';
           ALTER TYPE sales_enquiry_status_enum ADD VALUE IF NOT EXISTS 'EXPIRED';
         END IF;
+      EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
 
       ALTER TABLE sales_enquiry
@@ -231,7 +236,7 @@ async function ensureSequences() {
         vehicle_model VARCHAR(200),
         engine_number VARCHAR(100),
         vin_chassis_number VARCHAR(100),
-        vehicle_unit_id BIGINT REFERENCES vehicle_unit(unit_id),
+        vehicle_unit_id BIGINT REFERENCES vehicle_unit(vehicle_unit_id),
         inspection_start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         allowed_duration_minutes INT NOT NULL DEFAULT 120,
         inspection_deadline TIMESTAMPTZ,

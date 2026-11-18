@@ -78,7 +78,7 @@ export class CustomerVehicleInspection {
   vehicleUnitId?: string;
 
   @ManyToOne(() => VehicleUnit, { nullable: true })
-  @JoinColumn({ name: 'vehicle_unit_id' })
+  @JoinColumn({ name: 'vehicle_unit_id', referencedColumnName: 'vehicleUnitId' })
   vehicleUnit?: VehicleUnit;
 
   @Column({ name: 'inspection_start_time', type: 'timestamptz', default: () => 'now()' })
