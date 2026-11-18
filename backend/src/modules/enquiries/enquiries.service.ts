@@ -166,6 +166,7 @@ export class EnquiriesService {
       commissionAgentPhone: commPhone,
       commissionPercentage: commPct,
       commissionAmount: commAmt,
+      commissionNotes: dto.commissionNotes,
       // New Story 3: Financing Tracking
       financingOption: finOption,
       financingType: finType,
@@ -328,6 +329,7 @@ export class EnquiriesService {
     if (dto.commissionAgentName !== undefined) enquiry.commissionAgentName = dto.commissionAgentName;
     if (dto.commissionAgentPhone !== undefined) enquiry.commissionAgentPhone = dto.commissionAgentPhone;
     if (dto.commissionPercentage !== undefined) enquiry.commissionPercentage = dto.commissionPercentage;
+    if (dto.commissionNotes !== undefined) enquiry.commissionNotes = dto.commissionNotes;
     if (enquiry.leadSource === 'COMMISSION_AGENT' && enquiry.commissionPercentage) {
       enquiry.commissionAmount = Number(((enquiry.estimatedSalesValue * Number(enquiry.commissionPercentage)) / 100).toFixed(2));
     } else if (enquiry.leadSource !== 'COMMISSION_AGENT') {

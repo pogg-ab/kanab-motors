@@ -147,6 +147,11 @@ export class CreateEnquiryDto {
   @IsOptional()
   commissionAmount?: number;
 
+  @ApiPropertyOptional({ example: 'Agreed 3% commission on delivery' })
+  @IsString()
+  @IsOptional()
+  commissionNotes?: string;
+
   // --- Financing Institution Tracking (Client Demo Feedback New Story 3) ---
   @ApiPropertyOptional({ example: 'BANK_FINANCING', default: 'CASH' })
   @IsString()

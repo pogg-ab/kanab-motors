@@ -125,6 +125,9 @@ export class SalesEnquiry {
   @Column({ name: 'commission_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
   commissionAmount: number;
 
+  @Column({ name: 'commission_notes', type: 'text', nullable: true })
+  commissionNotes?: string;
+
   // --- Financing Institution Tracking (Client Demo Feedback New Story 3) ---
   @Column({ name: 'financing_option', length: 50, default: 'CASH' })
   financingOption: string;
