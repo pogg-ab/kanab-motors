@@ -54,6 +54,14 @@ async function ensureSequences() {
       ALTER TABLE shipment_receipt ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS hold_for_inspection BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS shipment_line_id BIGINT;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS ownership_status VARCHAR(50) DEFAULT 'COMPANY_OWNED';
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS custody_customer_id BIGINT;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS custody_reason TEXT;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS custody_start_date DATE;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS expected_handover_date DATE;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS insurance_responsibility VARCHAR(100);
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS storage_location_notes TEXT;
+      ALTER TABLE vehicle_unit ADD COLUMN IF NOT EXISTS handover_completed_at TIMESTAMPTZ;
       ALTER TABLE audit_log ALTER COLUMN action TYPE VARCHAR(100);
       ALTER TABLE customer ADD COLUMN IF NOT EXISTS withholding_tax_flag BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE product_item ADD COLUMN IF NOT EXISTS usage_type VARCHAR(30) DEFAULT 'BOTH';

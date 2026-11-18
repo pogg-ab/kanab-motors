@@ -25,7 +25,20 @@ export class SalesEnquiryInspectionCommissionFinancing1711000000010 implements M
       END $$;
     `);
 
-    // 3. Add Commission & Financing columns to sales_enquiry
+    // 3. Ensure vehicle_unit custody and insurance columns exist
+    await queryRunner.query(`
+      ALTER TABLE vehicle_unit
+        ADD COLUMN IF NOT EXISTS ownership_status VARCHAR(50) DEFAULT 'COMPANY_OWNED',
+        ADD COLUMN IF NOT EXISTS custody_customer_id BIGINT,
+        ADD COLUMN IF NOT EXISTS custody_reason TEXT,
+        ADD COLUMN IF NOT EXISTS custody_start_date DATE,
+        ADD COLUMN IF NOT EXISTS expected_handover_date DATE,
+        ADD COLUMN IF NOT EXISTS insurance_responsibility VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS storage_location_notes TEXT,
+        ADD COLUMN IF NOT EXISTS handover_completed_at TIMESTAMPTZ;
+    `);
+
+    // 4. Add Commission & Financing columns to sales_enquiry
     await queryRunner.query(`
       ALTER TABLE sales_enquiry
         ADD COLUMN IF NOT EXISTS commission_agent_name VARCHAR(200),
