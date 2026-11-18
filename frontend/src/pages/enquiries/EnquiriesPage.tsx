@@ -17,6 +17,14 @@ import {
   Layers,
   Printer,
   RotateCcw,
+  Building2,
+  Percent,
+  ShieldCheck,
+  Eye,
+  TrendingUp,
+  Timer,
+  Car,
+  FileCheck,
 } from 'lucide-react';
 import {
   api,
@@ -25,6 +33,9 @@ import {
   Customer,
   ProductItem,
   ProductCategory,
+  CustomerVehicleInspection,
+  CommissionReport,
+  FinancingReport,
 } from '../../api/client';
 import { usePermissions } from '../../authz/usePermissions';
 import { useAuth } from '../../context/AuthContext';
@@ -38,10 +49,43 @@ export const EnquiriesPage: React.FC = () => {
   const canApproveEnquiry = can('ENQUIRIES_APPROVE');
   const canRejectEnquiry = can('ENQUIRIES_REJECT');
   const canCreateBooking = can('BOOKINGS_CREATE');
+
+  // Navigation Tabs: Pipeline, Inspections, Pre-Advance Slips, Intelligence
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'inspections' | 'slips' | 'intelligence'>('pipeline');
+
   const [enquiries, setEnquiries] = useState<SalesEnquiry[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [items, setItems] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Tab data states
+  const [inspections, setInspections] = useState<CustomerVehicleInspection[]>([]);
+  const [loadingInspections, setLoadingInspections] = useState(false);
+  const [slips, setSlips] = useState<PreAdvanceSlip[]>([]);
+  const [loadingSlips, setLoadingSlips] = useState(false);
+  const [commissionReport, setCommissionReport] = useState<CommissionReport | null>(null);
+  const [financingReport, setFinancingReport] = useState<FinancingReport | null>(null);
+  const [loadingReports, setLoadingReports] = useState(false);
+
+  // Real-time ticker for live countdowns
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatCountdown = (deadlineIso?: string) => {
+    if (!deadlineIso) return 'N/A';
+    const diff = new Date(deadlineIso).getTime() - now;
+    if (diff <= 0) return 'Expired';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+    if (hours > 0) {
+      return `${hours}h ${mins}m ${secs}s`;
+    }
+    return `${mins}m ${secs}s`;
+  };
 
   // Filters
   const [search, setSearch] = useState('');
@@ -67,6 +111,19 @@ export const EnquiriesPage: React.FC = () => {
     financeProvider: '',
     tradeInVehicle: false,
     customerRequirementsNotes: '',
+    // Story 1: Commission Agent Tracking & Automatic Calculation
+    commissionAgentName: '',
+    commissionAgentPhone: '',
+    commissionPercentage: '',
+    commissionNotes: '',
+    // Story 3: Financing Institution Tracking & Calculation
+    financingOption: 'CASH' as 'CASH' | 'BANK_FINANCING' | 'MICROFINANCE_FINANCING',
+    financingType: 'BANK' as 'BANK' | 'MICROFINANCE',
+    financingInstitutionName: '',
+    financingContactPerson: '',
+    financingContactPhone: '',
+    financingPercentage: '70',
+    financingNotes: '',
   });
   const [formData, setFormData] = useState({
     customerId: '',
@@ -78,6 +135,49 @@ export const EnquiriesPage: React.FC = () => {
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Inspection Modal State (Story 2: Customer Vehicle Inspection)
+  const [inspectionModal, setInspectionModal] = useState<{
+    open: boolean;
+    enquiry: SalesEnquiry | null;
+    inspection: CustomerVehicleInspection | null;
+    mode: 'INITIATE' | 'COMPLETE' | 'EXTEND' | 'CANCEL' | 'VIEW';
+  }>({
+    open: false,
+    enquiry: null,
+    inspection: null,
+    mode: 'VIEW',
+  });
+  const [inspectionForm, setInspectionForm] = useState({
+    vinChassisNumber: '',
+    engineNumber: '',
+    inspectorName: user?.fullName || 'Senior Technical Inspector',
+    durationMinutes: 120,
+    notes: '',
+    outcome: 'ACCEPTED' as 'ACCEPTED' | 'REJECTED' | 'PENDING_DECISION',
+    outcomeReason: '',
+    customerSignatureAck: true,
+    extensionMinutes: 30,
+    extensionReason: '',
+    cancellationReason: '',
+  });
+  const [submittingInspection, setSubmittingInspection] = useState(false);
+  const [inspectionError, setInspectionError] = useState<string | null>(null);
+
+  // Financing Status Modal State (Story 3)
+  const [financingModal, setFinancingModal] = useState<{
+    open: boolean;
+    enquiry: SalesEnquiry | null;
+  }>({ open: false, enquiry: null });
+  const [financingForm, setFinancingForm] = useState({
+    financingStatus: 'SUBMITTED' as 'NOT_SUBMITTED' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'DISBURSED',
+    financingApplicationNumber: '',
+    financingApprovedAmount: '',
+    financingDisbursedAmount: '',
+    financingNotes: '',
+  });
+  const [submittingFinancing, setSubmittingFinancing] = useState(false);
+  const [financingError, setFinancingError] = useState<string | null>(null);
 
   // Convert to Booking Modal State (Replaces browser alert/confirm)
   const [convertTarget, setConvertTarget] = useState<SalesEnquiry | null>(null);
@@ -184,13 +284,56 @@ export const EnquiriesPage: React.FC = () => {
     }
   };
 
+  const fetchInspections = async () => {
+    setLoadingInspections(true);
+    try {
+      const data = await api.getInspections();
+      setInspections(data);
+    } catch (err) {
+      console.error('Failed to load vehicle inspections:', err);
+    } finally {
+      setLoadingInspections(false);
+    }
+  };
+
+  const fetchSlips = async () => {
+    setLoadingSlips(true);
+    try {
+      const data = await api.getPreAdvanceSlips();
+      setSlips(data);
+    } catch (err) {
+      console.error('Failed to load pre-advance slips:', err);
+    } finally {
+      setLoadingSlips(false);
+    }
+  };
+
+  const fetchReports = async () => {
+    setLoadingReports(true);
+    try {
+      const [comm, fin] = await Promise.all([
+        api.getCommissionReport(),
+        api.getFinancingReport(),
+      ]);
+      setCommissionReport(comm);
+      setFinancingReport(fin);
+    } catch (err) {
+      console.error('Failed to load intelligence reports:', err);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
   useEffect(() => {
     fetchDependencies();
   }, []);
 
   useEffect(() => {
-    fetchEnquiries();
-  }, [selectedStatus, search]);
+    if (activeTab === 'pipeline') fetchEnquiries();
+    else if (activeTab === 'inspections') fetchInspections();
+    else if (activeTab === 'slips') fetchSlips();
+    else if (activeTab === 'intelligence') fetchReports();
+  }, [activeTab, selectedStatus, search]);
 
   const handleOpenCreate = () => {
     if (!canCreateEnquiry) return;
@@ -220,6 +363,17 @@ export const EnquiriesPage: React.FC = () => {
       financeProvider: '',
       tradeInVehicle: false,
       customerRequirementsNotes: '',
+      commissionAgentName: '',
+      commissionAgentPhone: '',
+      commissionPercentage: '',
+      commissionNotes: '',
+      financingOption: 'CASH',
+      financingType: 'BANK',
+      financingInstitutionName: '',
+      financingContactPerson: '',
+      financingContactPhone: '',
+      financingPercentage: '70',
+      financingNotes: '',
     });
     setFormError(null);
     setIsCreateOpen(true);
@@ -251,6 +405,17 @@ export const EnquiriesPage: React.FC = () => {
       financeProvider: enq.financeProvider || '',
       tradeInVehicle: !!enq.tradeInVehicle,
       customerRequirementsNotes: enq.customerRequirementsNotes || '',
+      commissionAgentName: enq.commissionAgentName || '',
+      commissionAgentPhone: (enq as any).commissionAgentPhone || '',
+      commissionPercentage: enq.commissionPercentage !== undefined && enq.commissionPercentage !== null ? enq.commissionPercentage.toString() : '',
+      commissionNotes: (enq as any).commissionNotes || '',
+      financingOption: enq.financingOption || (enq.financingRequired ? 'BANK_FINANCING' : 'CASH'),
+      financingType: enq.financingType || 'BANK',
+      financingInstitutionName: enq.financingInstitutionName || enq.financeProvider || '',
+      financingContactPerson: (enq as any).financingContactPerson || '',
+      financingContactPhone: (enq as any).financingContactPhone || '',
+      financingPercentage: enq.financingPercentage !== undefined && enq.financingPercentage !== null ? enq.financingPercentage.toString() : '70',
+      financingNotes: (enq as any).financingNotes || '',
     });
     setFormError(null);
     setIsCreateOpen(true);
@@ -310,6 +475,32 @@ export const EnquiriesPage: React.FC = () => {
       return;
     }
 
+    // Story 1: Commission Agent Validation
+    if (requirements.leadSource === 'COMMISSION_AGENT') {
+      if (!requirements.commissionAgentName.trim()) {
+        setFormError('Commission Agent Name is mandatory when lead source is Commission Agent.');
+        return;
+      }
+      const commPct = parseFloat(requirements.commissionPercentage);
+      if (isNaN(commPct) || commPct <= 0 || commPct > 100) {
+        setFormError('Commission Percentage must be between 0.01% and 100%.');
+        return;
+      }
+    }
+
+    // Story 3: Financing Validation
+    if (requirements.financingOption !== 'CASH') {
+      if (!requirements.financingInstitutionName.trim()) {
+        setFormError('Financing Institution Name is required when Bank or Microfinance financing is selected.');
+        return;
+      }
+      const finPct = parseFloat(requirements.financingPercentage);
+      if (isNaN(finPct) || finPct <= 0 || finPct > 100) {
+        setFormError('Financing Percentage must be between 0.01% and 100%.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const payload: any = {
@@ -324,6 +515,20 @@ export const EnquiriesPage: React.FC = () => {
         unitPrice: currentPrice,
         salespersonName: trimmedSp,
         paymentMode: formData.paymentMode,
+        // Commission Agent (Story 1)
+        commissionAgentName: requirements.leadSource === 'COMMISSION_AGENT' ? requirements.commissionAgentName.trim() : undefined,
+        commissionAgentPhone: requirements.leadSource === 'COMMISSION_AGENT' ? requirements.commissionAgentPhone.trim() : undefined,
+        commissionPercentage: requirements.leadSource === 'COMMISSION_AGENT' && requirements.commissionPercentage ? Number(requirements.commissionPercentage) : undefined,
+        commissionNotes: requirements.leadSource === 'COMMISSION_AGENT' ? requirements.commissionNotes : undefined,
+        // Financing (Story 3)
+        financingOption: requirements.financingOption,
+        financingType: requirements.financingOption === 'MICROFINANCE_FINANCING' ? 'MICROFINANCE' : (requirements.financingType || 'BANK'),
+        financingInstitutionName: requirements.financingOption !== 'CASH' ? requirements.financingInstitutionName.trim() : undefined,
+        financingContactPerson: requirements.financingOption !== 'CASH' ? requirements.financingContactPerson.trim() : undefined,
+        financingContactPhone: requirements.financingOption !== 'CASH' ? requirements.financingContactPhone.trim() : undefined,
+        financingPercentage: requirements.financingOption !== 'CASH' && requirements.financingPercentage ? Number(requirements.financingPercentage) : undefined,
+        financingNotes: requirements.financingOption !== 'CASH' ? requirements.financingNotes : undefined,
+        financingRequired: requirements.financingOption !== 'CASH',
       };
 
       if (editingEnquiry) {
@@ -337,10 +542,124 @@ export const EnquiriesPage: React.FC = () => {
       setIsCreateOpen(false);
       setEditingEnquiry(null);
       fetchEnquiries();
+      fetchInspections();
     } catch (err: any) {
       setFormError(formatApiError(err, editingEnquiry ? 'Failed to resubmit enquiry' : 'Failed to create enquiry'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Handlers for Story 2: Customer Vehicle Inspection
+  const handleOpenInspectionModal = (enquiry: SalesEnquiry, mode: 'INITIATE' | 'COMPLETE' | 'EXTEND' | 'CANCEL' | 'VIEW' = 'INITIATE', existingInsp?: CustomerVehicleInspection) => {
+    const insp = existingInsp || (enquiry.inspections && enquiry.inspections.length > 0 ? enquiry.inspections[0] : null);
+    setInspectionModal({
+      open: true,
+      enquiry,
+      inspection: insp,
+      mode: insp ? (mode === 'INITIATE' ? 'VIEW' : mode) : 'INITIATE',
+    });
+    setInspectionForm({
+      vinChassisNumber: insp?.vinChassisNumber || '',
+      engineNumber: insp?.engineNumber || '',
+      inspectorName: insp?.inspectorName || user?.fullName || 'Senior Technical Inspector',
+      durationMinutes: insp?.durationMinutes || 120,
+      notes: insp?.notes || '',
+      outcome: (insp?.inspectionOutcome as any) || 'ACCEPTED',
+      outcomeReason: insp?.outcomeReason || '',
+      customerSignatureAck: true,
+      extensionMinutes: 30,
+      extensionReason: '',
+      cancellationReason: '',
+    });
+    setInspectionError(null);
+  };
+
+  const handleSubmitInspection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inspectionModal.enquiry) return;
+    setSubmittingInspection(true);
+    setInspectionError(null);
+    try {
+      if (inspectionModal.mode === 'INITIATE') {
+        await api.initiateInspection(inspectionModal.enquiry.enquiryId, {
+          vinChassisNumber: inspectionForm.vinChassisNumber || undefined,
+          engineNumber: inspectionForm.engineNumber || undefined,
+          inspectorName: inspectionForm.inspectorName || undefined,
+          durationMinutes: Number(inspectionForm.durationMinutes) || 120,
+          notes: inspectionForm.notes || undefined,
+        });
+      } else if (inspectionModal.mode === 'COMPLETE') {
+        if (!inspectionModal.inspection) return;
+        await api.completeInspection(inspectionModal.inspection.inspectionId, {
+          outcome: inspectionForm.outcome,
+          outcomeReason: inspectionForm.outcomeReason || undefined,
+          customerSignatureAck: inspectionForm.customerSignatureAck,
+          notes: inspectionForm.notes || undefined,
+        });
+      } else if (inspectionModal.mode === 'EXTEND') {
+        if (!inspectionModal.inspection) return;
+        if (!inspectionForm.extensionReason.trim()) {
+          setInspectionError('Extension reason is mandatory.');
+          setSubmittingInspection(false);
+          return;
+        }
+        await api.extendInspection(inspectionModal.inspection.inspectionId, {
+          additionalMinutes: Number(inspectionForm.extensionMinutes) || 30,
+          reason: inspectionForm.extensionReason.trim(),
+        });
+      } else if (inspectionModal.mode === 'CANCEL') {
+        if (!inspectionModal.inspection) return;
+        if (!inspectionForm.cancellationReason.trim()) {
+          setInspectionError('Cancellation reason is mandatory.');
+          setSubmittingInspection(false);
+          return;
+        }
+        await api.cancelInspection(inspectionModal.inspection.inspectionId, inspectionForm.cancellationReason.trim());
+      }
+      setInspectionModal({ open: false, enquiry: null, inspection: null, mode: 'VIEW' });
+      fetchEnquiries();
+      fetchInspections();
+    } catch (err: any) {
+      setInspectionError(formatApiError(err, 'Failed to update inspection'));
+    } finally {
+      setSubmittingInspection(false);
+    }
+  };
+
+  // Handlers for Story 3: Financing Status Updates
+  const handleOpenFinancingModal = (enquiry: SalesEnquiry) => {
+    setFinancingModal({ open: true, enquiry });
+    setFinancingForm({
+      financingStatus: enquiry.financingStatus || 'SUBMITTED',
+      financingApplicationNumber: enquiry.financingApplicationNumber || '',
+      financingApprovedAmount: enquiry.financingApprovedAmount ? enquiry.financingApprovedAmount.toString() : (enquiry.financingAmount ? enquiry.financingAmount.toString() : ''),
+      financingDisbursedAmount: enquiry.financingDisbursedAmount ? enquiry.financingDisbursedAmount.toString() : '',
+      financingNotes: enquiry.financingNotes || '',
+    });
+    setFinancingError(null);
+  };
+
+  const handleSubmitFinancingStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!financingModal.enquiry) return;
+    setSubmittingFinancing(true);
+    setFinancingError(null);
+    try {
+      await api.updateFinancingStatus(financingModal.enquiry.enquiryId, {
+        financingStatus: financingForm.financingStatus,
+        financingApplicationNumber: financingForm.financingApplicationNumber || undefined,
+        approvedAmount: financingForm.financingApprovedAmount ? Number(financingForm.financingApprovedAmount) : undefined,
+        disbursedAmount: financingForm.financingDisbursedAmount ? Number(financingForm.financingDisbursedAmount) : undefined,
+        notes: financingForm.financingNotes || undefined,
+      });
+      setFinancingModal({ open: false, enquiry: null });
+      fetchEnquiries();
+      fetchReports();
+    } catch (err: any) {
+      setFinancingError(formatApiError(err, 'Failed to update financing status'));
+    } finally {
+      setSubmittingFinancing(false);
     }
   };
 
@@ -566,331 +885,1050 @@ export const EnquiriesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '1.25rem',
-        marginBottom: '1.75rem',
-      }}>
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL ENQUIRIES</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FileText size={17} color="var(--accent-indigo)" />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-            {total}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Active commercial pipeline</div>
-        </div>
-
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PENDING APPROVAL</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Clock size={17} color="var(--accent-amber)" />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-amber)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-            {pending}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Awaiting manager sign-off</div>
-        </div>
-
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>APPROVED ENQUIRIES</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle2 size={17} color="var(--accent-cyan)" />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-cyan)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-            {approved}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Ready to convert to booking</div>
-        </div>
-
-        <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CONVERTED ORDERS</span>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Layers size={17} color="var(--accent-emerald)" />
-            </div>
-          </div>
-          <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-            {converted}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Active vehicle reservations</div>
-        </div>
+      {/* Navigation Tabs */}
+      <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem', flexWrap: 'wrap' }}>
+        <button
+          className={`filter-pill ${activeTab === 'pipeline' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pipeline')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.85rem' }}
+        >
+          <FileText size={15} /> Sales Enquiry Pipeline
+          <span className="badge badge-subtle" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>{enquiries.length}</span>
+        </button>
+        <button
+          className={`filter-pill ${activeTab === 'inspections' ? 'active' : ''}`}
+          onClick={() => setActiveTab('inspections')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.85rem' }}
+        >
+          <Car size={15} /> Vehicle Inspections & Expirations
+          <span className="badge badge-cyan" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>
+            {inspections.filter(i => i.inspectionStatus === 'IN_PROGRESS' || i.inspectionStatus === 'PENDING').length} Active
+          </span>
+        </button>
+        <button
+          className={`filter-pill ${activeTab === 'slips' ? 'active' : ''}`}
+          onClick={() => setActiveTab('slips')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.85rem' }}
+        >
+          <FileCheck size={15} /> Pre-Advance Slips (3-Day Validity)
+          <span className="badge badge-subtle" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>{slips.length}</span>
+        </button>
+        <button
+          className={`filter-pill ${activeTab === 'intelligence' ? 'active' : ''}`}
+          onClick={() => setActiveTab('intelligence')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.15rem', fontSize: '0.85rem' }}
+        >
+          <TrendingUp size={15} /> Commissions & Financing Intelligence
+        </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="card" style={{ padding: '0.85rem 1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-          {['ALL', 'SUBMITTED', 'APPROVED', 'CONVERTED', 'REJECTED'].map((st) => (
-            <button
-              key={st}
-              className={`filter-pill ${selectedStatus === st ? 'active' : ''}`}
-              onClick={() => setSelectedStatus(st)}
-            >
-              {st.replace(/_/g, ' ')}
-            </button>
-          ))}
-        </div>
+      {/* METRICS CARDS BY TAB */}
+      {activeTab === 'pipeline' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1.25rem',
+          marginBottom: '1.75rem',
+        }}>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL ENQUIRIES</span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileText size={17} color="var(--accent-indigo)" />
+              </div>
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+              {total}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Active commercial pipeline</div>
+          </div>
 
-        <div style={{ position: 'relative', width: '340px', minWidth: '260px' }}>
-          <Search
-            size={15}
-            color="var(--text-muted)"
-            style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
-          />
-          <input
-            type="text"
-            className="input"
-            style={{ paddingLeft: '36px', height: '38px', fontSize: '0.825rem' }}
-            placeholder="Search enquiry number, customer, model..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PENDING APPROVAL</span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Clock size={17} color="var(--accent-amber)" />
+              </div>
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-amber)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+              {pending}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Awaiting manager sign-off</div>
+          </div>
 
-      {/* Enquiries Table */}
-      <div className="card" style={{ overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap', minWidth: '135px' }}>ENQUIRY #</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>CUSTOMER</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>VEHICLE MODEL</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '60px' }}>QTY</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '160px' }}>ESTIMATED VALUE (15% VAT)</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '140px' }}>SALESPERSON</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '110px' }}>STATUS</th>
-                <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '160px' }}>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    Loading sales enquiries...
-                  </td>
-                </tr>
-              ) : enquiries.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    No sales enquiries found. Click "+ New Sales Enquiry" to begin.
-                  </td>
-                </tr>
-              ) : (
-                enquiries.map((enq) => (
-                  <tr key={enq.enquiryId} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap', minWidth: '135px' }}>
-                      <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
-                        {enq.enquiryNumber}
-                      </span>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
-                        {new Date(enq.createdAt).toLocaleDateString()}
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.15rem', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                        {enq.leadSource || 'WALK_IN'} {enq.branchShowroom ? `· ${enq.branchShowroom}` : ''}
-                      </div>
-                      <div style={{ marginTop: '0.2rem' }}>
-                        {(() => {
-                          const daysRemaining = 30 - Math.floor((Date.now() - new Date(enq.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-                          return (
-                            <span
-                              className={`badge ${daysRemaining > 7 ? 'badge-subtle' : daysRemaining > 0 ? 'badge-amber' : 'badge-rose'}`}
-                              style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', whiteSpace: 'nowrap', display: 'inline-block' }}
-                              title={`Quotation validity window: 30 days (${daysRemaining} days remaining)`}
-                            >
-                              ⏳ {daysRemaining > 0 ? `${daysRemaining}d valid` : 'Expired'}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{enq.customer?.fullName}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                        {enq.customer?.mobileNumber}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getVehicleLabel(enq.item)}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span>Code: {enq.item?.itemCode}</span>
-                        {enq.preferredColor && (
-                          <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
-                            {enq.preferredColor}
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>APPROVED ENQUIRIES</span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0, 210, 211, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle2 size={17} color="var(--accent-cyan)" />
+              </div>
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-cyan)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+              {approved}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Ready to convert to booking</div>
+          </div>
+
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CONVERTED ORDERS</span>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Layers size={17} color="var(--accent-emerald)" />
+              </div>
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+              {converted}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Active vehicle reservations</div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'inspections' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1.25rem',
+          marginBottom: '1.75rem',
+        }}>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL INSPECTIONS</span>
+              <Car size={18} color="var(--accent-cyan)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{inspections.length}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Scheduled & completed pre-sales tests</div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>IN PROGRESS (COUNTDOWN)</span>
+              <Timer size={18} color="var(--accent-amber)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-amber)', lineHeight: 1 }}>
+              {inspections.filter(i => i.inspectionStatus === 'IN_PROGRESS' || i.inspectionStatus === 'PENDING').length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>2-hour strict expiration limit</div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ACCEPTED INSPECTIONS</span>
+              <CheckCircle2 size={18} color="var(--accent-emerald)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', lineHeight: 1 }}>
+              {inspections.filter(i => i.inspectionOutcome === 'ACCEPTED').length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Verified & cleared for booking</div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EXPIRED / CANCELLED</span>
+              <XCircle size={18} color="var(--accent-rose)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-rose)', lineHeight: 1 }}>
+              {inspections.filter(i => i.inspectionStatus === 'EXPIRED' || i.inspectionStatus === 'CANCELLED' || i.inspectionOutcome === 'REJECTED').length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Auto-cancelled sales enquiries</div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'slips' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1.25rem',
+          marginBottom: '1.75rem',
+        }}>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL SLIPS ISSUED</span>
+              <FileCheck size={18} color="var(--accent-cyan)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{slips.length}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Official pre-advance mandates</div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ACTIVE (3-DAY VALIDITY)</span>
+              <Clock size={18} color="var(--accent-amber)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-amber)', lineHeight: 1 }}>
+              {slips.filter(s => s.status === 'ACTIVE').length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Awaiting 100% advance deposit</div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CONVERTED SLIPS</span>
+              <CheckCircle2 size={18} color="var(--accent-emerald)" />
+            </div>
+            <div style={{ fontSize: '2.1rem', fontWeight: 800, color: 'var(--accent-emerald)', lineHeight: 1 }}>
+              {slips.filter(s => s.status === 'CONVERTED').length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Successfully booked vehicles</div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'intelligence' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1.25rem',
+          marginBottom: '1.75rem',
+        }}>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AGENT COMMISSIONS</span>
+              <Percent size={18} color="var(--accent-purple, #a855f7)" />
+            </div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-purple, #a855f7)', lineHeight: 1 }}>
+              ETB {Number(commissionReport?.totalCommissionAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+              Across {commissionReport?.totalEnquiries || 0} agent deals
+            </div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL FINANCED VOLUME</span>
+              <Building2 size={18} color="var(--accent-cyan)" />
+            </div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-cyan)', lineHeight: 1 }}>
+              ETB {Number(financingReport?.summary?.totalRequestedFinancing || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>
+              Bank & MFI loan requests
+            </div>
+          </div>
+          <div className="card" style={{ padding: '1.35rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CUSTOMER EQUITY CONTRIBUTION</span>
+              <DollarSign size={18} color="var(--accent-emerald)" />
+            </div>
+            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--accent-emerald)', lineHeight: 1 }}>
+              ETB {Number(financingReport?.summary?.totalCustomerContribution || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.65rem' }}>Customer mandatory equity share</div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 1: SALES ENQUIRIES PIPELINE */}
+      {activeTab === 'pipeline' && (
+        <>
+          {/* Filter and Search Bar */}
+          <div className="card" style={{ padding: '0.85rem 1.25rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+              {['ALL', 'SUBMITTED', 'APPROVED', 'CONVERTED', 'REJECTED'].map((st) => (
+                <button
+                  key={st}
+                  className={`filter-pill ${selectedStatus === st ? 'active' : ''}`}
+                  onClick={() => setSelectedStatus(st)}
+                >
+                  {st.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ position: 'relative', width: '340px', minWidth: '260px' }}>
+              <Search
+                size={15}
+                color="var(--text-muted)"
+                style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+              />
+              <input
+                type="text"
+                className="input"
+                style={{ paddingLeft: '36px', height: '38px', fontSize: '0.825rem' }}
+                placeholder="Search enquiry number, customer, model..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Enquiries Table */}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', whiteSpace: 'nowrap', minWidth: '135px' }}>ENQUIRY #</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>CUSTOMER</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '170px' }}>VEHICLE MODEL</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '60px' }}>QTY</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '160px' }}>ESTIMATED VALUE (15% VAT)</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '140px' }}>SALESPERSON & FINANCING</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '110px' }}>STATUS</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '220px' }}>ACTIONS & INSPECTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                        Loading sales enquiries...
+                      </td>
+                    </tr>
+                  ) : enquiries.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                        No sales enquiries found. Click "+ New Sales Enquiry" to begin.
+                      </td>
+                    </tr>
+                  ) : (
+                    enquiries.map((enq) => (
+                      <tr key={enq.enquiryId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap', minWidth: '135px' }}>
+                          <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
+                            {enq.enquiryNumber}
                           </span>
-                        )}
-                        {enq.chargerTypeIncluded && (
-                          <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem', color: 'var(--accent-emerald)' }}>
-                            ⚡ Charger
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
-                      <span className="mono-code">{enq.quantity}</span>
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem', textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700, color: 'var(--accent-emerald)' }}>
-                        ETB {Number(enq.estimatedSalesValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        VAT (15%): ETB {Number(enq.vatAmount).toLocaleString()}
-                      </div>
-                      {enq.targetBudget ? (
-                        <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>
-                          Target: {enq.currency || 'ETB'} {Number(enq.targetBudget).toLocaleString()}
-                        </div>
-                      ) : null}
-                      {enq.customerRequirementsNotes ? (
-                        <div
-                          style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                          title={enq.customerRequirementsNotes}
-                        >
-                          📝 {enq.customerRequirementsNotes}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
-                        <User size={13} color="var(--text-muted)" />
-                        <span>{enq.salespersonName}</span>
-                      </div>
-                      {enq.paymentMode && (
-                        <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.2rem', fontWeight: 600 }}>
-                          {enq.paymentMode.replace(/_/g, ' ')}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
-                      <span
-                        className={`badge ${
-                          enq.status === 'CONVERTED'
-                            ? 'badge-emerald'
-                            : enq.status === 'APPROVED'
-                            ? 'badge-cyan'
-                            : enq.status === 'SUBMITTED'
-                            ? 'badge-amber'
-                            : 'badge-rose'
-                        }`}
-                      >
-                        {enq.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        {enq.status === 'SUBMITTED' && (canApproveEnquiry || canRejectEnquiry) && (
-                          <>
-                            {canApproveEnquiry && (
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
-                                onClick={() => handleApprove(enq.enquiryId)}
-                              >
-                                <CheckCircle2 size={13} /> Approve
-                              </button>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
+                            {new Date(enq.createdAt).toLocaleDateString()}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.15rem', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                            {enq.leadSource || 'WALK_IN'} {enq.branchShowroom ? `· ${enq.branchShowroom}` : ''}
+                          </div>
+                          <div style={{ marginTop: '0.2rem' }}>
+                            {(() => {
+                              const daysRemaining = 30 - Math.floor((Date.now() - new Date(enq.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+                              return (
+                                <span
+                                  className={`badge ${daysRemaining > 7 ? 'badge-subtle' : daysRemaining > 0 ? 'badge-amber' : 'badge-rose'}`}
+                                  style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', whiteSpace: 'nowrap', display: 'inline-block' }}
+                                  title={`Quotation validity window: 30 days (${daysRemaining} days remaining)`}
+                                >
+                                  ⏳ {daysRemaining > 0 ? `${daysRemaining}d valid` : 'Expired'}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{enq.customer?.fullName}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                            {enq.customer?.mobileNumber}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getVehicleLabel(enq.item)}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span>Code: {enq.item?.itemCode}</span>
+                            {enq.preferredColor && (
+                              <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
+                                {enq.preferredColor}
+                              </span>
                             )}
-                            {canRejectEnquiry && (
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.4)' }}
-                                onClick={() => {
-                                  setRejectTarget(enq);
-                                  setRejectReason('');
-                                  setRejectError(null);
-                                }}
-                              >
-                                <XCircle size={13} /> Reject
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {enq.status === 'APPROVED' && canCreateBooking && (
-                          <button
-                            className="btn btn-cyan btn-sm"
-                            onClick={() => {
-                              setConvertError(null);
-                              setConvertTarget(enq);
-                            }}
-                          >
-                            Convert to Booking <ArrowRight size={13} />
-                          </button>
-                        )}
-                        {enq.status === 'CONVERTED' && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                            ✓ Active Booking
-                          </span>
-                        )}
-                        {enq.status === 'REJECTED' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }} title={enq.rejectionReason}>
-                              {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 24)}...` : 'Rejected'}
-                            </span>
-                            {canCreateEnquiry && (
-                              <button
-                                className="btn btn-sm"
-                                style={{
-                                  fontSize: '0.72rem',
-                                  padding: '0.2rem 0.55rem',
-                                  background: 'rgba(245, 158, 11, 0.15)',
-                                  color: 'var(--accent-amber)',
-                                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                }}
-                                onClick={() => handleStartEdit(enq)}
-                                title="Correct and resubmit this rejected enquiry for dual approval"
-                              >
-                                <RotateCcw size={12} /> Correct & Resubmit
-                              </button>
+                            {enq.chargerTypeIncluded && (
+                              <span className="badge badge-subtle" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem', color: 'var(--accent-emerald)' }}>
+                                ⚡ Charger
+                              </span>
                             )}
                           </div>
-                        )}
-                        {(enq.status === 'APPROVED' || enq.status === 'CONVERTED') && (
+                          {/* Story 1: Commission Agent Badge */}
+                          {enq.leadSource === 'COMMISSION_AGENT' && enq.commissionAgentName && (
+                            <div style={{ marginTop: '0.35rem' }}>
+                              <span className="badge" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple, #a855f7)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                                🤝 Agent: {enq.commissionAgentName} ({enq.commissionPercentage}% · ETB {Number(enq.commissionAmount).toLocaleString()})
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <span className="mono-code">{enq.quantity}</span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                            ETB {Number(enq.estimatedSalesValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            VAT (15%): ETB {Number(enq.vatAmount).toLocaleString()}
+                          </div>
+                          {enq.targetBudget ? (
+                            <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>
+                              Target: {enq.currency || 'ETB'} {Number(enq.targetBudget).toLocaleString()}
+                            </div>
+                          ) : null}
+                          {enq.customerRequirementsNotes ? (
+                            <div
+                              style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                              title={enq.customerRequirementsNotes}
+                            >
+                              📝 {enq.customerRequirementsNotes}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
+                            <User size={13} color="var(--text-muted)" />
+                            <span>{enq.salespersonName}</span>
+                          </div>
+                          {enq.paymentMode && (
+                            <div style={{ fontSize: '0.68rem', color: 'var(--accent-cyan)', marginTop: '0.2rem', fontWeight: 600 }}>
+                              {enq.paymentMode.replace(/_/g, ' ')}
+                            </div>
+                          )}
+                          {/* Story 3: Financing Badge */}
+                          {enq.financingOption && enq.financingOption !== 'CASH' && (
+                            <div style={{ marginTop: '0.35rem' }}>
+                              <span className="badge" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-cyan)', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
+                                🏦 {enq.financingInstitutionName || enq.financingOption} ({enq.financingPercentage || 70}% · ETB {Number(enq.financingAmount).toLocaleString()})
+                              </span>
+                              {enq.financingStatus && (
+                                <div style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 700, marginTop: '0.15rem' }}>
+                                  Status: {enq.financingStatus}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <span
+                            className={`badge ${
+                              enq.status === 'CONVERTED'
+                                ? 'badge-emerald'
+                                : enq.status === 'APPROVED'
+                                ? 'badge-cyan'
+                                : enq.status === 'SUBMITTED'
+                                ? 'badge-amber'
+                                : 'badge-rose'
+                            }`}
+                          >
+                            {enq.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {/* Story 2: Inspection Quick Action / Status Button */}
+                            {(() => {
+                              const activeInsp = enq.inspections && enq.inspections.length > 0 ? enq.inspections[0] : null;
+                              if (!activeInsp) {
+                                return (
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: '0.35rem 0.6rem', color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                    title="Schedule Customer Vehicle Inspection"
+                                    onClick={() => handleOpenInspectionModal(enq, 'INITIATE')}
+                                  >
+                                    <Car size={13} /> Inspect
+                                  </button>
+                                );
+                              }
+                              const isRunning = activeInsp.inspectionStatus === 'IN_PROGRESS' || activeInsp.inspectionStatus === 'PENDING';
+                              const isAccepted = activeInsp.inspectionOutcome === 'ACCEPTED';
+                              const isExpired = activeInsp.inspectionStatus === 'EXPIRED';
+                              const isRejected = activeInsp.inspectionOutcome === 'REJECTED';
+                              return (
+                                <button
+                                  className={`btn btn-sm ${isRunning ? 'btn-amber' : isAccepted ? 'btn-emerald' : 'btn-secondary'}`}
+                                  style={{ padding: '0.35rem 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                                  title="View or Manage Vehicle Inspection"
+                                  onClick={() => handleOpenInspectionModal(enq, 'VIEW', activeInsp)}
+                                >
+                                  <Timer size={13} />
+                                  {isRunning ? formatCountdown(activeInsp.deadlineAt) : isAccepted ? '✓ Accepted' : isExpired ? '✕ Expired' : isRejected ? '✕ Rejected' : activeInsp.inspectionStatus}
+                                </button>
+                              );
+                            })()}
+
+                            {/* Story 3: Financing Lifecycle Action */}
+                            {enq.financingOption && enq.financingOption !== 'CASH' && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '0.35rem 0.6rem', color: 'var(--accent-indigo)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                title="Update Bank / MFI Financing Lifecycle Status"
+                                onClick={() => handleOpenFinancingModal(enq)}
+                              >
+                                <Building2 size={13} /> Financing
+                              </button>
+                            )}
+
+                            {enq.status === 'SUBMITTED' && (canApproveEnquiry || canRejectEnquiry) && (
+                              <>
+                                {canApproveEnquiry && (
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)' }}
+                                    onClick={() => handleApprove(enq.enquiryId)}
+                                  >
+                                    <CheckCircle2 size={13} /> Approve
+                                  </button>
+                                )}
+                                {canRejectEnquiry && (
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.4)' }}
+                                    onClick={() => {
+                                      setRejectTarget(enq);
+                                      setRejectReason('');
+                                      setRejectError(null);
+                                    }}
+                                  >
+                                    <XCircle size={13} /> Reject
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            {enq.status === 'APPROVED' && canCreateBooking && (
+                              <button
+                                className="btn btn-cyan btn-sm"
+                                onClick={() => {
+                                  setConvertError(null);
+                                  setConvertTarget(enq);
+                                }}
+                              >
+                                Convert to Booking <ArrowRight size={13} />
+                              </button>
+                            )}
+                            {enq.status === 'CONVERTED' && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
+                                ✓ Active Booking
+                              </span>
+                            )}
+                            {enq.status === 'REJECTED' && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', fontStyle: 'italic' }} title={enq.rejectionReason}>
+                                  {enq.rejectionReason ? `Reason: ${enq.rejectionReason.slice(0, 24)}...` : 'Rejected'}
+                                </span>
+                                {canCreateEnquiry && (
+                                  <button
+                                    className="btn btn-sm"
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      padding: '0.2rem 0.55rem',
+                                      background: 'rgba(245, 158, 11, 0.15)',
+                                      color: 'var(--accent-amber)',
+                                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                    }}
+                                    onClick={() => handleStartEdit(enq)}
+                                    title="Correct and resubmit this rejected enquiry for dual approval"
+                                  >
+                                    <RotateCcw size={12} /> Correct & Resubmit
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {(enq.status === 'APPROVED' || enq.status === 'CONVERTED') && (
+                              <button
+                                className="btn btn-primary btn-sm"
+                                style={{
+                                  padding: '0.35rem 0.65rem',
+                                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                                  border: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                }}
+                                title="View & Print Official Pre-Advance Slip"
+                                onClick={() => handleOpenSlip(enq)}
+                                disabled={loadingSlip}
+                              >
+                                <FileText size={13} /> Pre-Advance Slip
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '0.35rem 0.6rem' }}
+                              title="View & Print Official Quotation / Proforma Invoice"
+                              onClick={() => setSelectedQuote(enq)}
+                            >
+                              <Printer size={13} /> Quote
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* TAB 2: VEHICLE INSPECTIONS & EXPIRATIONS (Story 2) */}
+      {activeTab === 'inspections' && (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Physical Vehicle Inspections & Auto-Expiration Governance
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Enforces mandatory pre-purchase technical inspections. Inspections carry a strict countdown (default 2h) before auto-expiring and cancelling the sales enquiry.
+              </p>
+            </div>
+            <button
+              className="btn btn-cyan btn-sm"
+              onClick={() => {
+                if (enquiries.length > 0) {
+                  handleOpenInspectionModal(enquiries[0], 'INITIATE');
+                } else {
+                  alert('Please create a sales enquiry first.');
+                }
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Plus size={14} /> Schedule Vehicle Inspection
+            </button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>INSPECTION #</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>ENQUIRY REF</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>CUSTOMER</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>VEHICLE & CHASSIS #</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>INSPECTOR</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>DURATION</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>DEADLINE / COUNTDOWN</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>STATUS</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>OUTCOME</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingInspections ? (
+                  <tr>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Loading vehicle inspections...
+                    </td>
+                  </tr>
+                ) : inspections.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      No vehicle inspections recorded. Click "Schedule Vehicle Inspection" or click "Inspect" from any enquiry row.
+                    </td>
+                  </tr>
+                ) : (
+                  inspections.map((insp) => {
+                    const isRunning = insp.inspectionStatus === 'IN_PROGRESS' || insp.inspectionStatus === 'PENDING';
+                    const diff = new Date(insp.deadlineAt).getTime() - now;
+                    const isExpired = diff <= 0 || insp.inspectionStatus === 'EXPIRED';
+
+                    return (
+                      <tr key={insp.inspectionId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap' }}>
+                          <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                            {insp.inspectionNumber}
+                          </span>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                            {new Date(insp.scheduledAt).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap' }}>
+                          <span className="mono-code" style={{ color: 'var(--accent-indigo)' }}>
+                            {insp.enquiry?.enquiryNumber || 'N/A'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{insp.customer?.fullName || insp.enquiry?.customer?.fullName || 'N/A'}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{insp.customer?.mobileNumber || insp.enquiry?.customer?.mobileNumber}</div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{getVehicleLabel(insp.item || insp.enquiry?.item)}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                            <span>VIN: <strong style={{ color: 'var(--text-secondary)' }}>{insp.vinChassisNumber || 'Pending'}</strong></span>
+                            {insp.engineNumber && <span>· Eng: {insp.engineNumber}</span>}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{insp.inspectorName || 'Senior Inspector'}</div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <span className="mono-code">{insp.durationMinutes} min</span>
+                          {insp.extendedMinutes && (
+                            <div style={{ fontSize: '0.68rem', color: 'var(--accent-amber)' }}>+{insp.extendedMinutes}m ext</div>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {isRunning ? (
+                            <span
+                              className={`badge ${diff > 30 * 60 * 1000 ? 'badge-cyan' : diff > 0 ? 'badge-amber' : 'badge-rose'}`}
+                              style={{ fontWeight: 800, fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}
+                            >
+                              ⏳ {formatCountdown(insp.deadlineAt)}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Ended {new Date(insp.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <span
+                            className={`badge ${
+                              insp.inspectionStatus === 'COMPLETED'
+                                ? 'badge-emerald'
+                                : insp.inspectionStatus === 'IN_PROGRESS'
+                                ? 'badge-cyan'
+                                : insp.inspectionStatus === 'PENDING'
+                                ? 'badge-amber'
+                                : 'badge-rose'
+                            }`}
+                          >
+                            {insp.inspectionStatus}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          {insp.inspectionOutcome ? (
+                            <span
+                              className={`badge ${
+                                insp.inspectionOutcome === 'ACCEPTED'
+                                  ? 'badge-emerald'
+                                  : insp.inspectionOutcome === 'REJECTED'
+                                  ? 'badge-rose'
+                                  : 'badge-amber'
+                              }`}
+                            >
+                              {insp.inspectionOutcome}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                            {isRunning && (
+                              <>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.4)', padding: '0.3rem 0.55rem' }}
+                                  title="Record Decision & Complete Inspection"
+                                  onClick={() => handleOpenInspectionModal(insp.enquiry || (enquiries.find(e => e.enquiryId === insp.enquiryId) as any), 'COMPLETE', insp)}
+                                >
+                                  Complete
+                                </button>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '0.3rem 0.55rem' }}
+                                  title="Extend Duration (+30m or custom)"
+                                  onClick={() => handleOpenInspectionModal(insp.enquiry || (enquiries.find(e => e.enquiryId === insp.enquiryId) as any), 'EXTEND', insp)}
+                                >
+                                  Extend
+                                </button>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.4)', padding: '0.3rem 0.55rem' }}
+                                  title="Cancel Inspection with Justification"
+                                  onClick={() => handleOpenInspectionModal(insp.enquiry || (enquiries.find(e => e.enquiryId === insp.enquiryId) as any), 'CANCEL', insp)}
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            )}
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '0.3rem 0.55rem' }}
+                              title="View Full Inspection Details"
+                              onClick={() => handleOpenInspectionModal(insp.enquiry || (enquiries.find(e => e.enquiryId === insp.enquiryId) as any), 'VIEW', insp)}
+                            >
+                              <Eye size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: PRE-ADVANCE SLIPS (Story E16-E18) */}
+      {activeTab === 'slips' && (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              Official Pre-Advance Slips (100% Price Advance & 3-Day Validity)
+            </h3>
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Auto-generated upon Sales Manager endorsement. Carries official banking deposit instructions and requires 100% full advance payment within 3 calendar days.
+            </p>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>SLIP NUMBER</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>ENQUIRY REF</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>CUSTOMER</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>VEHICLE ITEM</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'right' }}>TOTAL AMOUNT</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'right' }}>100% ADVANCE REQUIRED</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>3-DAY VALIDITY</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>STATUS</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center' }}>PRINT & ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingSlips ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Loading pre-advance slips...
+                    </td>
+                  </tr>
+                ) : slips.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      No pre-advance slips found. Slips are automatically created when an enquiry is approved by the Sales Manager.
+                    </td>
+                  </tr>
+                ) : (
+                  slips.map((slip) => {
+                    const daysLeft = Math.ceil((new Date(slip.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
+                    const isSlipExpired = daysLeft <= 0;
+
+                    return (
+                      <tr key={slip.slipId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap' }}>
+                          <span className="mono-code" style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                            {slip.slipNumber}
+                          </span>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                            Issued: {new Date(slip.issuedAt).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', whiteSpace: 'nowrap' }}>
+                          <span className="mono-code" style={{ color: 'var(--accent-indigo)' }}>
+                            {slip.enquiry?.enquiryNumber || 'N/A'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{slip.customer?.fullName}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{slip.customer?.mobileNumber}</div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{slip.item?.itemName}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Qty: {slip.quantity}</div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700 }}>ETB {Number(slip.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                            ETB {Number(slip.requiredAdvanceAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>100% Price Lock</div>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <span
+                            className={`badge ${daysLeft > 1 ? 'badge-cyan' : daysLeft > 0 ? 'badge-amber' : 'badge-rose'}`}
+                            style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
+                          >
+                            ⏳ {daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
+                          <span
+                            className={`badge ${
+                              slip.status === 'ACTIVE'
+                                ? 'badge-amber'
+                                : slip.status === 'CONVERTED'
+                                ? 'badge-emerald'
+                                : 'badge-rose'
+                            }`}
+                          >
+                            {slip.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                           <button
                             className="btn btn-primary btn-sm"
                             style={{
-                              padding: '0.35rem 0.65rem',
+                              padding: '0.35rem 0.75rem',
                               background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
                               border: 'none',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.35rem',
                             }}
-                            title="View & Print Official Pre-Advance Slip"
-                            onClick={() => handleOpenSlip(enq)}
-                            disabled={loadingSlip}
+                            onClick={() => setSelectedSlip(slip)}
                           >
-                            <FileText size={13} /> Pre-Advance Slip
+                            <Printer size={13} /> Print Slip
                           </button>
-                        )}
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '0.35rem 0.6rem' }}
-                          title="View & Print Official Quotation / Proforma Invoice"
-                          onClick={() => setSelectedQuote(enq)}
-                        >
-                          <Printer size={13} /> Quote
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* TAB 4: COMMISSIONS & FINANCING INTELLIGENCE (Story 1 & Story 3) */}
+      {activeTab === 'intelligence' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          {/* Story 1: Commission Agent Tracking & Calculation */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Percent size={18} color="var(--accent-purple, #a855f7)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Commission Agent Tracking (Story 1)
+                </h3>
+                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Automated sales commissions by agent & deal volume
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Active Agents</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                  {commissionReport?.agentBreakdown?.length || 0}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Agent Deals</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>
+                  {commissionReport?.totalEnquiries || 0}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Accrued Commission</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-purple, #a855f7)', marginTop: '0.2rem' }}>
+                  ETB {Number(commissionReport?.totalCommissionAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', color: 'var(--text-muted)' }}>AGENT NAME</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', color: 'var(--text-muted)' }}>PHONE</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>DEALS</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', color: 'var(--text-muted)' }}>SALES VOLUME</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', color: 'var(--text-muted)' }}>COMMISSION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(!commissionReport?.agentBreakdown || commissionReport.agentBreakdown.length === 0) ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        No commission deals recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    commissionReport.agentBreakdown.map((ag, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.75rem 0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{ag.agentName}</td>
+                        <td style={{ padding: '0.75rem 0.85rem', color: 'var(--text-muted)' }}>{ag.agentPhone}</td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          <span className="mono-code">{ag.enquiryCount}</span>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                          ETB {Number(ag.totalSalesAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-purple, #a855f7)' }}>
+                          ETB {Number(ag.totalCommissionAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Story 3: Financing Institution Performance & Tracking */}
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Building2 size={18} color="var(--accent-cyan)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Financing Institution Performance (Story 3)
+                </h3>
+                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Commercial Banks & Microfinance Institutions (MFI) distribution
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Financed Deals</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                  {financingReport?.summary?.totalFinancedEnquiries || 0}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Loan Requested</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>
+                  ETB {Number(financingReport?.summary?.totalRequestedFinancing || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Customer Equity</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.2rem' }}>
+                  ETB {Number(financingReport?.summary?.totalCustomerContribution || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'left', color: 'var(--text-muted)' }}>INSTITUTION</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>TYPE</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>DEALS</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', color: 'var(--text-muted)' }}>FINANCED ETB</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', color: 'var(--text-muted)' }}>CUSTOMER EQUITY</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(!financingReport?.institutionBreakdown || financingReport.institutionBreakdown.length === 0) ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        No bank or microfinance deals recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    financingReport.institutionBreakdown.map((inst, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.75rem 0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{inst.institutionName}</td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          <span className={`badge ${inst.financingType === 'MICROFINANCE' ? 'badge-amber' : 'badge-cyan'}`} style={{ fontSize: '0.65rem' }}>
+                            {inst.financingType}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          <span className="mono-code">{inst.enquiryCount}</span>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                          ETB {Number(inst.totalRequestedFinancing).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                          ETB {Number(inst.totalCustomerContribution).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       {/* CREATE ENQUIRY MODAL */}
@@ -1054,7 +2092,7 @@ export const EnquiriesPage: React.FC = () => {
                         value={requirements.leadSource}
                         onChange={(e) => setRequirements({ ...requirements, leadSource: e.target.value })}
                       >
-                        {['WALK_IN', 'REFERRAL', 'WEBSITE', 'SOCIAL_MEDIA', 'PHONE', 'CAMPAIGN', 'OTHER'].map((v) => (
+                        {['WALK_IN', 'COMMISSION_AGENT', 'REFERRAL', 'WEBSITE', 'SOCIAL_MEDIA', 'PHONE', 'CAMPAIGN', 'OTHER'].map((v) => (
                           <option key={v} value={v}>
                             {v.replace(/_/g, ' ')}
                           </option>
@@ -1072,6 +2110,183 @@ export const EnquiriesPage: React.FC = () => {
                         onChange={(e) => setRequirements({ ...requirements, branchShowroom: e.target.value })}
                       />
                     </div>
+                  </div>
+
+                  {/* Story 1: Commission Agent Tracking & Automatic Calculation */}
+                  {requirements.leadSource === 'COMMISSION_AGENT' && (
+                    <div style={{
+                      background: 'rgba(168, 85, 247, 0.08)',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '1rem',
+                      marginTop: '0.75rem',
+                      marginBottom: '0.75rem',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <Percent size={16} color="var(--accent-purple, #a855f7)" />
+                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--accent-purple, #a855f7)' }}>
+                          Commission Agent Details & Auto-Calculation
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div className="form-group">
+                          <label className="form-label">Commission Agent Name *</label>
+                          <input
+                            type="text"
+                            className="input-field"
+                            required
+                            placeholder="e.g. Alazar Mengistu"
+                            value={requirements.commissionAgentName}
+                            onChange={(e) => setRequirements({ ...requirements, commissionAgentName: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Agent Contact Phone *</label>
+                          <input
+                            type="text"
+                            className="input-field"
+                            required
+                            placeholder="e.g. +251 911 234567"
+                            value={requirements.commissionAgentPhone}
+                            onChange={(e) => setRequirements({ ...requirements, commissionAgentPhone: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Commission Rate % (0.01% - 100%) *</label>
+                          <input
+                            type="number"
+                            min="0.01"
+                            max="100"
+                            step="0.01"
+                            className="input-field"
+                            required
+                            placeholder="e.g. 2.5"
+                            value={requirements.commissionPercentage}
+                            onChange={(e) => setRequirements({ ...requirements, commissionPercentage: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem 0.75rem', borderRadius: '4px', marginTop: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Auto-Calculated Commission:</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-purple, #a855f7)' }}>
+                          ETB {((totalValue * (parseFloat(requirements.commissionPercentage) || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                        <label className="form-label">Commission Agreement Notes</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          placeholder="Payment schedule, contract reference..."
+                          value={requirements.commissionNotes}
+                          onChange={(e) => setRequirements({ ...requirements, commissionNotes: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Story 3: Financing Institution Tracking & Calculation */}
+                  <div style={{
+                    background: 'rgba(6, 182, 212, 0.08)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1rem',
+                    marginTop: '0.75rem',
+                    marginBottom: '0.75rem',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <Building2 size={16} color="var(--accent-cyan)" />
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
+                        Commercial Financing Option (Bank & Microfinance)
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Financing Structure</label>
+                        <select
+                          className="select-field"
+                          value={requirements.financingOption}
+                          onChange={(e) => setRequirements({
+                            ...requirements,
+                            financingOption: e.target.value as any,
+                            financingRequired: e.target.value !== 'CASH',
+                            financingType: e.target.value === 'MICROFINANCE_FINANCING' ? 'MICROFINANCE' : 'BANK',
+                          })}
+                        >
+                          <option value="CASH">100% Cash / Customer Direct Equity</option>
+                          <option value="BANK_FINANCING">Bank Financing (Commercial Bank)</option>
+                          <option value="MICROFINANCE_FINANCING">Microfinance Institution (MFI) Financing</option>
+                        </select>
+                      </div>
+                      {requirements.financingOption !== 'CASH' && (
+                        <div className="form-group">
+                          <label className="form-label">Financing % (Default 70%) *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            step="0.1"
+                            className="input-field"
+                            required
+                            value={requirements.financingPercentage}
+                            onChange={(e) => setRequirements({ ...requirements, financingPercentage: e.target.value })}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {requirements.financingOption !== 'CASH' && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+                          <div className="form-group">
+                            <label className="form-label">{requirements.financingOption === 'MICROFINANCE_FINANCING' ? 'MFI Institution Name *' : 'Bank Institution Name *'}</label>
+                            <input
+                              type="text"
+                              className="input-field"
+                              required
+                              placeholder={requirements.financingOption === 'MICROFINANCE_FINANCING' ? 'e.g. Sinquee MFI, Rays MFI, Oromia MFI' : 'e.g. Commercial Bank of Ethiopia, Dashen Bank, Awash Bank'}
+                              value={requirements.financingInstitutionName}
+                              onChange={(e) => setRequirements({ ...requirements, financingInstitutionName: e.target.value })}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Loan Officer / Contact Person</label>
+                            <input
+                              type="text"
+                              className="input-field"
+                              placeholder="e.g. Aster Bekele (Credit Officer)"
+                              value={requirements.financingContactPerson}
+                              onChange={(e) => setRequirements({ ...requirements, financingContactPerson: e.target.value })}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Officer Phone Number</label>
+                            <input
+                              type="text"
+                              className="input-field"
+                              placeholder="e.g. +251 922 345678"
+                              value={requirements.financingContactPhone}
+                              onChange={(e) => setRequirements({ ...requirements, financingContactPhone: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '0.65rem 0.85rem', borderRadius: '4px', marginTop: '0.5rem' }}>
+                          <div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Auto-Calculated Financed Amount ({requirements.financingPercentage}%):</div>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                              ETB {((totalValue * (parseFloat(requirements.financingPercentage) || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Customer Contribution Required ({Math.max(0, 100 - (parseFloat(requirements.financingPercentage) || 0))}%):</div>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
+                              ETB {Math.max(0, totalValue - ((totalValue * (parseFloat(requirements.financingPercentage) || 0)) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -1189,32 +2404,12 @@ export const EnquiriesPage: React.FC = () => {
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                       <input
                         type="checkbox"
-                        checked={requirements.financingRequired}
-                        onChange={(e) => setRequirements({ ...requirements, financingRequired: e.target.checked })}
-                      />
-                      Bank Financing Required
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
-                      <input
-                        type="checkbox"
                         checked={requirements.tradeInVehicle}
                         onChange={(e) => setRequirements({ ...requirements, tradeInVehicle: e.target.checked })}
                       />
                       Customer Has Trade-In Vehicle
                     </label>
                   </div>
-
-                  {requirements.financingRequired && (
-                    <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                      <label className="form-label">Bank / Finance Provider</label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. Commercial Bank of Ethiopia, Dashen Bank"
-                        value={requirements.financeProvider}
-                        onChange={(e) => setRequirements({ ...requirements, financeProvider: e.target.value })}
-                      />
-                    </div>
-                  )}
 
                   <div className="form-group" style={{ marginTop: '0.75rem' }}>
                     <label className="form-label">Customer Requirements & Special Notes</label>
@@ -1249,6 +2444,18 @@ export const EnquiriesPage: React.FC = () => {
                     <span>Estimated Sales Value:</span>
                     <span style={{ color: 'var(--accent-emerald)' }}>ETB {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
+                  {requirements.leadSource === 'COMMISSION_AGENT' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginTop: '0.35rem', color: 'var(--accent-purple, #a855f7)' }}>
+                      <span>Agent Commission ({requirements.commissionPercentage || 0}%):</span>
+                      <span style={{ fontWeight: 700 }}>ETB {((totalValue * (parseFloat(requirements.commissionPercentage) || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {requirements.financingOption !== 'CASH' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginTop: '0.35rem', color: 'var(--accent-cyan)' }}>
+                      <span>Financed by {requirements.financingInstitutionName || 'Bank'} ({requirements.financingPercentage}%):</span>
+                      <span style={{ fontWeight: 700 }}>ETB {((totalValue * (parseFloat(requirements.financingPercentage) || 0)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1992,6 +3199,460 @@ export const EnquiriesPage: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* STORY 2: VEHICLE INSPECTION MODAL */}
+      {inspectionModal.open && inspectionModal.enquiry && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(0, 210, 211, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Car size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {inspectionModal.mode === 'INITIATE' && 'Schedule Vehicle Inspection'}
+                    {inspectionModal.mode === 'COMPLETE' && 'Complete Inspection Decision'}
+                    {inspectionModal.mode === 'EXTEND' && 'Extend Inspection Duration'}
+                    {inspectionModal.mode === 'CANCEL' && 'Cancel Vehicle Inspection'}
+                    {inspectionModal.mode === 'VIEW' && `Inspection — ${inspectionModal.inspection?.inspectionNumber || 'Details'}`}
+                  </h3>
+                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Enquiry {inspectionModal.enquiry.enquiryNumber} · {inspectionModal.enquiry.customer?.fullName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectionModal({ open: false, enquiry: null, inspection: null, mode: 'VIEW' })}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitInspection}>
+              <div className="modal-body">
+                <ModalErrorAlert error={inspectionError} onDismiss={() => setInspectionError(null)} />
+
+                {/* Inspection Info Summary */}
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Vehicle Model:</span>
+                    <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{getVehicleLabel(inspectionModal.enquiry.item)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+                    <span style={{ fontWeight: 600 }}>{inspectionModal.enquiry.customer?.fullName}</span>
+                  </div>
+                  {inspectionModal.inspection && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Inspection Number:</span>
+                        <span className="mono-code" style={{ color: 'var(--accent-cyan)' }}>{inspectionModal.inspection.inspectionNumber}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Chassis / VIN:</span>
+                        <span className="mono-code">{inspectionModal.inspection.vinChassisNumber || 'Not specified'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Assigned Inspector:</span>
+                        <span style={{ fontWeight: 600 }}>{inspectionModal.inspection.inspectorName || 'Senior Technical Inspector'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border-color)' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Deadline Status:</span>
+                        <span style={{ fontWeight: 800 }}>
+                          {inspectionModal.inspection.inspectionStatus === 'IN_PROGRESS' || inspectionModal.inspection.inspectionStatus === 'PENDING' ? (
+                            <span style={{ color: 'var(--accent-amber)' }}>⏳ {formatCountdown(inspectionModal.inspection.deadlineAt)} remaining</span>
+                          ) : (
+                            <span>{inspectionModal.inspection.inspectionStatus}</span>
+                          )}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* INITIATE FORM */}
+                {inspectionModal.mode === 'INITIATE' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">VIN / Chassis Number</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          placeholder="e.g. WBA33AY08PFS12891"
+                          value={inspectionForm.vinChassisNumber}
+                          onChange={(e) => setInspectionForm({ ...inspectionForm, vinChassisNumber: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Engine Number</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          placeholder="e.g. ENG-882941-ET"
+                          value={inspectionForm.engineNumber}
+                          onChange={(e) => setInspectionForm({ ...inspectionForm, engineNumber: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Technical Inspector Name</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          required
+                          value={inspectionForm.inspectorName}
+                          onChange={(e) => setInspectionForm({ ...inspectionForm, inspectorName: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Allowed Duration (Default 120 min)</label>
+                        <input
+                          type="number"
+                          min="15"
+                          max="480"
+                          step="15"
+                          className="input-field"
+                          required
+                          value={inspectionForm.durationMinutes}
+                          onChange={(e) => setInspectionForm({ ...inspectionForm, durationMinutes: Number(e.target.value) || 120 })}
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                      <label className="form-label">Inspection Pre-Check Notes</label>
+                      <textarea
+                        className="input-field"
+                        rows={2}
+                        placeholder="Body inspection, paint depth meter, battery state of health, odometer..."
+                        value={inspectionForm.notes}
+                        onChange={(e) => setInspectionForm({ ...inspectionForm, notes: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'rgba(245, 158, 11, 0.08)', padding: '0.65rem', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.25)', marginTop: '0.5rem' }}>
+                      ⚠️ <strong>Automated Expiration Rule:</strong> The inspection must be completed before the deadline passes. If the countdown reaches zero without an extension or completion, the inspection will expire and the sales enquiry will be cancelled automatically.
+                    </div>
+                  </>
+                )}
+
+                {/* COMPLETE FORM */}
+                {inspectionModal.mode === 'COMPLETE' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Customer Technical Inspection Outcome *</label>
+                      <select
+                        className="select-field"
+                        value={inspectionForm.outcome}
+                        onChange={(e) => setInspectionForm({ ...inspectionForm, outcome: e.target.value as any })}
+                      >
+                        <option value="ACCEPTED">ACCEPTED — Vehicle passed technical checks & accepted by customer</option>
+                        <option value="REJECTED">REJECTED — Vehicle rejected due to defects / customer dissatisfaction</option>
+                        <option value="PENDING_DECISION">PENDING DECISION — Customer requested 24 hours to decide</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                      <label className="form-label">Outcome Assessment & Justification Notes</label>
+                      <textarea
+                        className="input-field"
+                        rows={3}
+                        required={inspectionForm.outcome === 'REJECTED'}
+                        placeholder={inspectionForm.outcome === 'REJECTED' ? 'Mandatory explanation for vehicle rejection...' : 'Technical inspection findings, paint finish, battery diagnostic score, tyre condition...'}
+                        value={inspectionForm.outcomeReason}
+                        onChange={(e) => setInspectionForm({ ...inspectionForm, outcomeReason: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={inspectionForm.customerSignatureAck}
+                          onChange={(e) => setInspectionForm({ ...inspectionForm, customerSignatureAck: e.target.checked })}
+                        />
+                        Customer Signed Physical Vehicle Inspection Acknowledgment Slip
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {/* EXTEND FORM */}
+                {inspectionModal.mode === 'EXTEND' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Additional Extension Time</label>
+                      <select
+                        className="select-field"
+                        value={inspectionForm.extensionMinutes}
+                        onChange={(e) => setInspectionForm({ ...inspectionForm, extensionMinutes: Number(e.target.value) })}
+                      >
+                        <option value={30}>+30 Minutes</option>
+                        <option value={60}>+60 Minutes (1 Hour)</option>
+                        <option value={120}>+120 Minutes (2 Hours)</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                      <label className="form-label">Mandatory Extension Reason *</label>
+                      <textarea
+                        className="input-field"
+                        rows={3}
+                        required
+                        placeholder="e.g. Diagnostic scan required extended road test or workshop lift inspection"
+                        value={inspectionForm.extensionReason}
+                        onChange={(e) => setInspectionForm({ ...inspectionForm, extensionReason: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* CANCEL FORM */}
+                {inspectionModal.mode === 'CANCEL' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Mandatory Cancellation Reason *</label>
+                      <textarea
+                        className="input-field"
+                        rows={3}
+                        required
+                        placeholder="e.g. Customer cancelled inspection appointment or chose another vehicle"
+                        value={inspectionForm.cancellationReason}
+                        onChange={(e) => setInspectionForm({ ...inspectionForm, cancellationReason: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', marginTop: '0.5rem' }}>
+                      * Cancelling an inspection will mark the inspection as CANCELLED and will reject the associated sales enquiry.
+                    </div>
+                  </>
+                )}
+
+                {/* VIEW MODE */}
+                {inspectionModal.mode === 'VIEW' && inspectionModal.inspection && (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Outcome:</span>
+                        <div style={{ fontWeight: 800, marginTop: '0.15rem', color: inspectionModal.inspection.inspectionOutcome === 'ACCEPTED' ? 'var(--accent-emerald)' : 'var(--text-primary)' }}>
+                          {inspectionModal.inspection.inspectionOutcome || 'Pending Decision'}
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Customer Ack Slip:</span>
+                        <div style={{ fontWeight: 700, marginTop: '0.15rem' }}>
+                          {inspectionModal.inspection.customerSignatureAck ? '✓ Signed on File' : 'Not Signed'}
+                        </div>
+                      </div>
+                    </div>
+                    {inspectionModal.inspection.outcomeReason && (
+                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '4px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>Findings / Reason:</div>
+                        <div>{inspectionModal.inspection.outcomeReason}</div>
+                      </div>
+                    )}
+                    {inspectionModal.inspection.notes && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                        Notes: {inspectionModal.inspection.notes}
+                      </div>
+                    )}
+                    {(inspectionModal.inspection.inspectionStatus === 'IN_PROGRESS' || inspectionModal.inspection.inspectionStatus === 'PENDING') && (
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                        <button
+                          type="button"
+                          className="btn btn-emerald btn-sm"
+                          style={{ flex: 1 }}
+                          onClick={() => setInspectionModal({ ...inspectionModal, mode: 'COMPLETE' })}
+                        >
+                          Complete Inspection
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-amber btn-sm"
+                          style={{ flex: 1 }}
+                          onClick={() => setInspectionModal({ ...inspectionModal, mode: 'EXTEND' })}
+                        >
+                          Extend Duration
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-rose btn-sm"
+                          style={{ flex: 1 }}
+                          onClick={() => setInspectionModal({ ...inspectionModal, mode: 'CANCEL' })}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {inspectionModal.mode !== 'VIEW' && (
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setInspectionModal({ open: false, enquiry: null, inspection: null, mode: 'VIEW' })}
+                    disabled={submittingInspection}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className={`btn ${inspectionModal.mode === 'CANCEL' ? 'btn-rose' : inspectionModal.mode === 'COMPLETE' ? 'btn-emerald' : 'btn-cyan'}`}
+                    disabled={submittingInspection}
+                  >
+                    {submittingInspection ? 'Saving...' : inspectionModal.mode === 'INITIATE' ? 'Start Inspection & Timer' : inspectionModal.mode === 'COMPLETE' ? 'Confirm Completion' : inspectionModal.mode === 'EXTEND' ? 'Confirm Extension' : 'Confirm Cancellation'}
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* STORY 3: FINANCING LIFECYCLE TRACKING MODAL */}
+      {financingModal.open && financingModal.enquiry && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building2 size={20} color="var(--accent-cyan)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Commercial Financing Lifecycle Tracking
+                  </h3>
+                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {financingModal.enquiry.financingInstitutionName || financingModal.enquiry.financingOption} · Enquiry {financingModal.enquiry.enquiryNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFinancingModal({ open: false, enquiry: null })}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitFinancingStatus}>
+              <div className="modal-body">
+                <ModalErrorAlert error={financingError} onDismiss={() => setFinancingError(null)} />
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Institution:</span>
+                    <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{financingModal.enquiry.financingInstitutionName || 'Partner Institution'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Institution Type:</span>
+                    <span className="badge badge-subtle">{financingModal.enquiry.financingType || 'BANK'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Loan Amount Requested:</span>
+                    <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                      ETB {Number(financingModal.enquiry.financingAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} ({financingModal.enquiry.financingPercentage}%)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', paddingTop: '0.35rem', borderTop: '1px solid var(--border-color)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Customer Required Equity:</span>
+                    <span style={{ fontWeight: 800, color: 'var(--accent-amber)' }}>
+                      ETB {Number(financingModal.enquiry.customerContributionAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Financing Lifecycle Status *</label>
+                  <select
+                    className="select-field"
+                    required
+                    value={financingForm.financingStatus}
+                    onChange={(e) => setFinancingForm({ ...financingForm, financingStatus: e.target.value as any })}
+                  >
+                    <option value="NOT_SUBMITTED">NOT SUBMITTED — Awaiting documentation preparation</option>
+                    <option value="SUBMITTED">SUBMITTED — Loan file filed with credit department</option>
+                    <option value="UNDER_REVIEW">UNDER REVIEW — Loan committee evaluation</option>
+                    <option value="APPROVED">APPROVED — Formal bank credit commitment letter issued</option>
+                    <option value="REJECTED">REJECTED — Application declined by credit risk</option>
+                    <option value="DISBURSED">DISBURSED — Loan disbursed to KANAB Motors PLC</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label className="form-label">Bank / MFI Application Reference Number</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. CBE-CR-2026-90412"
+                    value={financingForm.financingApplicationNumber}
+                    onChange={(e) => setFinancingForm({ ...financingForm, financingApplicationNumber: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Approved Loan Amount (ETB)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input-field"
+                      placeholder="e.g. 700000"
+                      value={financingForm.financingApprovedAmount}
+                      onChange={(e) => setFinancingForm({ ...financingForm, financingApprovedAmount: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Disbursed Amount (ETB)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input-field"
+                      placeholder="e.g. 700000"
+                      value={financingForm.financingDisbursedAmount}
+                      onChange={(e) => setFinancingForm({ ...financingForm, financingDisbursedAmount: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label className="form-label">Credit Evaluation Notes & Follow-up</label>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    placeholder="Credit officer feedback, repayment schedule, collateral registration notes..."
+                    value={financingForm.financingNotes}
+                    onChange={(e) => setFinancingForm({ ...financingForm, financingNotes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setFinancingModal({ open: false, enquiry: null })}
+                  disabled={submittingFinancing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-cyan"
+                  disabled={submittingFinancing}
+                >
+                  {submittingFinancing ? 'Updating...' : 'Update Financing Status'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

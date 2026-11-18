@@ -7,11 +7,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SalesEnquiry, EnquiryStatus } from './entities/sales-enquiry.entity';
 import { PreAdvanceSlip, PreAdvanceSlipStatus } from './entities/pre-advance-slip.entity';
+import { CustomerVehicleInspection, InspectionStatus, InspectionOutcome } from './entities/customer-vehicle-inspection.entity';
 import { ProductItem } from '../products/entities/product-item.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { VehicleUnit } from '../vehicles/entities/vehicle-unit.entity';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { EnquiryQueryDto } from './dto/enquiry-query.dto';
 import { EnquiryApprovalDto } from './dto/enquiry-approval.dto';
+import { CreateInspectionDto } from './dto/create-inspection.dto';
+import { CompleteInspectionDto } from './dto/complete-inspection.dto';
+import { ExtendInspectionDto, CancelInspectionDto } from './dto/extend-inspection.dto';
+import { UpdateFinancingStatusDto } from './dto/update-financing-status.dto';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -21,10 +27,14 @@ export class EnquiriesService {
     private readonly enquiryRepo: Repository<SalesEnquiry>,
     @InjectRepository(PreAdvanceSlip)
     private readonly slipRepo: Repository<PreAdvanceSlip>,
+    @InjectRepository(CustomerVehicleInspection)
+    private readonly inspectionRepo: Repository<CustomerVehicleInspection>,
     @InjectRepository(ProductItem)
     private readonly itemRepo: Repository<ProductItem>,
     @InjectRepository(Customer)
     private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(VehicleUnit)
+    private readonly vehicleUnitRepo: Repository<VehicleUnit>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -71,6 +81,54 @@ export class EnquiriesService {
     const vatAmount = Number(((subtotal * taxRatePct) / 100).toFixed(2));
     const estimatedValue = Number((subtotal + vatAmount).toFixed(2));
 
+    // --- Commission Agent Calculation (Client Demo Feedback New Story 1) ---
+    let commName: string | undefined = undefined;
+    let commPhone: string | undefined = undefined;
+    let commPct: number | undefined = undefined;
+    let commAmt: number = 0;
+    if (dto.leadSource === 'COMMISSION_AGENT') {
+      commName = (dto.commissionAgentName || '').trim();
+      commPhone = (dto.commissionAgentPhone || '').trim();
+      commPct = dto.commissionPercentage !== undefined ? Number(dto.commissionPercentage) : 0;
+      if (!commName) throw new BadRequestException('Agent Name is mandatory when Commission Agent is selected as lead source');
+      if (!commPhone) throw new BadRequestException('Agent Phone Number is mandatory when Commission Agent is selected as lead source');
+      if (commPct <= 0 || commPct > 100) throw new BadRequestException('Commission percentage must be greater than 0% and not exceed 100%');
+      commAmt = Number(((estimatedValue * commPct) / 100).toFixed(2));
+    }
+
+    // --- Financing Calculation (Client Demo Feedback New Story 3) ---
+    let finOption = dto.financingOption || (dto.financingRequired ? 'BANK_FINANCING' : 'CASH');
+    let finType = dto.financingType || (finOption === 'MICROFINANCE_FINANCING' ? 'MICROFINANCE' : 'BANK');
+    let finInst = dto.financingInstitutionName || dto.financeProvider || undefined;
+    let finContactPerson = dto.financingContactPerson || undefined;
+    let finContactPhone = dto.financingContactPhone || undefined;
+    let finPct = dto.financingPercentage !== undefined ? Number(dto.financingPercentage) : undefined;
+    let finAmt = 0;
+    let custContribPct = 100;
+    let custContribAmt = estimatedValue;
+
+    if (finOption === 'BANK_FINANCING' || finOption === 'MICROFINANCE_FINANCING') {
+      if (!finInst) {
+        throw new BadRequestException('Financing Institution Name is mandatory when Bank or Microfinance financing is selected');
+      }
+      if (finPct !== undefined && (finPct <= 0 || finPct > 100)) {
+        throw new BadRequestException('Financing percentage must be greater than 0% and not exceed 100%');
+      }
+      const effPct = finPct !== undefined ? finPct : 70.0;
+      finPct = effPct;
+      finAmt = Number(((estimatedValue * effPct) / 100).toFixed(2));
+      custContribPct = Number((100 - effPct).toFixed(2));
+      custContribAmt = Number((estimatedValue - finAmt).toFixed(2));
+    } else {
+      finOption = 'CASH';
+      finType = undefined;
+      finInst = undefined;
+      finPct = undefined;
+      finAmt = 0;
+      custContribPct = 100;
+      custContribAmt = estimatedValue;
+    }
+
     const initialStatus = dto.isDraft ? EnquiryStatus.DRAFT : EnquiryStatus.SUBMITTED;
 
     const enquiry = this.enquiryRepo.create({
@@ -96,13 +154,36 @@ export class EnquiriesService {
       // KMSI-14-13: Budget & Preferences
       targetBudget: dto.targetBudget,
       currency: dto.currency || 'ETB',
-      financingRequired: Boolean(dto.financingRequired),
+      financingRequired: finOption !== 'CASH',
       expectedDeposit: dto.expectedDeposit,
       expectedPaymentTimeline: dto.expectedPaymentTimeline,
-      financeProvider: dto.financeProvider,
+      financeProvider: finInst,
       tradeInVehicle: Boolean(dto.tradeInVehicle),
       // KMSI-14-14: Customer Requirements Notes
       customerRequirementsNotes: dto.customerRequirementsNotes,
+      // New Story 1: Commission Agent Tracking
+      commissionAgentName: commName,
+      commissionAgentPhone: commPhone,
+      commissionPercentage: commPct,
+      commissionAmount: commAmt,
+      // New Story 3: Financing Tracking
+      financingOption: finOption,
+      financingType: finType,
+      financingInstitutionName: finInst,
+      financingContactPerson: finContactPerson,
+      financingContactPhone: finContactPhone,
+      financingPercentage: finPct,
+      financingAmount: finAmt,
+      customerContributionPercentage: custContribPct,
+      customerContributionAmount: custContribAmt,
+      financingStatus: dto.financingStatus || 'NOT_SUBMITTED',
+      financingApplicationNumber: dto.financingApplicationNumber,
+      financingSubmissionDate: dto.financingSubmissionDate,
+      financingApprovalDate: dto.financingApprovalDate,
+      financingApprovedAmount: dto.financingApprovedAmount,
+      financingDisbursedAmount: dto.financingDisbursedAmount,
+      financingDisbursementDate: dto.financingDisbursementDate,
+      financingNotes: dto.financingNotes,
     });
 
     const saved = await this.enquiryRepo.save(enquiry);
@@ -242,6 +323,45 @@ export class EnquiriesService {
     const vat = subtotal * 0.15;
     enquiry.estimatedSalesValue = subtotal + vat;
     enquiry.vatAmount = vat;
+
+    // Commission Agent updates & recalculation
+    if (dto.commissionAgentName !== undefined) enquiry.commissionAgentName = dto.commissionAgentName;
+    if (dto.commissionAgentPhone !== undefined) enquiry.commissionAgentPhone = dto.commissionAgentPhone;
+    if (dto.commissionPercentage !== undefined) enquiry.commissionPercentage = dto.commissionPercentage;
+    if (enquiry.leadSource === 'COMMISSION_AGENT' && enquiry.commissionPercentage) {
+      enquiry.commissionAmount = Number(((enquiry.estimatedSalesValue * Number(enquiry.commissionPercentage)) / 100).toFixed(2));
+    } else if (enquiry.leadSource !== 'COMMISSION_AGENT') {
+      enquiry.commissionAmount = 0;
+    }
+
+    // Financing updates & recalculation
+    if (dto.financingOption !== undefined) enquiry.financingOption = dto.financingOption;
+    if (dto.financingType !== undefined) enquiry.financingType = dto.financingType;
+    if (dto.financingInstitutionName !== undefined) enquiry.financingInstitutionName = dto.financingInstitutionName;
+    if (dto.financingContactPerson !== undefined) enquiry.financingContactPerson = dto.financingContactPerson;
+    if (dto.financingContactPhone !== undefined) enquiry.financingContactPhone = dto.financingContactPhone;
+    if (dto.financingPercentage !== undefined) enquiry.financingPercentage = dto.financingPercentage;
+    if (dto.financingStatus !== undefined) enquiry.financingStatus = dto.financingStatus;
+    if (dto.financingApplicationNumber !== undefined) enquiry.financingApplicationNumber = dto.financingApplicationNumber;
+    if (dto.financingSubmissionDate !== undefined) enquiry.financingSubmissionDate = dto.financingSubmissionDate;
+    if (dto.financingApprovalDate !== undefined) enquiry.financingApprovalDate = dto.financingApprovalDate;
+    if (dto.financingApprovedAmount !== undefined) enquiry.financingApprovedAmount = dto.financingApprovedAmount;
+    if (dto.financingDisbursedAmount !== undefined) enquiry.financingDisbursedAmount = dto.financingDisbursedAmount;
+    if (dto.financingDisbursementDate !== undefined) enquiry.financingDisbursementDate = dto.financingDisbursementDate;
+    if (dto.financingNotes !== undefined) enquiry.financingNotes = dto.financingNotes;
+
+    if (enquiry.financingOption === 'BANK_FINANCING' || enquiry.financingOption === 'MICROFINANCE_FINANCING') {
+      const pct = enquiry.financingPercentage !== undefined ? Number(enquiry.financingPercentage) : 70.0;
+      enquiry.financingPercentage = pct;
+      enquiry.financingAmount = Number(((enquiry.estimatedSalesValue * pct) / 100).toFixed(2));
+      enquiry.customerContributionPercentage = Number((100 - pct).toFixed(2));
+      enquiry.customerContributionAmount = Number((enquiry.estimatedSalesValue - enquiry.financingAmount).toFixed(2));
+    } else {
+      enquiry.financingOption = 'CASH';
+      enquiry.financingAmount = 0;
+      enquiry.customerContributionPercentage = 100;
+      enquiry.customerContributionAmount = enquiry.estimatedSalesValue;
+    }
 
     // If it was rejected and user is resubmitting (or not draft)
     if (!dto.isDraft) {
@@ -472,5 +592,479 @@ export class EnquiriesService {
       }
     }
     return slips;
+  }
+
+  // =========================================================================
+  // --- Customer Vehicle Inspection Management (Client Demo Feedback New Story 2) ---
+  // =========================================================================
+
+  async initiateInspection(
+    enquiryId: string,
+    dto: CreateInspectionDto,
+    userId: number = 1,
+  ): Promise<CustomerVehicleInspection> {
+    const enquiry = await this.findOne(enquiryId);
+    if (!enquiry) {
+      throw new NotFoundException(`Sales Enquiry #${enquiryId} not found`);
+    }
+
+    // Check if there is already an active inspection
+    const active = await this.inspectionRepo.findOne({
+      where: [
+        { enquiryId, status: InspectionStatus.IN_PROGRESS },
+        { enquiryId, status: InspectionStatus.PENDING },
+      ],
+    });
+    if (active) {
+      throw new BadRequestException(
+        `An active inspection (${active.inspectionNumber}) is already in progress for Enquiry #${enquiry.enquiryNumber}.`,
+      );
+    }
+
+    const duration = dto.allowedDurationMinutes && dto.allowedDurationMinutes >= 15 ? dto.allowedDurationMinutes : 120;
+    const startTime = new Date();
+    const deadline = new Date(startTime.getTime() + duration * 60 * 1000);
+
+    const vehicleModel = dto.vehicleModel || (enquiry.item ? enquiry.item.itemName : 'Motorcycle / Three-Wheeler');
+
+    const inspection = this.inspectionRepo.create({
+      enquiryId,
+      customerId: enquiry.customerId,
+      itemId: enquiry.itemId,
+      vehicleModel,
+      engineNumber: dto.engineNumber,
+      vinChassisNumber: dto.vinChassisNumber,
+      vehicleUnitId: dto.vehicleUnitId,
+      inspectionStartTime: startTime,
+      allowedDurationMinutes: duration,
+      inspectionDeadline: deadline,
+      status: InspectionStatus.IN_PROGRESS,
+      remarks: dto.remarks,
+      createdBy: userId,
+    });
+
+    const saved = await this.inspectionRepo.save(inspection);
+
+    await this.auditService.log({
+      entityType: 'customer_vehicle_inspection',
+      entityId: saved.inspectionId,
+      action: 'INSERT',
+      changedBy: userId,
+      newValue: {
+        inspectionNumber: saved.inspectionNumber,
+        enquiryId,
+        deadline,
+        status: saved.status,
+      },
+    });
+
+    return saved;
+  }
+
+  async completeInspection(
+    inspectionId: string,
+    dto: CompleteInspectionDto,
+    userId: number = 1,
+  ): Promise<CustomerVehicleInspection> {
+    const inspection = await this.inspectionRepo.findOne({
+      where: { inspectionId },
+      relations: ['enquiry', 'customer', 'item'],
+    });
+    if (!inspection) {
+      throw new NotFoundException(`Inspection #${inspectionId} not found`);
+    }
+
+    if (inspection.status === InspectionStatus.COMPLETED) {
+      throw new BadRequestException('This inspection has already been completed.');
+    }
+    if (inspection.status === InspectionStatus.CANCELLED) {
+      throw new BadRequestException('Cannot complete a cancelled inspection.');
+    }
+    if (inspection.status === InspectionStatus.EXPIRED) {
+      throw new BadRequestException('Cannot complete an expired inspection. Please initiate a new inspection.');
+    }
+
+    inspection.status = InspectionStatus.COMPLETED;
+    inspection.outcome = dto.outcome;
+    inspection.inspectionCompletedAt = new Date();
+    if (dto.remarks) {
+      inspection.remarks = inspection.remarks
+        ? `${inspection.remarks} | Outcome Remarks: ${dto.remarks}`
+        : dto.remarks;
+    }
+
+    const saved = await this.inspectionRepo.save(inspection);
+
+    // If customer accepted, note it in enquiry notes
+    if (dto.outcome === InspectionOutcome.ACCEPTED && inspection.enquiryId) {
+      const enq = await this.enquiryRepo.findOne({ where: { enquiryId: inspection.enquiryId } });
+      if (enq) {
+        enq.customerRequirementsNotes = enq.customerRequirementsNotes
+          ? `${enq.customerRequirementsNotes} [Inspection ${saved.inspectionNumber}: ACCEPTED]`
+          : `[Inspection ${saved.inspectionNumber}: ACCEPTED]`;
+        await this.enquiryRepo.save(enq);
+      }
+    }
+
+    await this.auditService.log({
+      entityType: 'customer_vehicle_inspection',
+      entityId: saved.inspectionId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        status: saved.status,
+        outcome: saved.outcome,
+        completedAt: saved.inspectionCompletedAt,
+      },
+    });
+
+    return saved;
+  }
+
+  async extendInspection(
+    inspectionId: string,
+    dto: ExtendInspectionDto,
+    userId: number = 1,
+  ): Promise<CustomerVehicleInspection> {
+    const inspection = await this.inspectionRepo.findOne({ where: { inspectionId } });
+    if (!inspection) {
+      throw new NotFoundException(`Inspection #${inspectionId} not found`);
+    }
+
+    if (inspection.status !== InspectionStatus.IN_PROGRESS && inspection.status !== InspectionStatus.PENDING) {
+      throw new BadRequestException(`Cannot extend inspection in status ${inspection.status}. Only active inspections can be extended.`);
+    }
+
+    const currentDeadline = new Date(inspection.inspectionDeadline).getTime();
+    const newDeadline = new Date(currentDeadline + dto.extensionMinutes * 60 * 1000);
+
+    inspection.inspectionDeadline = newDeadline;
+    inspection.extensionMinutes = (inspection.extensionMinutes || 0) + dto.extensionMinutes;
+    inspection.extensionReason = dto.extensionReason;
+    inspection.extendedBy = userId;
+
+    const saved = await this.inspectionRepo.save(inspection);
+
+    await this.auditService.log({
+      entityType: 'customer_vehicle_inspection',
+      entityId: saved.inspectionId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        newDeadline,
+        extensionMinutes: dto.extensionMinutes,
+        extensionReason: dto.extensionReason,
+      },
+    });
+
+    return saved;
+  }
+
+  async cancelInspection(
+    inspectionId: string,
+    dto: CancelInspectionDto,
+    userId: number = 1,
+  ): Promise<CustomerVehicleInspection> {
+    const inspection = await this.inspectionRepo.findOne({ where: { inspectionId } });
+    if (!inspection) {
+      throw new NotFoundException(`Inspection #${inspectionId} not found`);
+    }
+
+    if (inspection.status === InspectionStatus.COMPLETED) {
+      throw new BadRequestException('Cannot cancel an already completed inspection.');
+    }
+
+    inspection.status = InspectionStatus.CANCELLED;
+    inspection.cancellationReason = dto.cancellationReason;
+    inspection.cancelledBy = userId;
+
+    const saved = await this.inspectionRepo.save(inspection);
+
+    await this.auditService.log({
+      entityType: 'customer_vehicle_inspection',
+      entityId: saved.inspectionId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        status: saved.status,
+        cancellationReason: dto.cancellationReason,
+      },
+    });
+
+    return saved;
+  }
+
+  async getInspectionByEnquiryId(enquiryId: string): Promise<CustomerVehicleInspection | null> {
+    const inspection = await this.inspectionRepo.findOne({
+      where: { enquiryId },
+      relations: ['enquiry', 'customer', 'item', 'creator', 'vehicleUnit'],
+      order: { createdAt: 'DESC' },
+    });
+
+    if (
+      inspection &&
+      (inspection.status === InspectionStatus.IN_PROGRESS || inspection.status === InspectionStatus.PENDING) &&
+      new Date() > new Date(inspection.inspectionDeadline)
+    ) {
+      inspection.status = InspectionStatus.EXPIRED;
+      await this.inspectionRepo.save(inspection);
+
+      // Auto-cancel enquiry if still awaiting purchase
+      const enquiry = await this.enquiryRepo.findOne({ where: { enquiryId } });
+      if (
+        enquiry &&
+        enquiry.status !== EnquiryStatus.APPROVED &&
+        enquiry.status !== EnquiryStatus.CONVERTED &&
+        enquiry.status !== EnquiryStatus.CANCELLED
+      ) {
+        enquiry.status = EnquiryStatus.CANCELLED;
+        enquiry.rejectionReason = 'Customer failed to complete vehicle inspection within the allowed period';
+        await this.enquiryRepo.save(enquiry);
+      }
+    }
+
+    return inspection;
+  }
+
+  async getInspections(query?: { status?: string; search?: string }): Promise<CustomerVehicleInspection[]> {
+    const qb = this.inspectionRepo
+      .createQueryBuilder('insp')
+      .leftJoinAndSelect('insp.enquiry', 'enquiry')
+      .leftJoinAndSelect('insp.customer', 'customer')
+      .leftJoinAndSelect('insp.item', 'item')
+      .leftJoinAndSelect('insp.vehicleUnit', 'vehicleUnit')
+      .orderBy('insp.createdAt', 'DESC');
+
+    if (query?.status) {
+      qb.andWhere('insp.status = :st', { st: query.status });
+    }
+    if (query?.search && query.search.trim()) {
+      const s = `%${query.search.trim()}%`;
+      qb.andWhere(
+        '(insp.inspectionNumber ILIKE :s OR customer.fullName ILIKE :s OR insp.vehicleModel ILIKE :s OR enquiry.enquiryNumber ILIKE :s)',
+        { s },
+      );
+    }
+
+    const list = await qb.getMany();
+    const now = new Date();
+    for (const item of list) {
+      if (
+        (item.status === InspectionStatus.IN_PROGRESS || item.status === InspectionStatus.PENDING) &&
+        now > new Date(item.inspectionDeadline)
+      ) {
+        item.status = InspectionStatus.EXPIRED;
+        await this.inspectionRepo.save(item);
+      }
+    }
+    return list;
+  }
+
+  async scanExpiredInspections(): Promise<number> {
+    const now = new Date();
+    const activeInspections = await this.inspectionRepo
+      .createQueryBuilder('i')
+      .where('i.status IN (:...statuses)', { statuses: [InspectionStatus.IN_PROGRESS, InspectionStatus.PENDING] })
+      .andWhere('i.inspectionDeadline < :now', { now })
+      .getMany();
+
+    let expiredCount = 0;
+    for (const insp of activeInspections) {
+      insp.status = InspectionStatus.EXPIRED;
+      await this.inspectionRepo.save(insp);
+      expiredCount++;
+
+      // Auto cancel unapproved enquiry
+      const enq = await this.enquiryRepo.findOne({ where: { enquiryId: insp.enquiryId } });
+      if (
+        enq &&
+        enq.status !== EnquiryStatus.APPROVED &&
+        enq.status !== EnquiryStatus.CONVERTED &&
+        enq.status !== EnquiryStatus.CANCELLED
+      ) {
+        enq.status = EnquiryStatus.CANCELLED;
+        enq.rejectionReason = 'Customer failed to complete vehicle inspection within the allowed period';
+        await this.enquiryRepo.save(enq);
+      }
+    }
+    return expiredCount;
+  }
+
+  // =========================================================================
+  // --- Financing Status Management (Client Demo Feedback New Story 3) ---
+  // =========================================================================
+
+  async updateFinancingStatus(
+    enquiryId: string,
+    dto: UpdateFinancingStatusDto,
+    userId: number = 1,
+  ): Promise<SalesEnquiry> {
+    const enquiry = await this.findOne(enquiryId);
+    if (!enquiry) {
+      throw new NotFoundException(`Sales Enquiry #${enquiryId} not found`);
+    }
+
+    enquiry.financingStatus = dto.financingStatus;
+    if (dto.financingApplicationNumber !== undefined) enquiry.financingApplicationNumber = dto.financingApplicationNumber;
+    if (dto.financingSubmissionDate !== undefined) enquiry.financingSubmissionDate = dto.financingSubmissionDate;
+    if (dto.financingApprovalDate !== undefined) enquiry.financingApprovalDate = dto.financingApprovalDate;
+    if (dto.financingApprovedAmount !== undefined) enquiry.financingApprovedAmount = dto.financingApprovedAmount;
+    if (dto.financingDisbursedAmount !== undefined) enquiry.financingDisbursedAmount = dto.financingDisbursedAmount;
+    if (dto.financingDisbursementDate !== undefined) enquiry.financingDisbursementDate = dto.financingDisbursementDate;
+    if (dto.financingNotes !== undefined) enquiry.financingNotes = dto.financingNotes;
+
+    const saved = await this.enquiryRepo.save(enquiry);
+
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: enquiryId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        financingStatus: saved.financingStatus,
+        financingApprovedAmount: saved.financingApprovedAmount,
+        financingDisbursedAmount: saved.financingDisbursedAmount,
+      },
+    });
+
+    return saved;
+  }
+
+  // =========================================================================
+  // --- Commission & Financing Intelligence Reports ---
+  // =========================================================================
+
+  async getCommissionReport() {
+    const enquiries = await this.enquiryRepo.find({
+      where: { leadSource: 'COMMISSION_AGENT' },
+      relations: ['customer', 'item'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const totalEnquiries = enquiries.length;
+    const totalSalesAmount = enquiries.reduce((sum, e) => sum + Number(e.estimatedSalesValue || 0), 0);
+    const totalCommissionAmount = enquiries.reduce((sum, e) => sum + Number(e.commissionAmount || 0), 0);
+
+    // Group by agent
+    const agentMap: Record<string, any> = {};
+    for (const e of enquiries) {
+      const key = `${e.commissionAgentName || 'Unknown'}-${e.commissionAgentPhone || ''}`;
+      if (!agentMap[key]) {
+        agentMap[key] = {
+          agentName: e.commissionAgentName || 'Unknown Agent',
+          agentPhone: e.commissionAgentPhone || 'N/A',
+          enquiryCount: 0,
+          totalSalesAmount: 0,
+          totalCommissionAmount: 0,
+          enquiries: [],
+        };
+      }
+      agentMap[key].enquiryCount += 1;
+      agentMap[key].totalSalesAmount += Number(e.estimatedSalesValue || 0);
+      agentMap[key].totalCommissionAmount += Number(e.commissionAmount || 0);
+      agentMap[key].enquiries.push({
+        enquiryId: e.enquiryId,
+        enquiryNumber: e.enquiryNumber,
+        customerName: e.customer?.fullName,
+        vehicleModel: e.item?.itemName,
+        salesAmount: Number(e.estimatedSalesValue),
+        commissionPercentage: Number(e.commissionPercentage),
+        commissionAmount: Number(e.commissionAmount),
+        status: e.status,
+        date: e.createdAt,
+      });
+    }
+
+    return {
+      totalEnquiries,
+      totalSalesAmount,
+      totalCommissionAmount,
+      agentBreakdown: Object.values(agentMap),
+      records: enquiries.map((e) => ({
+        enquiryId: e.enquiryId,
+        enquiryNumber: e.enquiryNumber,
+        agentName: e.commissionAgentName,
+        agentPhone: e.commissionAgentPhone,
+        customerName: e.customer?.fullName,
+        vehicleModel: e.item?.itemName,
+        salesAmount: Number(e.estimatedSalesValue),
+        commissionPercentage: Number(e.commissionPercentage),
+        commissionAmount: Number(e.commissionAmount),
+        status: e.status,
+        createdAt: e.createdAt,
+      })),
+    };
+  }
+
+  async getFinancingReport() {
+    const enquiries = await this.enquiryRepo
+      .createQueryBuilder('e')
+      .leftJoinAndSelect('e.customer', 'customer')
+      .leftJoinAndSelect('e.item', 'item')
+      .where("e.financingOption IN ('BANK_FINANCING', 'MICROFINANCE_FINANCING') OR e.financingRequired = true")
+      .orderBy('e.createdAt', 'DESC')
+      .getMany();
+
+    const totalFinancedEnquiries = enquiries.length;
+    const totalSalesAmount = enquiries.reduce((sum, e) => sum + Number(e.estimatedSalesValue || 0), 0);
+    const totalRequestedFinancing = enquiries.reduce((sum, e) => sum + Number(e.financingAmount || 0), 0);
+    const totalApprovedFinancing = enquiries.reduce((sum, e) => sum + Number(e.financingApprovedAmount || 0), 0);
+    const totalDisbursedFinancing = enquiries.reduce((sum, e) => sum + Number(e.financingDisbursedAmount || 0), 0);
+    const totalCustomerContribution = enquiries.reduce((sum, e) => sum + Number(e.customerContributionAmount || 0), 0);
+
+    // Group by institution
+    const instMap: Record<string, any> = {};
+    for (const e of enquiries) {
+      const inst = e.financingInstitutionName || e.financeProvider || 'Unassigned Institution';
+      if (!instMap[inst]) {
+        instMap[inst] = {
+          institutionName: inst,
+          financingType: e.financingType || (e.financingOption === 'MICROFINANCE_FINANCING' ? 'MICROFINANCE' : 'BANK'),
+          enquiryCount: 0,
+          totalSalesAmount: 0,
+          totalRequestedFinancing: 0,
+          totalApprovedFinancing: 0,
+          totalDisbursedFinancing: 0,
+          totalCustomerContribution: 0,
+        };
+      }
+      instMap[inst].enquiryCount += 1;
+      instMap[inst].totalSalesAmount += Number(e.estimatedSalesValue || 0);
+      instMap[inst].totalRequestedFinancing += Number(e.financingAmount || 0);
+      instMap[inst].totalApprovedFinancing += Number(e.financingApprovedAmount || 0);
+      instMap[inst].totalDisbursedFinancing += Number(e.financingDisbursedAmount || 0);
+      instMap[inst].totalCustomerContribution += Number(e.customerContributionAmount || 0);
+    }
+
+    return {
+      summary: {
+        totalFinancedEnquiries,
+        totalSalesAmount,
+        totalRequestedFinancing,
+        totalApprovedFinancing,
+        totalDisbursedFinancing,
+        outstandingFinancingBalance: totalApprovedFinancing - totalDisbursedFinancing,
+        totalCustomerContribution,
+      },
+      institutionBreakdown: Object.values(instMap),
+      records: enquiries.map((e) => ({
+        enquiryId: e.enquiryId,
+        enquiryNumber: e.enquiryNumber,
+        customerName: e.customer?.fullName,
+        vehicleModel: e.item?.itemName,
+        financingOption: e.financingOption,
+        financingType: e.financingType,
+        institutionName: e.financingInstitutionName || e.financeProvider,
+        salesAmount: Number(e.estimatedSalesValue),
+        financingPercentage: Number(e.financingPercentage),
+        financingAmount: Number(e.financingAmount),
+        customerContributionAmount: Number(e.customerContributionAmount),
+        financingStatus: e.financingStatus || 'NOT_SUBMITTED',
+        applicationNumber: e.financingApplicationNumber,
+        approvedAmount: Number(e.financingApprovedAmount || 0),
+        disbursedAmount: Number(e.financingDisbursedAmount || 0),
+        createdAt: e.createdAt,
+      })),
+    };
   }
 }

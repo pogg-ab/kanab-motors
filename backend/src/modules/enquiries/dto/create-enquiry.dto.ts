@@ -125,4 +125,111 @@ export class CreateEnquiryDto {
   @IsBoolean()
   @IsOptional()
   isDraft?: boolean;
+
+  // --- Commission Agent Tracking (Client Demo Feedback New Story 1) ---
+  @ApiPropertyOptional({ example: 'Alazar Tesfaye' })
+  @IsString()
+  @IsOptional()
+  commissionAgentName?: string;
+
+  @ApiPropertyOptional({ example: '+251-911-234567' })
+  @IsString()
+  @IsOptional()
+  commissionAgentPhone?: string;
+
+  @ApiPropertyOptional({ example: 3.5 })
+  @IsNumber()
+  @IsOptional()
+  commissionPercentage?: number;
+
+  @ApiPropertyOptional({ example: 8750.0 })
+  @IsNumber()
+  @IsOptional()
+  commissionAmount?: number;
+
+  // --- Financing Institution Tracking (Client Demo Feedback New Story 3) ---
+  @ApiPropertyOptional({ example: 'BANK_FINANCING', default: 'CASH' })
+  @IsString()
+  @IsOptional()
+  financingOption?: string; // 'CASH' | 'BANK_FINANCING' | 'MICROFINANCE_FINANCING'
+
+  @ApiPropertyOptional({ example: 'BANK' })
+  @IsString()
+  @IsOptional()
+  financingType?: string; // 'BANK' | 'MICROFINANCE'
+
+  @ApiPropertyOptional({ example: 'Awash Bank S.C.' })
+  @IsString()
+  @IsOptional()
+  financingInstitutionName?: string;
+
+  @ApiPropertyOptional({ example: 'Tewodros Kassahun' })
+  @IsString()
+  @IsOptional()
+  financingContactPerson?: string;
+
+  @ApiPropertyOptional({ example: '+251-912-345678' })
+  @IsString()
+  @IsOptional()
+  financingContactPhone?: string;
+
+  @ApiPropertyOptional({ example: 70.0 })
+  @IsNumber()
+  @IsOptional()
+  financingPercentage?: number;
+
+  @ApiPropertyOptional({ example: 175000.0 })
+  @IsNumber()
+  @IsOptional()
+  financingAmount?: number;
+
+  @ApiPropertyOptional({ example: 30.0 })
+  @IsNumber()
+  @IsOptional()
+  customerContributionPercentage?: number;
+
+  @ApiPropertyOptional({ example: 75000.0 })
+  @IsNumber()
+  @IsOptional()
+  customerContributionAmount?: number;
+
+  @ApiPropertyOptional({ example: 'NOT_SUBMITTED' })
+  @IsString()
+  @IsOptional()
+  financingStatus?: string;
+
+  @ApiPropertyOptional({ example: 'AWB-2026-0981' })
+  @IsString()
+  @IsOptional()
+  financingApplicationNumber?: string;
+
+  @ApiPropertyOptional({ example: '2026-11-20' })
+  @IsString()
+  @IsOptional()
+  financingSubmissionDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-11-25' })
+  @IsString()
+  @IsOptional()
+  financingApprovalDate?: string;
+
+  @ApiPropertyOptional({ example: 175000.0 })
+  @IsNumber()
+  @IsOptional()
+  financingApprovedAmount?: number;
+
+  @ApiPropertyOptional({ example: 175000.0 })
+  @IsNumber()
+  @IsOptional()
+  financingDisbursedAmount?: number;
+
+  @ApiPropertyOptional({ example: '2026-11-28' })
+  @IsString()
+  @IsOptional()
+  financingDisbursementDate?: string;
+
+  @ApiPropertyOptional({ example: 'Approved under special commercial transport financing package.' })
+  @IsString()
+  @IsOptional()
+  financingNotes?: string;
 }

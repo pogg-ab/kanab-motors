@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
 import { ShipmentsService } from './modules/shipments/services/shipments.service';
 import { ApprovalsService } from './modules/approvals/approvals.service';
+import { EnquiriesService } from './modules/enquiries/enquiries.service';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
 import { seedDatabase } from './database/seed';
@@ -35,6 +36,7 @@ async function ensureSequences() {
       'po_number_seq',
       'shipment_number_seq',
       'pre_advance_slip_seq',
+      'inspection_number_seq',
     ];
     for (const seq of sequences) {
       await client.query(`CREATE SEQUENCE IF NOT EXISTS ${seq} START 1;`);
@@ -250,6 +252,7 @@ async function bootstrap() {
     try {
       await app.get(ShipmentsService).generateAutomatedImportAlerts();
       await app.get(ApprovalsService).scanPendingApprovals();
+      await app.get(EnquiriesService).scanExpiredInspections();
     } catch (error) {
       console.error('Operational deadline/reminder scan failed:', error);
     }

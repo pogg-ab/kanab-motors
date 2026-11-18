@@ -107,6 +107,27 @@ export class Booking {
   @Column({ name: 'cancellation_reason', type: 'text', nullable: true })
   cancellationReason: string;
 
+  @Column({ name: 'commission_agent_name', length: 200, nullable: true })
+  commissionAgentName?: string;
+
+  @Column({ name: 'commission_percentage', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  commissionPercentage?: number;
+
+  @Column({ name: 'commission_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  commissionAmount: number;
+
+  @Column({ name: 'financing_option', length: 50, default: 'CASH' })
+  financingOption: string;
+
+  @Column({ name: 'financing_institution_name', length: 200, nullable: true })
+  financingInstitutionName?: string;
+
+  @Column({ name: 'financing_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  financingAmount: number;
+
+  @Column({ name: 'customer_contribution_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  customerContributionAmount: number;
+
   @Column({ name: 'enquiry_preferences', type: 'jsonb', nullable: true })
   enquiryPreferences?: Record<string, any>;
 
