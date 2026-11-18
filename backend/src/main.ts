@@ -234,6 +234,7 @@ async function ensureSequences() {
         ADD COLUMN IF NOT EXISTS commission_agent_phone VARCHAR(50),
         ADD COLUMN IF NOT EXISTS commission_percentage NUMERIC(5, 2),
         ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(18, 2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS commission_notes TEXT,
         ADD COLUMN IF NOT EXISTS financing_option VARCHAR(50) DEFAULT 'CASH',
         ADD COLUMN IF NOT EXISTS financing_type VARCHAR(50),
         ADD COLUMN IF NOT EXISTS financing_institution_name VARCHAR(200),
@@ -254,8 +255,10 @@ async function ensureSequences() {
 
       ALTER TABLE booking
         ADD COLUMN IF NOT EXISTS commission_agent_name VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS commission_agent_phone VARCHAR(50),
         ADD COLUMN IF NOT EXISTS commission_percentage NUMERIC(5, 2),
         ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(18, 2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS commission_notes TEXT,
         ADD COLUMN IF NOT EXISTS financing_option VARCHAR(50) DEFAULT 'CASH',
         ADD COLUMN IF NOT EXISTS financing_institution_name VARCHAR(200),
         ADD COLUMN IF NOT EXISTS financing_amount NUMERIC(18, 2) DEFAULT 0,
