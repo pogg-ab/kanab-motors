@@ -641,7 +641,7 @@ export const BookingsPage: React.FC = () => {
                         </div>
                         {paid > total && (
                           <div style={{ marginTop: '0.2rem' }}>
-                            <span className="badge badge-cyan" style={{ fontSize: '0.62rem', fontWeight: 700 }} title="Transferable excess deposit (KMS-FB-05)">
+                            <span className="badge badge-cyan" style={{ fontSize: '0.62rem', fontWeight: 700 }} title="Transferable excess deposit">
                               Excess: ETB {(paid - total).toLocaleString()}
                             </span>
                           </div>
@@ -1321,7 +1321,7 @@ export const BookingsPage: React.FC = () => {
               {/* Section 2: Financial & Advance Deposit Breakdown */}
               <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
-                  Financial Balances &amp; Deposit Reconciliation (KMS-FB-17)
+                  Financial Balances &amp; Deposit Reconciliation
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
                   <div style={{ padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
@@ -1362,7 +1362,7 @@ export const BookingsPage: React.FC = () => {
               {/* Section 3: Retained Customer Requirements & Enquiry Preferences */}
               <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
-                  Retained Customer Requirements &amp; Preferences (KMS-FB-13, KMS-FB-14)
+                  Retained Customer Requirements &amp; Preferences
                 </div>
                 {detailBooking.customerRequirementsNotes && (
                   <div style={{ padding: '0.75rem', background: 'rgba(6, 182, 212, 0.08)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.85rem' }}>

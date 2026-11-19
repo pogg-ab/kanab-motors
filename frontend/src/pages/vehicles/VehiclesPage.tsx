@@ -1003,7 +1003,7 @@ export const VehiclesPage: React.FC = () => {
                               });
                             }}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)' }}
-                            title="Record Customer Custody Retention (KMS-FB-06)"
+                            title="Record Customer Custody Retention"
                           >
                             <Shield size={12} /> Custody
                           </button>
@@ -1013,7 +1013,7 @@ export const VehiclesPage: React.FC = () => {
                             className="btn btn-emerald btn-sm"
                             onClick={() => handleCompleteHandover(v.vehicleUnitId)}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
-                            title="Complete physical handover to customer (KMS-FB-06)"
+                            title="Complete physical handover to customer"
                           >
                             <CheckCircle2 size={12} /> Handover
                           </button>
@@ -2314,7 +2314,7 @@ export const VehiclesPage: React.FC = () => {
               <div>
                 {selectedVehicleForDetail.ownershipStatus === 'CUSTOMER_OWNED' && selectedVehicleForDetail.currentStatus !== 'DELIVERED' && (
                   <span className="badge badge-amber" style={{ fontSize: '0.75rem' }}>
-                    Custody: Customer-Owned Retained Onsite (KMS-FB-06)
+                    Custody: Customer-Owned Retained Onsite
                   </span>
                 )}
               </div>

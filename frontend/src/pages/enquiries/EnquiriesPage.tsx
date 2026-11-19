@@ -1814,7 +1814,7 @@ export const EnquiriesPage: React.FC = () => {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Commission Agent Tracking (Story 1)
+                  Commission Agent Tracking
                 </h3>
                 <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Automated sales commissions by agent & deal volume
@@ -1891,7 +1891,7 @@ export const EnquiriesPage: React.FC = () => {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Financing Institution Performance (Story 3)
+                  Financing Institution Performance
                 </h3>
                 <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Commercial Banks & Microfinance Institutions (MFI) distribution

@@ -402,7 +402,7 @@ export const PaymentsPage: React.FC = () => {
                 onClick={() => setShowTransfersReviewModal(true)}
                 className="btn btn-secondary"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}
-                title="Review and approve cross-customer excess deposit transfers (KMS-FB-05)"
+                title="Review and approve cross-customer excess deposit transfers"
               >
                 <ArrowRightLeft size={16} />
                 <span>Review Transfers</span>
@@ -436,7 +436,7 @@ export const PaymentsPage: React.FC = () => {
                 }}
                 className="btn btn-secondary"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-cyan)' }}
-                title="Transfer excess customer deposits across bookings (KMS-FB-05)"
+                title="Transfer excess customer deposits across bookings"
               >
                 <ArrowRightLeft size={16} />
                 Transfer Excess
@@ -754,7 +754,7 @@ export const PaymentsPage: React.FC = () => {
                               padding: '0.35rem 0.6rem',
                               fontSize: '0.75rem',
                             }}
-                            title="Manage Payment Supporting Documents / Bank Slip (KMS-FB-02)"
+                            title="Manage Payment Supporting Documents / Bank Slip"
                           >
                             <Paperclip size={13} />
                             Docs
@@ -1422,7 +1422,7 @@ export const PaymentsPage: React.FC = () => {
                   Cross-Customer Excess Transfers Review &amp; Approval
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
-                  KMS-FB-05: Authorize and execute cross-customer deposit adjustments prior to ledger posting
+                  Authorize and execute cross-customer deposit adjustments prior to ledger posting
                 </p>
               </div>
               <button

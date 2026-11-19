@@ -950,7 +950,7 @@ export const SettlementPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Initiate Customer Refund Request</h3>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Strictly validated against customer available refundable balance (Section 11)</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>Strictly validated against customer available refundable balance</span>
                 </div>
               </div>
               <button onClick={() => setShowNewRefundModal(false)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}>
@@ -1194,7 +1194,7 @@ export const SettlementPage: React.FC = () => {
                       {/* Standardized Refund Reason (Master Category) */}
                       <div>
                         <label className="form-label" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Refund Reason (Section 11 Master Category) *
+                          Refund Reason *
                         </label>
                         <select
                           className="input"
