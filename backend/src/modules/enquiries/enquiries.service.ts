@@ -20,6 +20,22 @@ import { ExtendInspectionDto, CancelInspectionDto } from './dto/extend-inspectio
 import { UpdateFinancingStatusDto } from './dto/update-financing-status.dto';
 import { AuditService } from '../audit/audit.service';
 
+const mapInspectionResponse = (insp: any) => {
+  if (!insp) return null;
+  return {
+    ...insp,
+    scheduledAt: insp.inspectionStartTime || insp.createdAt,
+    startedAt: insp.inspectionStartTime,
+    durationMinutes: insp.allowedDurationMinutes,
+    deadlineAt: insp.inspectionDeadline,
+    completedAt: insp.inspectionCompletedAt,
+    inspectionStatus: insp.status,
+    inspectionOutcome: insp.outcome,
+    extendedMinutes: insp.extensionMinutes,
+    outcomeReason: insp.remarks,
+  };
+};
+
 @Injectable()
 export class EnquiriesService {
   constructor(
@@ -234,6 +250,21 @@ export class EnquiriesService {
 
     const [items, total] = await qb.getManyAndCount();
 
+    if (items.length > 0) {
+      const enquiryIds = items.map((i) => i.enquiryId);
+      const inspections = await this.inspectionRepo
+        .createQueryBuilder('insp')
+        .where('insp.enquiryId IN (:...enquiryIds)', { enquiryIds })
+        .orderBy('insp.createdAt', 'DESC')
+        .getMany();
+
+      for (const item of items) {
+        (item as any).inspections = inspections
+          .filter((insp) => String(insp.enquiryId) === String(item.enquiryId))
+          .map(mapInspectionResponse);
+      }
+    }
+
     return {
       items,
       total,
@@ -257,6 +288,13 @@ export class EnquiriesService {
       ],
     });
     if (!enquiry) throw new NotFoundException(`Sales Enquiry with ID ${id} not found`);
+
+    const insps = await this.inspectionRepo.find({
+      where: { enquiryId: id },
+      order: { createdAt: 'DESC' },
+    });
+    (enquiry as any).inspections = insps.map(mapInspectionResponse);
+
     return enquiry;
   }
 
@@ -667,7 +705,7 @@ export class EnquiriesService {
       },
     });
 
-    return saved;
+    return mapInspectionResponse(saved) as any;
   }
 
   async completeInspection(
@@ -736,7 +774,7 @@ export class EnquiriesService {
       },
     });
 
-    return saved;
+    return mapInspectionResponse(saved) as any;
   }
 
   async extendInspection(
@@ -781,7 +819,7 @@ export class EnquiriesService {
       },
     });
 
-    return saved;
+    return mapInspectionResponse(saved) as any;
   }
 
   async cancelInspection(
@@ -815,7 +853,7 @@ export class EnquiriesService {
       },
     });
 
-    return saved;
+    return mapInspectionResponse(saved) as any;
   }
 
   async getInspectionByEnquiryId(enquiryId: string): Promise<CustomerVehicleInspection | null> {
@@ -847,7 +885,7 @@ export class EnquiriesService {
       }
     }
 
-    return inspection;
+    return mapInspectionResponse(inspection) as any;
   }
 
   async getInspections(query?: { status?: string; search?: string }): Promise<CustomerVehicleInspection[]> {
@@ -881,7 +919,7 @@ export class EnquiriesService {
         await this.inspectionRepo.save(item);
       }
     }
-    return list;
+    return list.map(mapInspectionResponse) as any;
   }
 
   async scanExpiredInspections(): Promise<number> {

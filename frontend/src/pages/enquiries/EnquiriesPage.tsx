@@ -42,6 +42,22 @@ import { useAuth } from '../../context/AuthContext';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 import { formatApiError } from '../../utils/error';
 
+const normalizeInspection = (raw: any): CustomerVehicleInspection => {
+  if (!raw) return raw;
+  return {
+    ...raw,
+    scheduledAt: raw.scheduledAt || raw.inspectionStartTime || raw.createdAt,
+    startedAt: raw.startedAt || raw.inspectionStartTime,
+    durationMinutes: raw.durationMinutes ?? raw.allowedDurationMinutes ?? 120,
+    deadlineAt: raw.deadlineAt || raw.inspectionDeadline,
+    completedAt: raw.completedAt || raw.inspectionCompletedAt,
+    inspectionStatus: raw.inspectionStatus || raw.status || 'PENDING',
+    inspectionOutcome: raw.inspectionOutcome || raw.outcome,
+    extendedMinutes: raw.extendedMinutes ?? raw.extensionMinutes ?? 0,
+    outcomeReason: raw.outcomeReason || raw.remarks,
+  };
+};
+
 export const EnquiriesPage: React.FC = () => {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -288,12 +304,20 @@ export const EnquiriesPage: React.FC = () => {
     setLoadingInspections(true);
     try {
       const data = await api.getInspections();
-      setInspections(data);
+      setInspections((data || []).map(normalizeInspection));
     } catch (err) {
       console.error('Failed to load vehicle inspections:', err);
     } finally {
       setLoadingInspections(false);
     }
+  };
+
+  const getActiveInspectionForEnquiry = (enq: SalesEnquiry) => {
+    if (enq.inspections && enq.inspections.length > 0) {
+      return normalizeInspection(enq.inspections[0]);
+    }
+    const found = inspections.find((i) => String(i.enquiryId) === String(enq.enquiryId));
+    return found ? normalizeInspection(found) : null;
   };
 
   const fetchSlips = async () => {
@@ -326,11 +350,14 @@ export const EnquiriesPage: React.FC = () => {
 
   useEffect(() => {
     fetchDependencies();
+    fetchInspections();
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'pipeline') fetchEnquiries();
-    else if (activeTab === 'inspections') fetchInspections();
+    if (activeTab === 'pipeline') {
+      fetchEnquiries();
+      fetchInspections();
+    } else if (activeTab === 'inspections') fetchInspections();
     else if (activeTab === 'slips') fetchSlips();
     else if (activeTab === 'intelligence') fetchReports();
   }, [activeTab, selectedStatus, search]);
@@ -1307,7 +1334,7 @@ export const EnquiriesPage: React.FC = () => {
                           <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                             {/* Story 2: Inspection Quick Action / Status Button */}
                             {(() => {
-                              const activeInsp = enq.inspections && enq.inspections.length > 0 ? enq.inspections[0] : null;
+                              const activeInsp = getActiveInspectionForEnquiry(enq);
                               if (!activeInsp) {
                                 return (
                                   <button
@@ -1512,7 +1539,8 @@ export const EnquiriesPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  inspections.map((insp) => {
+                  inspections.map((rawInsp) => {
+                    const insp = normalizeInspection(rawInsp);
                     const isRunning = insp.inspectionStatus === 'IN_PROGRESS' || insp.inspectionStatus === 'PENDING';
                     const diff = new Date(insp.deadlineAt).getTime() - now;
                     const isExpired = diff <= 0 || insp.inspectionStatus === 'EXPIRED';

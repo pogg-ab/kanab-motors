@@ -137,5 +137,42 @@ export class CustomerVehicleInspection {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  // Frontend compatibility virtual getters
+  get scheduledAt(): Date {
+    return this.inspectionStartTime || this.createdAt;
+  }
+
+  get startedAt(): Date {
+    return this.inspectionStartTime;
+  }
+
+  get durationMinutes(): number {
+    return this.allowedDurationMinutes;
+  }
+
+  get deadlineAt(): Date {
+    return this.inspectionDeadline;
+  }
+
+  get completedAt(): Date | undefined {
+    return this.inspectionCompletedAt;
+  }
+
+  get inspectionStatus(): InspectionStatus {
+    return this.status;
+  }
+
+  get inspectionOutcome(): InspectionOutcome | undefined {
+    return this.outcome;
+  }
+
+  get extendedMinutes(): number {
+    return this.extensionMinutes;
+  }
+
+  get outcomeReason(): string | undefined {
+    return this.remarks;
+  }
 }
 
