@@ -681,8 +681,11 @@ export const EnquiriesPage: React.FC = () => {
       await api.updateFinancingStatus(financingModal.enquiry.enquiryId, {
         financingStatus: financingForm.financingStatus,
         financingApplicationNumber: financingForm.financingApplicationNumber || undefined,
+        financingApprovedAmount: financingForm.financingApprovedAmount ? Number(financingForm.financingApprovedAmount) : undefined,
         approvedAmount: financingForm.financingApprovedAmount ? Number(financingForm.financingApprovedAmount) : undefined,
+        financingDisbursedAmount: financingForm.financingDisbursedAmount ? Number(financingForm.financingDisbursedAmount) : undefined,
         disbursedAmount: financingForm.financingDisbursedAmount ? Number(financingForm.financingDisbursedAmount) : undefined,
+        financingNotes: financingForm.financingNotes || undefined,
         notes: financingForm.financingNotes || undefined,
       });
       setFinancingModal({ open: false, enquiry: null });

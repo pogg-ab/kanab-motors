@@ -970,10 +970,13 @@ export class EnquiriesService {
     if (dto.financingApplicationNumber !== undefined) enquiry.financingApplicationNumber = dto.financingApplicationNumber;
     if (dto.financingSubmissionDate !== undefined) enquiry.financingSubmissionDate = dto.financingSubmissionDate;
     if (dto.financingApprovalDate !== undefined) enquiry.financingApprovalDate = dto.financingApprovalDate;
-    if (dto.financingApprovedAmount !== undefined) enquiry.financingApprovedAmount = dto.financingApprovedAmount;
-    if (dto.financingDisbursedAmount !== undefined) enquiry.financingDisbursedAmount = dto.financingDisbursedAmount;
+    const approvedAmt = dto.financingApprovedAmount !== undefined ? dto.financingApprovedAmount : dto.approvedAmount;
+    if (approvedAmt !== undefined) enquiry.financingApprovedAmount = approvedAmt;
+    const disbursedAmt = dto.financingDisbursedAmount !== undefined ? dto.financingDisbursedAmount : dto.disbursedAmount;
+    if (disbursedAmt !== undefined) enquiry.financingDisbursedAmount = disbursedAmt;
     if (dto.financingDisbursementDate !== undefined) enquiry.financingDisbursementDate = dto.financingDisbursementDate;
-    if (dto.financingNotes !== undefined) enquiry.financingNotes = dto.financingNotes;
+    const notes = dto.financingNotes !== undefined ? dto.financingNotes : dto.notes;
+    if (notes !== undefined) enquiry.financingNotes = notes;
 
     const saved = await this.enquiryRepo.save(enquiry);
 

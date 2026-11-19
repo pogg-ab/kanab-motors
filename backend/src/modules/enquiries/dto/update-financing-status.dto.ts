@@ -30,7 +30,17 @@ export class UpdateFinancingStatusDto {
   @ApiPropertyOptional({ example: 175000.0 })
   @IsNumber()
   @IsOptional()
+  approvedAmount?: number;
+
+  @ApiPropertyOptional({ example: 175000.0 })
+  @IsNumber()
+  @IsOptional()
   financingDisbursedAmount?: number;
+
+  @ApiPropertyOptional({ example: 175000.0 })
+  @IsNumber()
+  @IsOptional()
+  disbursedAmount?: number;
 
   @ApiPropertyOptional({ example: '2026-11-28' })
   @IsString()
@@ -41,5 +51,10 @@ export class UpdateFinancingStatusDto {
   @IsString()
   @IsOptional()
   financingNotes?: string;
+
+  @ApiPropertyOptional({ example: 'Financing notes' })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }
 
