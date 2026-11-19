@@ -1,17 +1,28 @@
-import { IsNotEmpty, IsString, IsNumber, Min } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsNumber, Min, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ExtendInspectionDto {
-  @ApiProperty({ example: 60, description: 'Additional minutes granted for inspection' })
+  @ApiPropertyOptional({ example: 60, description: 'Additional minutes granted for inspection' })
   @IsNumber()
   @Min(15)
-  @IsNotEmpty()
-  extensionMinutes: number;
+  @IsOptional()
+  extensionMinutes?: number;
 
-  @ApiProperty({ example: 'Customer was delayed in traffic coming to the showroom; requested 1 extra hour' })
+  @ApiPropertyOptional({ example: 60, description: 'Additional minutes alias' })
+  @IsNumber()
+  @Min(15)
+  @IsOptional()
+  additionalMinutes?: number;
+
+  @ApiPropertyOptional({ example: 'Customer was delayed in traffic coming to the showroom; requested 1 extra hour' })
   @IsString()
-  @IsNotEmpty({ message: 'Extension reason is mandatory' })
-  extensionReason: string;
+  @IsOptional()
+  extensionReason?: string;
+
+  @ApiPropertyOptional({ example: 'Customer was delayed in traffic' })
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }
 
 export class CancelInspectionDto {

@@ -586,7 +586,9 @@ export const EnquiriesPage: React.FC = () => {
           vinChassisNumber: inspectionForm.vinChassisNumber || undefined,
           engineNumber: inspectionForm.engineNumber || undefined,
           inspectorName: inspectionForm.inspectorName || undefined,
+          allowedDurationMinutes: Number(inspectionForm.durationMinutes) || 120,
           durationMinutes: Number(inspectionForm.durationMinutes) || 120,
+          remarks: inspectionForm.notes || undefined,
           notes: inspectionForm.notes || undefined,
         });
       } else if (inspectionModal.mode === 'COMPLETE') {
@@ -595,6 +597,7 @@ export const EnquiriesPage: React.FC = () => {
           outcome: inspectionForm.outcome,
           outcomeReason: inspectionForm.outcomeReason || undefined,
           customerSignatureAck: inspectionForm.customerSignatureAck,
+          remarks: inspectionForm.notes || inspectionForm.outcomeReason || undefined,
           notes: inspectionForm.notes || undefined,
         });
       } else if (inspectionModal.mode === 'EXTEND') {
@@ -605,7 +608,9 @@ export const EnquiriesPage: React.FC = () => {
           return;
         }
         await api.extendInspection(inspectionModal.inspection.inspectionId, {
+          extensionMinutes: Number(inspectionForm.extensionMinutes) || 30,
           additionalMinutes: Number(inspectionForm.extensionMinutes) || 30,
+          extensionReason: inspectionForm.extensionReason.trim(),
           reason: inspectionForm.extensionReason.trim(),
         });
       } else if (inspectionModal.mode === 'CANCEL') {

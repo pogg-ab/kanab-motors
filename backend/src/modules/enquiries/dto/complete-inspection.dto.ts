@@ -12,5 +12,19 @@ export class CompleteInspectionDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+
+  @ApiPropertyOptional({ example: 'Vehicle passed all technical inspections' })
+  @IsString()
+  @IsOptional()
+  outcomeReason?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  customerSignatureAck?: boolean;
+
+  @ApiPropertyOptional({ example: 'Additional notes' })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }
 

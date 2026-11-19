@@ -623,11 +623,18 @@ export class EnquiriesService {
       );
     }
 
-    const duration = dto.allowedDurationMinutes && dto.allowedDurationMinutes >= 15 ? dto.allowedDurationMinutes : 120;
+    const duration =
+      (dto.durationMinutes || dto.allowedDurationMinutes) &&
+      (dto.durationMinutes || dto.allowedDurationMinutes) >= 15
+        ? (dto.durationMinutes || dto.allowedDurationMinutes)
+        : 120;
     const startTime = new Date();
     const deadline = new Date(startTime.getTime() + duration * 60 * 1000);
 
     const vehicleModel = dto.vehicleModel || (enquiry.item ? enquiry.item.itemName : 'Motorcycle / Three-Wheeler');
+    const remarks = [dto.remarks, dto.notes, dto.inspectorName ? `Inspector: ${dto.inspectorName}` : null]
+      .filter(Boolean)
+      .join(' | ');
 
     const inspection = this.inspectionRepo.create({
       enquiryId,
@@ -641,7 +648,7 @@ export class EnquiriesService {
       allowedDurationMinutes: duration,
       inspectionDeadline: deadline,
       status: InspectionStatus.IN_PROGRESS,
-      remarks: dto.remarks,
+      remarks: remarks || undefined,
       createdBy: userId,
     });
 
@@ -689,10 +696,19 @@ export class EnquiriesService {
     inspection.status = InspectionStatus.COMPLETED;
     inspection.outcome = dto.outcome;
     inspection.inspectionCompletedAt = new Date();
-    if (dto.remarks) {
+    const outcomeRemarks = [
+      dto.remarks,
+      dto.notes,
+      dto.outcomeReason,
+      dto.customerSignatureAck ? 'Customer Signed Ack Slip' : null,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    if (outcomeRemarks) {
       inspection.remarks = inspection.remarks
-        ? `${inspection.remarks} | Outcome Remarks: ${dto.remarks}`
-        : dto.remarks;
+        ? `${inspection.remarks} | Outcome: ${outcomeRemarks}`
+        : outcomeRemarks;
     }
 
     const saved = await this.inspectionRepo.save(inspection);
@@ -737,12 +753,18 @@ export class EnquiriesService {
       throw new BadRequestException(`Cannot extend inspection in status ${inspection.status}. Only active inspections can be extended.`);
     }
 
+    const extMins = dto.extensionMinutes || dto.additionalMinutes || 30;
+    const extReason = (dto.extensionReason || dto.reason || '').trim();
+    if (!extReason) {
+      throw new BadRequestException('Extension reason is mandatory');
+    }
+
     const currentDeadline = new Date(inspection.inspectionDeadline).getTime();
-    const newDeadline = new Date(currentDeadline + dto.extensionMinutes * 60 * 1000);
+    const newDeadline = new Date(currentDeadline + extMins * 60 * 1000);
 
     inspection.inspectionDeadline = newDeadline;
-    inspection.extensionMinutes = (inspection.extensionMinutes || 0) + dto.extensionMinutes;
-    inspection.extensionReason = dto.extensionReason;
+    inspection.extensionMinutes = (inspection.extensionMinutes || 0) + extMins;
+    inspection.extensionReason = extReason;
     inspection.extendedBy = userId;
 
     const saved = await this.inspectionRepo.save(inspection);

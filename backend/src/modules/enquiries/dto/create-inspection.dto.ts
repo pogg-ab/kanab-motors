@@ -8,6 +8,17 @@ export class CreateInspectionDto {
   @IsOptional()
   allowedDurationMinutes?: number = 120;
 
+  @ApiPropertyOptional({ example: 120, description: 'Inspection duration in minutes alias' })
+  @IsNumber()
+  @Min(15)
+  @IsOptional()
+  durationMinutes?: number;
+
+  @ApiPropertyOptional({ example: 'Senior Technical Inspector', description: 'Assigned inspector name' })
+  @IsString()
+  @IsOptional()
+  inspectorName?: string;
+
   @ApiPropertyOptional({ example: '1', description: 'Specific vehicle unit ID if reserved/held for inspection' })
   @IsString()
   @IsOptional()
@@ -32,5 +43,10 @@ export class CreateInspectionDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+
+  @ApiPropertyOptional({ example: 'Pre-check inspection notes' })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }
 
