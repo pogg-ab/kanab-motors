@@ -173,9 +173,25 @@ async function ensureSequences() {
       -- Story X9: Credit transfer ledger transaction type support
       DO $$
       BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ledger_transaction_type_enum') THEN
+          BEGIN
+            ALTER TYPE ledger_transaction_type_enum ADD VALUE IF NOT EXISTS 'CREDIT_TRANSFER';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+          BEGIN
+            ALTER TYPE ledger_transaction_type_enum ADD VALUE IF NOT EXISTS 'WHT_SETTLEMENT';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+        END IF;
         IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'customer_ledger_transaction_transaction_type_enum') THEN
-          ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'CREDIT_TRANSFER';
-          ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'WHT_SETTLEMENT';
+          BEGIN
+            ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'CREDIT_TRANSFER';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+          BEGIN
+            ALTER TYPE customer_ledger_transaction_transaction_type_enum ADD VALUE IF NOT EXISTS 'WHT_SETTLEMENT';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
         END IF;
       END $$;
 
