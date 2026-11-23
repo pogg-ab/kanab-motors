@@ -1310,6 +1310,7 @@ export const EnquiriesPage: React.FC = () => {
                     <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '60px' }}>QTY</th>
                     <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '160px' }}>ESTIMATED VALUE (15% VAT)</th>
                     <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '140px' }}>SALESPERSON & FINANCING</th>
+                    <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', minWidth: '160px' }}>COMMISSION AGENT</th>
                     <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', minWidth: '110px' }}>STATUS</th>
                     <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '220px' }}>ACTIONS & INSPECTION</th>
                   </tr>
@@ -1317,13 +1318,13 @@ export const EnquiriesPage: React.FC = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                         Loading sales enquiries...
                       </td>
                     </tr>
                   ) : enquiries.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                         No sales enquiries found. Click "+ New Sales Enquiry" to begin.
                       </td>
                     </tr>
@@ -1383,35 +1384,6 @@ export const EnquiriesPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          {/* Story 1: Commission Agent Badge & Quick Pay Button */}
-                          {enq.leadSource === 'COMMISSION_AGENT' && enq.commissionAgentName && (
-                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                              <span className="badge" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple, #a855f7)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-                                🤝 Agent: {enq.commissionAgentName} ({enq.commissionPercentage}% · ETB {Number(enq.commissionAmount).toLocaleString()})
-                              </span>
-                              {enq.commissionPaymentStatus === 'PAID' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleEnquiryPayment(enq.enquiryId, 'PAID')}
-                                  className="badge badge-emerald"
-                                  style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', cursor: 'pointer', border: '1px solid rgba(16, 185, 129, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                  title="Click to revert to Unpaid"
-                                >
-                                  <CheckCircle size={10} /> ✓ Paid
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPayEnquiry(enq, enq.commissionAgentName || 'Agent')}
-                                  className="badge badge-amber"
-                                  style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', cursor: 'pointer', border: '1px solid rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                  title="Click to Mark Paid"
-                                >
-                                  <DollarSign size={10} /> Pay Now (Unpaid)
-                                </button>
-                              )}
-                            </div>
-                          )}
                         </td>
                         <td style={{ padding: '0.95rem 1.15rem', textAlign: 'center' }}>
                           <span className="mono-code">{enq.quantity}</span>
@@ -1458,6 +1430,46 @@ export const EnquiriesPage: React.FC = () => {
                                   Status: {enq.financingStatus}
                                 </div>
                               )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.95rem 1.15rem' }}>
+                          {enq.leadSource === 'COMMISSION_AGENT' && enq.commissionAgentName ? (
+                            <div>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem' }}>
+                                <User size={13} color="var(--accent-purple, #a855f7)" />
+                                <span>{enq.commissionAgentName}</span>
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--accent-purple, #a855f7)', marginTop: '0.15rem', fontWeight: 600 }}>
+                                {enq.commissionPercentage}% · ETB {Number(enq.commissionAmount).toLocaleString()}
+                              </div>
+                              <div style={{ marginTop: '0.35rem' }}>
+                                {enq.commissionPaymentStatus === 'PAID' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleEnquiryPayment(enq.enquiryId, 'PAID')}
+                                    className="badge badge-emerald"
+                                    style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', cursor: 'pointer', border: '1px solid rgba(16, 185, 129, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                    title="Click to revert to Unpaid"
+                                  >
+                                    <CheckCircle size={10} /> ✓ Paid
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPayEnquiry(enq, enq.commissionAgentName || 'Agent')}
+                                    className="badge badge-amber"
+                                    style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', cursor: 'pointer', border: '1px solid rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                    title="Click to Mark Paid"
+                                  >
+                                    <DollarSign size={10} /> Pay Now (Unpaid)
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              Direct / Walk-In
                             </div>
                           )}
                         </td>

@@ -640,6 +640,7 @@ export const ReportsHubPage: React.FC = () => {
               { key: 'customer', label: 'By Customer' },
               { key: 'region', label: 'By Region' },
               { key: 'salesperson', label: 'By Salesperson' },
+              { key: 'commission_agent', label: 'By Commission Agent' },
             ].map((st) => (
               <button
                 key={st.key}
