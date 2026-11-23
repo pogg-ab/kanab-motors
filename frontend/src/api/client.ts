@@ -408,6 +408,8 @@ export interface CommissionReport {
   totalCommissionAmount: number;
   totalPaidCommission?: number;
   totalUnpaidCommission?: number;
+  paidCommissionAmount?: number;
+  unpaidCommissionAmount?: number;
   agentBreakdown: Array<{
     agentName: string;
     agentPhone: string;
