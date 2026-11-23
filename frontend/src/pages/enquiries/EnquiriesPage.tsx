@@ -1369,20 +1369,32 @@ export const EnquiriesPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          {/* Story 1: Commission Agent Badge */}
+                          {/* Story 1: Commission Agent Badge & Quick Pay Button */}
                           {enq.leadSource === 'COMMISSION_AGENT' && enq.commissionAgentName && (
-                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                               <span className="badge" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple, #a855f7)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
                                 🤝 Agent: {enq.commissionAgentName} ({enq.commissionPercentage}% · ETB {Number(enq.commissionAmount).toLocaleString()})
                               </span>
                               {enq.commissionPaymentStatus === 'PAID' ? (
-                                <span className="badge badge-emerald" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
-                                  ✓ Paid
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleEnquiryPayment(enq.enquiryId, 'PAID')}
+                                  className="badge badge-emerald"
+                                  style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', cursor: 'pointer', border: '1px solid rgba(16, 185, 129, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                  title="Click to revert to Unpaid"
+                                >
+                                  <CheckCircle size={10} /> ✓ Paid
+                                </button>
                               ) : (
-                                <span className="badge badge-amber" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
-                                  Unpaid
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPayEnquiry(enq, enq.commissionAgentName || 'Agent')}
+                                  className="badge badge-amber"
+                                  style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', cursor: 'pointer', border: '1px solid rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                  title="Click to Mark Paid"
+                                >
+                                  <DollarSign size={10} /> Pay Now (Unpaid)
+                                </button>
                               )}
                             </div>
                           )}
