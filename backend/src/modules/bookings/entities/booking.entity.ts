@@ -116,6 +116,15 @@ export class Booking {
   @Column({ name: 'commission_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
   commissionAmount: number;
 
+  @Column({ name: 'commission_payment_status', length: 50, default: 'UNPAID' })
+  commissionPaymentStatus?: string;
+
+  @Column({ name: 'commission_paid_at', type: 'timestamptz', nullable: true })
+  commissionPaidAt?: Date | null;
+
+  @Column({ name: 'commission_paid_reference', length: 100, nullable: true })
+  commissionPaidReference?: string | null;
+
   @Column({ name: 'financing_option', length: 50, default: 'CASH' })
   financingOption: string;
 

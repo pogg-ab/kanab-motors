@@ -21,6 +21,7 @@ import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { CompleteInspectionDto } from './dto/complete-inspection.dto';
 import { ExtendInspectionDto, CancelInspectionDto } from './dto/extend-inspection.dto';
 import { UpdateFinancingStatusDto } from './dto/update-financing-status.dto';
+import { UpdateCommissionPaymentDto } from './dto/update-commission-payment.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Sales Enquiry Management (KMSICAMS-2 & KMSICAMS-14)')
@@ -64,6 +65,29 @@ export class EnquiriesController {
   @ApiOperation({ summary: 'Commission Agent Sales Tracking & Commission Payable Report (New Story 1)' })
   getCommissionReport() {
     return this.enquiriesService.getCommissionReport();
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Post('commission-payment/agent')
+  @ApiOperation({ summary: 'Bulk update commission payment status for all enquiries of an agent' })
+  updateAgentCommissions(
+    @Body() dto: UpdateCommissionPaymentDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.updateAgentCommissions(dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch(':id/commission-payment')
+  @ApiOperation({ summary: 'Update commission payment status for a sales enquiry (PAID / UNPAID)' })
+  updateCommissionPayment(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdateCommissionPaymentDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.updateCommissionPayment(id, dto, userId);
   }
 
   @RequirePermissions('ENQUIRIES_VIEW')

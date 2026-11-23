@@ -227,6 +227,30 @@ export const EnquiriesPage: React.FC = () => {
   const [selectedSlip, setSelectedSlip] = useState<PreAdvanceSlip | null>(null);
   const [loadingSlip, setLoadingSlip] = useState(false);
 
+  // Commission Agent Modal States (Story 1 Payment & Detail Tracking)
+  const [commissionAgentModal, setCommissionAgentModal] = useState<{
+    open: boolean;
+    agent: any | null;
+  }>({ open: false, agent: null });
+
+  const [commissionPaymentModal, setCommissionPaymentModal] = useState<{
+    open: boolean;
+    type: 'ENQUIRY' | 'AGENT';
+    enquiryId?: string;
+    enquiryNumber?: string;
+    agentName?: string;
+    amount: number;
+    reference: string;
+    notes: string;
+  }>({
+    open: false,
+    type: 'AGENT',
+    amount: 0,
+    reference: '',
+    notes: '',
+  });
+  const [submittingCommissionPayment, setSubmittingCommissionPayment] = useState(false);
+
   const handleOpenSlip = async (enq: SalesEnquiry) => {
     setLoadingSlip(true);
     try {
@@ -240,6 +264,90 @@ export const EnquiriesPage: React.FC = () => {
       console.error('Failed to load pre-advance slip:', err);
     } finally {
       setLoadingSlip(false);
+    }
+  };
+
+  const handleOpenAgentDetail = (agent: any) => {
+    setCommissionAgentModal({ open: true, agent });
+  };
+
+  const handleOpenPayAgent = (agent: any) => {
+    setCommissionPaymentModal({
+      open: true,
+      type: 'AGENT',
+      agentName: agent.agentName,
+      amount: Number(agent.unpaidCommissionAmount ?? agent.totalCommissionAmount ?? 0),
+      reference: '',
+      notes: '',
+    });
+  };
+
+  const handleOpenPayEnquiry = (enquiry: any, agentName: string) => {
+    setCommissionPaymentModal({
+      open: true,
+      type: 'ENQUIRY',
+      enquiryId: enquiry.enquiryId,
+      enquiryNumber: enquiry.enquiryNumber,
+      agentName: agentName,
+      amount: Number(enquiry.commissionAmount || 0),
+      reference: enquiry.commissionPaidReference || '',
+      notes: enquiry.commissionPaidNotes || '',
+    });
+  };
+
+  const handleToggleEnquiryPayment = async (enquiryId: string, currentStatus?: string) => {
+    try {
+      setSubmittingCommissionPayment(true);
+      const newStatus = currentStatus === 'PAID' ? 'UNPAID' : 'PAID';
+      await api.updateCommissionPayment(enquiryId, {
+        status: newStatus,
+      });
+      await Promise.all([fetchReports(), fetchEnquiries()]);
+      if (commissionAgentModal.open && commissionAgentModal.agent) {
+        const updated = await api.getCommissionReport();
+        const found = updated.agentBreakdown?.find((a) => a.agentName === commissionAgentModal.agent.agentName);
+        if (found) {
+          setCommissionAgentModal({ open: true, agent: found });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle enquiry commission payment status:', err);
+    } finally {
+      setSubmittingCommissionPayment(false);
+    }
+  };
+
+  const handleConfirmCommissionPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmittingCommissionPayment(true);
+      if (commissionPaymentModal.type === 'AGENT' && commissionPaymentModal.agentName) {
+        await api.updateAgentCommissions({
+          agentName: commissionPaymentModal.agentName,
+          status: 'PAID',
+          paymentReference: commissionPaymentModal.reference.trim() || undefined,
+          notes: commissionPaymentModal.notes.trim() || undefined,
+        });
+      } else if (commissionPaymentModal.type === 'ENQUIRY' && commissionPaymentModal.enquiryId) {
+        await api.updateCommissionPayment(commissionPaymentModal.enquiryId, {
+          status: 'PAID',
+          paymentReference: commissionPaymentModal.reference.trim() || undefined,
+          notes: commissionPaymentModal.notes.trim() || undefined,
+        });
+      }
+      setCommissionPaymentModal({ open: false, type: 'AGENT', amount: 0, reference: '', notes: '' });
+      await Promise.all([fetchReports(), fetchEnquiries()]);
+      if (commissionAgentModal.open && commissionAgentModal.agent) {
+        const updated = await api.getCommissionReport();
+        const found = updated.agentBreakdown?.find((a) => a.agentName === commissionAgentModal.agent.agentName);
+        if (found) {
+          setCommissionAgentModal({ open: true, agent: found });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to confirm commission payment:', err);
+    } finally {
+      setSubmittingCommissionPayment(false);
     }
   };
 
@@ -1263,10 +1371,19 @@ export const EnquiriesPage: React.FC = () => {
                           </div>
                           {/* Story 1: Commission Agent Badge */}
                           {enq.leadSource === 'COMMISSION_AGENT' && enq.commissionAgentName && (
-                            <div style={{ marginTop: '0.35rem' }}>
+                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                               <span className="badge" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', background: 'rgba(168, 85, 247, 0.15)', color: 'var(--accent-purple, #a855f7)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
                                 🤝 Agent: {enq.commissionAgentName} ({enq.commissionPercentage}% · ETB {Number(enq.commissionAmount).toLocaleString()})
                               </span>
+                              {enq.commissionPaymentStatus === 'PAID' ? (
+                                <span className="badge badge-emerald" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
+                                  ✓ Paid
+                                </span>
+                              ) : (
+                                <span className="badge badge-amber" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem' }}>
+                                  Unpaid
+                                </span>
+                              )}
                             </div>
                           )}
                         </td>
@@ -1822,7 +1939,7 @@ export const EnquiriesPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem', marginBottom: '1.25rem' }}>
               <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Active Agents</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
@@ -1836,9 +1953,18 @@ export const EnquiriesPage: React.FC = () => {
                 </div>
               </div>
               <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Accrued Commission</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Commission</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-purple, #a855f7)', marginTop: '0.2rem' }}>
                   ETB {Number(commissionReport?.totalCommissionAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Paid vs Outstanding</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.2rem' }}>
+                  Paid: ETB {Number(commissionReport?.totalPaidCommission || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', marginTop: '0.1rem' }}>
+                  Due: ETB {Number(commissionReport?.totalUnpaidCommission ?? commissionReport?.totalCommissionAmount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
               </div>
             </div>
@@ -1852,12 +1978,14 @@ export const EnquiriesPage: React.FC = () => {
                     <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>DEALS</th>
                     <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', color: 'var(--text-muted)' }}>SALES VOLUME</th>
                     <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', color: 'var(--text-muted)' }}>COMMISSION</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>STATUS</th>
+                    <th style={{ padding: '0.65rem 0.85rem', textAlign: 'center', color: 'var(--text-muted)' }}>ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(!commissionReport?.agentBreakdown || commissionReport.agentBreakdown.length === 0) ? (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                         No commission deals recorded yet.
                       </td>
                     </tr>
@@ -1874,6 +2002,52 @@ export const EnquiriesPage: React.FC = () => {
                         </td>
                         <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-purple, #a855f7)' }}>
                           ETB {Number(ag.totalCommissionAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          {ag.status === 'PAID' ? (
+                            <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              ✓ PAID
+                            </span>
+                          ) : ag.status === 'PARTIAL' ? (
+                            <span className="badge badge-cyan" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              PARTIAL
+                            </span>
+                          ) : (
+                            <span className="badge badge-amber" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              ⏳ UNPAID
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-cyan"
+                              onClick={() => handleOpenAgentDetail(ag)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                            >
+                              <Eye size={12} /> Details
+                            </button>
+                            {ag.status !== 'PAID' ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-emerald"
+                                onClick={() => handleOpenPayAgent(ag)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                              >
+                                <CheckCircle size={12} /> Mark Paid
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-subtle"
+                                onClick={() => handleOpenAgentDetail(ag)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', opacity: 0.8 }}
+                              >
+                                <CheckCircle2 size={12} /> Paid
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -3686,6 +3860,274 @@ export const EnquiriesPage: React.FC = () => {
                   disabled={submittingFinancing}
                 >
                   {submittingFinancing ? 'Updating...' : 'Update Financing Status'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* COMMISSION AGENT DETAILS & ENQUIRIES MODAL */}
+      {commissionAgentModal.open && commissionAgentModal.agent && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '850px', width: '95%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <User size={20} color="var(--accent-purple, #a855f7)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Commission Agent: {commissionAgentModal.agent.agentName}
+                  </h3>
+                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Phone: {commissionAgentModal.agent.agentPhone || 'N/A'} · Tracking & Payout History
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommissionAgentModal({ open: false, agent: null })}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Agent KPI Metrics */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Enquiry Deals</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                    {commissionAgentModal.agent.enquiryCount}
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sales Volume</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>
+                    ETB {Number(commissionAgentModal.agent.totalSalesAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Commission</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-purple, #a855f7)', marginTop: '0.2rem' }}>
+                    ETB {Number(commissionAgentModal.agent.totalCommissionAmount).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Paid / Due</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.2rem' }}>
+                    Paid: ETB {Number(commissionAgentModal.agent.paidCommissionAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', marginTop: '0.1rem' }}>
+                    Due: ETB {Number(commissionAgentModal.agent.unpaidCommissionAmount ?? commissionAgentModal.agent.totalCommissionAmount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Action Banner */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Associated Sales Enquiries ({commissionAgentModal.agent.enquiries?.length || 0})
+                </h4>
+                {commissionAgentModal.agent.status !== 'PAID' && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-emerald"
+                    onClick={() => handleOpenPayAgent(commissionAgentModal.agent)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <CheckCircle size={14} /> Mark All as Paid (ETB {Number(commissionAgentModal.agent.unpaidCommissionAmount ?? commissionAgentModal.agent.totalCommissionAmount ?? 0).toLocaleString()})
+                  </button>
+                )}
+              </div>
+
+              {/* Enquiries Table */}
+              <div style={{ overflowX: 'auto', maxHeight: '350px' }}>
+                <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)' }}>ENQUIRY #</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)' }}>CUSTOMER</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)' }}>VEHICLE</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', color: 'var(--text-muted)' }}>SALES VALUE</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', color: 'var(--text-muted)' }}>RATE</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', color: 'var(--text-muted)' }}>COMMISSION</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', color: 'var(--text-muted)' }}>STATUS</th>
+                      <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', color: 'var(--text-muted)' }}>ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(!commissionAgentModal.agent.enquiries || commissionAgentModal.agent.enquiries.length === 0) ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+                          No enquiries found for this agent.
+                        </td>
+                      </tr>
+                    ) : (
+                      commissionAgentModal.agent.enquiries.map((e: any, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.6rem 0.75rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                            {e.enquiryNumber}
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-primary)' }}>
+                            {e.customerName || 'N/A'}
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-muted)' }}>
+                            {e.vehicleModel || 'Vehicle'}
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right' }}>
+                            ETB {Number(e.salesAmount).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', textAlign: 'center' }}>
+                            <span className="mono-code">{e.commissionPercentage}%</span>
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-purple, #a855f7)' }}>
+                            ETB {Number(e.commissionAmount).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', textAlign: 'center' }}>
+                            {e.commissionPaymentStatus === 'PAID' ? (
+                              <span className="badge badge-emerald" title={e.commissionPaidReference ? `Ref: ${e.commissionPaidReference}` : undefined}>
+                                ✓ PAID
+                              </span>
+                            ) : (
+                              <span className="badge badge-amber">
+                                UNPAID
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.6rem 0.75rem', textAlign: 'center' }}>
+                            {e.commissionPaymentStatus === 'PAID' ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-subtle"
+                                onClick={() => handleToggleEnquiryPayment(e.enquiryId, 'PAID')}
+                                disabled={submittingCommissionPayment}
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                                title="Revert back to Unpaid"
+                              >
+                                Revert
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-emerald"
+                                onClick={() => handleOpenPayEnquiry(e, commissionAgentModal.agent.agentName)}
+                                disabled={submittingCommissionPayment}
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setCommissionAgentModal({ open: false, agent: null })}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RECORD COMMISSION PAYOUT / CONFIRMATION MODAL */}
+      {commissionPaymentModal.open && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle size={20} color="var(--accent-emerald)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Confirm Commission Payout
+                  </h3>
+                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Agent: {commissionPaymentModal.agentName}
+                    {commissionPaymentModal.enquiryNumber ? ` · Enquiry ${commissionPaymentModal.enquiryNumber}` : ' · All Unpaid Enquiries'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommissionPaymentModal({ open: false, type: 'AGENT', amount: 0, reference: '', notes: '' })}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.65rem', borderRadius: '8px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCommissionPayment}>
+              <div className="modal-body">
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Commission Agent:</span>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{commissionPaymentModal.agentName}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', paddingTop: '0.35rem', borderTop: '1px solid var(--border-color)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Payout Amount:</span>
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--accent-emerald)' }}>
+                      ETB {Number(commissionPaymentModal.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Payment Voucher / Cheque / Bank Reference Number</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. CBE-CHQ-99120 or Bank Transfer Ref #8812"
+                    value={commissionPaymentModal.reference}
+                    onChange={(e) => setCommissionPaymentModal({ ...commissionPaymentModal, reference: e.target.value })}
+                  />
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Optional audit reference proving payment disbursement.
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label className="form-label">Payout Remarks / Notes</label>
+                  <textarea
+                    className="input-field"
+                    rows={2}
+                    placeholder="e.g. Paid in full upon vehicle delivery confirmation..."
+                    value={commissionPaymentModal.notes}
+                    onChange={(e) => setCommissionPaymentModal({ ...commissionPaymentModal, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setCommissionPaymentModal({ open: false, type: 'AGENT', amount: 0, reference: '', notes: '' })}
+                  disabled={submittingCommissionPayment}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-emerald"
+                  disabled={submittingCommissionPayment}
+                >
+                  {submittingCommissionPayment ? 'Saving...' : '✓ Confirm & Mark as Paid'}
                 </button>
               </div>
             </form>

@@ -18,6 +18,7 @@ import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { CompleteInspectionDto } from './dto/complete-inspection.dto';
 import { ExtendInspectionDto, CancelInspectionDto } from './dto/extend-inspection.dto';
 import { UpdateFinancingStatusDto } from './dto/update-financing-status.dto';
+import { UpdateCommissionPaymentDto } from './dto/update-commission-payment.dto';
 import { AuditService } from '../audit/audit.service';
 
 const mapInspectionResponse = (insp: any) => {
@@ -1009,6 +1010,12 @@ export class EnquiriesService {
     const totalEnquiries = enquiries.length;
     const totalSalesAmount = enquiries.reduce((sum, e) => sum + Number(e.estimatedSalesValue || 0), 0);
     const totalCommissionAmount = enquiries.reduce((sum, e) => sum + Number(e.commissionAmount || 0), 0);
+    const totalPaidCommission = enquiries
+      .filter((e) => e.commissionPaymentStatus === 'PAID')
+      .reduce((sum, e) => sum + Number(e.commissionAmount || 0), 0);
+    const totalUnpaidCommission = enquiries
+      .filter((e) => e.commissionPaymentStatus !== 'PAID')
+      .reduce((sum, e) => sum + Number(e.commissionAmount || 0), 0);
 
     // Group by agent
     const agentMap: Record<string, any> = {};
@@ -1021,12 +1028,22 @@ export class EnquiriesService {
           enquiryCount: 0,
           totalSalesAmount: 0,
           totalCommissionAmount: 0,
+          paidCommissionAmount: 0,
+          unpaidCommissionAmount: 0,
+          status: 'UNPAID',
           enquiries: [],
         };
       }
       agentMap[key].enquiryCount += 1;
       agentMap[key].totalSalesAmount += Number(e.estimatedSalesValue || 0);
       agentMap[key].totalCommissionAmount += Number(e.commissionAmount || 0);
+      const isPaid = e.commissionPaymentStatus === 'PAID';
+      if (isPaid) {
+        agentMap[key].paidCommissionAmount += Number(e.commissionAmount || 0);
+      } else {
+        agentMap[key].unpaidCommissionAmount += Number(e.commissionAmount || 0);
+      }
+
       agentMap[key].enquiries.push({
         enquiryId: e.enquiryId,
         enquiryNumber: e.enquiryNumber,
@@ -1036,14 +1053,31 @@ export class EnquiriesService {
         commissionPercentage: Number(e.commissionPercentage),
         commissionAmount: Number(e.commissionAmount),
         status: e.status,
+        commissionPaymentStatus: e.commissionPaymentStatus || 'UNPAID',
+        commissionPaidAt: e.commissionPaidAt,
+        commissionPaidReference: e.commissionPaidReference,
+        commissionPaidNotes: e.commissionPaidNotes,
         date: e.createdAt,
       });
+    }
+
+    // Determine aggregate status per agent
+    for (const ag of Object.values(agentMap) as any[]) {
+      if (ag.paidCommissionAmount > 0 && ag.unpaidCommissionAmount === 0) {
+        ag.status = 'PAID';
+      } else if (ag.paidCommissionAmount > 0 && ag.unpaidCommissionAmount > 0) {
+        ag.status = 'PARTIAL';
+      } else {
+        ag.status = 'UNPAID';
+      }
     }
 
     return {
       totalEnquiries,
       totalSalesAmount,
       totalCommissionAmount,
+      totalPaidCommission,
+      totalUnpaidCommission,
       agentBreakdown: Object.values(agentMap),
       records: enquiries.map((e) => ({
         enquiryId: e.enquiryId,
@@ -1056,8 +1090,132 @@ export class EnquiriesService {
         commissionPercentage: Number(e.commissionPercentage),
         commissionAmount: Number(e.commissionAmount),
         status: e.status,
+        commissionPaymentStatus: e.commissionPaymentStatus || 'UNPAID',
+        commissionPaidAt: e.commissionPaidAt,
+        commissionPaidReference: e.commissionPaidReference,
+        commissionPaidNotes: e.commissionPaidNotes,
         createdAt: e.createdAt,
       })),
+    };
+  }
+
+  async updateCommissionPayment(enquiryId: string, dto: UpdateCommissionPaymentDto, userId: number) {
+    const enquiry = await this.enquiryRepo.findOne({
+      where: { enquiryId: String(enquiryId) },
+      relations: ['customer', 'item'],
+    });
+    if (!enquiry) {
+      throw new NotFoundException(`Enquiry #${enquiryId} not found`);
+    }
+
+    const previousStatus = enquiry.commissionPaymentStatus || 'UNPAID';
+    const newStatus = dto.status === 'PAID' ? 'PAID' : 'UNPAID';
+    enquiry.commissionPaymentStatus = newStatus;
+    enquiry.commissionPaidAt = newStatus === 'PAID' ? new Date() : null;
+    enquiry.commissionPaidReference = newStatus === 'PAID' ? (dto.paymentReference || null) : null;
+    if (dto.notes) {
+      enquiry.commissionPaidNotes = dto.notes;
+    }
+
+    const saved = await this.enquiryRepo.save(enquiry);
+
+    // Also sync linked booking if exists
+    try {
+      await this.enquiryRepo.manager.query(
+        `UPDATE booking 
+         SET commission_payment_status = $1,
+             commission_paid_at = $2,
+             commission_paid_reference = $3
+         WHERE enquiry_id = $4`,
+        [newStatus, enquiry.commissionPaidAt, enquiry.commissionPaidReference, enquiry.enquiryId],
+      );
+    } catch {
+      // non-blocking
+    }
+
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: enquiryId,
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        operation: 'UPDATE_COMMISSION_PAYMENT',
+        commissionPaymentStatus: newStatus,
+        commissionPaidAt: enquiry.commissionPaidAt,
+        commissionPaidReference: enquiry.commissionPaidReference,
+        previousStatus,
+      },
+    });
+
+    return saved;
+  }
+
+  async updateAgentCommissions(dto: UpdateCommissionPaymentDto, userId: number) {
+    if (!dto.agentName) {
+      throw new BadRequestException('Agent name is required to update agent commissions');
+    }
+
+    const enquiries = await this.enquiryRepo.find({
+      where: {
+        leadSource: 'COMMISSION_AGENT',
+        commissionAgentName: dto.agentName,
+      },
+    });
+
+    if (!enquiries || enquiries.length === 0) {
+      throw new NotFoundException(`No enquiries found for commission agent ${dto.agentName}`);
+    }
+
+    const newStatus = dto.status === 'PAID' ? 'PAID' : 'UNPAID';
+    const paidAt = newStatus === 'PAID' ? new Date() : null;
+    const ref = newStatus === 'PAID' ? (dto.paymentReference || null) : null;
+
+    for (const e of enquiries) {
+      e.commissionPaymentStatus = newStatus;
+      e.commissionPaidAt = paidAt;
+      e.commissionPaidReference = ref;
+      if (dto.notes) {
+        e.commissionPaidNotes = dto.notes;
+      }
+    }
+
+    await this.enquiryRepo.save(enquiries);
+
+    try {
+      const enquiryIds = enquiries.map((e) => e.enquiryId);
+      if (enquiryIds.length > 0) {
+        await this.enquiryRepo.manager.query(
+          `UPDATE booking 
+           SET commission_payment_status = $1,
+               commission_paid_at = $2,
+               commission_paid_reference = $3
+           WHERE enquiry_id = ANY($4)`,
+          [newStatus, paidAt, ref, enquiryIds],
+        );
+      }
+    } catch {
+      // non-blocking
+    }
+
+    await this.auditService.log({
+      entityType: 'sales_enquiry',
+      entityId: String(enquiries[0]?.enquiryId || 0),
+      action: 'UPDATE',
+      changedBy: userId,
+      newValue: {
+        operation: 'BULK_UPDATE_AGENT_COMMISSIONS',
+        agentName: dto.agentName,
+        status: newStatus,
+        count: enquiries.length,
+        reference: ref,
+      },
+    });
+
+    return {
+      success: true,
+      agentName: dto.agentName,
+      status: newStatus,
+      updatedCount: enquiries.length,
     };
   }
 

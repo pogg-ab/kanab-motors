@@ -128,6 +128,18 @@ export class SalesEnquiry {
   @Column({ name: 'commission_notes', type: 'text', nullable: true })
   commissionNotes?: string;
 
+  @Column({ name: 'commission_payment_status', length: 50, default: 'UNPAID' })
+  commissionPaymentStatus: string;
+
+  @Column({ name: 'commission_paid_at', type: 'timestamptz', nullable: true })
+  commissionPaidAt?: Date | null;
+
+  @Column({ name: 'commission_paid_reference', length: 100, nullable: true })
+  commissionPaidReference?: string | null;
+
+  @Column({ name: 'commission_paid_notes', type: 'text', nullable: true })
+  commissionPaidNotes?: string | null;
+
   // --- Financing Institution Tracking (Client Demo Feedback New Story 3) ---
   @Column({ name: 'financing_option', length: 50, default: 'CASH' })
   financingOption: string;

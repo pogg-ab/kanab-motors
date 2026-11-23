@@ -349,6 +349,10 @@ export interface SalesEnquiry {
   commissionPercentage?: number;
   commissionAmount?: number;
   commissionNotes?: string;
+  commissionPaymentStatus?: string;
+  commissionPaidAt?: string;
+  commissionPaidReference?: string;
+  commissionPaidNotes?: string;
   financingOption?: 'CASH' | 'BANK_FINANCING' | 'MICROFINANCE_FINANCING';
   financingType?: 'BANK' | 'MICROFINANCE';
   financingInstitutionName?: string;
@@ -402,13 +406,32 @@ export interface CommissionReport {
   totalEnquiries: number;
   totalSalesAmount: number;
   totalCommissionAmount: number;
+  totalPaidCommission?: number;
+  totalUnpaidCommission?: number;
   agentBreakdown: Array<{
     agentName: string;
     agentPhone: string;
     enquiryCount: number;
     totalSalesAmount: number;
     totalCommissionAmount: number;
-    enquiries?: any[];
+    paidCommissionAmount?: number;
+    unpaidCommissionAmount?: number;
+    status?: string;
+    enquiries?: Array<{
+      enquiryId: string;
+      enquiryNumber: string;
+      customerName: string;
+      vehicleModel: string;
+      salesAmount: number;
+      commissionPercentage: number;
+      commissionAmount: number;
+      status: string;
+      commissionPaymentStatus?: string;
+      commissionPaidAt?: string;
+      commissionPaidReference?: string;
+      commissionPaidNotes?: string;
+      date: string;
+    }>;
   }>;
   records: any[];
 }
@@ -1521,6 +1544,10 @@ export const api = {
     apiClient.patch<SalesEnquiry>(`/enquiries/${enquiryId}/financing-status`, data).then((r) => r.data),
   getCommissionReport: () =>
     apiClient.get<CommissionReport>('/enquiries/reports/commissions').then((r) => r.data),
+  updateCommissionPayment: (enquiryId: string, data: { status: string; paymentReference?: string; notes?: string }) =>
+    apiClient.patch<SalesEnquiry>(`/enquiries/${enquiryId}/commission-payment`, data).then((r) => r.data),
+  updateAgentCommissions: (data: { agentName: string; agentPhone?: string; status: string; paymentReference?: string; notes?: string }) =>
+    apiClient.post<any>('/enquiries/commission-payment/agent', data).then((r) => r.data),
   getFinancingReport: () =>
     apiClient.get<FinancingReport>('/enquiries/reports/financing').then((r) => r.data),
 
