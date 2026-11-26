@@ -174,6 +174,10 @@ export const CompanyProfilePage: React.FC = () => {
     importerAdCode: '',
   });
 
+  useEffect(() => {
+    setLogoPreviewError(false);
+  }, [profileForm.logo]);
+
   // Bank Accounts state
   const [bankAccounts, setBankAccounts] = useState<CompanyBankAccount[]>([]);
   const [showBankModal, setShowBankModal] = useState<boolean>(false);
