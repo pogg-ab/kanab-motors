@@ -23,6 +23,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('batches');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Core data
@@ -149,7 +150,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
 
   const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    setModalError(null);
     try {
       await api.createCkdSkdBatch({
         ...batchForm,
@@ -160,13 +161,13 @@ export const CkdSkdIntegrationPage: React.FC = () => {
       flashSuccess('CKD/SKD Batch created and linked to shipment.');
       await loadAll();
     } catch (err) {
-      setErrorMsg(formatApiError(err, 'Failed to create CKD/SKD batch'));
+      setModalError(formatApiError(err, 'Failed to create CKD/SKD batch'));
     }
   };
 
   const handleLinkReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    setModalError(null);
     try {
       await api.linkCkdSkdBatchReceipt({
         batchId: linkForm.batchId,
@@ -177,7 +178,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
       flashSuccess('Goods receipt linked to CKD/SKD batch and CKD_SKD_RECEIPT_CONFIRMED event emitted.');
       await loadAll();
     } catch (err) {
-      setErrorMsg(formatApiError(err, 'Failed to link goods receipt'));
+      setModalError(formatApiError(err, 'Failed to link goods receipt'));
     }
   };
 
@@ -194,7 +195,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
 
   const handleCreateClearance = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    setModalError(null);
     try {
       await api.createCustomsClearance({
         declarationNumber: clearanceForm.declarationNumber,
@@ -215,7 +216,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
       flashSuccess('Customs clearance declaration recorded.');
       await loadAll();
     } catch (err) {
-      setErrorMsg(formatApiError(err, 'Failed to create customs clearance'));
+      setModalError(formatApiError(err, 'Failed to create customs clearance'));
     }
   };
 
@@ -292,9 +293,9 @@ export const CkdSkdIntegrationPage: React.FC = () => {
 
   const handleCreateBom = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
+    setModalError(null);
     if (bomLinesDraft.length === 0) {
-      setErrorMsg('Add at least one component line to the BOM.');
+      setModalError('Add at least one component line to the BOM.');
       return;
     }
     try {
@@ -315,7 +316,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
       flashSuccess('Vehicle BOM created and integrated with Product Master.');
       await loadAll();
     } catch (err) {
-      setErrorMsg(formatApiError(err, 'Failed to create BOM'));
+      setModalError(formatApiError(err, 'Failed to create BOM'));
     }
   };
 
@@ -436,10 +437,10 @@ export const CkdSkdIntegrationPage: React.FC = () => {
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowLinkReceiptModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setModalError(null); setShowLinkReceiptModal(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                 <PackageCheck size={14} /> Link Goods Receipt
               </button>
-              <button className="btn btn-cyan btn-sm" onClick={() => setShowBatchModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <button className="btn btn-cyan btn-sm" onClick={() => { setModalError(null); setShowBatchModal(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Plus size={14} /> New CKD/SKD Batch
               </button>
             </div>
@@ -528,7 +529,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
                   Only approved cleared quantities are eligible for transfer to Production Warehouse.
                 </p>
               </div>
-              <button className="btn btn-cyan btn-sm" onClick={() => setShowClearanceModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <button className="btn btn-cyan btn-sm" onClick={() => { setModalError(null); setShowClearanceModal(true); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Plus size={14} /> Record Customs Clearance
               </button>
             </div>
@@ -798,7 +799,7 @@ export const CkdSkdIntegrationPage: React.FC = () => {
           <div className="card" style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Vehicle BOM Definitions ({boms.length})</h3>
-              <button className="btn btn-cyan btn-sm" onClick={() => setShowBomModal(true)}><Plus size={14} /> New BOM</button>
+              <button className="btn btn-cyan btn-sm" onClick={() => { setModalError(null); setShowBomModal(true); }}><Plus size={14} /> New BOM</button>
             </div>
             {boms.length === 0 ? (
               <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>No BOMs defined yet. Click "+ New BOM" to configure vehicle component requirements.</div>
@@ -888,6 +889,11 @@ export const CkdSkdIntegrationPage: React.FC = () => {
             </div>
             <form onSubmit={handleCreateBatch}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {modalError && (
+                  <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171', padding: '0.65rem 0.85rem', borderRadius: '6px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <AlertTriangle size={15} /> <span>{modalError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="form-label">Batch Code (optional auto-generate)</label>
                   <input className="input" placeholder="e.g. CKD-BATCH-2026-001" value={batchForm.batchCode} onChange={(e) => setBatchForm({ ...batchForm, batchCode: e.target.value })} />
@@ -943,6 +949,11 @@ export const CkdSkdIntegrationPage: React.FC = () => {
             </div>
             <form onSubmit={handleLinkReceipt}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {modalError && (
+                  <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171', padding: '0.65rem 0.85rem', borderRadius: '6px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <AlertTriangle size={15} /> <span>{modalError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="form-label">CKD/SKD Batch</label>
                   <select className="input" required value={linkForm.batchId} onChange={(e) => setLinkForm({ ...linkForm, batchId: e.target.value })}>
@@ -987,6 +998,11 @@ export const CkdSkdIntegrationPage: React.FC = () => {
             </div>
             <form onSubmit={handleCreateClearance}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {modalError && (
+                  <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171', padding: '0.65rem 0.85rem', borderRadius: '6px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <AlertTriangle size={15} /> <span>{modalError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="form-label">Customs Declaration Number</label>
                   <input className="input" required placeholder="e.g. DEC-ET-2026-0091" value={clearanceForm.declarationNumber} onChange={(e) => setClearanceForm({ ...clearanceForm, declarationNumber: e.target.value })} />
@@ -1049,6 +1065,11 @@ export const CkdSkdIntegrationPage: React.FC = () => {
             </div>
             <form onSubmit={handleCreateBom}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {modalError && (
+                  <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171', padding: '0.65rem 0.85rem', borderRadius: '6px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <AlertTriangle size={15} /> <span>{modalError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="form-label">Finished Vehicle Product</label>
                   <select className="input" required value={bomForm.itemId} onChange={(e) => setBomForm({ ...bomForm, itemId: e.target.value })}>
