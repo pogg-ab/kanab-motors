@@ -32,6 +32,7 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ReportsHubPage } from './pages/reports/ReportsHubPage';
 import { SparePartsPage } from './pages/spare-parts/SparePartsPage';
 import { CompanyProfilePage } from './pages/settings/CompanyProfilePage';
+import { CkdSkdIntegrationPage } from './pages/ckd-skd/CkdSkdIntegrationPage';
 import { canAccessTab, getFirstAuthorizedTab } from './authz/permissions';
 
 function MainAppContent() {
@@ -138,6 +139,8 @@ function MainAppContent() {
         return 'Procurement: International Suppliers & Manufacturers';
       case 'procurement-reports':
         return 'Analytics: Import Pipeline Bottlenecks & Executive Reports';
+      case 'ckd-skd':
+        return 'Assembly Integration: CKD/SKD Batches, Customs Clearance & Serial Traceability';
       case 'statement':
         return 'Financial Engine: Customer Ledger & Statement of Account';
       case 'enquiries':
@@ -199,6 +202,7 @@ function MainAppContent() {
 
           {/* KMSICAMS-4 Pages */}
           {canAccessActiveTab && activeTab === 'inventory' && <InventoryPage />}
+          {canAccessActiveTab && activeTab === 'ckd-skd' && <CkdSkdIntegrationPage />}
 
           {/* KMSICAMS-3 Pages */}
           {canAccessActiveTab && activeTab === 'shipments' &&

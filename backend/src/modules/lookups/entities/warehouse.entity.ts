@@ -7,6 +7,15 @@ export enum WarehouseType {
   SHOWROOM = 'SHOWROOM',
 }
 
+export enum WarehouseClassification {
+  BONDED = 'BONDED',
+  CUSTOMS_RELEASED = 'CUSTOMS_RELEASED',
+  PRODUCTION = 'PRODUCTION',
+  SATELLITE_STORE = 'SATELLITE_STORE',
+  FINISHED_GOODS = 'FINISHED_GOODS',
+  STANDARD = 'STANDARD',
+}
+
 @Entity('warehouse')
 export class Warehouse {
   @PrimaryGeneratedColumn('increment', { type: 'int', name: 'warehouse_id' })
@@ -22,6 +31,14 @@ export class Warehouse {
     default: WarehouseType.BRANCH,
   })
   warehouseType: WarehouseType;
+
+  @Column({
+    name: 'warehouse_classification',
+    type: 'varchar',
+    length: 30,
+    default: WarehouseClassification.STANDARD,
+  })
+  warehouseClassification: WarehouseClassification;
 
   @Column({ type: 'int', nullable: true })
   capacity?: number;

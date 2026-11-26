@@ -28,6 +28,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
 import { ImportRequisitionsModule } from './modules/import-requisitions/import-requisitions.module';
 import { CompanyProfileModule } from './modules/company-profile/company-profile.module';
+import { CkdSkdModule } from './modules/ckd-skd/ckd-skd.module';
 import { PermissionGuard } from './common/guards/permission.guard';
 
 @Module({
@@ -62,6 +63,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
     SparePartsModule,
     ImportRequisitionsModule,
     CompanyProfileModule,
+    CkdSkdModule,
   ],
   providers: [
     {

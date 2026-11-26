@@ -201,6 +201,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       icon: BarChart3,
       permissions: TAB_PERMISSIONS['procurement-reports'],
     },
+    {
+      id: 'ckd-skd',
+      label: 'CKD/SKD Assembly Sync',
+      module: 'Bonded, Customs & Serials',
+      icon: Layers,
+      permissions: TAB_PERMISSIONS['ckd-skd'],
+    },
   ];
 
   const masterItems = [

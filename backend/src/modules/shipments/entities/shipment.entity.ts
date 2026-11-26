@@ -43,6 +43,14 @@ export class Shipment {
   })
   currentStage: ShipmentStage;
 
+  @Column({
+    name: 'ckd_skd_classification',
+    type: 'varchar',
+    length: 20,
+    default: 'CBU',
+  })
+  ckdSkdClassification: string; // CBU, CKD, SKD, MIXED
+
   @Column({ name: 'bill_of_lading_number', length: 60, nullable: true })
   billOfLadingNumber?: string;
 

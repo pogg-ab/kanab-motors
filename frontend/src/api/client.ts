@@ -2316,6 +2316,50 @@ export const api = {
   getApprovalReminderLogs: (limit?: number) =>
     apiClient.get<ApprovalReminderLog[]>('/approvals/reminders/logs', { params: { limit } }).then((r) => r.data),
 
+  // CKD/SKD Import & Inventory Integration (KMSICAMS-19)
+  getCkdSkdMappingSummary: () =>
+    apiClient.get<any>('/ckd-skd/mapping-summary').then((r) => r.data),
+  getCkdSkdBatches: (shipmentId?: string) =>
+    apiClient.get<any[]>('/ckd-skd/batches', { params: shipmentId ? { shipmentId } : undefined }).then((r) => r.data),
+  createCkdSkdBatch: (data: any) =>
+    apiClient.post<any>('/ckd-skd/batches', data).then((r) => r.data),
+  getCkdSkdAvailableReceipts: () =>
+    apiClient.get<any[]>('/ckd-skd/available-receipts').then((r) => r.data),
+  linkCkdSkdBatchReceipt: (data: { batchId: string; receiptId: string; receivedQuantity: number }) =>
+    apiClient.post<any>('/ckd-skd/batch-receipts', data).then((r) => r.data),
+  getCkdSkdWarehouses: () =>
+    apiClient.get<any[]>('/ckd-skd/warehouses').then((r) => r.data),
+  updateWarehouseClassification: (warehouseId: number, classification: string) =>
+    apiClient.patch<any>(`/ckd-skd/warehouses/${warehouseId}/classification`, { classification }).then((r) => r.data),
+  getCustomsClearances: () =>
+    apiClient.get<any[]>('/ckd-skd/clearances').then((r) => r.data),
+  getOutstandingCustomsClearances: () =>
+    apiClient.get<any[]>('/ckd-skd/clearances/outstanding').then((r) => r.data),
+  createCustomsClearance: (data: any) =>
+    apiClient.post<any>('/ckd-skd/clearances', data).then((r) => r.data),
+  approveCustomsClearance: (id: string) =>
+    apiClient.post<any>(`/ckd-skd/clearances/${id}/approve`).then((r) => r.data),
+  updateCustomsClearanceStatus: (id: string, status: string, remarks?: string) =>
+    apiClient.patch<any>(`/ckd-skd/clearances/${id}/status`, { status, remarks }).then((r) => r.data),
+  reverseCustomsClearanceLine: (lineId: string, reason: string) =>
+    apiClient.post<any>(`/ckd-skd/clearance-lines/${lineId}/reverse`, { reason }).then((r) => r.data),
+  transferClearedToProduction: (data: { batchReceiptId: string; toWarehouseId: number; quantity: number }) =>
+    apiClient.post<any>('/ckd-skd/transfer-to-production', data).then((r) => r.data),
+  getCkdSkdSerials: (params?: { batchId?: string; serialType?: string; status?: string }) =>
+    apiClient.get<any[]>('/ckd-skd/serials', { params }).then((r) => r.data),
+  registerCkdSkdSerials: (data: any) =>
+    apiClient.post<any[]>('/ckd-skd/serials', data).then((r) => r.data),
+  updateCkdSkdSerialStatus: (id: string, status: string) =>
+    apiClient.patch<any>(`/ckd-skd/serials/${id}/status`, { status }).then((r) => r.data),
+  getBoms: () =>
+    apiClient.get<any[]>('/ckd-skd/boms').then((r) => r.data),
+  createBom: (data: any) =>
+    apiClient.post<any>('/ckd-skd/boms', data).then((r) => r.data),
+  validateProductionEligibility: (params: { itemId: string; warehouseId?: number; requestedQuantity?: number }) =>
+    apiClient.get<any>('/ckd-skd/eligibility', { params }).then((r) => r.data),
+  getCkdSkdIntegrationEvents: () =>
+    apiClient.get<any[]>('/ckd-skd/events').then((r) => r.data),
+
 };
 
 // ============================================================================
