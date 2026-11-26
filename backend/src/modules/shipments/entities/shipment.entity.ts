@@ -62,6 +62,9 @@ export class Shipment {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  @Column({ name: 'insurance_required', default: false })
+  insuranceRequired: boolean;
+
   @Column({ name: 'selected_forwarder_id', type: 'bigint', nullable: true })
   selectedForwarderId?: string;
 

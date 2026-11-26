@@ -39,6 +39,22 @@ export class CreateImportRequisitionLineDto {
   intendedApplication?: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(1)
+  supplierMoq?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  planningLeadTimeDays?: number;
+
+  @IsOptional()
+  @IsString()
+  demandRationale?: string;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 }
@@ -97,6 +113,14 @@ export class ConvertRequisitionToPODto {
   @IsOptional()
   @IsString()
   incoterms?: string;
+
+  @IsOptional()
+  @IsString()
+  incotermsNamedPlace?: string;
+
+  @IsOptional()
+  @IsString()
+  leadTimeDayType?: string;
 
   @IsOptional()
   @IsString()

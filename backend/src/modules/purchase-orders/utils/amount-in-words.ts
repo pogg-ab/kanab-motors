@@ -95,12 +95,13 @@ export function numberToWords(amount: number): string {
 export function formatAmountInWords(amount: number, currency: string = 'USD'): string {
   const normCurrency = currency.toUpperCase();
   const absoluteValue = Math.abs(amount);
-  const integerPart = Math.floor(absoluteValue);
-  const centsPart = Math.round((absoluteValue - integerPart) * 100);
+  const roundedCents = Math.round(absoluteValue * 100);
+  const integerPart = Math.floor(roundedCents / 100);
+  const centsPart = roundedCents % 100;
 
   const mainWords = numberToWords(integerPart);
 
-  let currencyName = 'Dollars';
+  let currencyName = normCurrency==='USD' ? 'Dollars' : `${normCurrency} units`;
   let subunitName = 'Cents';
 
   if (normCurrency === 'EUR') {

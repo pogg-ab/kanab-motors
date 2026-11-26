@@ -19,9 +19,11 @@ import { POStatus } from './entities/purchase-order.entity';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import {
   CreatePODto,
+  ReplacePaymentSchedulesDto,
   UpdatePODto,
   UpdatePOStatusDto,
   CreateComplianceRecordDto,
+  UpdateComplianceRecordDto,
   CreatePaymentScheduleDto,
   RecordPaymentTransactionDto,
   CreateLetterOfCreditDto,
@@ -31,8 +33,38 @@ import { PermissionGuard } from '../../common/guards/permission.guard';
 
 @ApiTags('Purchase Orders & Import Processes (KMSICAMS-12)')
 @Controller('purchase-orders')
+@RequirePermissions('PURCHASE_ORDERS_VIEW', 'PAYMENTS_VIEW')
 export class PurchaseOrdersController {
   constructor(private readonly poService: PurchaseOrdersService) {}
+
+  @Get('import-policy')
+  getImportPolicy() { return this.poService.getImportPolicy(); }
+
+  @Put('import-policy')
+  @RequirePermissions('COMPANY_PROFILE_EDIT')
+  saveImportPolicy(@Body() body: any, @Req() req: any) { return this.poService.saveImportPolicy(body,req.user.userId); }
+
+  @Put(':id/payment-schedules')
+  @RequirePermissions('PAYMENTS_RECORD')
+  replaceSchedules(@Param('id', PositiveBigIntIdPipe) id: string, @Body() body: ReplacePaymentSchedulesDto, @Req() req: any) {
+    return this.poService.replacePaymentSchedules(id,body.milestones,req.user.userId);
+  }
+
+  @Patch('payments/transactions/:id/status')
+  @RequirePermissions('PAYMENTS_CONFIRM')
+  decidePayment(@Param('id', PositiveBigIntIdPipe) id: string, @Body() body: any, @Req() req: any) {
+    return this.poService.decidePayment(id,body.status,body.reason,req.user.userId);
+  }
+
+  @Get(':id/checklist')
+  checklist(@Param('id', PositiveBigIntIdPipe) id: string) { return this.poService.getChecklist(id); }
+
+  @Post(':id/amendment')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT')
+  amendment(@Param('id', PositiveBigIntIdPipe) id: string, @Body('reason') reason: string, @Req() req: any) { return this.poService.amendment(id,reason,req.user.userId); }
+
+  @Get(':id/revisions')
+  revisions(@Param('id', PositiveBigIntIdPipe) id: string) { return this.poService.revisions(id); }
 
   // -------------------------------------------------------------
   // Importer Profile & Bank Accounts (POX-01, POX-03)
@@ -91,7 +123,8 @@ export class PurchaseOrdersController {
   @RequirePermissions('PURCHASE_ORDERS_CREATE')
   @ApiOperation({ summary: 'Create a new Purchase Order with commercial terms (Story PO3 & Phase 2)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  create(@Body() dto: CreatePODto) {
+  create(@Body() dto: CreatePODto, @Req() req: any) {
+    dto.userId = req.user.userId;
     return this.poService.create(dto);
   }
 
@@ -130,7 +163,8 @@ export class PurchaseOrdersController {
   @RequirePermissions('PURCHASE_ORDERS_EDIT')
   @ApiOperation({ summary: 'Update Purchase Order (Draft status only)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  update(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: UpdatePODto) {
+  update(@Param('id', PositiveBigIntIdPipe) id: string, @Body() dto: UpdatePODto, @Req() req: any) {
+    dto.userId = req.user.userId;
     return this.poService.update(id, dto);
   }
 
@@ -151,7 +185,7 @@ export class PurchaseOrdersController {
     if (!isAdmin && !permissions.has(requiredPermission)) {
       throw new ForbiddenException(`Missing required permission: ${requiredPermission}`);
     }
-    return this.poService.updateStatus(id, dto.status, dto.userId);
+    return this.poService.updateStatus(id, dto.status, req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -164,24 +198,40 @@ export class PurchaseOrdersController {
   }
 
   @Post(':id/compliance')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT')
   @ApiOperation({ summary: 'Create a compliance record for PO' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createComplianceRecord(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: CreateComplianceRecordDto,
+    @Req() req: any,
   ) {
     dto.poId = id;
+    dto.userId = req.user.userId;
     return this.poService.createComplianceRecord(dto);
   }
 
+  @Patch('compliance/:recordId')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }))
+  updateComplianceRecord(
+    @Param('recordId', PositiveBigIntIdPipe) recordId: string,
+    @Body() dto: UpdateComplianceRecordDto,
+    @Req() req: any,
+  ) {
+    return this.poService.updateComplianceRecord(recordId, dto, req.user.userId);
+  }
+
   @Patch('compliance/:recordId/status')
+  @RequirePermissions('PURCHASE_ORDERS_CONFIRM')
   @ApiOperation({ summary: 'Update compliance clearance status (PENDING, APPROVED, REJECTED, etc.)' })
   updateComplianceStatus(
     @Param('recordId', PositiveBigIntIdPipe) recordId: string,
     @Body('status') status: string,
-    @Body('notes') notes?: string,
+    @Body('notes') notes: string | undefined,
+    @Req() req: any,
   ) {
-    return this.poService.updateComplianceStatus(recordId, status, notes);
+    return this.poService.updateComplianceStatus(recordId, status, notes, req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -194,20 +244,25 @@ export class PurchaseOrdersController {
   }
 
   @Post(':id/payment-schedules')
+  @RequirePermissions('PAYMENTS_RECORD')
   @ApiOperation({ summary: 'Add a payment schedule milestone to PO' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createPaymentSchedule(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: CreatePaymentScheduleDto,
+    @Req() req: any,
   ) {
     dto.poId = id;
+    dto.userId = req.user.userId;
     return this.poService.createPaymentSchedule(dto);
   }
 
   @Post('payments/transactions')
+  @RequirePermissions('PAYMENTS_RECORD')
   @ApiOperation({ summary: 'Record payment transaction against a milestone (Story IMP-18)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  recordPaymentTransaction(@Body() dto: RecordPaymentTransactionDto) {
+  recordPaymentTransaction(@Body() dto: RecordPaymentTransactionDto, @Req() req: any) {
+    dto.userId = req.user.userId;
     return this.poService.recordPaymentTransaction(dto);
   }
 
@@ -218,23 +273,28 @@ export class PurchaseOrdersController {
   }
 
   @Post(':id/letters-of-credit')
+  @RequirePermissions('PAYMENTS_RECORD')
   @ApiOperation({ summary: 'Record/Issue Letter of Credit for PO (Story IMP-20)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   createLetterOfCredit(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: CreateLetterOfCreditDto,
+    @Req() req: any,
   ) {
     dto.poId = id;
+    dto.userId = req.user.userId;
     return this.poService.createLetterOfCredit(dto);
   }
 
   @Patch('letters-of-credit/:lcId/status')
+  @RequirePermissions('PAYMENTS_CONFIRM')
   @ApiOperation({ summary: 'Update Letter of Credit status (UTILIZED, EXPIRED, CLOSED, etc.)' })
   updateLetterOfCreditStatus(
     @Param('lcId', PositiveBigIntIdPipe) lcId: string,
     @Body('status') status: string,
-    @Body('notes') notes?: string,
+    @Body('notes') notes: string | undefined,
+    @Req() req: any,
   ) {
-    return this.poService.updateLetterOfCreditStatus(lcId, status, notes);
+    return this.poService.updateLetterOfCreditStatus(lcId, status, notes, req.user.userId);
   }
 }

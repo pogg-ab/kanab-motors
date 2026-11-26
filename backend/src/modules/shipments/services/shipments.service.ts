@@ -1,3 +1,7 @@
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import { deadlineState, expiryDate, reminderEvents, validDate } from '../utils/container-rules';
+import { loadImportPolicy, businessDate, dateAfter, assertCompliance } from '../../purchase-orders/utils/import-rules';
 import {
   Injectable,
   NotFoundException,
@@ -55,6 +59,22 @@ import {
   UpdateOriginalDocumentStatusDto,
 } from '../dto/logistics.dto';
 import { AuditService } from '../../audit/audit.service';
+
+export const LOGISTICS_DEFAULTS = {
+  timezone: 'Africa/Nairobi', freeTimeOffsets: [7,3,1], returnOffsets: [7,3,1],
+  recipientRoles: ['ADMIN'], allowSelfApproval: false, containerUniqueness: 'PER_SHIPMENT',
+  milestoneRules: [] as { destination: string; mode: string; name: string; stage: string }[],
+  trackingRules: [] as { destination: string; mode: string; name: string; stage: string }[],
+};
+const RECORDS = {
+  containers: { entity: ShipmentContainer, dto: CreateShipmentContainerDto, id: 'containerId', table: 'shipment_container' },
+  bookings: { entity: ShipmentBooking, dto: CreateShipmentBookingDto, id: 'bookingId', table: 'shipment_booking' },
+  milestones: { entity: ShipmentMilestone, dto: CreateShipmentMilestoneDto, id: 'milestoneId', table: 'shipment_milestone' },
+  insurance: { entity: ShipmentInsurance, dto: CreateShipmentInsuranceDto, id: 'insuranceId', table: 'shipment_insurance' },
+  tracking: { entity: ShipmentCargoTracking, dto: CreateCargoTrackingDto, id: 'trackingId', table: 'shipment_cargo_tracking' },
+};
+const STAGES = ['SHIPPED','AT_DJIBOUTI_PORT','ETHIOPIAN_CUSTOMS_CLEARANCE','IN_TRANSIT_INLAND','RECEIVED'];
+
 
 @Injectable()
 export class ShipmentsService {
@@ -208,6 +228,7 @@ export class ShipmentsService {
 
       // Story IMP-28: Auto-seed standard logistics shipping milestones
       const defaultMilestones = [
+        'PRODUCTION_COMPLETED',
         'CARGO_READY',
         'BOOKING_CONFIRMED',
         'CONTAINER_STUFFED',
@@ -391,6 +412,12 @@ export class ShipmentsService {
       throw new BadRequestException(`Invalid shipment stage transition from ${fromStage} to ${targetStage}`);
     }
 
+    await this.assertLogisticsProgress(shipment,targetStage);
+    const checkpoint = targetStage === ShipmentStage.SHIPPED ? 'SHIPMENT' : targetStage === ShipmentStage.ETHIOPIAN_CUSTOMS_CLEARANCE ? 'CUSTOMS' : null;
+    if (checkpoint) {
+      const orders = new Map((shipment.lines || []).map(l => [l.poLine?.purchaseOrder?.poId, l.poLine?.purchaseOrder]));
+      for (const po of orders.values()) if (po) await assertCompliance(this.dataSource,po,checkpoint);
+    }
     // Configurable document completeness rules (IMP-33/37).
     const firstPo = shipment.lines?.[0]?.poLine?.purchaseOrder;
     const shipmentType = firstPo?.modeOfShipment || null;
@@ -1223,23 +1250,40 @@ export class ShipmentsService {
     });
   }
 
-  async createFreightForwarder(dto: CreateFreightForwarderDto): Promise<FreightForwarder> {
-    const forwarder = this.forwarderRepo.create(dto);
-    return this.forwarderRepo.save(forwarder);
+  async createFreightForwarder(dto: CreateFreightForwarderDto, actor?: number): Promise<FreightForwarder> {
+    if (!dto.name?.trim() || !dto.country?.trim()) throw new BadRequestException('Forwarder name and country required');
+    return this.dataSource.transaction(async m=>{
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      const repo=m.getRepository(FreightForwarder);
+      const saved=await repo.save(repo.create({...dto,name:dto.name.trim(),country:dto.country.trim()}));
+      await this.recordLogisticsHistory(m,null,'freight_forwarder',saved.freightForwarderId,actor,'Created',null,saved);
+      return saved;
+    });
   }
 
-  async updateFreightForwarder(id: string, dto: UpdateFreightForwarderDto): Promise<FreightForwarder> {
-    const forwarder = await this.forwarderRepo.findOne({ where: { freightForwarderId: id } });
-    if (!forwarder) {
-      throw new NotFoundException(`Freight Forwarder #${id} not found`);
-    }
-    Object.assign(forwarder, dto);
-    return this.forwarderRepo.save(forwarder);
+  async updateFreightForwarder(id: string, dto: UpdateFreightForwarderDto, actor?: number): Promise<FreightForwarder> {
+    return this.dataSource.transaction(async m=>{
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      const repo=m.getRepository(FreightForwarder);
+      const forwarder=await repo.findOne({where:{freightForwarderId:id},lock:{mode:'pessimistic_write'}});
+      if(!forwarder) throw new NotFoundException('Freight forwarder not found');
+      const old={...forwarder};
+      Object.assign(forwarder,dto);
+      if(!forwarder.name?.trim()||!forwarder.country?.trim()) throw new BadRequestException('Forwarder name and country required');
+      const saved=await repo.save(forwarder);
+      await this.recordLogisticsHistory(m,null,'freight_forwarder',id,actor,'Updated',old,saved);
+      return saved;
+    });
   }
 
   async setShipmentSelectedForwarder(shipmentId: string, forwarderId: string): Promise<Shipment> {
-    await this.findOne(shipmentId);
-    await this.shipmentRepo.update({ shipmentId }, { selectedForwarderId: forwarderId });
+    await this.dataSource.transaction(async m=>{
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      await this.activeForwarder(forwarderId,m);
+      const approved=await m.getRepository(ShipmentFreightQuotation).findOne({where:{shipmentId,freightForwarderId:forwarderId,selectionStatus:'SELECTED',approvalStatus:'APPROVED'}});
+      if(!approved) throw new BadRequestException('Select and approve a quotation before assigning its forwarder');
+      await m.update(Shipment,{shipmentId},{selectedForwarderId:forwarderId});
+    });
     return this.findOne(shipmentId);
   }
 
@@ -1274,6 +1318,9 @@ export class ShipmentsService {
 
   async addShipmentQuotation(shipmentId: string, dto: CreateFreightQuotationDto): Promise<ShipmentFreightQuotation> {
     await this.findOne(shipmentId);
+    const forwarder=await this.forwarderRepo.findOne({where:{freightForwarderId:dto.freightForwarderId}});
+    if(!forwarder?.isActive) throw new BadRequestException('Select an active forwarder');
+    if(dto.validUntil && dto.quotationDate && dto.validUntil<dto.quotationDate) throw new BadRequestException('Quotation validity cannot precede quotation date');
     const quotation = this.quotationRepo.create({
       shipmentId,
       freightForwarderId: dto.freightForwarderId,
@@ -1300,47 +1347,7 @@ export class ShipmentsService {
     quotationId: string,
     dto: SelectFreightQuotationDto,
   ): Promise<ShipmentFreightQuotation> {
-    await this.findOne(shipmentId);
-    const quotation = await this.quotationRepo.findOne({
-      where: { quotationId, shipmentId },
-    });
-    if (!quotation) {
-      throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
-    }
-    if (quotation.approvalStatus === 'APPROVED') {
-      throw new BadRequestException(`Quotation #${quotationId} is already approved`);
-    }
-
-    // Reset previously selected (unapproved) quotations back to PENDING
-    await this.quotationRepo.update(
-      { shipmentId, selectionStatus: 'SELECTED', approvalStatus: 'PENDING' },
-      { selectionStatus: 'PENDING' },
-    );
-
-    quotation.selectionStatus = 'SELECTED';
-    quotation.approvalStatus = 'PENDING';
-    quotation.selectionReason = dto.selectionReason;
-    quotation.selectedBy = dto.userId;
-    quotation.selectedAt = new Date();
-    quotation.approvedBy = undefined;
-    quotation.approvedAt = undefined;
-    quotation.rejectionReason = undefined;
-
-    const saved = await this.quotationRepo.save(quotation);
-
-    await this.dataSource?.query?.(
-      `INSERT INTO freight_quotation_decision_history
-       (quotation_id, shipment_id, decision, reason, decided_by)
-       VALUES ($1, $2, 'SELECTED', $3, $4)`,
-      [quotationId, shipmentId, dto.selectionReason, dto.userId || null],
-    );
-    await this.audit('shipment_freight_quotation', quotationId, 'UPDATE', dto.userId, undefined, {
-      selectionStatus: 'SELECTED',
-      approvalStatus: 'PENDING',
-      selectionReason: dto.selectionReason,
-    });
-
-    return saved;
+    return this.quotationDecision(shipmentId,quotationId,'SELECTED',dto.selectionReason,dto.userId);
   }
 
   async approveShipmentQuotation(
@@ -1348,62 +1355,7 @@ export class ShipmentsService {
     quotationId: string,
     dto: ApproveFreightQuotationDto,
   ): Promise<ShipmentFreightQuotation> {
-    await this.findOne(shipmentId);
-    const quotation = await this.quotationRepo.findOne({
-      where: { quotationId, shipmentId },
-    });
-    if (!quotation) {
-      throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
-    }
-    if (quotation.selectionStatus !== 'SELECTED') {
-      throw new BadRequestException('Freight quotation must be selected before approval');
-    }
-    if (quotation.approvalStatus !== 'PENDING') {
-      throw new BadRequestException(`Freight quotation is already ${quotation.approvalStatus}`);
-    }
-    if (quotation.selectedBy && dto.userId && Number(quotation.selectedBy) === Number(dto.userId) && !dto.allowSelfApproval) {
-      throw new BadRequestException(
-        'Separation of duties: a different authorized approver must approve the selected freight quotation',
-      );
-    }
-
-    // Reject competing quotations on this shipment once winner is approved
-    const allQuotes = await this.quotationRepo.find({ where: { shipmentId } });
-    for (const other of allQuotes) {
-      if (String(other.quotationId) !== String(quotationId) && other.selectionStatus !== 'REJECTED') {
-        other.selectionStatus = 'REJECTED';
-        if (other.approvalStatus === 'PENDING') {
-          other.approvalStatus = 'REJECTED';
-        }
-        await this.quotationRepo.save(other);
-      }
-    }
-
-    quotation.approvalStatus = 'APPROVED';
-    quotation.approvedBy = dto.userId;
-    quotation.approvedAt = new Date();
-    const saved = await this.quotationRepo.save(quotation);
-
-    // Assign approved forwarder on shipment
-    await this.shipmentRepo.update(
-      { shipmentId },
-      { selectedForwarderId: quotation.freightForwarderId },
-    );
-
-    const decisionReason = dto.approvalNotes?.trim() || quotation.selectionReason || 'Approved by authorized approver';
-    await this.dataSource?.query?.(
-      `INSERT INTO freight_quotation_decision_history
-       (quotation_id, shipment_id, decision, reason, decided_by)
-       VALUES ($1, $2, 'APPROVED', $3, $4)`,
-      [quotationId, shipmentId, decisionReason, dto.userId || null],
-    );
-    await this.audit('shipment_freight_quotation', quotationId, 'UPDATE', dto.userId, undefined, {
-      approvalStatus: 'APPROVED',
-      selectedForwarderId: quotation.freightForwarderId,
-      decisionReason,
-    });
-
-    return saved;
+    return this.quotationDecision(shipmentId,quotationId,'APPROVED',dto.approvalNotes || 'Approved by authorized approver',dto.userId);
   }
 
   async rejectShipmentQuotation(
@@ -1411,36 +1363,7 @@ export class ShipmentsService {
     quotationId: string,
     dto: RejectFreightQuotationDto,
   ): Promise<ShipmentFreightQuotation> {
-    await this.findOne(shipmentId);
-    const quotation = await this.quotationRepo.findOne({
-      where: { quotationId, shipmentId },
-    });
-    if (!quotation) {
-      throw new NotFoundException(`Quotation #${quotationId} not found on shipment #${shipmentId}`);
-    }
-    if (quotation.approvalStatus === 'APPROVED') {
-      throw new BadRequestException('Approved freight quotation cannot be rejected');
-    }
-
-    quotation.selectionStatus = 'REJECTED';
-    quotation.approvalStatus = 'REJECTED';
-    quotation.rejectionReason = dto.rejectionReason;
-    quotation.approvedBy = dto.userId;
-    quotation.approvedAt = new Date();
-    const saved = await this.quotationRepo.save(quotation);
-
-    await this.dataSource?.query?.(
-      `INSERT INTO freight_quotation_decision_history
-       (quotation_id, shipment_id, decision, reason, decided_by)
-       VALUES ($1, $2, 'REJECTED', $3, $4)`,
-      [quotationId, shipmentId, dto.rejectionReason, dto.userId || null],
-    );
-    await this.audit('shipment_freight_quotation', quotationId, 'UPDATE', dto.userId, undefined, {
-      approvalStatus: 'REJECTED',
-      rejectionReason: dto.rejectionReason,
-    });
-
-    return saved;
+    return this.quotationDecision(shipmentId,quotationId,'REJECTED',dto.rejectionReason,dto.userId);
   }
 
   // Story IMP-26: Shipment Booking and Vessel Tracking
@@ -1453,39 +1376,11 @@ export class ShipmentsService {
   }
 
   async createShipmentBooking(shipmentId: string, dto: CreateShipmentBookingDto): Promise<ShipmentBooking> {
-    await this.findOne(shipmentId);
-    const booking = this.bookingRepo.create({
-      shipmentId,
-      freightForwarderId: dto.freightForwarderId,
-      bookingReference: dto.bookingReference,
-      carrierName: dto.carrierName,
-      vesselName: dto.vesselName,
-      voyageNumber: dto.voyageNumber,
-      originPort: dto.originPort,
-      destinationPort: dto.destinationPort,
-      estimatedDepartureDate: dto.estimatedDepartureDate,
-      actualDepartureDate: dto.actualDepartureDate,
-      estimatedArrivalDate: dto.estimatedArrivalDate,
-      actualArrivalDate: dto.actualArrivalDate,
-      bookingStatus: dto.bookingStatus || 'CONFIRMED',
-      notes: dto.notes,
-      createdBy: dto.userId,
-    });
-    const saved = await this.bookingRepo.save(booking);
-    await this.audit('shipment_booking', saved.bookingId, 'INSERT', dto.userId, undefined, { ...saved });
-    return saved;
+    return this.saveLogisticsRecord('bookings',shipmentId,undefined,dto,dto.userId);
   }
 
   async updateShipmentBooking(bookingId: string, dto: Partial<CreateShipmentBookingDto>): Promise<ShipmentBooking> {
-    const booking = await this.bookingRepo.findOne({ where: { bookingId } });
-    if (!booking) {
-      throw new NotFoundException(`Shipment booking #${bookingId} not found`);
-    }
-    const oldValue = { ...booking };
-    Object.assign(booking, dto);
-    const saved = await this.bookingRepo.save(booking);
-    await this.audit('shipment_booking', bookingId, 'UPDATE', dto.userId, oldValue, { ...saved });
-    return saved;
+    return this.saveLogisticsRecord('bookings',undefined,bookingId,dto,dto.userId);
   }
 
   // Story IMP-27: Container Management
@@ -1496,25 +1391,12 @@ export class ShipmentsService {
     });
   }
 
-  async addShipmentContainer(shipmentId: string, dto: CreateShipmentContainerDto): Promise<ShipmentContainer> {
-    await this.findOne(shipmentId);
-    const container = this.containerRepo.create({
-      shipmentId,
-      ...dto,
-    });
-    return this.containerRepo.save(container);
+  async addShipmentContainer(shipmentId: string, dto: CreateShipmentContainerDto, actor?: number): Promise<ShipmentContainer> {
+    return this.saveLogisticsRecord('containers',shipmentId,undefined,dto,actor);
   }
 
-  async updateShipmentContainer(containerId: string, dto: Partial<CreateShipmentContainerDto>): Promise<ShipmentContainer> {
-    const container = await this.containerRepo.findOne({ where: { containerId } });
-    if (!container) {
-      throw new NotFoundException(`Container #${containerId} not found`);
-    }
-    const oldValue = { ...container };
-    Object.assign(container, dto);
-    const saved = await this.containerRepo.save(container);
-    await this.audit('shipment_container', containerId, 'UPDATE', undefined, oldValue, { ...saved });
-    return saved;
+  async updateShipmentContainer(containerId: string, dto: Partial<CreateShipmentContainerDto>, actor?: number): Promise<ShipmentContainer> {
+    return this.saveLogisticsRecord('containers',undefined,containerId,dto,actor);
   }
 
   // Story IMP-28: Cargo Milestones
@@ -1527,6 +1409,7 @@ export class ShipmentsService {
 
     if (milestones.length === 0) {
       const defaultMilestones = [
+        'PRODUCTION_COMPLETED',
         'CARGO_READY',
         'BOOKING_CONFIRMED',
         'CONTAINER_STUFFED',
@@ -1551,18 +1434,7 @@ export class ShipmentsService {
   }
 
   async addShipmentMilestone(shipmentId: string, dto: CreateShipmentMilestoneDto): Promise<ShipmentMilestone> {
-    await this.findOne(shipmentId);
-    const milestone = this.milestoneRepo.create({
-      shipmentId,
-      milestoneName: dto.milestoneName,
-      plannedDate: dto.plannedDate,
-      milestoneDate: dto.milestoneDate,
-      isCompleted: dto.isCompleted || false,
-      completedAt: dto.isCompleted ? new Date() : undefined,
-      completedBy: dto.isCompleted ? dto.userId : undefined,
-      notes: dto.notes,
-    });
-    return this.milestoneRepo.save(milestone);
+    return this.saveLogisticsRecord('milestones',shipmentId,undefined,dto,dto.userId);
   }
 
   async updateShipmentMilestone(
@@ -1571,15 +1443,7 @@ export class ShipmentsService {
     notes?: string,
     userId?: number,
   ): Promise<ShipmentMilestone> {
-    const milestone = await this.milestoneRepo.findOne({ where: { milestoneId } });
-    if (!milestone) {
-      throw new NotFoundException(`Milestone #${milestoneId} not found`);
-    }
-    milestone.isCompleted = isCompleted;
-    milestone.completedAt = isCompleted ? new Date() : undefined;
-    milestone.completedBy = isCompleted ? userId : undefined;
-    if (notes) milestone.notes = notes;
-    return this.milestoneRepo.save(milestone);
+    return this.saveLogisticsRecord('milestones',undefined,milestoneId,{isCompleted,notes,revisionReason:notes||'Update milestone completion'},userId);
   }
 
   // Story IMP-29: Shipment Insurance
@@ -1590,17 +1454,8 @@ export class ShipmentsService {
     });
   }
 
-  async addShipmentInsurance(shipmentId: string, dto: CreateShipmentInsuranceDto): Promise<ShipmentInsurance> {
-    await this.findOne(shipmentId);
-    const insurance = this.insuranceRepo.create({
-      shipmentId,
-      ...dto,
-      currency: dto.currency || 'USD',
-      coverageType: dto.coverageType || 'All Risks (Institute Cargo Clauses A)',
-    });
-    const saved = await this.insuranceRepo.save(insurance);
-    await this.audit('shipment_insurance', saved.insuranceId, 'INSERT', undefined, undefined, { ...saved });
-    return saved;
+  async addShipmentInsurance(shipmentId: string, dto: CreateShipmentInsuranceDto, actor?: number): Promise<ShipmentInsurance> {
+    return this.saveLogisticsRecord('insurance',shipmentId,undefined,dto,actor);
   }
 
   // Story IMP-30: Cargo Tracking & ECTN
@@ -1611,25 +1466,12 @@ export class ShipmentsService {
     });
   }
 
-  async addShipmentCargoTracking(shipmentId: string, dto: CreateCargoTrackingDto): Promise<ShipmentCargoTracking> {
-    await this.findOne(shipmentId);
-    const tracking = this.cargoTrackingRepo.create({
-      shipmentId,
-      ...dto,
-    });
-    return this.cargoTrackingRepo.save(tracking);
+  async addShipmentCargoTracking(shipmentId: string, dto: CreateCargoTrackingDto, actor?: number): Promise<ShipmentCargoTracking> {
+    return this.saveLogisticsRecord('tracking',shipmentId,undefined,dto,actor);
   }
 
-  async updateShipmentCargoTracking(trackingId: string, dto: Partial<CreateCargoTrackingDto>): Promise<ShipmentCargoTracking> {
-    const tracking = await this.cargoTrackingRepo.findOne({ where: { trackingId } });
-    if (!tracking) {
-      throw new NotFoundException(`Cargo tracking #${trackingId} not found`);
-    }
-    const oldValue = { ...tracking };
-    Object.assign(tracking, dto);
-    const saved = await this.cargoTrackingRepo.save(tracking);
-    await this.audit('shipment_cargo_tracking', trackingId, 'UPDATE', undefined, oldValue, { ...saved });
-    return saved;
+  async updateShipmentCargoTracking(trackingId: string, dto: Partial<CreateCargoTrackingDto>, actor?: number): Promise<ShipmentCargoTracking> {
+    return this.saveLogisticsRecord('tracking',undefined,trackingId,dto,actor);
   }
 
   // =========================================================================
@@ -1776,7 +1618,7 @@ export class ShipmentsService {
     return rows[0];
   }
 
-  // Story IMP-31: Shipment Logistics Cockpit Overview
+  // Story IMP-32: Shipment Logistics Cockpit Overview
   async getShipmentLogisticsOverview(shipmentId: string): Promise<any> {
     const shipment = await this.findOne(shipmentId);
     const [quotations, bookings, containers, milestones, insurances, tracking, docs] = await Promise.all([
@@ -1789,7 +1631,7 @@ export class ShipmentsService {
       this.getShipmentDocumentsList(shipmentId),
     ]);
 
-    const activeBooking = bookings.find((b) => b.bookingStatus === 'CONFIRMED') || bookings[0] || null;
+    const activeBooking = bookings.find((b) => b.bookingStatus === 'CONFIRMED') || null;
     const selectedQuotation = quotations.find((q) => q.selectionStatus === 'SELECTED') || null;
     const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -1829,6 +1671,7 @@ export class ShipmentsService {
         selectedForwarder: shipment.selectedForwarder,
       },
       quotations,
+      bookings,
       selectedQuotation,
       activeBooking,
       containersCount: containers.length,
@@ -1839,6 +1682,7 @@ export class ShipmentsService {
       documentsCount: docs.length,
       documents: docs,
       alerts,
+      ...await this.getLogisticsSupplement(shipment),
     };
   }
 
@@ -1852,7 +1696,7 @@ export class ShipmentsService {
       qb.andWhere('n.isRead = false');
     }
     if (params?.userId) {
-      qb.andWhere('(n.recipientUserId = :userId OR n.recipientUserId IS NULL)', { userId: params.userId });
+      qb.andWhere(`(n.recipientUserId = :userId OR (n.recipientUserId IS NULL AND (n.recipientRole IS NULL OR n.recipientRole=(SELECT r.role_name FROM app_user u JOIN role r ON r.role_id=u.role_id WHERE u.user_id=:userId))) OR EXISTS(SELECT 1 FROM app_user u JOIN role r ON r.role_id=u.role_id WHERE u.user_id=:userId AND r.role_name='ADMIN'))`, { userId: params.userId });
     }
     return qb.getMany();
   }
@@ -1890,23 +1734,14 @@ export class ShipmentsService {
     const notify = async (data: Partial<ImportNotification> & { eventType: string; entityType: string; entityId: string; title: string; message: string; deduplicationKey: string }) => {
       const existing = await this.notificationRepo.findOne({ where: { deduplicationKey: data.deduplicationKey } });
       if (existing) return;
-      await this.notificationRepo.save(this.notificationRepo.create({
+      try { await this.notificationRepo.save(this.notificationRepo.create({
         severity: 'WARNING', deliveryChannel: 'IN_APP', deliveryStatus: 'DELIVERED', deliveredAt: new Date(), escalationLevel: 0, ...data,
       }));
       createdCount++;
+      } catch (error) { if (error?.code !== '23505') throw error; }
     };
 
-    // 1. Container Free Time / Demurrage
-    const containers = await this.containerRepo.find({
-      relations: ['shipment'],
-      where: { containerStatus: In(['LOADED', 'IN_TRANSIT', 'DISCHARGED', 'AT_PORT']) },
-    });
-
-    for (const c of containers) {
-      if (c.emptyReturnDueDate && new Date(c.emptyReturnDueDate) <= futureLimit) {
-        await notify({ eventType: 'CONTAINER_RETURN_DEADLINE_APPROACHING', recipientRole: 'LOGISTICS_OFFICER', entityType: 'CONTAINER', entityId: c.containerId, title: `Container ${c.containerNumber} Demurrage Deadline Approaching`, message: `Container ${c.containerNumber} on Shipment ${c.shipment?.shipmentNumber} is due for empty return on ${c.emptyReturnDueDate}.`, deduplicationKey: `CONTAINER_RETURN:${c.containerId}:${c.emptyReturnDueDate}` });
-      }
-    }
+    createdCount += await this.scanContainerDeadlines(now);
 
     const milestones = await this.milestoneRepo.find({ relations: ['shipment'] });
     for (const m of milestones) {
@@ -1922,18 +1757,44 @@ export class ShipmentsService {
       }
     }
 
+    const policy = await loadImportPolicy(this.dataSource);
+    const today = businessDate(now, policy.timezone);
+    const sevenDays = dateAfter(today,7);
     const pos = await this.poRepo.find({ relations: ['paymentSchedules', 'lettersOfCredit'] });
+    const notifyDeadline = async (data: Parameters<typeof notify>[0], deadline: string, reminderDate: string) => {
+      const recipients = await this.dataSource.query(
+        'SELECT u.user_id FROM app_user u JOIN role r ON r.role_id=u.role_id WHERE u.is_active=TRUE AND r.role_name=$1',
+        [data.recipientRole],
+      );
+      for (const recipient of recipients.length ? recipients : [{ user_id: null }]) {
+        await notify({ ...data, deadlineDate: deadline, reminderDate,
+          recipientUserId: recipient.user_id,
+          deliveryStatus: recipient.user_id ? 'DELIVERED' : 'FAILED',
+          deliveredAt: recipient.user_id ? now : null,
+          message: `${data.message}${recipient.user_id ? '' : ' No active recipient in configured role.'}`,
+          deduplicationKey: `${data.deduplicationKey}:${recipient.user_id || 'unassigned'}`,
+        });
+      }
+    };
+    const deadlineAlert = async (deadline: string, type: string, role: string, entityType: string, entityId: string, title: string) => {
+      if (!deadline || deadline > sevenDays) return;
+      const overdue = deadline < today;
+      const reminder = new Date(`${deadline}T12:00:00Z`);
+      reminder.setUTCDate(reminder.getUTCDate() - 7);
+      await notifyDeadline({eventType:`${type}_${overdue?'OVERDUE':'UPCOMING'}`,recipientRole:role,entityType,entityId,title:`${title}: ${overdue?'overdue':'due soon'}`,message:`Deadline: ${deadline} (${policy.timezone}).`,severity:overdue?'CRITICAL':'WARNING',deduplicationKey:`${type}:${entityId}:${deadline}:${overdue}:${role}`}, deadline, overdue ? dateAfter(deadline,1) : reminder.toISOString().slice(0,10));
+      if (overdue && dateAfter(deadline,policy.escalationDays)<=today) {
+        await notifyDeadline({eventType:`${type}_ESCALATION`,recipientRole:policy.escalationRole,entityType,entityId,title:`Escalation: ${title}`,message:`Deadline ${deadline} has exceeded the configured escalation delay.`,severity:'CRITICAL',escalationLevel:1,deduplicationKey:`${type}:${entityId}:${deadline}:escalation:${policy.escalationRole}`}, deadline, dateAfter(deadline,Math.max(1,policy.escalationDays)));
+      }
+    };
     for (const po of pos) {
+      if (po.status === 'CANCELLED' || po.status === 'DRAFT') continue;
       for (const schedule of po.paymentSchedules || []) {
-        if (schedule.status !== 'PAID' && schedule.dueDate && new Date(schedule.dueDate) <= futureLimit) {
-          const overdue = new Date(schedule.dueDate) < now;
-          await notify({ eventType: overdue ? 'PAYMENT_OVERDUE' : 'PAYMENT_DUE_SOON', recipientRole: overdue ? 'FINANCE_MANAGER' : 'FINANCE_OFFICER', entityType: 'PO_PAYMENT_SCHEDULE', entityId: schedule.paymentScheduleId, title: `${overdue ? 'Overdue' : 'Upcoming'} payment for ${po.poNumber}`, message: `${schedule.milestoneName} is due on ${schedule.dueDate}.`, severity: overdue ? 'CRITICAL' : 'WARNING', deduplicationKey: `PAYMENT:${schedule.paymentScheduleId}:${schedule.dueDate}:${overdue}` });
-        }
+        if (!['PAID','CANCELLED'].includes(schedule.status) && schedule.dueDate) await deadlineAlert(schedule.dueDate,'TT_PAYMENT',policy.recipients.payment,'PO_PAYMENT_SCHEDULE',schedule.paymentScheduleId,`${po.poNumber}: ${schedule.milestoneName}`);
       }
       for (const lc of po.lettersOfCredit || []) {
-        if (lc.expiryDate && new Date(lc.expiryDate) <= futureLimit) {
-          await notify({ eventType: 'LC_EXPIRY_APPROACHING', recipientRole: 'FINANCE_MANAGER', entityType: 'PO_LETTER_OF_CREDIT', entityId: lc.lcId, title: `L/C expiry approaching for ${po.poNumber}`, message: `Letter of Credit ${lc.lcNumber} expires on ${lc.expiryDate}.`, deduplicationKey: `LC_EXPIRY:${lc.lcId}:${lc.expiryDate}` });
-        }
+        if (!['ISSUED','AMENDED','EXPIRED'].includes(lc.status)) continue;
+        await deadlineAlert(lc.expiryDate,'LC_EXPIRY',policy.recipients.lcExpiry,'PO_LETTER_OF_CREDIT',lc.lcId,`${po.poNumber}: L/C expiry`);
+        if (lc.latestShipmentDate) await deadlineAlert(lc.latestShipmentDate,'LC_SHIPMENT',policy.recipients.lcShipment,'PO_LETTER_OF_CREDIT',lc.lcId,`${po.poNumber}: L/C shipment`);
       }
     }
 
@@ -2611,5 +2472,239 @@ export class ShipmentsService {
       stageBreakdown: pipeline.stageBreakdown,
       recentShipments: logistics.slice(0, 10),
     };
+  }
+
+  // Shipment logistics policy, transactional records, history and deadline processing.
+  async getLogisticsPolicy(manager: { query: Function } = this.dataSource) {
+    const rows = await manager.query('SELECT settings FROM shipment_logistics_policy WHERE policy_id=1');
+    return { ...LOGISTICS_DEFAULTS, ...rows[0]?.settings } as typeof LOGISTICS_DEFAULTS;
+  }
+  async getLogisticsConfiguration() {
+    return { policy: await this.getLogisticsPolicy(), roles: await this.dataSource.query('SELECT role_name FROM role ORDER BY role_name'),
+      history: await this.dataSource.query("SELECT h.*,u.full_name AS actor FROM shipment_logistics_history h LEFT JOIN app_user u ON u.user_id=h.changed_by WHERE h.entity_type='shipment_logistics_policy' ORDER BY h.history_id DESC") };
+  }
+  async saveLogisticsPolicy(input: any, userId: number) {
+    if(!input || typeof input!=='object' || Array.isArray(input)) throw new BadRequestException('A logistics policy object is required');
+    const policy = Object.fromEntries(Object.keys(LOGISTICS_DEFAULTS).map(k=>[k,input[k] ?? LOGISTICS_DEFAULTS[k]])) as typeof LOGISTICS_DEFAULTS;
+    try { businessDate(new Date(),policy.timezone); } catch { throw new BadRequestException('Valid system timezone required'); }
+    for (const offsets of [policy.freeTimeOffsets,policy.returnOffsets]) {
+      if (!Array.isArray(offsets) || !offsets.length || offsets.length>12 || offsets.some(n=>!Number.isInteger(n)||n<0||n>365) || new Set(offsets).size!==offsets.length)
+        throw new BadRequestException('Reminder offsets must be distinct whole calendar days from 0 to 365');
+    }
+    if (typeof policy.allowSelfApproval!=='boolean' || !['PER_SHIPMENT','GLOBAL','ACTIVE'].includes(policy.containerUniqueness)) throw new BadRequestException('Invalid approval or uniqueness policy');
+    const roles=await this.dataSource.query('SELECT role_name FROM role');
+    if (!Array.isArray(policy.recipientRoles)||!policy.recipientRoles.length||policy.recipientRoles.some(r=>!roles.some(x=>x.role_name===r))) throw new BadRequestException('Select existing responsible roles');
+    for (const rules of [policy.milestoneRules,policy.trackingRules]) {
+      if (!Array.isArray(rules)||rules.length>100) throw new BadRequestException('Invalid logistics requirements');
+      for(const r of rules) if(typeof r.name!=='string'||!r.name.trim()||r.name.length>100||!STAGES.includes(r.stage)||typeof r.destination!=='string'||!['','SEA','AIR','ROAD','RAIL'].includes(r.mode)) throw new BadRequestException('Each requirement needs a name, destination, mode and valid checkpoint');
+    }
+    return this.dataSource.transaction(async m=>{
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      const old=await this.getLogisticsPolicy(m);
+      await m.query('UPDATE shipment_logistics_policy SET settings=$1 WHERE policy_id=1',[policy]);
+      await this.recordLogisticsHistory(m,null,'shipment_logistics_policy','1',userId,'Update logistics policy',old,policy);
+      return policy;
+    });
+  }
+  private async recordLogisticsHistory(m: EntityManager, shipmentId: string | null, type: string, id: string, actor: number, reason: string, before: any, after: any) {
+    await m.query(`INSERT INTO shipment_logistics_history(shipment_id,entity_type,entity_id,changed_by,reason,old_value,new_value) VALUES($1,$2,$3,$4,$5,$6,$7)`,[shipmentId,type,id,actor,reason,before||null,after]);
+  }
+  async activeForwarder(id: string, manager: EntityManager = this.dataSource.manager) {
+    const f=await manager.findOne(FreightForwarder,{where:{freightForwarderId:id}});
+    if(!f || !f.isActive) throw new BadRequestException('Select an active freight forwarder');
+    return f;
+  }
+  async quotationDecision(shipmentId:string, quotationId:string, decision:'SELECTED'|'APPROVED'|'REJECTED', reason:string, actor:number) {
+    if(!reason?.trim()||!actor) throw new BadRequestException('Decision reason and authenticated actor required');
+    return this.dataSource.transaction(async m=>{
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      const shipment=await m.findOne(Shipment,{where:{shipmentId},lock:{mode:'pessimistic_write'},loadEagerRelations:false});
+      if(!shipment) throw new NotFoundException('Shipment not found');
+      const repo=m.getRepository(ShipmentFreightQuotation);
+      const quote=await repo.findOne({where:{quotationId,shipmentId},lock:{mode:'pessimistic_write'},loadEagerRelations:false});
+      if(!quote) throw new NotFoundException('Quotation not found on shipment');
+      if(quote.approvalStatus==='APPROVED') throw new BadRequestException('Approved quotations are historical; select a replacement quotation instead');
+      const before={...quote},policy=await this.getLogisticsPolicy(m);
+      if(decision!=='REJECTED') {
+        await this.activeForwarder(quote.freightForwarderId,m);
+        if(quote.validUntil&&quote.validUntil<businessDate(new Date(),policy.timezone)) throw new BadRequestException('Quotation has expired');
+      }
+      if(decision==='APPROVED') {
+        if(quote.selectionStatus!=='SELECTED'||quote.approvalStatus!=='PENDING') throw new BadRequestException('Select a pending quotation before approval');
+        if(Number(quote.selectedBy)===actor&&!policy.allowSelfApproval) throw new BadRequestException('Separation of duties: a different authorized approver must approve the selected freight quotation');
+        const others=await repo.find({where:{shipmentId}});
+        for(const other of others) if(other.quotationId!==quotationId&&other.selectionStatus!=='REJECTED') {
+          const old={...other};other.selectionStatus='REJECTED';
+          if(other.approvalStatus==='PENDING') other.approvalStatus='REJECTED';
+          await repo.save(other);
+          await m.query(`INSERT INTO freight_quotation_decision_history(quotation_id,shipment_id,decision,reason,decided_by) VALUES($1,$2,'REJECTED',$3,$4)`,[other.quotationId,shipmentId,`Superseded by approved quotation ${quotationId}`,actor]);
+          await this.recordLogisticsHistory(m,shipmentId,'shipment_freight_quotation',other.quotationId,actor,'Superseded by approved quotation',old,other);
+        }
+        quote.approvalStatus='APPROVED';quote.approvedBy=actor;quote.approvedAt=new Date();
+        shipment.selectedForwarderId=quote.freightForwarderId;await m.save(shipment);
+      } else if(decision==='SELECTED') {
+        const previous=await repo.find({where:{shipmentId,selectionStatus:'SELECTED',approvalStatus:'PENDING'}});
+        for(const old of previous) if(old.quotationId!==quotationId) {
+          const prior={...old};old.selectionStatus='PENDING';await repo.save(old);
+          await this.recordLogisticsHistory(m,shipmentId,'shipment_freight_quotation',old.quotationId,actor,'Selection replaced',prior,old);
+        }
+        quote.selectionStatus='SELECTED';quote.approvalStatus='PENDING';quote.selectionReason=reason;
+        quote.selectedBy=actor;quote.selectedAt=new Date();quote.approvedBy=null;quote.approvedAt=null;quote.rejectionReason=null;
+      } else {quote.selectionStatus='REJECTED';quote.approvalStatus='REJECTED';quote.rejectionReason=reason;quote.approvedBy=actor;quote.approvedAt=new Date();}
+      const saved=await repo.save(quote);
+      await m.query(`INSERT INTO freight_quotation_decision_history(quotation_id,shipment_id,decision,reason,decided_by) VALUES($1,$2,$3,$4,$5)`,[quotationId,shipmentId,decision,reason,actor]);
+      await this.recordLogisticsHistory(m,shipmentId,'shipment_freight_quotation',quotationId,actor,reason,before,saved);
+      return saved;
+    });
+  }
+  private validateDates(data: any) {
+    for(const [key,val] of Object.entries(data)) if(/Date$/.test(key) && val && (typeof val!=='string'||!validDate(val))) throw new BadRequestException(`${key} must be a calendar date (YYYY-MM-DD)`);
+    for(const [start,end] of [['estimatedDepartureDate','estimatedArrivalDate'],['actualDepartureDate','actualArrivalDate'],['issueDate','validUntil'],['loadingDate','actualEmptyReturnDate']])
+      if(data[start]&&data[end]&&data[start]>data[end]) throw new BadRequestException(`${end} cannot be before ${start}`);
+  }
+  async saveLogisticsRecord(kind: string, shipmentId: string | undefined, id: string | undefined, raw: any, actor: number) {
+    const spec=RECORDS[kind];
+    if(!spec) throw new BadRequestException('Unknown logistics record');
+    if(!raw || typeof raw!=='object' || Array.isArray(raw)) throw new BadRequestException('A logistics record object is required');
+    if(!actor) throw new BadRequestException('Authenticated actor required');
+    return this.dataSource.transaction(async m=>{
+      // All record writes and scans share this lock: revisions/return cannot race alerts.
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      const repo=m.getRepository<any>(spec.entity);
+      const before=id?await repo.findOne({where:{[spec.id]:id},lock:{mode:'pessimistic_write'},loadEagerRelations:false}):null;
+      if(id&&!before) throw new NotFoundException('Logistics record not found');
+      const sid=shipmentId||before?.shipmentId;
+      if(before&&shipmentId&&String(before.shipmentId)!==String(shipmentId)) throw new BadRequestException('Record belongs to another shipment');
+      const shipment=await m.findOne(Shipment,{where:{shipmentId:sid}});
+      if(!shipment) throw new NotFoundException('Shipment not found');
+      const reason=String(raw.revisionReason||'').trim();
+      if(id&&!reason) throw new BadRequestException('A change reason is required');
+      const input=plainToInstance(spec.dto as any,{...(before||{}),...raw});
+      const errors=validateSync(input as object,{whitelist:true,forbidUnknownValues:true});
+      if(errors.length) throw new BadRequestException(errors.flatMap(e=>Object.values(e.constraints||{})).join('; '));
+      const data:any={...input};
+      delete data.userId; delete data.revisionReason; delete data.freeTimeEndDate;
+      this.validateDates(data);
+      for(const key of ['bookingReference','containerNumber','milestoneName','policyNumber','insurerName']) if(key in data && !String(data[key]||'').trim()) throw new BadRequestException(`${key} is required`);
+      const policy=await this.getLogisticsPolicy(m), today=businessDate(new Date(),policy.timezone);
+      if(kind==='containers') {
+        data.containerNumber=data.containerNumber.trim().toUpperCase();
+        data.freeTimeDays=data.freeTimeDays??14; data.dayCounting=data.dayCounting||'EXCLUSIVE';
+        data.freeTimeStartDate=data.freeTimeStartDate||null;
+        data.actualEmptyReturnDate=data.actualEmptyReturnDate||null;
+        const scope=policy.containerUniqueness==='GLOBAL'?'':policy.containerUniqueness==='ACTIVE'?" AND container_status<>'RETURNED'":' AND shipment_id=$3';
+        const duplicates=await m.query(`SELECT container_id FROM shipment_container WHERE upper(trim(container_number))=$1 AND container_id<>$2${scope}`,
+          policy.containerUniqueness==='PER_SHIPMENT'?[data.containerNumber,id||'0',sid]:[data.containerNumber,id||'0']);
+        if(duplicates.length && !(policy.containerUniqueness==='ACTIVE'&&data.containerStatus==='RETURNED')) throw new BadRequestException('Container number already exists within the configured uniqueness scope');
+        if(data.freeTimeStartDate) data.freeTimeEndDate=expiryDate(data.freeTimeStartDate,data.freeTimeDays,data.dayCounting);
+        else if(before?.freeTimeEndDate && !before.freeTimeStartDate && data.freeTimeDays===before.freeTimeDays) data.freeTimeEndDate=before.freeTimeEndDate;
+        else data.freeTimeEndDate=null;
+        if(before?.freeTimeEndDate&&!data.freeTimeStartDate&&(data.freeTimeDays!==before.freeTimeDays||data.dayCounting!==before.dayCounting)) throw new BadRequestException('Enter the officially agreed start date before revising legacy free time');
+        if(data.actualEmptyReturnDate) {
+          if(data.actualEmptyReturnDate>today) throw new BadRequestException('Actual return date cannot be in the future');
+          if(data.freeTimeStartDate&&data.actualEmptyReturnDate<data.freeTimeStartDate) throw new BadRequestException('Return cannot precede free-time start');
+          data.containerStatus='RETURNED';
+        }
+        if(data.containerStatus==='RETURNED'&&!data.actualEmptyReturnDate) throw new BadRequestException('Actual empty return date required');
+        if(before?.containerStatus==='RETURNED'&&data.containerStatus!=='RETURNED') throw new BadRequestException('Returned containers cannot be reopened; record a new shipment allocation');
+        const changed=before&&['freeTimeStartDate','freeTimeDays','dayCounting','emptyReturnDueDate'].some(k=>(data[k]??null)!==(before[k]??null));
+        data.deadlineRevision=Number(before?.deadlineRevision||1)+(changed?1:0);
+      }
+      if(kind==='bookings') {
+        data.bookingStatus=data.bookingStatus||'REQUESTED';
+        data.freightForwarderId=data.freightForwarderId||shipment.selectedForwarderId;
+        if(data.freightForwarderId) await this.activeForwarder(data.freightForwarderId,m);
+        if(data.bookingStatus==='CONFIRMED' && (!shipment.selectedForwarderId || String(data.freightForwarderId)!==String(shipment.selectedForwarderId))) throw new BadRequestException('Confirm booking using the approved shipment forwarder');
+        data.createdBy=before?.createdBy||actor;
+      }
+      if(kind==='milestones') {
+        data.completedAt=data.isCompleted ? (before?.isCompleted?before.completedAt:new Date()) : null;
+        data.completedBy=data.isCompleted ? (before?.isCompleted?before.completedBy:actor) : null;
+        data.milestoneDate=data.isCompleted?(data.milestoneDate||today):data.milestoneDate||null;
+        if(data.milestoneDate&&data.milestoneDate>today) throw new BadRequestException('Actual milestone date cannot be in the future');
+      }
+      if(kind==='insurance') {
+        data.currency=String(data.currency||'USD').toUpperCase();
+        if(!/^[A-Z]{3}$/.test(data.currency)) throw new BadRequestException('Three-letter insurance currency required');
+      }
+      if(kind==='tracking') {
+        if(['SUBMITTED','APPROVED'].includes(data.status)&&(!data.submissionDate||!data.referenceNumber?.trim())) throw new BadRequestException('Submission date and reference required for submitted/approved tracking documents');
+        data.verifiedAt=data.status==='APPROVED'?(before?.verifiedAt||new Date()):null;
+      }
+      const saved=await repo.save(repo.create({...before,...data,shipmentId:sid,...(id?{[spec.id]:id}:{})}));
+      await this.recordLogisticsHistory(m,sid,spec.table,String(saved[spec.id]),actor,reason||'Created',before,saved);
+      return saved;
+    });
+  }
+  async setInsuranceRequirement(shipmentId:string, required:boolean, reason:string, actor:number) {
+    if(typeof required!=='boolean'||!reason?.trim()) throw new BadRequestException('Insurance requirement and reason required');
+    return this.dataSource.transaction(async m=>{
+      const shipment=await m.findOne(Shipment,{where:{shipmentId},lock:{mode:'pessimistic_write'},loadEagerRelations:false});
+      if(!shipment) throw new NotFoundException('Shipment not found');
+      const before={insuranceRequired:shipment.insuranceRequired};
+      shipment.insuranceRequired=required;
+      await m.save(shipment);
+      await this.recordLogisticsHistory(m,shipmentId,'shipment',shipmentId,actor,reason,before,{insuranceRequired:required});
+      return shipment;
+    });
+  }
+  private matchesLogisticsRule(rule:any, shipment:Shipment) {
+    const pos=(shipment.lines||[]).map(l=>l.poLine?.purchaseOrder).filter(Boolean);
+    return (!rule.destination&&!rule.mode)||pos.some(po=>(!rule.destination||rule.destination.toLowerCase()===(po.destinationCountry||'').toLowerCase())&&(!rule.mode||rule.mode===po.modeOfShipment));
+  }
+  async getLogisticsActions(shipment:Shipment, policy:typeof LOGISTICS_DEFAULTS, today:string, stage?:string) {
+    const actions:string[]=[];
+    const milestones=shipment.milestones||[], tracking=shipment.cargoTrackings||[];
+    for(const r of policy.milestoneRules.filter(r=>(!stage||r.stage===stage)&&this.matchesLogisticsRule(r,shipment))) if(!milestones.some(m=>m.milestoneName===r.name&&m.isCompleted)) actions.push(`${r.stage}: complete milestone ${r.name}`);
+    for(const r of policy.trackingRules.filter(r=>(!stage||r.stage===stage)&&this.matchesLogisticsRule(r,shipment))) if(!tracking.some(t=>t.documentName===r.name&&t.status==='APPROVED')) actions.push(`${r.stage}: approve shipping requirement ${r.name}`);
+    if(!stage) {
+      for(const t of tracking) if(t.status!=='APPROVED') for(const [name,date] of [['submission',t.deadlineDate],['shipping cut-off',t.shippingCutOffDate]]) if(date) actions.push(`${t.documentName}: ${name} ${date<today?'OVERDUE':'due'} ${date}`);
+      for(const m of milestones) if(!m.isCompleted&&m.plannedDate&&m.plannedDate<today) actions.push(`Milestone overdue: ${m.milestoneName}`);
+      if(shipment.insuranceRequired && !(shipment.insurances||[]).some(i=>i.isActive&&i.issueDate&&i.issueDate<=today&&i.validUntil&&i.validUntil>=today)) actions.push('Required insurance: record an active policy covering today');
+    }
+    return actions;
+  }
+  async assertLogisticsProgress(shipment:Shipment, stage:string) {
+    const policy=await this.getLogisticsPolicy();
+    const failures=await this.getLogisticsActions(shipment,policy,businessDate(new Date(),policy.timezone),stage);
+    if(failures.length) throw new BadRequestException(failures.join('; '));
+  }
+  async getLogisticsSupplement(shipment:Shipment) {
+    const policy=await this.getLogisticsPolicy(), today=businessDate(new Date(),policy.timezone);
+    const containers=(shipment.containers||[]).map(c=>({...c,
+      freeTime:deadlineState(c.freeTimeEndDate,today,c.containerStatus==='RETURNED',Math.max(...policy.freeTimeOffsets)),
+      emptyReturn:deadlineState(c.emptyReturnDueDate,today,c.containerStatus==='RETURNED',Math.max(...policy.returnOffsets))}));
+    const actions=await this.getLogisticsActions(shipment,policy,today);
+    for(const c of containers) if(c.containerStatus!=='RETURNED') {
+      if(!c.freeTimeStartDate) actions.push(`${c.containerNumber}: confirm free-time start date${c.freeTimeEndDate?' (legacy expiry retained)':''}`);
+      for(const [label,state] of [['free time',c.freeTime],['empty return',c.emptyReturn]] as const) if(['OVERDUE','DUE_TODAY','APPROACHING'].includes(state.status)) actions.push(`${c.containerNumber}: ${label} ${state.status} (${state.days} days)`);
+    }
+    const history=await this.dataSource.query(`SELECT h.*,u.full_name AS actor FROM shipment_logistics_history h LEFT JOIN app_user u ON u.user_id=h.changed_by WHERE h.shipment_id=$1 ORDER BY h.history_id DESC`,[shipment.shipmentId]);
+    const notifications=await this.dataSource.query(`SELECT n.*,u.full_name AS recipient_name FROM import_notification n LEFT JOIN app_user u ON u.user_id=n.recipient_user_id WHERE n.entity_type='CONTAINER' AND n.entity_id IN (SELECT container_id::text FROM shipment_container WHERE shipment_id=$1) ORDER BY n.created_at DESC`,[shipment.shipmentId]);
+    return {containers,logisticsActions:actions,logisticsHistory:history,containerNotifications:notifications,logisticsToday:today,logisticsTimezone:policy.timezone,insuranceRequired:shipment.insuranceRequired};
+  }
+  async scanContainerDeadlines(now=new Date()) {
+    return this.dataSource.transaction(async m=>{
+      await m.query('SELECT pg_advisory_xact_lock(734510)');
+      const policy=await this.getLogisticsPolicy(m),today=businessDate(now,policy.timezone);
+      const containers=await m.getRepository(ShipmentContainer).createQueryBuilder('c').where("c.containerStatus <> 'RETURNED'").getMany();
+      let generated=0;
+      for(const c of containers) for(const [kind,date,offsets] of [['FREE_TIME',c.freeTimeEndDate,policy.freeTimeOffsets],['EMPTY_RETURN',c.emptyReturnDueDate,policy.returnOffsets]] as const) {
+        if(!date) continue;
+        for(const event of reminderEvents(date,today,offsets)) for(const role of policy.recipientRoles) {
+          const recipients=await m.query(`SELECT u.user_id FROM app_user u JOIN role r ON r.role_id=u.role_id WHERE u.is_active=TRUE AND r.role_name=$1`,[role]);
+          for(const recipient of recipients.length?recipients:[{user_id:null}]) {
+            const key=`C5:${c.containerId}:${kind}:${date}:${c.deadlineRevision}:${event}:${role}:${recipient.user_id||'unassigned'}`;
+            const rows=await m.query(`INSERT INTO import_notification(event_type,recipient_role,recipient_user_id,entity_type,entity_id,title,message,severity,delivery_channel,delivery_status,delivered_at,deduplication_key,deadline_date,reminder_date,deadline_revision)
+              VALUES($1,$2,$3,'CONTAINER',$4,$5,$6,$7,'IN_APP',$8,$9,$10,$11::date,$11::date - $12::integer,$13)
+              ON CONFLICT(deduplication_key) WHERE deduplication_key IS NOT NULL DO NOTHING RETURNING notification_id`,
+              [`CONTAINER_${kind}_${event}`,role,recipient.user_id,c.containerId,`${c.containerNumber}: ${kind.replace('_',' ')} ${event==='OVERDUE'?'overdue':event.replace('BEFORE_','due within ')+' days'}`,
+              `Deadline ${date}; timezone ${policy.timezone}; revision ${c.deadlineRevision}.${recipient.user_id?'':' No active recipient in configured role.'}`,event==='OVERDUE'?'CRITICAL':'WARNING',recipient.user_id?'DELIVERED':'FAILED',recipient.user_id?now:null,key,date,event==='OVERDUE'?-1:Number(event.replace('BEFORE_','')),c.deadlineRevision]);
+            generated+=rows.length;
+          }
+        }
+      }
+      return generated;
+    });
   }
 }

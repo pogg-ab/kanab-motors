@@ -61,6 +61,15 @@ export class ImportRequisitionLine {
   @Column({ name: 'intended_application', type: 'text', nullable: true })
   intendedApplication?: string;
 
+  @Column({ name: 'supplier_moq', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  supplierMoq?: number;
+
+  @Column({ name: 'planning_lead_time_days', type: 'int', nullable: true })
+  planningLeadTimeDays?: number;
+
+  @Column({ name: 'demand_rationale', type: 'text', nullable: true })
+  demandRationale?: string;
+
   @Column({ type: 'text', nullable: true })
   notes?: string;
 

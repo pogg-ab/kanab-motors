@@ -133,6 +133,14 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
+  const mockDataSource:any = {query:jest.fn().mockResolvedValue([])};
+  const repositories = new Map<any,any>([[ShipmentFreightQuotation,mockQuotationRepo],[ShipmentBooking,mockBookingRepo],[ShipmentContainer,mockContainerRepo],[ShipmentMilestone,mockMilestoneRepo],[ShipmentInsurance,mockInsuranceRepo],[ShipmentCargoTracking,mockCargoTrackingRepo]]);
+  mockDataSource.transaction=async(callback:any)=>callback({
+    query:(...args:any[])=>mockDataSource.query(...args),
+    getRepository:(entity:any)=>repositories.get(entity),
+    findOne:(entity:any)=>entity===Shipment?mockShipmentRepo.findOne():mockForwarderRepo.findOne(),
+    save:async(record:any)=>{await mockShipmentRepo.update({shipmentId:record.shipmentId},{selectedForwarderId:record.selectedForwarderId});return record;},
+  });
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -159,7 +167,7 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
         { provide: getRepositoryToken(ShipmentCargoTracking), useValue: mockCargoTrackingRepo },
         { provide: getRepositoryToken(ShipmentDocument), useValue: mockShipmentDocRepo },
         { provide: getRepositoryToken(ImportNotification), useValue: mockNotificationRepo },
-        { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([]) } },
+        { provide: DataSource, useValue: mockDataSource },
         { provide: LandedCostAllocationService, useValue: {} },
       ],
     }).compile();
@@ -396,6 +404,7 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
 
   it('should record vessel booking and container allocations (Story IMP-26, IMP-27)', async () => {
     const booking = await service.createShipmentBooking('10', {
+      userId: 1, bookingStatus: 'REQUESTED',
       bookingReference: 'MSK-ADD-99120',
       vesselName: 'Maersk Mc-Kinney Moller',
       voyageNumber: '2405W',
@@ -406,7 +415,7 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
       containerNumber: 'MSKU9918231',
       containerType: '40ft High Cube',
       freeTimeDays: 14,
-    });
+    }, 1);
     expect(container.containerNumber).toBe('MSKU9918231');
   });
 
@@ -427,5 +436,46 @@ describe('ShipmentsService - KMSICAMS-12 Part II Logistics & Documents', () => {
     expect(overview).toHaveProperty('documentsCount');
     expect(overview).toHaveProperty('alerts');
   });
+  it('sends independent calendar-day L/C reminders and overdue escalation, excluding closed obligations',async()=>{
+    jest.useFakeTimers();jest.setSystemTime(new Date('2026-11-17T22:30:00Z'));
+    try {
+      (service as any).poRepo={find:jest.fn().mockResolvedValue([{poNumber:'PO-1',status:'CONFIRMED',paymentSchedules:[{paymentScheduleId:'s1',status:'PLANNED',dueDate:'2026-11-15',milestoneName:'Advance'},{paymentScheduleId:'cancelled',status:'CANCELLED',dueDate:'2026-11-15'}],lettersOfCredit:[{lcId:'lc1',status:'ISSUED',expiryDate:'2026-11-25',latestShipmentDate:'2026-11-18'},{lcId:'closed',status:'CLOSED',expiryDate:'2026-11-18',latestShipmentDate:'2026-11-18'}]}])};
+      jest.spyOn(service,'scanContainerDeadlines').mockResolvedValue(0);
+      mockContainerRepo.find.mockResolvedValue([]);mockMilestoneRepo.find.mockResolvedValue([]);mockCargoTrackingRepo.find.mockResolvedValue([]);mockShipmentDocRepo.find.mockResolvedValue([]);mockShipmentRepo.find.mockResolvedValue([]);
+      mockNotificationRepo.save.mockClear();
+      jest.spyOn(service,'getDocumentCompletenessReport').mockResolvedValue({documents:[]} as any);
+      await service.generateAutomatedImportAlerts();
+      const sent=mockNotificationRepo.save.mock.calls.map(([n])=>n);
+      expect(sent.some(n=>n.eventType==='LC_EXPIRY_UPCOMING')).toBe(true);
+      expect(sent.some(n=>n.eventType==='LC_SHIPMENT_UPCOMING')).toBe(true);
+      expect(sent.some(n=>n.eventType==='LC_SHIPMENT_OVERDUE')).toBe(false);
+      expect(sent.some(n=>n.eventType==='TT_PAYMENT_ESCALATION')).toBe(true);
+      expect(sent.some(n=>['closed','cancelled'].includes(n.entityId))).toBe(false);
+      const expiry = sent.find(n=>n.eventType==='LC_EXPIRY_UPCOMING');
+      expect(expiry).toMatchObject({deadlineDate:'2026-11-25',reminderDate:'2026-11-18',deliveryStatus:'FAILED',deliveredAt:null});
+      expect(expiry.message).toContain('No active recipient');
+      expect(sent.find(n=>n.eventType==='TT_PAYMENT_OVERDUE')).toMatchObject({deadlineDate:'2026-11-15',reminderDate:'2026-11-16'});
+      expect(sent.find(n=>n.eventType==='TT_PAYMENT_ESCALATION')).toMatchObject({reminderDate:'2026-11-18'});
+
+      // A later scan can deliver to newly available recipients without erasing the failed attempt.
+      const history = [...sent];
+      mockNotificationRepo.findOne.mockImplementation(async ({where}:any)=>history.find(n=>n.deduplicationKey===where.deduplicationKey)||null);
+      mockNotificationRepo.save.mockImplementation(async (n:any)=>{history.push(n);return n;});
+      mockDataSource.query.mockImplementation(async (sql:string)=>sql.includes('u.is_active=TRUE')?[{user_id:41},{user_id:42}]:[]);
+      await service.generateAutomatedImportAlerts();
+      const delivered=history.filter(n=>n.eventType==='LC_EXPIRY_UPCOMING' && n.deliveryStatus==='DELIVERED');
+      expect(delivered.map(n=>n.recipientUserId)).toEqual([41,42]);
+      expect(delivered.every(n=>n.deliveredAt && n.deadlineDate==='2026-11-25' && n.reminderDate==='2026-11-18')).toBe(true);
+      const count=history.length;
+      await service.generateAutomatedImportAlerts();
+      expect(history).toHaveLength(count);
+    } finally {
+      jest.useRealTimers();
+      mockDataSource.query.mockResolvedValue([]);
+      mockNotificationRepo.findOne.mockResolvedValue(null);
+      mockNotificationRepo.save.mockImplementation(async(n:any)=>n);
+    }
+  });
+
 });
 

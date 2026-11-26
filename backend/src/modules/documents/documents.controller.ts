@@ -9,6 +9,7 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  ForbiddenException,
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
@@ -29,14 +30,22 @@ if (!fs.existsSync(uploadsDir)) {
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD')
+  private assertImportAccess(req:any, entityType:string, write=false) {
+    const permissions=new Set<string>(req.user?.permissions||[]);
+    if(req.user?.roleName==='ADMIN'||permissions.has('ALL_PERMISSIONS')) return;
+    const importPermission=['shipment_freight_quotation','shipment_insurance','shipment_container','shipment_cargo_tracking'].includes(entityType)?'SHIPMENTS_DOCS_UPLOAD':entityType==='po_payment_transaction'?(write?'PAYMENTS_RECORD':'PAYMENTS_VIEW'):['purchase_order','import_compliance'].includes(entityType)?(write?'PURCHASE_ORDERS_EDIT':'PURCHASE_ORDERS_VIEW'):null;
+    if(importPermission && !permissions.has(importPermission)) throw new ForbiddenException(`Missing required permission: ${importPermission}`);
+    if(!importPermission && !['CUSTOMERS_DOCS_UPLOAD','SHIPMENTS_DOCS_UPLOAD','PAYMENTS_RECORD','REFUNDS_CREATE','REFUNDS_REVIEW','SPARE_PARTS_SALES_RECORD'].some(p=>permissions.has(p))) throw new ForbiddenException('Document permission required for this entity');
+  }
+
+  @RequirePermissions('PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD')
   @Get('types')
   @ApiOperation({ summary: 'Get formalized document type reference data (Story DA1)' })
   getDocumentTypes(@Query('entityType') entityType?: string) {
     return this.documentsService.getDocumentTypes(entityType);
   }
 
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @Get()
   @ApiOperation({ summary: 'Unified Document Center: browse documents across all entity types (Story DA4)' })
   getAllDocuments(
@@ -48,27 +57,31 @@ export class DocumentsController {
   }
 
   @Get(':entityType/:entityId')
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @RequirePermissions('PURCHASE_ORDERS_VIEW', 'PAYMENTS_VIEW', 'PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiOperation({ summary: 'Get attachments for specific entity (Booking, Payment/BRV, Refund, Spare Parts POS)' })
   getDocumentsForEntity(
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
+    @Req() req:any,
   ) {
+    this.assertImportAccess(req,entityType);
     return this.documentsService.getAttachmentsForEntity(entityType, entityId);
   }
 
   @Get('entity/:entityType/:entityId')
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @RequirePermissions('PURCHASE_ORDERS_VIEW', 'PAYMENTS_VIEW', 'PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiOperation({ summary: 'Get attachments for specific entity (alias)' })
   getDocumentsForEntityAlias(
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
+    @Req() req:any,
   ) {
+    this.assertImportAccess(req,entityType);
     return this.documentsService.getAttachmentsForEntity(entityType, entityId);
   }
 
   @Post(':entityType/:entityId/upload')
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload optional attachment to an entity (KMSI-14-01 to 04)' })
   @UseInterceptors(
@@ -91,6 +104,7 @@ export class DocumentsController {
     @Body('documentType') docType?: string,
     @Req() req?: any,
   ) {
+    this.assertImportAccess(req,entityType,true);
     if (!file) {
       throw new BadRequestException('A document file is required');
     }
@@ -99,7 +113,7 @@ export class DocumentsController {
   }
 
   @Post('entity/:entityType/:entityId')
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload optional attachment alias' })
   @UseInterceptors(
@@ -122,6 +136,7 @@ export class DocumentsController {
     @Body('documentType') docType?: string,
     @Req() req?: any,
   ) {
+    this.assertImportAccess(req,entityType,true);
     if (!file) {
       throw new BadRequestException('A document file is required');
     }
@@ -130,20 +145,24 @@ export class DocumentsController {
   }
 
   @Delete(':attachmentId')
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'PAYMENTS_RECORD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD', 'REFUNDS_CREATE', 'REFUNDS_REVIEW', 'SPARE_PARTS_SALES_RECORD')
   @ApiOperation({ summary: 'Delete attachment' })
-  deleteDocument(@Param('attachmentId') attachmentId: string) {
+  async deleteDocument(@Param('attachmentId') attachmentId: string, @Req() req:any) {
+    const attachment=await this.documentsService.getAttachment(attachmentId);
+    this.assertImportAccess(req,attachment.entityType,true);
     return this.documentsService.deleteAttachment(attachmentId);
   }
 
   @Post('draft/:draftId/claim/:entityType/:entityId')
-  @RequirePermissions('CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD')
+  @RequirePermissions('PURCHASE_ORDERS_EDIT', 'PAYMENTS_RECORD', 'CUSTOMERS_DOCS_UPLOAD', 'SHIPMENTS_DOCS_UPLOAD')
   @ApiOperation({ summary: 'Attach pre-submission draft files to the newly created record' })
   claimDraft(
     @Param('draftId') draftId: string,
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
+    @Req() req:any,
   ) {
+    this.assertImportAccess(req,entityType,true);
     return this.documentsService.claimDraftAttachments(draftId, entityType, entityId);
   }
 }

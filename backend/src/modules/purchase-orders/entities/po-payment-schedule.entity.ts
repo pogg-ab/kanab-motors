@@ -33,6 +33,15 @@ export class PoPaymentSchedule {
   @Column({ name: 'payment_method', length: 50, default: 'TELEGRAPHIC_TRANSFER' })
   paymentMethod: string; // TELEGRAPHIC_TRANSFER, LETTER_OF_CREDIT, CASH_AGAINST_DOCUMENTS
 
+  @Column({ name: 'payment_percentage', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  paymentPercentage?: number;
+
+  @Column({ name: 'po_amount_base', type: 'numeric', precision: 18, scale: 2, nullable: true })
+  poAmountBase?: number;
+
+  @Column({ name: 'is_advance', default: false })
+  isAdvance: boolean;
+
   @Column({ name: 'due_date', type: 'date', nullable: true })
   dueDate?: string;
 

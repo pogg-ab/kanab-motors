@@ -39,6 +39,18 @@ export class ShipmentContainer {
   @Column({ name: 'loading_date', type: 'date', nullable: true })
   loadingDate?: string;
 
+  @Column({ name: 'free_time_start_date', type: 'date', nullable: true })
+  freeTimeStartDate?: string;
+
+  @Column({ name: 'day_counting', length: 20, default: 'EXCLUSIVE' })
+  dayCounting: string;
+
+  @Column({ name: 'actual_empty_return_date', type: 'date', nullable: true })
+  actualEmptyReturnDate?: string;
+
+  @Column({ name: 'deadline_revision', type: 'int', default: 1 })
+  deadlineRevision: number;
+
   @Column({ name: 'free_time_days', type: 'int', default: 14 })
   freeTimeDays: number;
 

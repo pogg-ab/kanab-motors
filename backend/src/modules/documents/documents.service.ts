@@ -107,6 +107,13 @@ export class DocumentsService {
     documentType?: string,
     userId: number = 1,
   ): Promise<Attachment> {
+    const importEntities: Record<string,{table:string;id:string}>={shipment_freight_quotation:{table:'shipment_freight_quotation',id:'quotation_id'},shipment_insurance:{table:'shipment_insurance',id:'insurance_id'},shipment_container:{table:'shipment_container',id:'container_id'},shipment_cargo_tracking:{table:'shipment_cargo_tracking',id:'tracking_id'},purchase_order:{table:'purchase_order',id:'po_id'},import_compliance:{table:'import_compliance_record',id:'compliance_record_id'},po_payment_transaction:{table:'po_payment_transaction',id:'payment_transaction_id'}};
+    const linked=importEntities[entityType];
+    if(linked) {
+      if(!/^[1-9]\d*$/.test(entityId)) throw new BadRequestException('Valid import transaction ID required');
+      const rows=await this.dataSource.query(`SELECT 1 FROM ${linked.table} WHERE ${linked.id}=$1`,[entityId]);
+      if(!rows.length) throw new BadRequestException('Import transaction not found');
+    }
     let cleanFileName = file.originalname;
     try {
       const decoded = Buffer.from(file.originalname, 'latin1').toString('utf8');
@@ -128,10 +135,31 @@ export class DocumentsService {
     return this.attachmentRepo.save(attachment);
   }
 
+  async getAttachment(attachmentId:string) {
+    const attachment=await this.attachmentRepo.findOne({where:{attachmentId}});
+    if(!attachment) throw new BadRequestException('Attachment not found');
+    return attachment;
+  }
+
   async deleteAttachment(attachmentId: string): Promise<{ success: boolean }> {
     const att = await this.attachmentRepo.findOne({ where: { attachmentId } });
     if (!att) {
       throw new BadRequestException(`Attachment with ID ${attachmentId} not found`);
+    }
+    if(['shipment_insurance','shipment_container','shipment_cargo_tracking'].includes(att.entityType)) throw new BadRequestException('Logistics evidence is retained for audit; upload a replacement version instead');
+    if(att.entityType==='shipment_freight_quotation') {
+      const rows=await this.dataSource.query('SELECT approval_status FROM shipment_freight_quotation WHERE quotation_id=$1',[att.entityId]);
+      if(rows[0]?.approval_status==='APPROVED') throw new BadRequestException('Approved quotation evidence must be retained');
+    }
+    const protectedEntities: Record<string,{table:string;id:string;editable:string[]}> = {
+      purchase_order:{table:'purchase_order',id:'po_id',editable:['DRAFT']},
+      import_compliance:{table:'import_compliance_record',id:'compliance_record_id',editable:['PENDING','APPLIED']},
+      po_payment_transaction:{table:'po_payment_transaction',id:'payment_transaction_id',editable:['INITIATED']},
+    };
+    const rule=protectedEntities[att.entityType];
+    if (rule) {
+      const rows=await this.dataSource.query(`SELECT status FROM ${rule.table} WHERE ${rule.id}=$1`,[att.entityId]);
+      if(!rows.length || !rule.editable.includes(rows[0].status)) throw new BadRequestException('Evidence for an approved or historical import transaction must be retained');
     }
     await this.attachmentRepo.remove(att);
     return { success: true };

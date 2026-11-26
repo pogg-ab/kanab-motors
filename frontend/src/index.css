@@ -270,6 +270,16 @@ body {
   border-radius: var(--radius-sm);
 }
 
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  filter: grayscale(0.85);
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 /* Badges */
 .badge {
   display: inline-flex;
@@ -610,11 +620,15 @@ body {
 }
 
 .modal-header .btn-secondary,
-.modal-header button.btn-secondary {
+.modal-header button.btn-secondary,
+.modal-header .modal-close,
+.modal-close {
   background: transparent !important;
   border: 1px solid transparent !important;
   color: var(--text-muted) !important;
   padding: 0.35rem 0.55rem !important;
+  font-size: 1.25rem !important;
+  line-height: 1 !important;
   border-radius: var(--radius-md) !important;
   box-shadow: none !important;
   cursor: pointer !important;
@@ -625,14 +639,18 @@ body {
 }
 
 .modal-header .btn-secondary:hover,
-.modal-header button.btn-secondary:hover {
+.modal-header button.btn-secondary:hover,
+.modal-header .modal-close:hover,
+.modal-close:hover {
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: var(--border-color) !important;
   color: var(--text-primary) !important;
 }
 
 [data-theme="light"] .modal-header .btn-secondary,
-[data-theme="light"] .modal-header button.btn-secondary {
+[data-theme="light"] .modal-header button.btn-secondary,
+[data-theme="light"] .modal-header .modal-close,
+[data-theme="light"] .modal-close {
   background: transparent !important;
   border: 1px solid transparent !important;
   color: #64748b !important;
@@ -640,7 +658,9 @@ body {
 }
 
 [data-theme="light"] .modal-header .btn-secondary:hover,
-[data-theme="light"] .modal-header button.btn-secondary:hover {
+[data-theme="light"] .modal-header button.btn-secondary:hover,
+[data-theme="light"] .modal-header .modal-close:hover,
+[data-theme="light"] .modal-close:hover {
   background: #f1f5f9 !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
@@ -1904,4 +1924,13 @@ body[data-theme="light"],
     border: 1px solid #cbd5e1 !important;
     background: #f8fafc !important;
   }
+}
+
+/* The PO print portal is isolated from the underlying procurement screen. */
+@media print {
+  body:has(> .print-clean-backdrop) > :not(.print-clean-backdrop) { display: none !important; }
+  .print-clean-sheet, .print-clean-paper { max-height: none !important; overflow: visible !important; }
+  .print-clean-paper { break-inside: auto !important; page-break-inside: auto !important; }
+  .print-clean-paper thead { display: table-header-group; }
+  .print-clean-paper tr { break-inside: avoid; page-break-inside: avoid; }
 }

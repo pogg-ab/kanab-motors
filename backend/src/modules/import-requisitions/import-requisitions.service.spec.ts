@@ -24,6 +24,7 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
 
   beforeEach(async () => {
     reqRepo = {
+      update: jest.fn().mockResolvedValue({affected:1}),
       create: jest.fn(),
       save: jest.fn(),
       findOne: jest.fn(),
@@ -69,6 +70,7 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
           create: jest.fn((entity, data) => ({ ...data, requisitionId: '10', poId: '20' })),
           save: jest.fn((entity, data) => Promise.resolve(data || entity)),
           delete: jest.fn().mockResolvedValue(undefined),
+          findOne: jest.fn((entity, opt) => entity===ImportRequisition?reqRepo.findOne(opt):({supplierId:5,bankAccountId:1,isActive:true})),
           query: jest.fn().mockResolvedValue([{ value: 1 }]),
         };
         return cb(mockManager);
@@ -147,6 +149,7 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
         status: ImportRequisitionStatus.DRAFT,
       };
       jest.spyOn(service, 'findOne').mockResolvedValue(mockReq as any);
+      reqRepo.findOne.mockResolvedValue(mockReq);
       reqRepo.save.mockImplementation((r: any) => Promise.resolve(r));
 
       const updated = await service.submit('1', 1);
@@ -159,6 +162,7 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
         status: ImportRequisitionStatus.SUBMITTED,
       };
       jest.spyOn(service, 'findOne').mockResolvedValue(mockReq as any);
+      reqRepo.findOne.mockResolvedValue(mockReq);
       reqRepo.save.mockImplementation((r: any) => Promise.resolve(r));
 
       await service.approve('1', 'Approved for foreign procurement', 2);
@@ -171,6 +175,7 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
         status: ImportRequisitionStatus.SUBMITTED,
       };
       jest.spyOn(service, 'findOne').mockResolvedValue(mockReq as any);
+      reqRepo.findOne.mockResolvedValue(mockReq);
       reqRepo.save.mockImplementation((r: any) => Promise.resolve(r));
 
       await service.reject('1', 'Budget cap exceeded', 2);
@@ -219,6 +224,7 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
       };
 
       jest.spyOn(service, 'findOne').mockResolvedValue(mockReq as any);
+      reqRepo.findOne.mockResolvedValue(mockReq);
       poRepo.findOne.mockResolvedValue({
         poId: '20',
         poNumber: 'PO-000001',
@@ -238,8 +244,30 @@ describe('ImportRequisitionsService (KMSICAMS-12 Phase 1)', () => {
       };
 
       jest.spyOn(service, 'findOne').mockResolvedValue(mockReq as any);
+      reqRepo.findOne.mockResolvedValue(mockReq);
 
       await expect(service.convertToPO('1', { supplierId: 5 }, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should REJECT conversion if any line item has zero or non-positive estimated price (IMP-06)', async () => {
+      const mockReq = {
+        requisitionId: '1',
+        requisitionNumber: 'REQ-2024-00002',
+        status: ImportRequisitionStatus.APPROVED,
+        currency: 'USD',
+        lines: [
+          {
+            itemId: '1',
+            quantityRequested: 10,
+            estimatedUnitPrice: 0, // Zero price must NOT be silently replaced with 1000
+          },
+        ],
+      };
+
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockReq as any);
+      reqRepo.findOne.mockResolvedValue(mockReq);
+
+      await expect(service.convertToPO('1', { supplierId: 5 }, 1)).rejects.toThrow(BadRequestException);
     });
   });
 });

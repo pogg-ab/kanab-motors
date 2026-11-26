@@ -24,6 +24,7 @@ import {
   Layers,
   ChevronRight,
   X,
+  Ban,
 } from 'lucide-react';
 import {
   api,
@@ -46,6 +47,9 @@ interface RequisitionFormLine {
   qualityRequirements?: string;
   intendedApplication?: string;
   notes?: string;
+  supplierMoq?: number;
+  planningLeadTimeDays?: number;
+  demandRationale?: string;
 }
 
 export const ImportRequisitionsPage: React.FC = () => {
@@ -139,7 +143,8 @@ export const ImportRequisitionsPage: React.FC = () => {
     setReviewLoading(true);
     setShowStockReviewModal(true);
     try {
-      const review = await api.getStockReview(itemId);
+      const planningLine=lines.find(l=>l.itemId===itemId);
+      const review = await api.getStockReview(itemId,{supplierMoq:planningLine?.supplierMoq,demandQuantity:Number(planningLine?.quantityRequested||0),planningLeadTimeDays:planningLine?.planningLeadTimeDays});
       setSelectedItemReview(review);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to fetch inventory & pipeline review'));
@@ -179,6 +184,9 @@ export const ImportRequisitionsPage: React.FC = () => {
         itemId: l.itemId,
         quantityRequested: l.quantityRequested,
         estimatedUnitPrice: l.estimatedUnitPrice,
+        supplierMoq: l.supplierMoq,
+        planningLeadTimeDays: l.planningLeadTimeDays,
+        demandRationale: l.demandRationale,
         technicalSpecification: l.technicalSpecification,
         qualityRequirements: l.qualityRequirements,
         intendedApplication: l.intendedApplication,
@@ -195,7 +203,7 @@ export const ImportRequisitionsPage: React.FC = () => {
       {
         itemId: '',
         quantityRequested: 10,
-        estimatedUnitPrice: 0,
+        estimatedUnitPrice: '',
       },
     ]);
   };
@@ -211,13 +219,6 @@ export const ImportRequisitionsPage: React.FC = () => {
   const handleLineChange = (index: number, field: keyof RequisitionFormLine, val: any) => {
     const updated = [...lines];
     updated[index] = { ...updated[index], [field]: val };
-
-    if (field === 'itemId') {
-      const prod = products.find((p) => p.itemId === val);
-      if (prod) {
-        updated[index].estimatedUnitPrice = Number(prod.sellingPrice || 0);
-      }
-    }
     setLines(updated);
   };
 
@@ -253,6 +254,9 @@ export const ImportRequisitionsPage: React.FC = () => {
           itemId: l.itemId,
           quantityRequested: Number(l.quantityRequested),
           estimatedUnitPrice: Number(l.estimatedUnitPrice || 0),
+          supplierMoq: l.supplierMoq,
+          planningLeadTimeDays: l.planningLeadTimeDays,
+          demandRationale: l.demandRationale,
           technicalSpecification: l.technicalSpecification?.trim(),
           qualityRequirements: l.qualityRequirements?.trim(),
           intendedApplication: l.intendedApplication?.trim(),
@@ -316,6 +320,18 @@ export const ImportRequisitionsPage: React.FC = () => {
       if (selectedReq?.requisitionId === updated.requisitionId) setSelectedReq(updated);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to reject requisition'));
+    }
+  };
+
+  const handleCancelRequisition = async (id: string) => {
+    if (!window.confirm('Are you sure you want to cancel this requisition? This will mark it as CANCELLED.')) return;
+    try {
+      const updated = await api.cancelImportRequisition(id, user?.userId);
+      showToast('success', `Requisition ${updated.requisitionNumber} has been CANCELLED`);
+      loadData();
+      if (selectedReq?.requisitionId === id) setSelectedReq(updated);
+    } catch (err: any) {
+      showToast('error', formatApiError(err, 'Failed to cancel requisition'));
     }
   };
 
@@ -671,6 +687,17 @@ export const ImportRequisitionsPage: React.FC = () => {
                               <ArrowRight size={14} />
                             </button>
                           )}
+
+                          {req.status !== 'CONVERTED_TO_PO' && req.status !== 'CANCELLED' && canManage && (
+                            <button
+                              onClick={() => handleCancelRequisition(req.requisitionId)}
+                              className="btn btn-secondary btn-sm"
+                              title="Cancel Requisition"
+                              style={{ color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                            >
+                              <Ban size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -740,7 +767,7 @@ export const ImportRequisitionsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Procurement Currency *</label>
                     <select
@@ -756,6 +783,18 @@ export const ImportRequisitionsPage: React.FC = () => {
                       <option value="JPY">JPY - Japanese Yen</option>
                       <option value="AED">AED - UAE Dirham</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Estimated Budget ({currency})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input w-full font-mono"
+                      placeholder="e.g. 100000"
+                      value={estimatedBudget}
+                      onChange={(e) => setEstimatedBudget(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="form-label">Business Justification / Project Rationale</label>
@@ -835,6 +874,7 @@ export const ImportRequisitionsPage: React.FC = () => {
                                     min="0"
                                     step="0.01"
                                     className="input w-full text-xs font-mono"
+                                    placeholder="0.00"
                                     value={l.estimatedUnitPrice}
                                     onChange={(e) => handleLineChange(idx, 'estimatedUnitPrice', e.target.value)}
                                     required
@@ -867,14 +907,83 @@ export const ImportRequisitionsPage: React.FC = () => {
                                 </td>
                               </tr>
                               <tr>
-                                <td colSpan={5} className="bg-slate-900/60 pb-3 pt-1 px-3">
-                                  <input
-                                    type="text"
-                                    className="input w-full text-xs"
-                                    placeholder="Technical specifications / quality requirements / intended application..."
-                                    value={l.technicalSpecification || ''}
-                                    onChange={(e) => handleLineChange(idx, 'technicalSpecification', e.target.value)}
-                                  />
+                                <td colSpan={5} className="bg-slate-900/60 pb-3 pt-2 px-3">
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Technical Specification</label>
+                                      <input
+                                        type="text"
+                                        className="input w-full text-xs"
+                                        placeholder="e.g. Spec A - high grade alloy"
+                                        value={l.technicalSpecification || ''}
+                                        onChange={(e) => handleLineChange(idx, 'technicalSpecification', e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Quality Requirements</label>
+                                      <input
+                                        type="text"
+                                        className="input w-full text-xs"
+                                        placeholder="e.g. ISO 9001 certified"
+                                        value={l.qualityRequirements || ''}
+                                        onChange={(e) => handleLineChange(idx, 'qualityRequirements', e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Intended Application</label>
+                                      <input
+                                        type="text"
+                                        className="input w-full text-xs"
+                                        placeholder="e.g. Assembly line production"
+                                        value={l.intendedApplication || ''}
+                                        onChange={(e) => handleLineChange(idx, 'intendedApplication', e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Line Notes</label>
+                                      <input
+                                        type="text"
+                                        className="input w-full text-xs"
+                                        placeholder="e.g. Initial test batch"
+                                        value={l.notes || ''}
+                                        onChange={(e) => handleLineChange(idx, 'notes', e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.5rem' }}>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Supplier MOQ</label>
+                                      <input
+                                        className="input w-full text-xs font-mono"
+                                        type="number"
+                                        min="1"
+                                        placeholder="e.g. 10"
+                                        value={l.supplierMoq || ''}
+                                        onChange={(e) => handleLineChange(idx, 'supplierMoq', e.target.value ? Number(e.target.value) : undefined)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Lead Time (days)</label>
+                                      <input
+                                        className="input w-full text-xs font-mono"
+                                        type="number"
+                                        min="0"
+                                        placeholder="e.g. 30"
+                                        value={l.planningLeadTimeDays ?? ''}
+                                        onChange={(e) => handleLineChange(idx, 'planningLeadTimeDays', e.target.value ? Number(e.target.value) : undefined)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem', color: 'var(--text-muted)' }}>Demand Assumptions / Rationale</label>
+                                      <input
+                                        className="input w-full text-xs"
+                                        placeholder="e.g. Monthly run rate demand"
+                                        value={l.demandRationale || ''}
+                                        onChange={(e) => handleLineChange(idx, 'demandRationale', e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
                                 </td>
                               </tr>
                             </React.Fragment>
@@ -1014,7 +1123,24 @@ export const ImportRequisitionsPage: React.FC = () => {
                           <td style={{ padding: '0.75rem 0.95rem' }}>
                             <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{l.item?.itemName}</div>
                             {l.technicalSpecification && (
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{l.technicalSpecification}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', marginTop: '0.15rem' }}>
+                                <span className="font-semibold text-gray-400">Spec:</span> {l.technicalSpecification}
+                              </div>
+                            )}
+                            {l.qualityRequirements && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span className="font-semibold text-gray-400">Quality:</span> {l.qualityRequirements}
+                              </div>
+                            )}
+                            {l.intendedApplication && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span className="font-semibold text-gray-400">Application:</span> {l.intendedApplication}
+                              </div>
+                            )}
+                            {l.notes && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span className="font-semibold text-gray-400">Notes:</span> {l.notes}
+                              </div>
                             )}
                           </td>
                           <td style={{ padding: '0.75rem 0.95rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -1045,9 +1171,21 @@ export const ImportRequisitionsPage: React.FC = () => {
             </div>
 
             <div className="modal-footer" style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <button onClick={() => setSelectedReq(null)} className="btn btn-secondary">
-                Close
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button onClick={() => setSelectedReq(null)} className="btn btn-secondary">
+                  Close
+                </button>
+                {selectedReq.status !== 'CONVERTED_TO_PO' && selectedReq.status !== 'CANCELLED' && canManage && (
+                  <button
+                    onClick={() => handleCancelRequisition(selectedReq.requisitionId)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Ban size={14} />
+                    <span>Cancel Requisition</span>
+                  </button>
+                )}
+              </div>
               {selectedReq.status === 'APPROVED' && canManage && (
                 <button
                   onClick={() => setShowConvertModal(true)}

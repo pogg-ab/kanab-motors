@@ -575,6 +575,19 @@ export interface CompanyBankAccount {
   updatedAt?: string;
 }
 
+export interface CompanyImporter {
+  importerId: number;
+  companyProfileId?: number;
+  importerName: string;
+  iecNo: string;
+  adCode: string;
+  description?: string;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ImportComplianceRecord {
   complianceRecordId: string;
   poId: string;
@@ -612,6 +625,8 @@ export interface PoPaymentSchedule {
   paymentMethod: string;
   dueDate?: string;
   amountDue: number;
+  paymentPercentage?: number;
+  poAmountBase?: number;
   currency: string;
   status: string;
   notes?: string;
@@ -652,6 +667,9 @@ export interface ImportRequisitionLine {
   intendedApplication?: string;
   notes?: string;
   createdAt: string;
+  supplierMoq?: number;
+  planningLeadTimeDays?: number;
+  demandRationale?: string;
 }
 
 export interface ImportRequisition {
@@ -705,6 +723,8 @@ export interface PurchaseOrder {
   requisitionId?: string;
   requisition?: ImportRequisition;
   incoterms?: string;
+  incotermsNamedPlace?: string;
+  destinationCountry?: string;
   paymentTerms?: string;
   countryOfOrigin?: string;
   portOfLoading?: string;
@@ -712,6 +732,7 @@ export interface PurchaseOrder {
   modeOfShipment?: string;
   packingRequirements?: string;
   deliveryLeadTimeDays?: number;
+  leadTimeDayType?: string;
   leadTimeTrigger?: string;
   expectedDeliveryDate?: string;
   proformaInvoiceNo?: string;
@@ -722,6 +743,8 @@ export interface PurchaseOrder {
   commercialRemarks?: string;
   bankAccountId?: number;
   bankAccount?: CompanyBankAccount;
+  importerId?: number;
+  importer?: CompanyImporter;
   amountInWords?: string;
   lines: PurchaseOrderLine[];
   complianceRecords?: ImportComplianceRecord[];
@@ -886,6 +909,12 @@ export interface ShipmentContainer {
   grossWeightKg?: number;
   sealNumber?: string;
   loadingDate?: string;
+  freeTimeStartDate?: string;
+  dayCounting?: 'EXCLUSIVE' | 'INCLUSIVE';
+  actualEmptyReturnDate?: string;
+  deadlineRevision?: number;
+  freeTime?: {days:number|null;status:string};
+  emptyReturn?: {days:number|null;status:string};
   freeTimeDays: number;
   freeTimeEndDate?: string;
   emptyReturnDueDate?: string;
@@ -981,6 +1010,13 @@ export interface ImportNotification {
 }
 
 export interface ShipmentLogisticsOverview {
+  bookings: ShipmentBooking[];
+  logisticsActions: string[];
+  logisticsToday: string;
+  logisticsTimezone: string;
+  insuranceRequired: boolean;
+  logisticsHistory: any[];
+  containerNotifications: any[];
   shipment: {
     shipmentId: string;
     shipmentNumber: string;
@@ -1510,8 +1546,8 @@ export const api = {
     apiClient.get<{ items: ImportRequisition[]; total: number }>('/import-requisitions', { params }).then((r) => r.data),
   getImportRequisition: (id: string) =>
     apiClient.get<ImportRequisition>('/import-requisitions/' + id).then((r) => r.data),
-  getStockReview: (itemId: string) =>
-    apiClient.get<StockOrderReview>('/import-requisitions/stock-review/' + itemId).then((r) => r.data),
+  getStockReview: (itemId: string, planning?: any) =>
+    apiClient.get<StockOrderReview>('/import-requisitions/stock-review/' + itemId, {params:planning}).then((r) => r.data),
   createImportRequisition: (data: any) =>
     apiClient.post<ImportRequisition>('/import-requisitions', data).then((r) => r.data),
   updateImportRequisition: (id: string, data: any) =>
@@ -1553,10 +1589,24 @@ export const api = {
     apiClient.put<CompanyBankAccount>('/company-profile/bank-accounts/' + id + '/deactivate', {}).then((r) => r.data),
   deleteCompanyBankAccount: (id: number) =>
     apiClient.delete<{ success: boolean; message: string }>('/company-profile/bank-accounts/' + id).then((r) => r.data),
+  getCompanyImporters: () =>
+    apiClient.get<CompanyImporter[]>('/company-profile/importers').then((r) => r.data),
+  createCompanyImporter: (data: Partial<CompanyImporter>) =>
+    apiClient.post<CompanyImporter>('/company-profile/importers', data).then((r) => r.data),
+  updateCompanyImporter: (id: number, data: Partial<CompanyImporter>) =>
+    apiClient.put<CompanyImporter>('/company-profile/importers/' + id, data).then((r) => r.data),
+  setDefaultCompanyImporter: (id: number) =>
+    apiClient.put<CompanyImporter>('/company-profile/importers/' + id + '/default', {}).then((r) => r.data),
+  toggleActiveCompanyImporter: (id: number) =>
+    apiClient.put<CompanyImporter>('/company-profile/importers/' + id + '/toggle-active', {}).then((r) => r.data),
+  deleteCompanyImporter: (id: number) =>
+    apiClient.delete<{ success: boolean; message: string }>('/company-profile/importers/' + id).then((r) => r.data),
   getPOPrintData: (id: string) =>
     apiClient.get<any>('/purchase-orders/' + id + '/print').then((r) => r.data),
   validatePOReadiness: (id: string) =>
     apiClient.get<any>('/purchase-orders/' + id + '/validate-readiness').then((r) => r.data),
+  getPOComplianceChecklist: (id: string) =>
+    apiClient.get<any[]>('/purchase-orders/' + id + '/checklist').then((r) => r.data),
   getPOComplianceRecords: (id: string) =>
     apiClient.get<ImportComplianceRecord[]>('/purchase-orders/' + id + '/compliance').then((r) => r.data),
   createPOComplianceRecord: (poId: string, data: any) =>
@@ -1569,6 +1619,8 @@ export const api = {
     apiClient.post<PoPaymentSchedule>('/purchase-orders/' + poId + '/payment-schedules', data).then((r) => r.data),
   recordPOPaymentTransaction: (data: any) =>
     apiClient.post<PoPaymentTransaction>('/purchase-orders/payments/transactions', data).then((r) => r.data),
+  updatePOPaymentTransactionStatus: (id: string, status: string, reason: string) =>
+    apiClient.patch<PoPaymentTransaction>(`/purchase-orders/payments/transactions/${id}/status`, { status, reason }).then((r) => r.data),
   getPOLettersOfCredit: (poId: string) =>
     apiClient.get<PoLetterOfCredit[]>('/purchase-orders/' + poId + '/letters-of-credit').then((r) => r.data),
   createPOLetterOfCredit: (poId: string, data: any) =>
@@ -1703,6 +1755,13 @@ export const api = {
     apiClient.patch<ShipmentDocument>('/shipments/documents-control/' + docId + '/original-status', data).then((r) => r.data),
   getShipmentLogisticsOverview: (shipmentId: string) =>
     apiClient.get<ShipmentLogisticsOverview>('/shipments/' + shipmentId + '/logistics-overview').then((r) => r.data),
+  saveShipmentLogisticsRecord: (shipmentId: string, kind: string, data: any, id?: string) =>
+    (id ? apiClient.put(`/shipments/${shipmentId}/logistics-records/${kind}/${id}`, data)
+      : apiClient.post(`/shipments/${shipmentId}/logistics-records/${kind}`, data)).then(r => r.data),
+  setShipmentInsuranceRequirement: (shipmentId: string, required: boolean, reason: string) =>
+    apiClient.put(`/shipments/${shipmentId}/insurance-requirement`, { required, reason }).then(r => r.data),
+  getShipmentLogisticsConfiguration: () => apiClient.get('/shipments/logistics-policy/config').then(r => r.data),
+  saveShipmentLogisticsPolicy: (policy: any) => apiClient.put('/shipments/logistics-policy/config', policy).then(r => r.data),
 
   // Phase 7: Notifications & Alerts (IMP-40, IMP-41)
   getImportNotifications: (unreadOnly?: boolean) =>

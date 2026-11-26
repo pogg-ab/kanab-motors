@@ -34,6 +34,13 @@ export class ImportComplianceRecord {
   @JoinColumn({ name: 'shipment_id' })
   shipment?: Shipment;
 
+  @Column({ name: 'renewal_of_id', type: 'bigint', nullable: true })
+  renewalOfId?: string;
+
+  @ManyToOne(() => ImportComplianceRecord, { nullable: true })
+  @JoinColumn({ name: 'renewal_of_id' })
+  renewalOf?: ImportComplianceRecord;
+
   @Column({ name: 'requirement_type', length: 100 })
   requirementType: string;
 

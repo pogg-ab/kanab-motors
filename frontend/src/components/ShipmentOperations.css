@@ -1,0 +1,52 @@
+/* Use the application's existing cards, controls and modal chrome. */
+.shipment-operations {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+  min-width: 0;
+}
+.shipment-operations > *,
+.shipment-operations .card > *,
+.logistics-form-grid > *,
+.logistics-policy-rule > * { min-width: 0; }
+.shipment-operations .card { box-shadow: var(--shadow-sm); }
+.shipment-operations table { width: 100%; border-collapse: collapse; }
+.shipment-operations th { text-align: left; white-space: nowrap; }
+.shipment-operations td { overflow-wrap: anywhere; }
+.shipment-operations button { flex-shrink: 0; }
+.shipment-operations .badge { white-space: normal; }
+.logistics-modal .modal-content { max-height: min(90vh, 900px); padding: 0; overflow: hidden; }
+.logistics-modal .modal-header { gap: 1rem; }
+.logistics-modal .modal-header > div { min-width: 0; }
+.logistics-modal .modal-header h3 { line-height: 1.4; }
+.logistics-modal .modal-header > button { flex-shrink: 0; }
+.logistics-modal .modal-body { overflow-y: auto; overscroll-behavior: contain; }
+.logistics-form-body { display: flex; flex-direction: column; gap: 1.25rem; }
+.logistics-form-grid, .logistics-deadline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.logistics-policy-rule {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.logistics-policy-rule > button { justify-self: end; grid-column: 1 / -1; }
+.logistics-modal input[type="checkbox"] { accent-color: var(--accent-cyan); flex-shrink: 0; }
+.logistics-modal .modal-footer { flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .logistics-modal { padding: 0.75rem; }
+  .logistics-modal .modal-content { max-height: calc(100dvh - 1.5rem); }
+  .logistics-modal .modal-header, .logistics-modal .modal-footer { padding: 1rem; }
+  .logistics-modal .modal-body { padding: 1rem; }
+  .logistics-form-grid, .logistics-deadline-grid, .logistics-policy-rule { grid-template-columns: minmax(0, 1fr); }
+  .logistics-deadline-grid > div { flex-wrap: wrap; gap: 0.5rem; }
+  .logistics-modal .modal-footer .btn { flex: 1; justify-content: center; }
+}

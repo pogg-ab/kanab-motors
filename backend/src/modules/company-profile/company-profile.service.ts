@@ -4,8 +4,10 @@ import { Not, Repository } from 'typeorm';
 import { CompanyProfile } from '../purchase-orders/entities/company-profile.entity';
 import { CompanyBankAccount } from '../purchase-orders/entities/company-bank-account.entity';
 import { PurchaseOrder } from '../purchase-orders/entities/purchase-order.entity';
+import { CompanyImporter } from './entities/company-importer.entity';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
 import { CreateBankAccountDto, UpdateBankAccountDto } from './dto/bank-account.dto';
+import { CreateCompanyImporterDto, UpdateCompanyImporterDto } from './dto/importer.dto';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -17,6 +19,8 @@ export class CompanyProfileService {
     private readonly bankRepo: Repository<CompanyBankAccount>,
     @InjectRepository(PurchaseOrder)
     private readonly poRepo: Repository<PurchaseOrder>,
+    @InjectRepository(CompanyImporter)
+    private readonly importerRepo: Repository<CompanyImporter>,
     @Optional() private readonly auditService?: AuditService,
   ) {}
 
@@ -320,6 +324,209 @@ export class CompanyProfileService {
     await this.bankRepo.remove(bankAccount);
     await this.auditService?.log({ entityType: 'company_bank_account', entityId: String(id), action: 'DELETE', changedBy: userId, oldValue: { ...bankAccount, accountNumber: '***' } });
     return { success: true, message: `Bank account #${id} deleted successfully.` };
+  }
+
+  // =========================================================================
+  // Multiple Importers Management (company_importer)
+  // =========================================================================
+
+  async getImporters(profileId?: number): Promise<CompanyImporter[]> {
+    const qb = this.importerRepo.createQueryBuilder('i');
+    if (profileId) {
+      qb.where('i.companyProfileId = :profileId', { profileId });
+    }
+    qb.orderBy('i.isDefault', 'DESC').addOrderBy('i.importerId', 'ASC');
+    return qb.getMany();
+  }
+
+  async createImporter(dto: CreateCompanyImporterDto, userId?: number): Promise<CompanyImporter> {
+    if (!dto.importerName?.trim() || !dto.iecNo?.trim() || !dto.adCode?.trim()) {
+      throw new BadRequestException('Importer Name, IEC No, and AD Code are required');
+    }
+
+    const defaultProfile = await this.getProfile();
+    const isDefault = Boolean(dto.isDefault);
+
+    if (isDefault) {
+      await this.importerRepo.update({ companyProfileId: defaultProfile.profileId }, { isDefault: false });
+    }
+
+    const importer = this.importerRepo.create({
+      companyProfileId: defaultProfile.profileId,
+      importerName: dto.importerName.trim(),
+      iecNo: dto.iecNo.trim(),
+      adCode: dto.adCode.trim(),
+      description: dto.description?.trim(),
+      isDefault,
+      isActive: dto.isActive !== undefined ? dto.isActive : true,
+    });
+
+    const saved = await this.importerRepo.save(importer);
+
+    // If default, sync onto company_profile
+    if (isDefault) {
+      defaultProfile.importerIecNo = saved.iecNo;
+      defaultProfile.iecNo = saved.iecNo;
+      defaultProfile.importerAdCode = saved.adCode;
+      defaultProfile.adCode = saved.adCode;
+      await this.profileRepo.save(defaultProfile);
+    }
+
+    await this.auditService?.log({
+      entityType: 'company_importer',
+      entityId: String(saved.importerId),
+      action: 'INSERT',
+      changedBy: userId,
+      newValue: { ...saved },
+    });
+
+    return saved;
+  }
+
+  async updateImporter(id: number, dto: UpdateCompanyImporterDto, userId?: number): Promise<CompanyImporter> {
+    const importer = await this.importerRepo.findOne({ where: { importerId: id } });
+    if (!importer) {
+      throw new NotFoundException(`Importer #${id} not found`);
+    }
+
+    const oldValue = { ...importer };
+    if (dto.importerName !== undefined) importer.importerName = dto.importerName.trim();
+    if (dto.iecNo !== undefined) importer.iecNo = dto.iecNo.trim();
+    if (dto.adCode !== undefined) importer.adCode = dto.adCode.trim();
+    if (dto.description !== undefined) importer.description = dto.description?.trim();
+    if (dto.isActive !== undefined) importer.isActive = dto.isActive;
+
+    if (dto.isDefault === true) {
+      if (!importer.isActive) {
+        throw new BadRequestException('Cannot set an inactive importer as corporate default');
+      }
+      await this.importerRepo.update(
+        { companyProfileId: importer.companyProfileId || undefined },
+        { isDefault: false },
+      );
+      importer.isDefault = true;
+
+      // Sync onto company profile
+      const defaultProfile = await this.getProfile();
+      defaultProfile.importerIecNo = importer.iecNo;
+      defaultProfile.iecNo = importer.iecNo;
+      defaultProfile.importerAdCode = importer.adCode;
+      defaultProfile.adCode = importer.adCode;
+      await this.profileRepo.save(defaultProfile);
+    } else if (dto.isDefault === false) {
+      importer.isDefault = false;
+    }
+
+    const saved = await this.importerRepo.save(importer);
+
+    await this.auditService?.log({
+      entityType: 'company_importer',
+      entityId: String(id),
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue,
+      newValue: { ...saved },
+    });
+
+    return saved;
+  }
+
+  async setDefaultImporter(id: number, userId?: number): Promise<CompanyImporter> {
+    const importer = await this.importerRepo.findOne({ where: { importerId: id } });
+    if (!importer) {
+      throw new NotFoundException(`Importer #${id} not found`);
+    }
+    if (!importer.isActive) {
+      throw new BadRequestException('Cannot set an inactive importer as corporate default');
+    }
+
+    const oldValue = { ...importer };
+    await this.importerRepo.update(
+      { companyProfileId: importer.companyProfileId || undefined },
+      { isDefault: false },
+    );
+
+    importer.isDefault = true;
+    const saved = await this.importerRepo.save(importer);
+
+    // Sync onto company profile
+    const defaultProfile = await this.getProfile();
+    defaultProfile.importerIecNo = saved.iecNo;
+    defaultProfile.iecNo = saved.iecNo;
+    defaultProfile.importerAdCode = saved.adCode;
+    defaultProfile.adCode = saved.adCode;
+    await this.profileRepo.save(defaultProfile);
+
+    await this.auditService?.log({
+      entityType: 'company_importer',
+      entityId: String(id),
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue,
+      newValue: { ...saved },
+    });
+
+    return saved;
+  }
+
+  async toggleActiveImporter(id: number, userId?: number): Promise<CompanyImporter> {
+    const importer = await this.importerRepo.findOne({ where: { importerId: id } });
+    if (!importer) {
+      throw new NotFoundException(`Importer #${id} not found`);
+    }
+
+    const oldValue = { ...importer };
+    importer.isActive = !importer.isActive;
+    if (!importer.isActive && importer.isDefault) {
+      importer.isDefault = false;
+      // promote another active importer
+      const other = await this.importerRepo.findOne({
+        where: { isActive: true, importerId: Not(id) },
+        order: { importerId: 'ASC' },
+      });
+      if (other) {
+        other.isDefault = true;
+        await this.importerRepo.save(other);
+      }
+    }
+
+    const saved = await this.importerRepo.save(importer);
+    await this.auditService?.log({
+      entityType: 'company_importer',
+      entityId: String(id),
+      action: 'UPDATE',
+      changedBy: userId,
+      oldValue,
+      newValue: { ...saved },
+    });
+
+    return saved;
+  }
+
+  async deleteImporter(id: number, userId?: number): Promise<{ success: boolean; message: string }> {
+    const importer = await this.importerRepo.findOne({ where: { importerId: id } });
+    if (!importer) {
+      throw new NotFoundException(`Importer #${id} not found`);
+    }
+
+    // Check if referenced in purchase orders
+    const referencedPOs = await this.poRepo.count({ where: { importerId: id } });
+    if (referencedPOs > 0) {
+      throw new BadRequestException(
+        `Cannot delete importer #${id} because it is referenced in ${referencedPOs} Purchase Order(s). Please deactivate it instead.`,
+      );
+    }
+
+    await this.importerRepo.remove(importer);
+    await this.auditService?.log({
+      entityType: 'company_importer',
+      entityId: String(id),
+      action: 'DELETE',
+      changedBy: userId,
+      oldValue: { ...importer },
+    });
+
+    return { success: true, message: `Importer #${id} deleted successfully.` };
   }
 }
 

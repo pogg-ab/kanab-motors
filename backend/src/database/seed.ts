@@ -336,6 +336,8 @@ export async function seedDatabase(dataSource?: DataSource) {
       DELETE FROM pdi_inspection WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING')));
       DELETE FROM vehicle_status_history WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING')));
       DELETE FROM allotment_line WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING')));
+      DELETE FROM stock_transfer_line WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING')));
+      DELETE FROM stock_adjustment WHERE vehicle_unit_id IN (SELECT vehicle_unit_id FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING')));
       DELETE FROM allotment WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
       DELETE FROM customer_ledger_transaction WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
       DELETE FROM booking_allotment_requirement WHERE booking_id IN (SELECT booking_id FROM booking WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%'));
@@ -348,9 +350,16 @@ export async function seedDatabase(dataSource?: DataSource) {
       DELETE FROM customer_bank_account WHERE customer_id IN (SELECT customer_id FROM customer WHERE full_name ILIKE '%Abebe%');
       DELETE FROM customer WHERE full_name ILIKE '%Abebe%' OR mobile_number = '+251911223344';
 
-      DELETE FROM vehicle_unit WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING'));
-      DELETE FROM stock_balance WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING'));
-      DELETE FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING');
+      DELETE FROM vehicle_unit 
+      WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING'))
+        AND vehicle_unit_id NOT IN (SELECT vehicle_unit_id FROM stock_transfer_line WHERE vehicle_unit_id IS NOT NULL);
+
+      DELETE FROM stock_balance 
+      WHERE item_id IN (SELECT item_id FROM product_item WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING'));
+
+      DELETE FROM product_item 
+      WHERE item_code IN ('KB-MC-BOXER150', 'KB-3W-MAXIMA-Z', 'KB-3W-TVS-KING')
+        AND item_id NOT IN (SELECT item_id FROM purchase_order_line WHERE item_id IS NOT NULL);
     `);
   } catch (ignored) {
     // Ignore cleanup errors during initial setup

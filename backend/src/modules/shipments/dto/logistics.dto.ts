@@ -181,6 +181,10 @@ export class RejectFreightQuotationDto {
 export class CreateShipmentBookingDto {
   @IsOptional()
   @IsString()
+  revisionReason?: string;
+
+  @IsOptional()
+  @IsString()
   freightForwarderId?: string;
 
   @IsString()
@@ -246,6 +250,14 @@ export class CreateShipmentBookingDto {
 // IMP-27: Shipment Container DTOs
 // -------------------------------------------------------------
 export class CreateShipmentContainerDto {
+  @IsOptional() @IsDateString() freeTimeStartDate?: string;
+  @IsOptional() @IsIn(['EXCLUSIVE','INCLUSIVE']) dayCounting?: string;
+  @IsOptional() @IsDateString() actualEmptyReturnDate?: string;
+
+  @IsOptional()
+  @IsString()
+  revisionReason?: string;
+
   @IsString()
   @MaxLength(50)
   containerNumber: string;
@@ -303,6 +315,10 @@ export class CreateShipmentContainerDto {
 // IMP-28: Shipping Milestones DTOs
 // -------------------------------------------------------------
 export class CreateShipmentMilestoneDto {
+  @IsOptional()
+  @IsString()
+  revisionReason?: string;
+
   @IsString()
   @MaxLength(100)
   milestoneName: string;
@@ -333,6 +349,12 @@ export class CreateShipmentMilestoneDto {
 // IMP-29: Shipment Insurance DTOs
 // -------------------------------------------------------------
 export class CreateShipmentInsuranceDto {
+  @IsOptional() @IsBoolean() isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  revisionReason?: string;
+
   @IsString()
   @MaxLength(100)
   policyNumber: string;
@@ -379,6 +401,10 @@ export class CreateShipmentInsuranceDto {
 // IMP-30: Cargo Tracking & ECTN DTOs
 // -------------------------------------------------------------
 export class CreateCargoTrackingDto {
+  @IsOptional()
+  @IsString()
+  revisionReason?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)

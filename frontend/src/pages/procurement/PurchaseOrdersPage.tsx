@@ -1,3 +1,4 @@
+import './PurchaseOrdersPage.css';
 import React, { useState, useEffect } from 'react';
 import {
   FileText,
@@ -25,6 +26,7 @@ import {
   Info,
   X,
   Globe,
+  Paperclip,
 } from 'lucide-react';
 import {
   api,
@@ -33,6 +35,7 @@ import {
   ProductItem,
   ExchangeRateDefault,
   CompanyBankAccount,
+  CompanyImporter,
   ImportComplianceRecord,
   PoPaymentSchedule,
   PoLetterOfCredit,
@@ -41,6 +44,8 @@ import { useAuth } from '../../context/AuthContext';
 import { ModalErrorAlert } from '../../components/ModalErrorAlert';
 import { formatApiError } from '../../utils/error';
 import { ClientPODocumentModal } from '../../components/ClientPODocumentModal';
+import { EntityAttachmentsModal } from '../../components/EntityAttachmentsModal';
+import { ImportPolicyControls, ImportOrderControls } from '../../components/ImportWorkflowControls';
 
 type PurchaseOrderFormLine = {
   itemId: string;
@@ -116,6 +121,15 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [complianceAppRef, setComplianceAppRef] = useState<string>('');
   const [complianceDocRef, setComplianceDocRef] = useState<string>('');
   const [complianceExpiryDate, setComplianceExpiryDate] = useState<string>('');
+  const [complianceRenewalOfId, setComplianceRenewalOfId] = useState<string | undefined>(undefined);
+  const [poChecklist, setPoChecklist] = useState<any[]>([]);
+  const [complianceAttachment, setComplianceAttachment] = useState<{
+    entityType: 'import_compliance';
+    entityId: string;
+    title: string;
+    subtitle?: string;
+    allowedDocTypes?: string[];
+  } | null>(null);
 
   // Payment Schedule Action Modal
   const [showAddScheduleModal, setShowAddScheduleModal] = useState<boolean>(false);
@@ -131,6 +145,12 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [txnDate, setTxnDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [txnAmount, setTxnAmount] = useState<number | string>('');
   const [txnBank, setTxnBank] = useState<string>('Commercial Bank of Ethiopia');
+
+  // Payment Transaction Confirmation Modal (IMP-16 4-Eyes Principle)
+  const [showConfirmTxnModal, setShowConfirmTxnModal] = useState<boolean>(false);
+  const [confirmTxnTarget, setConfirmTxnTarget] = useState<any | null>(null);
+  const [confirmTxnStatus, setConfirmTxnStatus] = useState<'CONFIRMED' | 'REJECTED' | 'REVERSED'>('CONFIRMED');
+  const [confirmTxnReason, setConfirmTxnReason] = useState<string>('Settled and verified via CBE bank advice');
 
   // Letter of Credit Action Modal
   const [showAddLCModal, setShowAddLCModal] = useState<boolean>(false);
@@ -162,8 +182,10 @@ export const PurchaseOrdersPage: React.FC = () => {
   const [proformaInvoiceNo, setProformaInvoiceNo] = useState<string>('');
   const [proformaInvoiceDate, setProformaInvoiceDate] = useState<string>('');
   const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+  const [importers, setImporters] = useState<CompanyImporter[]>([]);
+  const [importerId, setImporterId] = useState<number | ''>('');
   const [lines, setLines] = useState<PurchaseOrderFormLine[]>([
-    { itemId: '', quantityOrdered: 10, unitPrice: 2500, hsnSacCode: '8711.20', uom: 'PCS' },
+    { itemId: '', quantityOrdered: 10, unitPrice: '', hsnSacCode: '8711.20', uom: 'PCS' },
   ]);
 
   const [saving, setSaving] = useState<boolean>(false);
@@ -173,6 +195,16 @@ export const PurchaseOrdersPage: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (selectedOrder?.poId) {
+      api.getPOComplianceChecklist(selectedOrder.poId)
+        .then((data) => setPoChecklist(data || []))
+        .catch(() => setPoChecklist([]));
+    } else {
+      setPoChecklist([]);
+    }
+  }, [selectedOrder?.poId]);
+
   const showToast = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 4000);
@@ -181,12 +213,13 @@ export const PurchaseOrdersPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [posRes, suppsData, prodsRes, rates, banksRes] = await Promise.all([
+      const [posRes, suppsData, prodsRes, rates, banksRes, importersRes] = await Promise.all([
         api.getPurchaseOrders(),
         api.getSuppliers('', true),
         api.getItems(),
         api.getExchangeRates(),
         api.getCompanyBankAccounts(),
+        api.getCompanyImporters(),
       ]);
       setOrders(posRes.items || []);
       setSuppliers(suppsData);
@@ -198,6 +231,13 @@ export const PurchaseOrdersPage: React.FC = () => {
       const preferredBank = activeBanks.find((b: CompanyBankAccount) => b.isDefault) || activeBanks[0];
       if (preferredBank && !bankAccountId) {
         setBankAccountId(preferredBank.bankAccountId);
+      }
+      const importersList = importersRes || [];
+      setImporters(importersList);
+      const activeImporters = importersList.filter((i: CompanyImporter) => i.isActive !== false);
+      const preferredImporter = activeImporters.find((i: CompanyImporter) => i.isDefault) || activeImporters[0];
+      if (preferredImporter && !importerId) {
+        setImporterId(preferredImporter.importerId);
       }
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load purchase orders'));
@@ -244,7 +284,10 @@ export const PurchaseOrdersPage: React.FC = () => {
     const activeBanks = bankAccounts.filter((b) => b.isActive !== false);
     const preferredBank = activeBanks.find((b) => b.isDefault) || activeBanks[0];
     setBankAccountId(preferredBank?.bankAccountId ?? '');
-    setLines([{ itemId: '', quantityOrdered: 10, unitPrice: 2500, hsnSacCode: '8711.20', uom: 'PCS' }]);
+    const activeImporters = importers.filter((i) => i.isActive !== false);
+    const preferredImporter = activeImporters.find((i) => i.isDefault) || activeImporters[0];
+    setImporterId(preferredImporter?.importerId ?? '');
+    setLines([{ itemId: '', quantityOrdered: 10, unitPrice: '', hsnSacCode: '8711.20', uom: 'PCS' }]);
     setPoError(null);
     setEditingOrder(null);
   };
@@ -274,6 +317,9 @@ export const PurchaseOrdersPage: React.FC = () => {
     const activeBanks = bankAccounts.filter((b) => b.isActive !== false);
     const preferredBank = activeBanks.find((b) => b.isDefault) || activeBanks[0];
     setBankAccountId(po.bankAccountId || (preferredBank?.bankAccountId ?? ''));
+    const activeImporters = importers.filter((i) => i.isActive !== false);
+    const preferredImporter = activeImporters.find((i) => i.isDefault) || activeImporters[0];
+    setImporterId(po.importerId || (preferredImporter?.importerId ?? ''));
     setLines(
       po.lines.map((l) => ({
         itemId: l.itemId,
@@ -291,7 +337,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   const handleAddLine = () => {
     setLines([
       ...lines,
-      { itemId: '', quantityOrdered: 10, unitPrice: 0, hsnSacCode: '8711.20', uom: 'PCS' },
+      { itemId: '', quantityOrdered: 10, unitPrice: '', hsnSacCode: '8711.20', uom: 'PCS' },
     ]);
   };
 
@@ -308,9 +354,6 @@ export const PurchaseOrdersPage: React.FC = () => {
     updated[index] = { ...updated[index], [field]: val };
     if (field === 'itemId') {
       const prod = products.find((p) => p.itemId === val);
-      if (prod && !updated[index].unitPrice) {
-        updated[index].unitPrice = Number(prod.sellingPrice) > 0 ? Number(prod.sellingPrice) : 2500;
-      }
       const productUom = prod?.uom?.uomCode || prod?.uom?.uomName;
       if (productUom) {
         updated[index].uom = productUom;
@@ -366,6 +409,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         proformaInvoiceNo: proformaInvoiceNo.trim() || undefined,
         proformaInvoiceDate: proformaInvoiceDate || undefined,
         bankAccountId: bankAccountId ? Number(bankAccountId) : undefined,
+        importerId: importerId ? Number(importerId) : undefined,
         lines: lines.map((l) => ({
           itemId: l.itemId,
           quantityOrdered: Number(l.quantityOrdered),
@@ -419,14 +463,17 @@ export const PurchaseOrdersPage: React.FC = () => {
         applicationReference: complianceAppRef.trim() || undefined,
         documentReference: complianceDocRef.trim() || undefined,
         expiryDate: complianceExpiryDate || undefined,
+        renewalOfId: complianceRenewalOfId,
         status: 'PENDING',
         userId: user?.userId,
       });
-      showToast('success', 'Regulatory compliance requirement added');
+      showToast('success', complianceRenewalOfId ? 'Permit renewed successfully in PENDING status' : 'Regulatory compliance requirement added');
       setShowAddComplianceModal(false);
+      setComplianceRenewalOfId(undefined);
       // Reload single PO
       const refreshed = await api.getPurchaseOrder(selectedOrder.poId);
       setSelectedOrder(refreshed);
+      api.getPOComplianceChecklist(selectedOrder.poId).then(setPoChecklist).catch(() => {});
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to add compliance record'));
     }
@@ -439,6 +486,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       await api.updatePOComplianceStatus(recordId, nextStatus, 'Status verified by compliance team');
       const refreshed = await api.getPurchaseOrder(selectedOrder.poId);
       setSelectedOrder(refreshed);
+      api.getPOComplianceChecklist(selectedOrder.poId).then(setPoChecklist).catch(() => {});
       showToast('success', `Compliance status updated to ${nextStatus}`);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to update compliance record status'));
@@ -494,12 +542,39 @@ export const PurchaseOrdersPage: React.FC = () => {
     }
   };
 
+  const handleDecidePaymentTxn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrder || !confirmTxnTarget || !confirmTxnReason.trim()) return;
+    try {
+      await api.updatePOPaymentTransactionStatus(
+        confirmTxnTarget.paymentTransactionId,
+        confirmTxnStatus,
+        confirmTxnReason.trim(),
+      );
+      showToast(
+        'success',
+        confirmTxnStatus === 'CONFIRMED'
+          ? 'Payment confirmed by Finance! Milestones & delivery schedule recalculated.'
+          : confirmTxnStatus === 'REVERSED'
+          ? 'Payment reversed by Finance! Balances restored.'
+          : 'Payment transaction rejected',
+      );
+      setShowConfirmTxnModal(false);
+      setConfirmTxnTarget(null);
+      const refreshed = await api.getPurchaseOrder(selectedOrder.poId);
+      setSelectedOrder(refreshed);
+      loadData();
+    } catch (err: any) {
+      showToast('error', formatApiError(err, 'Failed to update payment transaction status'));
+    }
+  };
+
   // Letter of Credit Handlers
   const handleAddLC = async (e: React.FormEvent) => {
     e.preventDefault();
     setLcError(null);
-    if (!selectedOrder || !lcNumber.trim() || !lcIssuingBank.trim() || !lcAmount || !lcIssueDate || !lcExpiryDate) {
-      const msg = 'Please fill in all mandatory L/C fields';
+    if (!selectedOrder || !lcNumber.trim() || !lcIssuingBank.trim() || !lcAmount || !lcIssueDate || !lcExpiryDate || !lcLatestShipmentDate) {
+      const msg = 'Please fill in all mandatory L/C fields (including Latest Shipment Date)';
       setLcError(msg);
       showToast('error', msg);
       return;
@@ -558,19 +633,19 @@ export const PurchaseOrdersPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DRAFT':
-        return <span className="badge badge-secondary">DRAFT</span>;
+        return <span className="badge badge-subtle">DRAFT</span>;
       case 'SUBMITTED':
-        return <span className="badge badge-warning"><Clock size={12} className="inline mr-1" /> SUBMITTED</span>;
+        return <span className="badge badge-amber"><Clock size={12} className="inline mr-1" /> SUBMITTED</span>;
       case 'CONFIRMED':
-        return <span className="badge badge-success"><CheckCircle2 size={12} className="inline mr-1" /> CONFIRMED</span>;
+        return <span className="badge badge-emerald"><CheckCircle2 size={12} className="inline mr-1" /> CONFIRMED</span>;
       case 'PARTIALLY_RECEIVED':
         return <span className="badge badge-info">PARTIAL</span>;
       case 'RECEIVED':
-        return <span className="badge badge-success">RECEIVED</span>;
+        return <span className="badge badge-emerald">RECEIVED</span>;
       case 'CANCELLED':
-        return <span className="badge badge-danger">CANCELLED</span>;
+        return <span className="badge badge-rose">CANCELLED</span>;
       default:
-        return <span className="badge badge-secondary">{status}</span>;
+        return <span className="badge badge-subtle">{status}</span>;
     }
   };
 
@@ -586,7 +661,8 @@ export const PurchaseOrdersPage: React.FC = () => {
   const confirmationRate = orders.length > 0 ? Math.round((confirmedOrders.length / orders.length) * 100) : 0;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+    <div className="purchase-orders-page">
+      <ImportPolicyControls />
       {/* Toast Notification */}
       {notification && (
         <div
@@ -871,7 +947,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
       {/* PO Detail & Full Import Processes Modal */}
       {selectedOrder && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop po-modal">
           <div className="modal-content" style={{ maxWidth: '1150px', width: '96%' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1005,13 +1081,21 @@ export const PurchaseOrdersPage: React.FC = () => {
             </div>
 
             <div className="modal-body" style={{ padding: '1.25rem 1.5rem', maxHeight: '75vh', overflowY: 'auto', overflowX: 'hidden' }}>
+              <ImportOrderControls
+                po={selectedOrder}
+                onReload={async () => {
+                  const updated = await api.getPurchaseOrder(selectedOrder.poId);
+                  setSelectedOrder(updated);
+                  loadData();
+                }}
+              />
               {/* TAB 1: Commercial Terms & Lines */}
               {detailTab === 'commercial' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {/* Commercial Specifications Grid */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))',
                     gap: '0.85rem',
                     padding: '1.15rem',
                     background: 'rgba(15, 23, 42, 0.6)',
@@ -1113,7 +1197,10 @@ export const PurchaseOrdersPage: React.FC = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowAddComplianceModal(true)}
+                      onClick={() => {
+                        setComplianceRenewalOfId(undefined);
+                        setShowAddComplianceModal(true);
+                      }}
                       className="btn btn-cyan btn-sm"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                     >
@@ -1121,6 +1208,37 @@ export const PurchaseOrdersPage: React.FC = () => {
                       <span>Add Requirement</span>
                     </button>
                   </div>
+
+                  {/* Applicable Regulatory Checklist Requirements (IMP-13) */}
+                  {poChecklist.length > 0 && (
+                    <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <ShieldCheck size={14} />
+                        <span>Applicable Regulatory Checklist for this PO ({selectedOrder.destinationCountry || 'Global'} · {selectedOrder.modeOfShipment || 'SEA'})</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                        {poChecklist.map((c, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.02)', padding: '0.45rem 0.65rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <strong style={{ color: 'var(--text-primary)' }}>{c.type}</strong>
+                              <span style={{ color: 'var(--text-muted)' }}>· Authority: {c.authority || 'Any'}</span>
+                              <span style={{ color: 'var(--text-muted)' }}>· Checkpoint: <strong className="font-mono text-cyan-400">{c.checkpoint}</strong></span>
+                              {c.evidenceRequired && <span style={{ color: 'var(--accent-amber)', fontSize: '0.7rem' }}>(Attachment Required)</span>}
+                            </div>
+                            <div>
+                              {c.status === 'APPROVED' ? (
+                                <span className="badge badge-emerald" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>APPROVED</span>
+                              ) : c.status === 'ACTION_REQUIRED' ? (
+                                <span className="badge badge-amber" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>ACTION REQUIRED</span>
+                              ) : (
+                                <span className="badge badge-rose" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>MISSING</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)', width: '100%' }}>
                     <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -1159,23 +1277,60 @@ export const PurchaseOrdersPage: React.FC = () => {
                                 <td style={{ padding: '0.65rem 0.75rem', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>{rec.expiryDate || 'N/A'}</td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
                                   {rec.status === 'APPROVED' ? (
-                                    <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                    <span className="badge badge-emerald" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
                                       <CheckCircle2 size={10} className="inline mr-0.5" /> APPROVED
                                     </span>
                                   ) : (
-                                    <span className="badge badge-warning" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                    <span className="badge badge-amber" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
                                       <Clock size={10} className="inline mr-0.5" /> {rec.status}
                                     </span>
                                   )}
                                 </td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
-                                  <button
-                                    onClick={() => handleToggleComplianceStatus(rec.complianceRecordId, rec.status)}
-                                    className="btn btn-secondary btn-sm"
-                                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
-                                  >
-                                    {rec.status === 'APPROVED' ? 'Mark Pending' : 'Mark Approved'}
-                                  </button>
+                                  <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setComplianceAttachment({
+                                          entityType: 'import_compliance',
+                                          entityId: String(rec.complianceRecordId),
+                                          title: `Regulatory Evidence: ${formattedType}`,
+                                          subtitle: `Ref: ${rec.documentReference || rec.applicationReference || 'Permit'} · Authority: ${rec.issuingAuthority}`,
+                                          allowedDocTypes: ['Import Permit', 'Inspection Certificate', 'Supporting Document', 'Clearance Certificate'],
+                                        })
+                                      }
+                                      className="btn btn-secondary btn-sm"
+                                      style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
+                                    >
+                                      <Paperclip size={12} className="inline mr-1" />
+                                      Evidence
+                                    </button>
+                                    <button
+                                      onClick={() => handleToggleComplianceStatus(rec.complianceRecordId, rec.status)}
+                                      className="btn btn-secondary btn-sm"
+                                      style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
+                                    >
+                                      {rec.status === 'APPROVED' ? 'Mark Pending' : 'Mark Approved'}
+                                    </button>
+                                    {(rec.status === 'APPROVED' || rec.status === 'EXPIRED') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setComplianceType(rec.requirementType);
+                                          setComplianceAuthority(rec.issuingAuthority);
+                                          setComplianceRenewalOfId(String(rec.complianceRecordId));
+                                          setComplianceAppRef('');
+                                          setComplianceDocRef('');
+                                          setComplianceExpiryDate('');
+                                          setShowAddComplianceModal(true);
+                                        }}
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
+                                      >
+                                        Renew
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1233,6 +1388,9 @@ export const PurchaseOrdersPage: React.FC = () => {
                             const totalPaid = s.transactions
                               ?.filter((t) => t.status === 'CONFIRMED')
                               .reduce((acc, t) => acc + Number(t.amountPaid), 0) || 0;
+                            const pendingPaid = s.transactions
+                              ?.filter((t) => t.status === 'INITIATED')
+                              .reduce((acc, t) => acc + Number(t.amountPaid), 0) || 0;
                             const remaining = Math.max(0, Number(s.amountDue) - totalPaid);
                             const methodLabel = s.paymentMethod === 'TELEGRAPHIC_TRANSFER' ? 'T/T Wire' : s.paymentMethod;
                             return (
@@ -1245,17 +1403,24 @@ export const PurchaseOrdersPage: React.FC = () => {
                                 </td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: 'var(--accent-emerald)' }} className="font-mono">
                                   {s.currency} {totalPaid.toLocaleString()}
+                                  {pendingPaid > 0 && (
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--accent-amber)', marginTop: '0.15rem' }}>
+                                      (+{s.currency} {pendingPaid.toLocaleString()} initiated)
+                                    </div>
+                                  )}
                                 </td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-amber)' }} className="font-mono">
                                   {s.currency} {remaining.toLocaleString()}
                                 </td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
                                   {remaining <= 0 ? (
-                                    <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>PAID</span>
+                                    <span className="badge badge-emerald" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>PAID</span>
                                   ) : totalPaid > 0 ? (
                                     <span className="badge badge-info" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>PARTIAL</span>
+                                  ) : pendingPaid > 0 ? (
+                                    <span className="badge badge-amber" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>INITIATED</span>
                                   ) : (
-                                    <span className="badge badge-warning" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>DUE</span>
+                                    <span className="badge badge-amber" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>DUE</span>
                                   )}
                                 </td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
@@ -1286,6 +1451,132 @@ export const PurchaseOrdersPage: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Recorded Transactions & 4-Eyes Finance Approvals (IMP-16) */}
+                  {(() => {
+                    const allTransactions = (selectedOrder.paymentSchedules || []).flatMap((s) =>
+                      (s.transactions || []).map((t) => ({ ...t, milestoneName: s.milestoneName })),
+                    );
+
+                    return (
+                      <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                          <div>
+                            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent-cyan)', margin: 0 }}>
+                              Recorded Transactions & Finance Approvals (IMP-16 4-Eyes Principle)
+                            </h4>
+                            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '0.15rem 0 0' }}>
+                              Payments recorded by operations require Finance verification before confirmed balances update and delivery schedules calculate.
+                            </p>
+                          </div>
+                        </div>
+
+                        {allTransactions.length > 0 ? (
+                          <div style={{ borderRadius: 'var(--radius-md)', overflowX: 'auto', border: '1px solid var(--border-color)', width: '100%' }}>
+                            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                              <thead>
+                                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border-color)' }}>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>MILESTONE</th>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PAYMENT REF</th>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>REMITTANCE BANK</th>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>PAYMENT DATE</th>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>AMOUNT</th>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTION</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {allTransactions.map((t) => (
+                                  <tr key={t.paymentTransactionId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600 }}>{t.milestoneName}</td>
+                                    <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">{t.paymentReference}</td>
+                                    <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem' }}>{t.bankName || 'N/A'}</td>
+                                    <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{t.paymentDate}</td>
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-emerald)' }} className="font-mono">
+                                      {t.currency} {Number(t.amountPaid).toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
+                                      {t.status === 'CONFIRMED' ? (
+                                        <span className="badge badge-emerald" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                          CONFIRMED
+                                        </span>
+                                      ) : t.status === 'INITIATED' ? (
+                                        <span className="badge badge-amber" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                          INITIATED
+                                        </span>
+                                      ) : (
+                                        <span className="badge badge-rose" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>
+                                          {t.status}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
+                                      {t.status === 'INITIATED' ? (
+                                        <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                                          <button
+                                            type="button"
+                                            className="btn btn-success btn-sm"
+                                            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', whiteSpace: 'nowrap', background: '#10B981', color: '#fff' }}
+                                            onClick={() => {
+                                              setConfirmTxnTarget(t);
+                                              setConfirmTxnStatus('CONFIRMED');
+                                              setConfirmTxnReason('Settled and verified via CBE wire remittance');
+                                              setShowConfirmTxnModal(true);
+                                            }}
+                                          >
+                                            Confirm Payment
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn btn-danger btn-sm"
+                                            style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', whiteSpace: 'nowrap' }}
+                                            onClick={() => {
+                                              setConfirmTxnTarget(t);
+                                              setConfirmTxnStatus('REJECTED');
+                                              setConfirmTxnReason('Payment advice rejected - invalid reference');
+                                              setShowConfirmTxnModal(true);
+                                            }}
+                                          >
+                                            Reject
+                                          </button>
+                                        </div>
+                                      ) : t.status === 'CONFIRMED' ? (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                                          <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>✓ Verified</span>
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm"
+                                            style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem', whiteSpace: 'nowrap', background: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', border: '1px solid #F59E0B' }}
+                                            title="Reverse this confirmed payment and restore balance"
+                                            onClick={() => {
+                                              setConfirmTxnTarget(t);
+                                              setConfirmTxnStatus('REVERSED');
+                                              setConfirmTxnReason('Payment reversed - transaction recalled by remitting bank');
+                                              setShowConfirmTxnModal(true);
+                                            }}
+                                          >
+                                            Reverse
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                          {t.status === 'REVERSED' ? 'Reversed' : 'Rejected'}
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '6px', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            No payment transactions recorded yet. Click "Pay" on any milestone above to record a wire transfer or settlement.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1338,7 +1629,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                               <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{new Date(lc.issueDate).toLocaleDateString()}</td>
                               <td style={{ padding: '0.65rem 0.75rem', color: 'var(--accent-amber)', fontWeight: 600, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{new Date(lc.expiryDate).toLocaleDateString()}</td>
                               <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
-                                <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>{lc.status}</span>
+                                <span className="badge badge-emerald" style={{ fontSize: '0.68rem', padding: '0.2rem 0.45rem' }}>{lc.status}</span>
                               </td>
                             </tr>
                           ))
@@ -1367,7 +1658,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
       {/* Create / Edit PO Modal */}
       {showCreateModal && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop po-modal">
           <div className="modal-content" style={{ maxWidth: '950px', width: '95%' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1391,7 +1682,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 {poError && <ModalErrorAlert error={poError} onDismiss={() => setPoError(null)} />}
 
                 {/* Primary Supplier & Terms */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Foreign Supplier / Vendor *</label>
                     <select
@@ -1404,6 +1695,21 @@ export const PurchaseOrdersPage: React.FC = () => {
                       {suppliers.map((s) => (
                         <option key={s.supplierId} value={s.supplierId}>
                           {s.supplierName} ({s.country || 'Global'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Importer License / Division *</label>
+                    <select
+                      className="input w-full"
+                      value={importerId}
+                      onChange={(e) => setImporterId(Number(e.target.value) || '')}
+                      required
+                    >
+                      {importers.filter((i) => i.isActive !== false).map((i) => (
+                        <option key={i.importerId} value={i.importerId}>
+                          {i.importerName} {i.isDefault ? '★ [Default]' : ''} ({i.iecNo || 'No IEC'})
                         </option>
                       ))}
                     </select>
@@ -1449,7 +1755,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                   <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Commercial & Logistics Specifications
                   </span>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: '0.85rem' }}>
                     <div>
                       <label className="form-label">Incoterms *</label>
                       <select
@@ -1497,7 +1803,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '0.85rem' }}>
                     <div>
                       <label className="form-label">Payment Terms Agreement</label>
                       <input
@@ -1623,6 +1929,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                                   type="number"
                                   min="0.01"
                                   step="0.01"
+                                  placeholder="0.00"
                                   className="input w-full text-xs font-mono"
                                   style={{ minWidth: '105px', padding: '0.4rem 0.55rem', textAlign: 'right' }}
                                   value={l.unitPrice}
@@ -1674,10 +1981,12 @@ export const PurchaseOrdersPage: React.FC = () => {
 
       {/* Add Compliance Modal */}
       {showAddComplianceModal && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop po-modal">
           <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
             <div className="modal-header">
-              <h3 className="font-bold text-base text-cyan-400">Add Regulatory Compliance Requirement</h3>
+              <h3 className="font-bold text-base text-cyan-400">
+                {complianceRenewalOfId ? 'Renew Regulatory Permit (IMP-14)' : 'Add Regulatory Compliance Requirement'}
+              </h3>
               <button onClick={() => setShowAddComplianceModal(false)} className="btn btn-secondary btn-sm">
                 <X size={14} />
               </button>
@@ -1754,7 +2063,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
       {/* Add Payment Milestone Modal */}
       {showAddScheduleModal && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop po-modal">
           <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
             <div className="modal-header">
               <h3 className="font-bold text-base text-cyan-400">Add Payment Schedule Milestone</h3>
@@ -1824,7 +2133,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
       {/* Record Payment Transaction Modal */}
       {showRecordTxnModal && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop po-modal">
           <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
             <div className="modal-header">
               <h3 className="font-bold text-base text-cyan-400">Record Payment Transaction</h3>
@@ -1891,9 +2200,95 @@ export const PurchaseOrdersPage: React.FC = () => {
         </div>
       )}
 
+      {/* Confirm Payment Transaction Modal (IMP-16 4-Eyes Principle) */}
+      {showConfirmTxnModal && confirmTxnTarget && (
+        <div className="modal-backdrop po-modal">
+          <div className="modal-content" style={{ maxWidth: '520px', width: '90%' }}>
+            <div className="modal-header">
+              <h3 className="font-bold text-base text-cyan-400">
+                {confirmTxnStatus === 'CONFIRMED'
+                  ? 'Confirm Payment (Finance 4-Eyes Verification)'
+                  : confirmTxnStatus === 'REVERSED'
+                  ? 'Reverse Confirmed Payment (Finance Reversal)'
+                  : 'Reject Payment Transaction'}
+              </h3>
+              <button onClick={() => setShowConfirmTxnModal(false)} className="btn btn-secondary btn-sm">
+                <X size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleDecidePaymentTxn}>
+              <div className="modal-body space-y-3 text-xs" style={{ padding: '1.25rem' }}>
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '0.85rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Milestone:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{confirmTxnTarget.milestoneName}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Payment Reference:</span>
+                    <strong className="font-mono text-cyan-400">{confirmTxnTarget.paymentReference}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Remittance Amount:</span>
+                    <strong className="font-mono text-emerald-400">
+                      {confirmTxnTarget.currency} {Number(confirmTxnTarget.amountPaid).toLocaleString()}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Remittance Bank:</span>
+                    <span>{confirmTxnTarget.bankName || 'N/A'}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">
+                    Finance Audit Verification Reason *
+                  </label>
+                  <input
+                    type="text"
+                    className="input w-full"
+                    placeholder="e.g. Settled and verified via CBE wire remittance"
+                    value={confirmTxnReason}
+                    onChange={(e) => setConfirmTxnReason(e.target.value)}
+                    required
+                  />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
+                    Required by IMP-16 finance governance for non-repudiation audit logging.
+                  </span>
+                </div>
+              </div>
+              <div className="modal-footer flex items-center justify-between">
+                <button type="button" onClick={() => setShowConfirmTxnModal(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{
+                    background: confirmTxnStatus === 'CONFIRMED' ? '#10B981' : confirmTxnStatus === 'REVERSED' ? '#F59E0B' : '#EF4444',
+                    color: '#fff',
+                  }}
+                >
+                  {confirmTxnStatus === 'CONFIRMED' ? 'Confirm & Authorize Settlement' : confirmTxnStatus === 'REVERSED' ? 'Reverse & Restore Balance' : 'Reject Transaction'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Record Letter of Credit Modal */}
       {showAddLCModal && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop po-modal">
           <div className="modal-content" style={{ maxWidth: '550px', width: '90%' }}>
             <div className="modal-header">
               <h3 className="font-bold text-base text-cyan-400">Issue & Track Letter of Credit (L/C)</h3>
@@ -1970,12 +2365,13 @@ export const PurchaseOrdersPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="form-label">Latest Shipment Date</label>
+                    <label className="form-label">Latest Shipment Date *</label>
                     <input
                       type="date"
                       className="input w-full"
                       value={lcLatestShipmentDate}
                       onChange={(e) => setLcLatestShipmentDate(e.target.value)}
+                      required
                     />
                   </div>
                 </div>
@@ -1996,6 +2392,24 @@ export const PurchaseOrdersPage: React.FC = () => {
       {/* Client-Format PO Document Preview & Print */}
       {showPrintModal && printData && (
         <ClientPODocumentModal data={printData} onClose={() => setShowPrintModal(false)} />
+      )}
+
+      {/* Regulatory Evidence Attachments Modal */}
+      {complianceAttachment && (
+        <EntityAttachmentsModal
+          isOpen={!!complianceAttachment}
+          onClose={() => {
+            setComplianceAttachment(null);
+            if (selectedOrder?.poId) {
+              api.getPOComplianceChecklist(selectedOrder.poId).then(setPoChecklist).catch(() => {});
+            }
+          }}
+          entityType={complianceAttachment.entityType}
+          entityId={complianceAttachment.entityId}
+          title={complianceAttachment.title}
+          subtitle={complianceAttachment.subtitle}
+          allowedDocTypes={complianceAttachment.allowedDocTypes}
+        />
       )}
     </div>
   );

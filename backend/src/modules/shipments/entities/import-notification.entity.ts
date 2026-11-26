@@ -10,6 +10,15 @@ import { AppUser } from '../../auth/entities/app-user.entity';
 
 @Entity('import_notification')
 export class ImportNotification {
+  @Column({ name: 'deadline_date', type: 'date', nullable: true })
+  deadlineDate?: string;
+
+  @Column({ name: 'reminder_date', type: 'date', nullable: true })
+  reminderDate?: string;
+
+  @Column({ name: 'deadline_revision', type: 'int', nullable: true })
+  deadlineRevision?: number;
+
   @PrimaryGeneratedColumn('increment', { type: 'bigint', name: 'notification_id' })
   notificationId: string;
 

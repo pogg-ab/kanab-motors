@@ -72,6 +72,9 @@ export class PurchaseOrder {
   @Column({ length: 30, default: 'FOB' })
   incoterms: string;
 
+  @Column({ name: 'incoterms_named_place', length: 150, nullable: true })
+  incotermsNamedPlace?: string;
+
   @Column({ name: 'payment_terms', length: 100, default: '30% Advance T/T, 70% against Bill of Lading' })
   paymentTerms: string;
 
@@ -93,8 +96,11 @@ export class PurchaseOrder {
   @Column({ name: 'delivery_lead_time_days', type: 'int', default: 30 })
   deliveryLeadTimeDays: number;
 
-  @Column({ name: 'lead_time_trigger', length: 100, default: 'PO issuance and confirmed advance payment' })
+  @Column({ name: 'lead_time_trigger', length: 100, default: 'ISSUANCE_AND_ADVANCE' })
   leadTimeTrigger: string;
+
+  @Column({ name: 'lead_time_day_type', length: 20, default: 'CALENDAR' })
+  leadTimeDayType: string;
 
   @Column({ name: 'expected_delivery_date', type: 'date', nullable: true })
   expectedDeliveryDate?: string;
@@ -124,6 +130,9 @@ export class PurchaseOrder {
   @JoinColumn({ name: 'company_profile_id' })
   companyProfile?: CompanyProfile;
 
+  @Column({ name: 'importer_id', type: 'int', nullable: true })
+  importerId?: number;
+
   @Column({ name: 'bank_account_id', type: 'int', nullable: true })
   bankAccountId?: number;
 
@@ -139,6 +148,22 @@ export class PurchaseOrder {
 
   @Column({ name: 'company_snapshot', type: 'jsonb', nullable: true })
   companySnapshot?: Record<string, any>;
+
+  @Column({ name: 'bank_snapshot', type: 'jsonb', nullable: true })
+  bankSnapshot?: Record<string, any>;
+
+  @Column({ name: 'destination_country', length: 100, nullable: true })
+  destinationCountry?: string;
+  @Column({ name: 'payment_method', length: 40, default: 'TELEGRAPHIC_TRANSFER' })
+  paymentMethod: string;
+  @Column({ name: 'inspection_required', default: false })
+  inspectionRequired: boolean;
+  @Column({ name: 'issued_date', type: 'date', nullable: true })
+  issuedDate?: string;
+  @Column({ name: 'standard_terms_snapshot', type: 'jsonb', nullable: true })
+  standardTermsSnapshot?: string[];
+  @Column({ name: 'issued_document', type: 'jsonb', nullable: true })
+  issuedDocument?: Record<string, any>;
 
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy?: number;

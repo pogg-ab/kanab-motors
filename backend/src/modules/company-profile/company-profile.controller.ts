@@ -23,6 +23,7 @@ import * as fs from 'fs';
 import { CompanyProfileService } from './company-profile.service';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
 import { CreateBankAccountDto, UpdateBankAccountDto } from './dto/bank-account.dto';
+import { CreateCompanyImporterDto, UpdateCompanyImporterDto } from './dto/importer.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 
@@ -179,6 +180,90 @@ export class CompanyProfileController {
   @ApiOperation({ summary: 'Delete an Importer Bank Account (with transaction reference check)' })
   deleteBankAccount(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
     return this.companyProfileService.deleteBankAccount(id, req?.user?.userId);
+  }
+
+  // =========================================================================
+  // Multiple Importers Endpoints
+  // =========================================================================
+
+  @Get('importers')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions(
+    'COMPANY_PROFILE_VIEW',
+    'COMPANY_PROFILE_EDIT',
+    'USERS_VIEW',
+    'USERS_EDIT',
+    'PURCHASE_ORDERS_VIEW',
+    'PURCHASE_ORDERS_CREATE',
+    'PURCHASE_ORDERS_EDIT',
+    'PURCHASE_ORDERS_CONFIRM',
+  )
+  @ApiOperation({ summary: 'List all Importers registered under KANAB Motors' })
+  getImporters() {
+    return this.companyProfileService.getImporters();
+  }
+
+  @Post('importers')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('COMPANY_PROFILE_EDIT', 'USERS_EDIT')
+  @ApiOperation({ summary: 'Register a new Importer under KANAB Motors' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  createImporter(
+    @Body() dto: CreateCompanyImporterDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId;
+    return this.companyProfileService.createImporter(dto, userId);
+  }
+
+  @Put('importers/:id')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('COMPANY_PROFILE_EDIT', 'USERS_EDIT')
+  @ApiOperation({ summary: 'Update an Importer details' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  updateImporter(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCompanyImporterDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId;
+    return this.companyProfileService.updateImporter(id, dto, userId);
+  }
+
+  @Put('importers/:id/default')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('COMPANY_PROFILE_EDIT', 'USERS_EDIT')
+  @ApiOperation({ summary: 'Designate an Importer as the primary corporate default' })
+  setDefaultImporter(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId;
+    return this.companyProfileService.setDefaultImporter(id, userId);
+  }
+
+  @Put('importers/:id/toggle-active')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('COMPANY_PROFILE_EDIT', 'USERS_EDIT')
+  @ApiOperation({ summary: 'Toggle an Importer active/inactive status' })
+  toggleActiveImporter(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId;
+    return this.companyProfileService.toggleActiveImporter(id, userId);
+  }
+
+  @Delete('importers/:id')
+  @UseGuards(PermissionGuard)
+  @RequirePermissions('COMPANY_PROFILE_EDIT', 'USERS_EDIT')
+  @ApiOperation({ summary: 'Delete an Importer (with PO reference check)' })
+  deleteImporter(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId;
+    return this.companyProfileService.deleteImporter(id, userId);
   }
 }
 

@@ -5,7 +5,7 @@ import { Paperclip, Upload, Trash2, Download, ExternalLink, X, FileText, CheckCi
 interface EntityAttachmentsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  entityType: 'booking' | 'booking_draft' | 'payment' | 'refund' | 'spare_parts_sale' | 'invoice';
+  entityType: 'shipment_freight_quotation' | 'shipment_insurance' | 'shipment_container' | 'shipment_cargo_tracking' | 'booking' | 'booking_draft' | 'payment' | 'refund' | 'spare_parts_sale' | 'invoice' | 'purchase_order' | 'import_compliance' | 'po_payment_transaction';
   entityId: string;
   title: string;
   subtitle?: string;

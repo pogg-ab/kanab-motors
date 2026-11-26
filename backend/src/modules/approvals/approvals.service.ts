@@ -13,6 +13,7 @@ import { ApprovalDecisionDto } from './dto/approval-decision.dto';
 export class ApprovalsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ApprovalsService.name);
   private scanTimer?: NodeJS.Timeout;
+  private initialScanTimer?: NodeJS.Timeout;
 
   constructor(
     @InjectRepository(ApprovalRequest)
@@ -33,7 +34,7 @@ export class ApprovalsService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     // Automated background reminder scanner:
     // Initial run 15 seconds after module startup, then recurring every 15 minutes
-    setTimeout(() => {
+    this.initialScanTimer = setTimeout(() => {
       this.scanPendingApprovals().catch(err => {
         this.logger.error(`Automated initial reminder scan error: ${err.message}`);
       });
@@ -47,6 +48,7 @@ export class ApprovalsService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy() {
+    if (this.initialScanTimer) clearTimeout(this.initialScanTimer);
     if (this.scanTimer) {
       clearInterval(this.scanTimer);
     }

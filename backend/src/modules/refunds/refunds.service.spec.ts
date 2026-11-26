@@ -5,6 +5,7 @@ import { RefundsService } from './refunds.service';
 import { CustomerRefund, RefundStatus } from './entities/customer-refund.entity';
 import { CustomerAccountSummary } from '../customers/entities/customer-account-summary.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { Booking } from '../bookings/entities/booking.entity';
 import { LedgerService } from '../ledger/ledger.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -13,6 +14,7 @@ describe('RefundsService (SRS §7.4 Validation Rule - Story R2)', () => {
   let refundRepo: any;
   let summaryRepo: any;
   let customerRepo: any;
+  let bookingRepo: any;
   let ledgerService: any;
   let auditService: any;
 
@@ -28,6 +30,9 @@ describe('RefundsService (SRS §7.4 Validation Rule - Story R2)', () => {
     customerRepo = {
       findOne: jest.fn().mockResolvedValue({ customerId: '1', fullName: 'Abebe Bikila' }),
     };
+    bookingRepo = {
+      findOne: jest.fn(),
+    };
     ledgerService = {
       postTransaction: jest.fn().mockResolvedValue({}),
     };
@@ -41,6 +46,7 @@ describe('RefundsService (SRS §7.4 Validation Rule - Story R2)', () => {
         { provide: getRepositoryToken(CustomerRefund), useValue: refundRepo },
         { provide: getRepositoryToken(CustomerAccountSummary), useValue: summaryRepo },
         { provide: getRepositoryToken(Customer), useValue: customerRepo },
+        { provide: getRepositoryToken(Booking), useValue: bookingRepo },
         { provide: LedgerService, useValue: ledgerService },
         { provide: AuditService, useValue: auditService },
       ],

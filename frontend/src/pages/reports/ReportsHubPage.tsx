@@ -228,13 +228,13 @@ export const ReportsHubPage: React.FC = () => {
               : filteredBookingsReport.map((row) => row.status)
         : activeTab === 'inventory'
           ? filteredVehicleStatusReport.map((row) => row.current_status || row.status)
-        : activeTab === 'financial'
-          ? filteredFinancialSummary.map((row) => row.customer_type)
-        : activeTab === 'credit_and_aging'
-          ? creditSubTab === 'credit_sales'
-            ? filteredCreditSales.map((r) => r.status)
-            : ['0-30', '31-60', '61-90', '91-180', '>180']
-          : []
+          : activeTab === 'financial'
+            ? filteredFinancialSummary.map((row) => row.customer_type)
+            : activeTab === 'credit_and_aging'
+              ? creditSubTab === 'credit_sales'
+                ? filteredCreditSales.map((r) => r.status)
+                : ['0-30', '31-60', '61-90', '91-180', '>180']
+              : []
       ).filter(Boolean) as string[],
     ),
   );
@@ -622,396 +622,396 @@ export const ReportsHubPage: React.FC = () => {
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden', marginBottom: '1.25rem', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
           <ReportFrameHeader title="Sales Report Table" subtitle="Flip this report frame back to visual analytics." icon={<TrendingUp size={20} />} />
           <div style={{ padding: '1.1rem' }}>
-          {/* Sub-tabs for Sales */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-            {[
-              { key: 'daily', label: 'Daily Sales' },
-              { key: 'monthly', label: 'Monthly Trend' },
-              { key: 'model', label: 'By Vehicle Model' },
-              { key: 'category', label: 'By Category' },
-              { key: 'customer', label: 'By Customer' },
-              { key: 'region', label: 'By Region' },
-              { key: 'salesperson', label: 'By Salesperson' },
-            ].map((st) => (
-              <button
-                key={st.key}
-                onClick={() => setSalesSubTab(st.key as any)}
-                style={{
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  border: '1px solid var(--border-color)',
-                  background: salesSubTab === st.key ? '#00D2D3' : 'var(--bg-secondary)',
-                  color: salesSubTab === st.key ? '#0D1117' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Daily Sales Table */}
-          {salesSubTab === 'daily' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Daily Approved Sales</div>
+            {/* Sub-tabs for Sales */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              {[
+                { key: 'daily', label: 'Daily Sales' },
+                { key: 'monthly', label: 'Monthly Trend' },
+                { key: 'model', label: 'By Vehicle Model' },
+                { key: 'category', label: 'By Category' },
+                { key: 'customer', label: 'By Customer' },
+                { key: 'region', label: 'By Region' },
+                { key: 'salesperson', label: 'By Salesperson' },
+              ].map((st) => (
                 <button
-                  onClick={() => exportToCSV('daily_sales_report', dailySales)}
+                  key={st.key}
+                  onClick={() => setSalesSubTab(st.key as any)}
                   style={{
-                    padding: '0.4rem 0.8rem',
+                    padding: '0.4rem 0.85rem',
                     borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
                     fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
+                    fontWeight: 600,
+                    border: '1px solid var(--border-color)',
+                    background: salesSubTab === st.key ? '#00D2D3' : 'var(--bg-secondary)',
+                    color: salesSubTab === st.key ? '#0D1117' : 'var(--text-secondary)',
+                    cursor: 'pointer',
                   }}
                 >
-                  <Download size={14} /> Export CSV
+                  {st.label}
                 </button>
-              </div>
+              ))}
+            </div>
 
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>SALES DATE</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS SALES REVENUE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDailySales.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                          No approved sales recorded for this period.
-                        </td>
+            {/* Daily Sales Table */}
+            {salesSubTab === 'daily' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Daily Approved Sales</div>
+                  <button
+                    onClick={() => exportToCSV('daily_sales_report', dailySales)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>SALES DATE</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS SALES REVENUE</th>
                       </tr>
-                    ) : (
-                      filteredDailySales.map((d, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{d.sales_date}</td>
-                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{d.invoice_count}</td>
-                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{d.units_sold}</td>
-                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>
-                            {formatETB(d.total_sales)}
+                    </thead>
+                    <tbody>
+                      {filteredDailySales.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            No approved sales recorded for this period.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredDailySales.map((d, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{d.sales_date}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{d.invoice_count}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{d.units_sold}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>
+                              {formatETB(d.total_sales)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Monthly Sales Table */}
-          {salesSubTab === 'monthly' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Monthly Sales Performance</div>
-                <button
-                  onClick={() => exportToCSV('monthly_sales_report', monthlySales)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
+            {/* Monthly Sales Table */}
+            {salesSubTab === 'monthly' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Monthly Sales Performance</div>
+                  <button
+                    onClick={() => exportToCSV('monthly_sales_report', monthlySales)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
 
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>MONTH</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES (ETB)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredMonthlySales.map((m, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{m.sales_month}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{m.invoice_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{m.units_sold}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>
-                          {formatETB(m.total_sales)}
-                        </td>
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>MONTH</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES (ETB)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sales by Model */}
-          {salesSubTab === 'model' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Vehicle Model</div>
-                <button
-                  onClick={() => exportToCSV('sales_by_model', salesByModel)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS REVENUE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSalesByModel.map((item, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#00D2D3' }}>{item.model || 'Standard'}</td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{item.item_name}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{item.invoice_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{item.units_sold}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800 }}>{formatETB(item.total_sales)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sales by Category */}
-          {salesSubTab === 'category' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Category</div>
-                <button
-                  onClick={() => exportToCSV('sales_by_category', salesByCategory)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>CATEGORY</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS REVENUE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSalesByCategory.map((item, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>{item.category_name}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{item.invoice_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{item.units_sold}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(item.total_sales)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sales by Customer */}
-          {salesSubTab === 'customer' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Customer Account</div>
-                <button
-                  onClick={() => exportToCSV('sales_by_customer', salesByCustomer)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER CODE</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>NAME</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICES</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES (ETB)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSalesByCustomer.map((c) => (
-                      <tr key={c.customer_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{c.customer_code}</td>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{c.full_name}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{c.invoice_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800 }}>{formatETB(c.total_sales)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sales by Region */}
-          {salesSubTab === 'region' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Regional Sales Performance</div>
-                <button
-                  onClick={() => exportToCSV('sales_by_region', salesByRegion)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>REGION</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES (ETB)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSalesByRegion.map((r, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{r.region_name}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{r.invoice_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>{formatETB(r.total_sales)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sales by Salesperson */}
-          {salesSubTab === 'salesperson' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Salesperson Performance</div>
-                <button
-                  onClick={() => exportToCSV('sales_by_salesperson', salesBySalesperson)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>SALESPERSON</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICES CLOSED</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES VALUE (ETB)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSalesBySalesperson.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                          No sales mapped to specific salesperson accounts yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredSalesBySalesperson.map((sp) => (
-                        <tr key={sp.salesperson_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{sp.salesperson_name}</td>
-                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{sp.invoice_count}</td>
-                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(sp.total_sales)}</td>
+                    </thead>
+                    <tbody>
+                      {filteredMonthlySales.map((m, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{m.sales_month}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{m.invoice_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{m.units_sold}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>
+                            {formatETB(m.total_sales)}
+                          </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Sales by Model */}
+            {salesSubTab === 'model' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Vehicle Model</div>
+                  <button
+                    onClick={() => exportToCSV('sales_by_model', salesByModel)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS REVENUE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSalesByModel.map((item, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#00D2D3' }}>{item.model || 'Standard'}</td>
+                          <td style={{ padding: '0.85rem 1rem' }}>{item.item_name}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{item.invoice_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{item.units_sold}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800 }}>{formatETB(item.total_sales)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sales by Category */}
+            {salesSubTab === 'category' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Category</div>
+                  <button
+                    onClick={() => exportToCSV('sales_by_category', salesByCategory)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>CATEGORY</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS SOLD</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS REVENUE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSalesByCategory.map((item, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>{item.category_name}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{item.invoice_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{item.units_sold}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(item.total_sales)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sales by Customer */}
+            {salesSubTab === 'customer' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Sales by Customer Account</div>
+                  <button
+                    onClick={() => exportToCSV('sales_by_customer', salesByCustomer)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER CODE</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>NAME</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICES</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES (ETB)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSalesByCustomer.map((c) => (
+                        <tr key={c.customer_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{c.customer_code}</td>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{c.full_name}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{c.invoice_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800 }}>{formatETB(c.total_sales)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sales by Region */}
+            {salesSubTab === 'region' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Regional Sales Performance</div>
+                  <button
+                    onClick={() => exportToCSV('sales_by_region', salesByRegion)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>REGION</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICE COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES (ETB)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSalesByRegion.map((r, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{r.region_name}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{r.invoice_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>{formatETB(r.total_sales)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sales by Salesperson */}
+            {salesSubTab === 'salesperson' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Salesperson Performance</div>
+                  <button
+                    onClick={() => exportToCSV('sales_by_salesperson', salesBySalesperson)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>SALESPERSON</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>INVOICES CLOSED</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL SALES VALUE (ETB)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSalesBySalesperson.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            No sales mapped to specific salesperson accounts yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSalesBySalesperson.map((sp) => (
+                          <tr key={sp.salesperson_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{sp.salesperson_name}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{sp.invoice_count}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(sp.total_sales)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1021,226 +1021,226 @@ export const ReportsHubPage: React.FC = () => {
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden', marginBottom: '1.25rem', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
           <ReportFrameHeader title="Operational Report Table" subtitle="Flip this report frame back to visual analytics." icon={<Receipt size={20} />} />
           <div style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-            {[
-              { key: 'invoices', label: 'Sales Invoices Report (OR1)' },
-              { key: 'deliveries', label: 'Vehicle Deliveries Report (OR2)' },
-              { key: 'enquiries', label: 'Enquiries Pipeline (OR4)' },
-              { key: 'bookings', label: 'Bookings Queue (OR5)' },
-            ].map((st) => (
-              <button
-                key={st.key}
-                onClick={() => setOperationalSubTab(st.key as any)}
-                style={{
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  border: '1px solid var(--border-color)',
-                  background: operationalSubTab === st.key ? '#00D2D3' : 'var(--bg-secondary)',
-                  color: operationalSubTab === st.key ? '#0D1117' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Invoices Report Table */}
-          {operationalSubTab === 'invoices' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Invoices Master Operational Report</div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+              {[
+                { key: 'invoices', label: 'Sales Invoices Report (OR1)' },
+                { key: 'deliveries', label: 'Vehicle Deliveries Report (OR2)' },
+                { key: 'enquiries', label: 'Enquiries Pipeline (OR4)' },
+                { key: 'bookings', label: 'Bookings Queue (OR5)' },
+              ].map((st) => (
                 <button
-                  onClick={() => exportToCSV('invoices_operational_report', invoicesReport)}
+                  key={st.key}
+                  onClick={() => setOperationalSubTab(st.key as any)}
                   style={{
-                    padding: '0.4rem 0.8rem',
+                    padding: '0.4rem 0.85rem',
                     borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
                     fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
+                    fontWeight: 600,
+                    border: '1px solid var(--border-color)',
+                    background: operationalSubTab === st.key ? '#00D2D3' : 'var(--bg-secondary)',
+                    color: operationalSubTab === st.key ? '#0D1117' : 'var(--text-secondary)',
+                    cursor: 'pointer',
                   }}
                 >
-                  <Download size={14} /> Export CSV
+                  {st.label}
                 </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>INVOICE #</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>PRODUCT / CHASSIS</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS TOTAL</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>OUTSTANDING</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredInvoicesReport.map((inv) => (
-                      <tr key={inv.invoice_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700 }}>{inv.invoice_number}</td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{inv.customer_name}</td>
-                        <td style={{ padding: '0.85rem 1rem' }}>
-                          <div>{inv.item_name}</div>
-                          {inv.chassis_number && (
-                            <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#00D2D3' }}>{inv.chassis_number}</div>
-                          )}
-                        </td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{formatETB(inv.gross_total)}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: Number(inv.outstanding_balance) > 0 ? '#EF4444' : '#10B981' }}>
-                          {formatETB(inv.outstanding_balance)}
-                        </td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                          <span
-                            style={{
-                              padding: '0.2rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              background: inv.status === 'APPROVED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                              color: inv.status === 'APPROVED' ? '#10B981' : '#F59E0B',
-                            }}
-                          >
-                            {inv.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              ))}
             </div>
-          )}
 
-          {/* Deliveries Report Table */}
-          {operationalSubTab === 'deliveries' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Vehicle Deliveries & Handover Operational Report</div>
-                <button
-                  onClick={() => exportToCSV('deliveries_operational_report', deliveriesReport)}
-                  style={{
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-              </div>
+            {/* Invoices Report Table */}
+            {operationalSubTab === 'invoices' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Invoices Master Operational Report</div>
+                  <button
+                    onClick={() => exportToCSV('invoices_operational_report', invoicesReport)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
 
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>DELIVERY #</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>CHASSIS / VIN</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>ENGINE NUMBER</th>
-                      <th style={{ padding: '0.85rem 1rem' }}>RESPONSIBLE OFFICER</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDeliveriesReport.map((del) => (
-                      <tr key={del.delivery_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700 }}>{del.delivery_number}</td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{del.customer_name || 'â€”'}</td>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{del.chassis_number}</td>
-                        <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace' }}>{del.engine_number}</td>
-                        <td style={{ padding: '0.85rem 1rem' }}>{del.responsible_employee || 'Unassigned'}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-                          <span
-                            style={{
-                              padding: '0.2rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              background: del.status === 'APPROVED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                              color: del.status === 'APPROVED' ? '#10B981' : '#F59E0B',
-                            }}
-                          >
-                            {del.status}
-                          </span>
-                        </td>
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>INVOICE #</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>PRODUCT / CHASSIS</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>GROSS TOTAL</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>OUTSTANDING</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredInvoicesReport.map((inv) => (
+                        <tr key={inv.invoice_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700 }}>{inv.invoice_number}</td>
+                          <td style={{ padding: '0.85rem 1rem' }}>{inv.customer_name}</td>
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div>{inv.item_name}</div>
+                            {inv.chassis_number && (
+                              <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#00D2D3' }}>{inv.chassis_number}</div>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{formatETB(inv.gross_total)}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: Number(inv.outstanding_balance) > 0 ? '#EF4444' : '#10B981' }}>
+                            {formatETB(inv.outstanding_balance)}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                            <span
+                              style={{
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: inv.status === 'APPROVED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                color: inv.status === 'APPROVED' ? '#10B981' : '#F59E0B',
+                              }}
+                            >
+                              {inv.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Enquiries Pipeline Table */}
-          {operationalSubTab === 'enquiries' && (
-            <div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Sales Enquiries Status Distribution</div>
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ENQUIRIES COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>PIPELINE VALUE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEnquiriesReport.map((enq, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{enq.status}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{enq.enquiry_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>{formatETB(enq.pipeline_value)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+            {/* Deliveries Report Table */}
+            {operationalSubTab === 'deliveries' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>Vehicle Deliveries & Handover Operational Report</div>
+                  <button
+                    onClick={() => exportToCSV('deliveries_operational_report', deliveriesReport)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
 
-          {/* Bookings Queue Table */}
-          {operationalSubTab === 'bookings' && (
-            <div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Advance Bookings Distribution</div>
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '0.85rem 1rem' }}>BOOKING STATUS</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>COUNT</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>BOOKING FEES</th>
-                      <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>DEPOSITS PAID</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredBookingsReport.map((bk, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{bk.status}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{bk.booking_count}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{formatETB(bk.total_fees)}</td>
-                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(bk.total_deposits_paid)}</td>
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>DELIVERY #</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>CHASSIS / VIN</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>ENGINE NUMBER</th>
+                        <th style={{ padding: '0.85rem 1rem' }}>RESPONSIBLE OFFICER</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>STATUS</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredDeliveriesReport.map((del) => (
+                        <tr key={del.delivery_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700 }}>{del.delivery_number}</td>
+                          <td style={{ padding: '0.85rem 1rem' }}>{del.customer_name || 'â€”'}</td>
+                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{del.chassis_number}</td>
+                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace' }}>{del.engine_number}</td>
+                          <td style={{ padding: '0.85rem 1rem' }}>{del.responsible_employee || 'Unassigned'}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                            <span
+                              style={{
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                background: del.status === 'APPROVED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                color: del.status === 'APPROVED' ? '#10B981' : '#F59E0B',
+                              }}
+                            >
+                              {del.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Enquiries Pipeline Table */}
+            {operationalSubTab === 'enquiries' && (
+              <div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Sales Enquiries Status Distribution</div>
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ENQUIRIES COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>PIPELINE VALUE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredEnquiriesReport.map((enq, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{enq.status}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{enq.enquiry_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>{formatETB(enq.pipeline_value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Bookings Queue Table */}
+            {operationalSubTab === 'bookings' && (
+              <div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Advance Bookings Distribution</div>
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>BOOKING STATUS</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>COUNT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>BOOKING FEES</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>DEPOSITS PAID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredBookingsReport.map((bk, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{bk.status}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{bk.booking_count}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{formatETB(bk.total_fees)}</td>
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(bk.total_deposits_paid)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1250,81 +1250,81 @@ export const ReportsHubPage: React.FC = () => {
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden', marginBottom: '1.25rem', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
           <ReportFrameHeader title="Inventory & Fleet Report Table" subtitle="Flip this report frame back to visual analytics." icon={<CarFront size={20} />} />
           <div style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700 }}>Current Stock Balances & Reorder Points</div>
-            <button
-              onClick={() => exportToCSV('inventory_stock_balance_report', stockReport)}
-              style={{
-                padding: '0.4rem 0.8rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-              }}
-            >
-              <Download size={14} /> Export CSV
-            </button>
-          </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700 }}>Current Stock Balances & Reorder Points</div>
+              <button
+                onClick={() => exportToCSV('inventory_stock_balance_report', stockReport)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <Download size={14} /> Export CSV
+              </button>
+            </div>
 
-          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', marginBottom: '2rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>ITEM CODE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ON HAND</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>RESERVED</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>AVAILABLE</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>REORDER POINT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStockReport.map((item, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{item.warehouse_name}</td>
-                    <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{item.item_code}</td>
-                    <td style={{ padding: '0.85rem 1rem' }}>{item.item_name}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{item.quantity_on_hand}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#F59E0B' }}>{item.quantity_reserved}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: item.quantity_available <= item.reorder_level ? '#EF4444' : '#10B981' }}>
-                      {item.quantity_available}
-                    </td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.reorder_level}</td>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', marginBottom: '2rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
+                    <th style={{ padding: '0.85rem 1rem' }}>ITEM CODE</th>
+                    <th style={{ padding: '0.85rem 1rem' }}>PRODUCT NAME</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ON HAND</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>RESERVED</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>AVAILABLE</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>REORDER POINT</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredStockReport.map((item, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{item.warehouse_name}</td>
+                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{item.item_code}</td>
+                      <td style={{ padding: '0.85rem 1rem' }}>{item.item_name}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>{item.quantity_on_hand}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#F59E0B' }}>{item.quantity_reserved}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: item.quantity_available <= item.reorder_level ? '#EF4444' : '#10B981' }}>
+                        {item.quantity_available}
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: 'var(--text-secondary)' }}>{item.reorder_level}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Fleet Lifecycle Status Distribution</div>
-          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS COUNT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredVehicleStatusReport.map((vr, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.85rem 1rem' }}>{vr.warehouse_name || 'All Warehouses'}</td>
-                    <td style={{ padding: '0.85rem 1rem' }}>{vr.model_name || vr.item_name || 'All Models'}</td>
-                    <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{vr.current_status || vr.status}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>{vr.unit_count ?? vr.vehicle_count}</td>
+            <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Fleet Lifecycle Status Distribution</div>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.85rem 1rem' }}>WAREHOUSE</th>
+                    <th style={{ padding: '0.85rem 1rem' }}>MODEL</th>
+                    <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>UNITS COUNT</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredVehicleStatusReport.map((vr, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.85rem 1rem' }}>{vr.warehouse_name || 'All Warehouses'}</td>
+                      <td style={{ padding: '0.85rem 1rem' }}>{vr.model_name || vr.item_name || 'All Models'}</td>
+                      <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{vr.current_status || vr.status}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#00D2D3' }}>{vr.unit_count ?? vr.vehicle_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -1334,71 +1334,71 @@ export const ReportsHubPage: React.FC = () => {
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden', marginBottom: '1.25rem', boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)' }}>
           <ReportFrameHeader title="Customer Financial Report Table" subtitle="Flip this report frame back to visual analytics." icon={<DollarSign size={20} />} />
           <div style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <div style={{ fontSize: '1rem', fontWeight: 700 }}>Customer Financial Ledger & Receivables Summary</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Aggregates customer ledger entries & transaction balances
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Customer Financial Ledger & Receivables Summary</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Aggregates customer ledger entries & transaction balances
+                </div>
               </div>
+              <button
+                onClick={() => exportToCSV('customer_financial_summary', financialSummary)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <Download size={14} /> Export CSV
+              </button>
             </div>
-            <button
-              onClick={() => exportToCSV('customer_financial_summary', financialSummary)}
-              style={{
-                padding: '0.4rem 0.8rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-              }}
-            >
-              <Download size={14} /> Export CSV
-            </button>
-          </div>
 
-          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER CODE</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER NAME</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>TYPE</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL DEBITED</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL CREDITED</th>
-                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>NET RECEIVABLE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFinancialSummary.map((f) => (
-                  <tr key={f.customer_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{f.customer_code}</td>
-                    <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{f.full_name}</td>
-                    <td style={{ padding: '0.85rem 1rem' }}>
-                      <span style={{ background: 'rgba(255,255,255,0.06)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                        {f.customer_type}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{formatETB(f.total_debited)}</td>
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#10B981' }}>{formatETB(f.total_credited)}</td>
-                    <td
-                      style={{
-                        padding: '0.85rem 1rem',
-                        textAlign: 'right',
-                        fontWeight: 800,
-                        color: Number(f.net_receivable) > 0 ? '#EF4444' : '#10B981',
-                      }}
-                    >
-                      {formatETB(f.net_receivable)}
-                    </td>
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER CODE</th>
+                    <th style={{ padding: '0.85rem 1rem' }}>CUSTOMER NAME</th>
+                    <th style={{ padding: '0.85rem 1rem' }}>TYPE</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL DEBITED</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>TOTAL CREDITED</th>
+                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>NET RECEIVABLE</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredFinancialSummary.map((f) => (
+                    <tr key={f.customer_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', color: '#00D2D3' }}>{f.customer_code}</td>
+                      <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{f.full_name}</td>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <span style={{ background: 'rgba(255,255,255,0.06)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem' }}>
+                          {f.customer_type}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{formatETB(f.total_debited)}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#10B981' }}>{formatETB(f.total_credited)}</td>
+                      <td
+                        style={{
+                          padding: '0.85rem 1rem',
+                          textAlign: 'right',
+                          fontWeight: 800,
+                          color: Number(f.net_receivable) > 0 ? '#EF4444' : '#10B981',
+                        }}
+                      >
+                        {formatETB(f.net_receivable)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

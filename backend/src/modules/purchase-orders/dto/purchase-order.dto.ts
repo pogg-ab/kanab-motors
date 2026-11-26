@@ -2,6 +2,8 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
+  IsIn,
   IsDateString,
   IsEnum,
   IsInt,
@@ -75,6 +77,22 @@ export class CreatePODto {
 
   @IsOptional()
   @IsString()
+  incotermsNamedPlace?: string;
+
+  @IsOptional() @IsString()
+  destinationCountry?: string;
+  @IsOptional() @IsIn(['TELEGRAPHIC_TRANSFER', 'LETTER_OF_CREDIT', 'CASH_AGAINST_DOCUMENTS'])
+  paymentMethod?: string;
+  @IsOptional() @IsBoolean()
+  inspectionRequired?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['CALENDAR', 'WORKING'])
+  leadTimeDayType?: string;
+
+  @IsOptional()
+  @IsString()
   paymentTerms?: string;
 
   @IsOptional()
@@ -100,10 +118,12 @@ export class CreatePODto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(0)
   deliveryLeadTimeDays?: number;
 
   @IsOptional()
   @IsString()
+  @IsIn(['ISSUANCE','ISSUANCE_AND_ADVANCE'])
   leadTimeTrigger?: string;
 
   @IsOptional()
@@ -138,6 +158,11 @@ export class CreatePODto {
   @Type(() => Number)
   @IsInt()
   bankAccountId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  importerId?: number;
 
   @IsOptional()
   @IsString()
@@ -187,6 +212,22 @@ export class UpdatePODto {
 
   @IsOptional()
   @IsString()
+  incotermsNamedPlace?: string;
+
+  @IsOptional() @IsString()
+  destinationCountry?: string;
+  @IsOptional() @IsIn(['TELEGRAPHIC_TRANSFER', 'LETTER_OF_CREDIT', 'CASH_AGAINST_DOCUMENTS'])
+  paymentMethod?: string;
+  @IsOptional() @IsBoolean()
+  inspectionRequired?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['CALENDAR', 'WORKING'])
+  leadTimeDayType?: string;
+
+  @IsOptional()
+  @IsString()
   paymentTerms?: string;
 
   @IsOptional()
@@ -212,10 +253,12 @@ export class UpdatePODto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(0)
   deliveryLeadTimeDays?: number;
 
   @IsOptional()
   @IsString()
+  @IsIn(['ISSUANCE','ISSUANCE_AND_ADVANCE'])
   leadTimeTrigger?: string;
 
   @IsOptional()
@@ -252,6 +295,11 @@ export class UpdatePODto {
   bankAccountId?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  importerId?: number;
+
+  @IsOptional()
   @IsString()
   amountInWords?: string;
 
@@ -275,6 +323,8 @@ export class UpdatePOStatusDto {
 
 // Compliance Record DTO
 export class CreateComplianceRecordDto {
+  @IsOptional() @Matches(/^[1-9]\d*$/)
+  renewalOfId?: string;
   @IsOptional()
   @Matches(/^[1-9]\d*$/)
   poId?: string;
@@ -327,8 +377,27 @@ export class CreateComplianceRecordDto {
   userId?: number;
 }
 
+export class UpdateComplianceRecordDto {
+  @IsOptional() @IsString()
+  applicationReference?: string;
+  @IsOptional() @IsString()
+  documentReference?: string;
+  @IsOptional() @IsString()
+  notes?: string;
+  @IsOptional() @IsDateString()
+  applicationDate?: string;
+  @IsOptional() @IsDateString()
+  submissionDate?: string;
+  @IsOptional() @IsDateString()
+  issueDate?: string;
+  @IsOptional() @IsDateString()
+  expiryDate?: string;
+}
+
 // Payment Schedule DTO
 export class CreatePaymentScheduleDto {
+  @IsOptional() @IsBoolean()
+  isAdvance?: boolean;
   @IsOptional()
   @Matches(/^[1-9]\d*$/)
   poId?: string;
@@ -344,10 +413,22 @@ export class CreatePaymentScheduleDto {
   @IsDateString()
   dueDate?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
-  amountDue: number;
+  amountDue?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  paymentPercentage?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  poAmountBase?: number;
 
   @IsOptional()
   @IsString()
@@ -454,4 +535,9 @@ export class CreateLetterOfCreditDto {
   @Type(() => Number)
   @IsInt()
   userId?: number;
+}
+
+export class ReplacePaymentSchedulesDto {
+  @IsArray() @ArrayMinSize(1) @ValidateNested({each:true}) @Type(()=>CreatePaymentScheduleDto)
+  milestones: CreatePaymentScheduleDto[];
 }

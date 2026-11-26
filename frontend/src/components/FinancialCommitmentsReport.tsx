@@ -35,9 +35,6 @@ export const FinancialCommitmentsReport: React.FC = () => {
     }
   };
 
-  const totalCommitted = Number(data?.totalCommitted) || 0;
-  const totalPaid = Number(data?.totalPaid) || 0;
-  const outstandingBalance = Number(data?.outstandingBalance) || 0;
   const activeLcCount = data?.activeLettersOfCreditCount || 0;
 
   return (
@@ -95,51 +92,6 @@ export const FinancialCommitmentsReport: React.FC = () => {
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Total Contractual Commitments
-            </span>
-            <Coins size={18} color="var(--accent-blue)" />
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            ${totalCommitted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Combined milestones across all purchase orders
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Confirmed Disbursed / Paid
-            </span>
-            <CheckCircle2 size={18} color="var(--accent-emerald)" />
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
-            ${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Settled remittances and confirmed bank wire transfers
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Outstanding Balance Payable
-            </span>
-            <AlertTriangle size={18} color="var(--accent-amber)" />
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
-            ${outstandingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            Remaining contractual balance owed to suppliers
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
               Active Letters of Credit
             </span>
             <FileCheck size={18} color="var(--accent-indigo)" />
@@ -152,6 +104,73 @@ export const FinancialCommitmentsReport: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Currency Breakdown Cards (IMP-21, IMP-22) */}
+      {data?.byCurrency && Object.keys(data.byCurrency).length > 0 && (
+        <div className="card" style={{ padding: '1.25rem', marginBottom: '1.75rem' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 700, margin: '0 0 0.75rem', color: 'var(--text-primary)' }}>
+            Liabilities by Currency Breakdown
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            {Object.entries(data.byCurrency).map(([curr, vals]: [string, any]) => (
+              <div key={curr} style={{ padding: '0.75rem', background: 'var(--bg-table-header)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--accent-cyan)' }}>{curr}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginTop: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Committed:</span>
+                  <span style={{ fontWeight: 600 }}>{Number(vals.totalCommitted).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginTop: '0.2rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Paid:</span>
+                  <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>{Number(vals.totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginTop: '0.2rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Outstanding:</span>
+                  <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>{Number(vals.outstandingBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{padding:16,overflowX:'auto',marginBottom:16}}><h3>All contractual milestones</h3><table className="data-table"><thead><tr>{['PO','Supplier','Milestone','Percentage','Scheduled','Confirmed paid','Outstanding','Due date','Status'].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{(data?.allMilestones||[]).map((m:any,i:number)=><tr key={i}><td>{m.poNumber}</td><td>{m.supplierName}</td><td>{m.milestoneName}</td><td>{m.paymentPercentage}%</td><td>{m.currency} {Number(m.amountDue).toFixed(2)}</td><td>{m.currency} {Number(m.amountPaid).toFixed(2)}</td><td>{m.currency} {Number(m.remaining).toFixed(2)}</td><td>{m.dueDate||'Not set'}</td><td>{m.status}</td></tr>)}</tbody></table></div>
+      {/* Overdue Milestones Alert Section (IMP-21) */}
+      {data?.overdueMilestones && data.overdueMilestones.length > 0 && (
+        <div className="card" style={{ padding: '1.25rem', marginBottom: '1.75rem', borderLeft: '4px solid var(--accent-rose)', background: 'rgba(239, 68, 68, 0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-rose)', fontWeight: 700, marginBottom: '0.75rem' }}>
+            <ShieldAlert size={18} />
+            <span>Overdue Payment Milestones Requiring Immediate Action ({data.overdueMilestones.length})</span>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table" style={{ width: '100%', fontSize: '0.8rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.5rem' }}>PO Number</th>
+                  <th style={{ padding: '0.5rem' }}>Supplier</th>
+                  <th style={{ padding: '0.5rem' }}>Milestone</th>
+                  <th style={{ padding: '0.5rem' }}>Due Date</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>Remaining Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.overdueMilestones.map((m: any, idx: number) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <td style={{ padding: '0.5rem', fontWeight: 600 }}>{m.poNumber || '—'}</td>
+                    <td style={{ padding: '0.5rem' }}>{m.supplierName || '—'}</td>
+                    <td style={{ padding: '0.5rem' }}>{m.milestoneName}</td>
+                    <td style={{ padding: '0.5rem', color: 'var(--accent-rose)', fontWeight: 600 }}>
+                      {m.dueDate ? new Date(m.dueDate).toLocaleDateString() : 'Overdue'}
+                    </td>
+                    <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-rose)' }}>
+                      {m.currency} {Number(m.remaining).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Milestones Table */}
       <div className="card" style={{ padding: '1.5rem', marginBottom: '1.75rem' }}>

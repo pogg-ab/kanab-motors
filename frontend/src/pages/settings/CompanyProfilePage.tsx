@@ -23,7 +23,7 @@ import {
   Upload,
   Image as ImageIcon,
 } from 'lucide-react';
-import { api, CompanyProfile, CompanyBankAccount, resolveCompanyAssetUrl } from '../../api/client';
+import { api, CompanyProfile, CompanyBankAccount, CompanyImporter, resolveCompanyAssetUrl } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { formatApiError } from '../../utils/error';
@@ -130,7 +130,7 @@ export const CompanyProfilePage: React.FC = () => {
     hasPermission('COMPANY_PROFILE_EDIT') ||
     hasPermission('USERS_EDIT');
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'bank_accounts'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'importers' | 'bank_accounts'>('profile');
   const [loading, setLoading] = useState<boolean>(true);
   const [savingProfile, setSavingProfile] = useState<boolean>(false);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
@@ -203,6 +203,29 @@ export const CompanyProfilePage: React.FC = () => {
     isActive: true,
   });
 
+  // Importers state
+  const [importers, setImporters] = useState<CompanyImporter[]>([]);
+  const [showImporterModal, setShowImporterModal] = useState<boolean>(false);
+  const [editingImporter, setEditingImporter] = useState<CompanyImporter | null>(null);
+  const [importerModalError, setImporterModalError] = useState<string | null>(null);
+  const [savingImporter, setSavingImporter] = useState<boolean>(false);
+
+  const [importerForm, setImporterForm] = useState<{
+    importerName: string;
+    iecNo: string;
+    adCode: string;
+    description: string;
+    isDefault: boolean;
+    isActive: boolean;
+  }>({
+    importerName: '',
+    iecNo: '',
+    adCode: '',
+    description: '',
+    isDefault: false,
+    isActive: true,
+  });
+
   useEffect(() => {
     loadData();
   }, []);
@@ -217,7 +240,11 @@ export const CompanyProfilePage: React.FC = () => {
     setProfileError(null);
     setFieldErrors({});
     try {
-      const data = await api.getCompanyProfile();
+      const [data, banks, imps] = await Promise.all([
+        api.getCompanyProfile(),
+        api.getCompanyBankAccounts(),
+        api.getCompanyImporters(),
+      ]);
       setProfile(data);
       setProfileForm({
         companyName: data.companyName || '',
@@ -236,8 +263,8 @@ export const CompanyProfilePage: React.FC = () => {
         importerAdCode: data.importerAdCode || data.adCode || '',
       });
 
-      const banks = await api.getCompanyBankAccounts();
       setBankAccounts(banks);
+      setImporters(imps);
     } catch (err: any) {
       showToast('error', formatApiError(err, 'Failed to load company profile settings'));
     } finally {
@@ -487,8 +514,125 @@ export const CompanyProfilePage: React.FC = () => {
     }
   };
 
+  const handleOpenAddImporter = () => {
+    setEditingImporter(null);
+    setImporterModalError(null);
+    setImporterForm({
+      importerName: '',
+      iecNo: '',
+      adCode: '',
+      description: '',
+      isDefault: importers.length === 0,
+      isActive: true,
+    });
+    setShowImporterModal(true);
+  };
+
+  const handleOpenEditImporter = (imp: CompanyImporter) => {
+    setEditingImporter(imp);
+    setImporterModalError(null);
+    setImporterForm({
+      importerName: imp.importerName,
+      iecNo: imp.iecNo || '',
+      adCode: imp.adCode || '',
+      description: imp.description || '',
+      isDefault: imp.isDefault,
+      isActive: imp.isActive,
+    });
+    setShowImporterModal(true);
+  };
+
+  const handleSaveImporter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setImporterModalError(null);
+
+    const name = importerForm.importerName.trim();
+    const iec = importerForm.iecNo.trim();
+    const ad = importerForm.adCode.trim();
+
+    if (!name) {
+      setImporterModalError('Importer / Division Name is required.');
+      return;
+    }
+    if (iec && !REGULATORY_CODE_REGEX.test(iec)) {
+      setImporterModalError('Importer IEC No. must be 3–50 characters (letters, numbers, - or /).');
+      return;
+    }
+    if (ad && !REGULATORY_CODE_REGEX.test(ad)) {
+      setImporterModalError('Importer AD Code must be 3–50 characters (letters, numbers, - or /).');
+      return;
+    }
+
+    setSavingImporter(true);
+    try {
+      if (editingImporter) {
+        await api.updateCompanyImporter(editingImporter.importerId, {
+          importerName: name,
+          iecNo: iec || undefined,
+          adCode: ad || undefined,
+          description: importerForm.description.trim() || undefined,
+          isDefault: importerForm.isDefault,
+          isActive: importerForm.isActive,
+        });
+        showToast('success', `Importer license '${name}' updated successfully!`);
+      } else {
+        await api.createCompanyImporter({
+          importerName: name,
+          iecNo: iec || undefined,
+          adCode: ad || undefined,
+          description: importerForm.description.trim() || undefined,
+          isDefault: importerForm.isDefault,
+          isActive: importerForm.isActive,
+        });
+        showToast('success', `Importer license '${name}' added successfully!`);
+      }
+      setShowImporterModal(false);
+      setEditingImporter(null);
+      await loadData();
+    } catch (err: any) {
+      setImporterModalError(formatApiError(err, 'Failed to save importer details'));
+    } finally {
+      setSavingImporter(false);
+    }
+  };
+
+  const handleSetDefaultImporter = async (imp: CompanyImporter) => {
+    try {
+      await api.setDefaultCompanyImporter(imp.importerId);
+      showToast('success', `'${imp.importerName}' designated as primary default importer license`);
+      await loadData();
+    } catch (err: any) {
+      showToast('error', formatApiError(err, 'Failed to set default importer'));
+    }
+  };
+
+  const handleToggleActiveImporter = async (imp: CompanyImporter) => {
+    try {
+      await api.toggleActiveCompanyImporter(imp.importerId);
+      showToast('success', `Importer '${imp.importerName}' is now ${!imp.isActive ? 'active' : 'inactive'}`);
+      await loadData();
+    } catch (err: any) {
+      showToast('error', formatApiError(err, 'Failed to update importer status'));
+    }
+  };
+
+  const handleDeleteImporter = async (imp: CompanyImporter) => {
+    if (!confirm(`Are you sure you want to delete importer license '${imp.importerName}'?`)) {
+      return;
+    }
+    try {
+      await api.deleteCompanyImporter(imp.importerId);
+      showToast('success', `Importer license '${imp.importerName}' removed successfully`);
+      await loadData();
+    } catch (err: any) {
+      showToast('error', formatApiError(err, 'Could not delete importer license. It may be referenced by existing purchase orders. Deactivate it instead.'));
+    }
+  };
+
   const defaultAccount = bankAccounts.find((b) => b.isDefault && b.isActive);
   const activeForexAccounts = bankAccounts.filter((b) => b.isActive && b.currency !== 'ETB');
+  const defaultImporter = importers.find((i) => i.isDefault && i.isActive) || importers.find((i) => i.isDefault) || importers[0];
+  const activeImportersCount = importers.filter((i) => i.isActive).length;
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: '1300px', margin: '0 auto' }}>
@@ -545,6 +689,15 @@ export const CompanyProfilePage: React.FC = () => {
               <Save size={16} /> {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
             </button>
           )}
+          {activeTab === 'importers' && canEdit && (
+            <button
+              onClick={handleOpenAddImporter}
+              className="btn btn-cyan"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}
+            >
+              <Plus size={16} /> Add Importer License
+            </button>
+          )}
           {activeTab === 'bank_accounts' && canEdit && (
             <button
               onClick={handleOpenAddBank}
@@ -575,7 +728,25 @@ export const CompanyProfilePage: React.FC = () => {
             gap: '0.5rem',
           }}
         >
-          <Building2 size={16} /> Company & Importer Profile
+          <Building2 size={16} /> Company Legal Profile
+        </button>
+        <button
+          onClick={() => setActiveTab('importers')}
+          style={{
+            padding: '0.75rem 1.25rem',
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'importers' ? '3px solid var(--accent-cyan)' : '3px solid transparent',
+            color: activeTab === 'importers' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <ShieldCheck size={16} /> Importer Licenses ({importers.length})
         </button>
         <button
           onClick={() => setActiveTab('bank_accounts')}
@@ -969,6 +1140,24 @@ export const CompanyProfilePage: React.FC = () => {
                   </span>
                 </div>
 
+                <div style={{ padding: '0.85rem', backgroundColor: 'rgba(0, 210, 211, 0.08)', border: '1px solid rgba(0, 210, 211, 0.25)', borderRadius: '6px', fontSize: '0.78rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Multiple Importer Licenses</span>
+                    <span className="badge badge-cyan">{importers.length} Configured</span>
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.74rem' }}>
+                    KANAB maintains multiple dynamic importer regulatory licenses for different divisions and commodity classifications.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('importers')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.78rem' }}
+                  >
+                    Manage Importer Licenses ({importers.length}) →
+                  </button>
+                </div>
+
                 <div style={{ padding: '0.85rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', fontSize: '0.78rem' }}>
                   <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                     Downstream Integration Status
@@ -1000,6 +1189,10 @@ export const CompanyProfilePage: React.FC = () => {
                     <span style={{ fontWeight: 600 }}>{bankAccounts.length} accounts</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.4rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Importer Licenses:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>{importers.length} registered</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.4rem' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Last Updated:</span>
                     <span style={{ color: 'var(--text-secondary)' }}>
                       {profile?.updatedAt ? new Date(profile.updatedAt).toLocaleString() : 'Recent'}
@@ -1012,7 +1205,166 @@ export const CompanyProfilePage: React.FC = () => {
         </form>
       )}
 
-      {/* TAB 2: IMPORTER BANK ACCOUNTS */}
+      {/* TAB 2: IMPORTERS & REGULATORY LICENSES */}
+      {activeTab === 'importers' && (
+        <div>
+          {/* Summary KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: 'rgba(6,182,212,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShieldCheck size={22} color="var(--accent-cyan)" />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>TOTAL IMPORTER LICENSES</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>{importers.length}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Star size={22} color="var(--accent-emerald)" />
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>PRIMARY DEFAULT IMPORTER</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {defaultImporter ? defaultImporter.importerName : 'None Configured'}
+                </div>
+                {defaultImporter?.iecNo && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                    IEC: {defaultImporter.iecNo}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: 'rgba(168,85,247,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Building2 size={22} color="var(--accent-purple)" />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>ACTIVE REGULATORY LICENSES</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>{activeImportersCount}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Importers Table */}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>IMPORTER LICENSE / DIVISION</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>IEC NUMBER</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>AD CODE</th>
+                  <th style={{ padding: '0.85rem 1.15rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>OPERATIONAL SCOPE</th>
+                  <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>DEFAULT</th>
+                  <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>STATUS</th>
+                  <th style={{ padding: '0.85rem 1.15rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <RefreshCw size={20} className="spin" style={{ display: 'inline-block', marginBottom: '0.5rem' }} />
+                      <div>Loading Importer Licenses...</div>
+                    </td>
+                  </tr>
+                ) : importers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No importer licenses configured yet. Click "Add Importer License" to create one.
+                    </td>
+                  </tr>
+                ) : (
+                  importers.map((imp) => (
+                    <tr key={imp.importerId} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                          {imp.importerName}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                          License ID: #{imp.importerId} · Company: KANAB Motors PLC
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-cyan)' }}>
+                          {imp.iecNo || '–'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          {imp.adCode || '–'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '280px' }}>
+                        {imp.description || 'General commercial imports'}
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
+                        {imp.isDefault && imp.isActive ? (
+                          <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
+                            <Star size={11} /> PRIMARY DEFAULT
+                          </span>
+                        ) : (
+                          canEdit && imp.isActive && (
+                            <button
+                              onClick={() => handleSetDefaultImporter(imp)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem' }}
+                              title="Designate as primary default importer license"
+                            >
+                              Make Default
+                            </button>
+                          )
+                        )}
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
+                        <span className={`badge ${imp.isActive ? 'badge-emerald' : 'badge-rose'}`}>
+                          {imp.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem 1.15rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                          {canEdit && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditImporter(imp)}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                                title="Edit Importer License"
+                              >
+                                <Edit2 size={13} /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleToggleActiveImporter(imp)}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                                title={imp.isActive ? 'Deactivate License' : 'Activate License'}
+                              >
+                                {imp.isActive ? <ToggleRight size={14} color="var(--accent-emerald)" /> : <ToggleLeft size={14} color="var(--text-muted)" />}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteImporter(imp)}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', color: 'var(--accent-rose)' }}
+                                title="Delete License (blocked if referenced by Purchase Orders)"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: IMPORTER BANK ACCOUNTS */}
       {activeTab === 'bank_accounts' && (
         <div>
           {/* Summary KPI Cards */}
@@ -1304,6 +1656,121 @@ export const CompanyProfilePage: React.FC = () => {
                 </button>
                 <button type="submit" disabled={savingBank} className="btn btn-cyan">
                   {savingBank ? 'Saving...' : editingBank ? 'Update Account' : 'Add Bank Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD / EDIT IMPORTER MODAL */}
+      {showImporterModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '580px', width: '90%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShieldCheck size={20} color="var(--accent-cyan)" />
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {editingImporter ? 'Edit Importer License' : 'Add New Importer License'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImporterModal(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.25rem 0.55rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveImporter}>
+              <div className="modal-body" style={{ padding: '1.5rem' }}>
+                <ModalErrorAlert error={importerModalError} onDismiss={() => setImporterModalError(null)} />
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Importer / License Division Name *</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={importerForm.importerName}
+                    onChange={(e) => setImporterForm({ ...importerForm, importerName: e.target.value })}
+                    placeholder="e.g. KANAB Motors PLC (Commercial & Heavy Duty Division)"
+                    required
+                  />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                    Distinguishes the legal division or customs license under KANAB Motors PLC.
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label className="form-label">Importer IEC No. *</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={importerForm.iecNo}
+                      onChange={(e) => setImporterForm({ ...importerForm, iecNo: e.target.value })}
+                      placeholder="e.g. ETH-IEC-994821"
+                      required
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                      Importer Exporter Code
+                    </span>
+                  </div>
+                  <div>
+                    <label className="form-label">Importer AD Code *</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={importerForm.adCode}
+                      onChange={(e) => setImporterForm({ ...importerForm, adCode: e.target.value })}
+                      placeholder="e.g. AD-CBE-0019284"
+                      required
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                      Authorized Dealer Code
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Operational Scope / Description</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={importerForm.description}
+                    onChange={(e) => setImporterForm({ ...importerForm, description: e.target.value })}
+                    placeholder="e.g. Used for commercial cargo trucks, specialized trailers, and heavy plant equipment."
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1rem', padding: '0.85rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={importerForm.isDefault}
+                      onChange={(e) => setImporterForm({ ...importerForm, isDefault: e.target.checked })}
+                    />
+                    Designate as Primary Default Importer License (auto-selected in POs)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={importerForm.isActive}
+                      onChange={(e) => setImporterForm({ ...importerForm, isActive: e.target.checked })}
+                    />
+                    License Active (available for selection in Purchase Orders)
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowImporterModal(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingImporter} className="btn btn-cyan">
+                  {savingImporter ? 'Saving...' : editingImporter ? 'Update License' : 'Add License'}
                 </button>
               </div>
             </form>

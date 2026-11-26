@@ -612,7 +612,7 @@ export const ShipmentDetailPage: React.FC<ShipmentDetailPageProps> = ({
         </button>
       </div>
 
-      {/* TAB 0: LOGISTICS COCKPIT & BOOKING (IMP-31) */}
+      {/* TAB 0: LOGISTICS COCKPIT & BOOKING (IMP-32) */}
       {activeTab === 'logistics' && (
         <ShipmentLogisticsCockpit
           shipmentId={shipmentId}

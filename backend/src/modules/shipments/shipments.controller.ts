@@ -67,6 +67,30 @@ export class ShipmentsController {
     private readonly landedCostService: LandedCostAllocationService,
   ) {}
 
+  @Get('logistics-policy/config')
+  @RequirePermissions('SHIPMENTS_VIEW','SHIPMENTS_CREATE')
+  getLogisticsPolicy() { return this.shipmentsService.getLogisticsConfiguration(); }
+
+  @Put('logistics-policy/config')
+  @RequirePermissions('COMPANY_PROFILE_EDIT')
+  saveLogisticsPolicy(@Body() body:any,@Req() req:any) { return this.shipmentsService.saveLogisticsPolicy(body,req.user.userId); }
+
+  @Post(':id/logistics-records/:kind')
+  @RequirePermissions('SHIPMENTS_CREATE')
+  saveLogisticsRecord(@Param('id',PositiveBigIntIdPipe) id:string,@Param('kind') kind:string,@Body() body:any,@Req() req:any) {
+    return this.shipmentsService.saveLogisticsRecord(kind,id,undefined,body,req.user.userId);
+  }
+  @Put(':id/logistics-records/:kind/:recordId')
+  @RequirePermissions('SHIPMENTS_CREATE')
+  updateLogisticsRecord(@Param('id',PositiveBigIntIdPipe) id:string,@Param('kind') kind:string,@Param('recordId',PositiveBigIntIdPipe) recordId:string,@Body() body:any,@Req() req:any) {
+    return this.shipmentsService.saveLogisticsRecord(kind,id,recordId,body,req.user.userId);
+  }
+  @Put(':id/insurance-requirement')
+  @RequirePermissions('SHIPMENTS_CREATE')
+  insuranceRequirement(@Param('id',PositiveBigIntIdPipe) id:string,@Body() body:any,@Req() req:any) {
+    return this.shipmentsService.setInsuranceRequirement(id,body.required,body.reason,req.user.userId);
+  }
+
   // -------------------------------------------------------------
   // Freight Forwarders (IMP-23)
   // -------------------------------------------------------------
@@ -81,8 +105,8 @@ export class ShipmentsController {
   @RequirePermissions('SHIPMENTS_CREATE')
   @ApiOperation({ summary: 'Create new freight forwarder (Story IMP-23)' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  createFreightForwarder(@Body() dto: CreateFreightForwarderDto) {
-    return this.shipmentsService.createFreightForwarder(dto);
+  createFreightForwarder(@Body() dto: CreateFreightForwarderDto, @Req() req:any) {
+    return this.shipmentsService.createFreightForwarder(dto,req.user.userId);
   }
 
   @Put('freight-forwarders/:id')
@@ -93,8 +117,9 @@ export class ShipmentsController {
   updateFreightForwarder(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: UpdateFreightForwarderDto,
+    @Req() req:any,
   ) {
-    return this.shipmentsService.updateFreightForwarder(id, dto);
+    return this.shipmentsService.updateFreightForwarder(id, dto,req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -370,7 +395,8 @@ export class ShipmentsController {
   }
 
   @Get(':id/logistics-overview')
-  @ApiOperation({ summary: 'Story IMP-31: Get comprehensive shipment logistics cockpit overview' })
+  @RequirePermissions('SHIPMENTS_VIEW','SHIPMENTS_CREATE')
+  @ApiOperation({ summary: 'Story IMP-32: Get comprehensive shipment logistics cockpit overview' })
   getLogisticsOverview(@Param('id', PositiveBigIntIdPipe) id: string) {
     return this.shipmentsService.getShipmentLogisticsOverview(id);
   }
@@ -420,7 +446,7 @@ export class ShipmentsController {
     @Body() dto: CreateFreightQuotationDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.addShipmentQuotation(id, dto);
   }
 
@@ -435,7 +461,7 @@ export class ShipmentsController {
     @Body() dto: SelectFreightQuotationDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.selectShipmentQuotation(id, quotationId, dto);
   }
 
@@ -450,7 +476,7 @@ export class ShipmentsController {
     @Body() dto: ApproveFreightQuotationDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.approveShipmentQuotation(id, quotationId, dto);
   }
 
@@ -465,7 +491,7 @@ export class ShipmentsController {
     @Body() dto: RejectFreightQuotationDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.rejectShipmentQuotation(id, quotationId, dto);
   }
 
@@ -488,7 +514,7 @@ export class ShipmentsController {
     @Body() dto: CreateShipmentBookingDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.createShipmentBooking(id, dto);
   }
 
@@ -500,7 +526,9 @@ export class ShipmentsController {
   updateBooking(
     @Param('bookingId', PositiveBigIntIdPipe) bookingId: string,
     @Body() dto: CreateShipmentBookingDto,
+    @Req() req:any,
   ) {
+    dto.userId=req.user.userId;
     return this.shipmentsService.updateShipmentBooking(bookingId, dto);
   }
 
@@ -521,8 +549,9 @@ export class ShipmentsController {
   addContainer(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: CreateShipmentContainerDto,
+    @Req() req:any,
   ) {
-    return this.shipmentsService.addShipmentContainer(id, dto);
+    return this.shipmentsService.saveLogisticsRecord('containers',id,undefined,dto,req.user.userId);
   }
 
   @Put('containers/:containerId')
@@ -533,8 +562,9 @@ export class ShipmentsController {
   updateContainer(
     @Param('containerId', PositiveBigIntIdPipe) containerId: string,
     @Body() dto: CreateShipmentContainerDto,
+    @Req() req:any,
   ) {
-    return this.shipmentsService.updateShipmentContainer(containerId, dto);
+    return this.shipmentsService.saveLogisticsRecord('containers',undefined,containerId,dto,req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -556,7 +586,7 @@ export class ShipmentsController {
     @Body() dto: CreateShipmentMilestoneDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.addShipmentMilestone(id, dto);
   }
 
@@ -570,7 +600,7 @@ export class ShipmentsController {
     @Body('notes') notes?: string,
     @Req() req?: any,
   ) {
-    return this.shipmentsService.updateShipmentMilestone(milestoneId, isCompleted, notes, req?.user?.userId);
+    return this.shipmentsService.saveLogisticsRecord('milestones',undefined,milestoneId,{isCompleted,notes,revisionReason:notes||'Update milestone completion'},req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -590,8 +620,9 @@ export class ShipmentsController {
   addInsurance(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: CreateShipmentInsuranceDto,
+    @Req() req:any,
   ) {
-    return this.shipmentsService.addShipmentInsurance(id, dto);
+    return this.shipmentsService.saveLogisticsRecord('insurance',id,undefined,dto,req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -611,8 +642,9 @@ export class ShipmentsController {
   addCargoTracking(
     @Param('id', PositiveBigIntIdPipe) id: string,
     @Body() dto: CreateCargoTrackingDto,
+    @Req() req:any,
   ) {
-    return this.shipmentsService.addShipmentCargoTracking(id, dto);
+    return this.shipmentsService.saveLogisticsRecord('tracking',id,undefined,dto,req.user.userId);
   }
 
   @Put('cargo-tracking/:trackingId')
@@ -623,8 +655,9 @@ export class ShipmentsController {
   updateCargoTracking(
     @Param('trackingId', PositiveBigIntIdPipe) trackingId: string,
     @Body() dto: CreateCargoTrackingDto,
+    @Req() req:any,
   ) {
-    return this.shipmentsService.updateShipmentCargoTracking(trackingId, dto);
+    return this.shipmentsService.saveLogisticsRecord('tracking',undefined,trackingId,dto,req.user.userId);
   }
 
   // -------------------------------------------------------------
@@ -646,7 +679,7 @@ export class ShipmentsController {
     @Body() dto: CreateShipmentDocumentDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.addShipmentDocument(id, dto);
   }
 
@@ -660,7 +693,7 @@ export class ShipmentsController {
     @Body() dto: VerifyShipmentDocumentDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.verifyShipmentDocument(docId, dto);
   }
 
@@ -674,7 +707,7 @@ export class ShipmentsController {
     @Body() dto: UpdateOriginalDocumentStatusDto,
     @Req() req: any,
   ) {
-    if (!dto.userId && req.user?.userId) dto.userId = req.user.userId;
+    dto.userId = req.user.userId;
     return this.shipmentsService.updateOriginalDocumentStatus(docId, dto);
   }
 
