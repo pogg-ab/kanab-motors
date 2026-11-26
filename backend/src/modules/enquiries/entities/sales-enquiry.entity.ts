@@ -19,6 +19,8 @@ export enum EnquiryStatus {
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
   CONVERTED = 'CONVERTED',
+  CANCELLED = 'CANCELLED',
+  EXPIRED = 'EXPIRED',
 }
 
 @Entity('sales_enquiry')
@@ -109,6 +111,86 @@ export class SalesEnquiry {
 
   @Column({ name: 'finance_provider', length: 150, nullable: true })
   financeProvider?: string;
+
+  // --- Commission Agent Tracking (Client Demo Feedback New Story 1) ---
+  @Column({ name: 'commission_agent_name', length: 200, nullable: true })
+  commissionAgentName?: string;
+
+  @Column({ name: 'commission_agent_phone', length: 50, nullable: true })
+  commissionAgentPhone?: string;
+
+  @Column({ name: 'commission_percentage', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  commissionPercentage?: number;
+
+  @Column({ name: 'commission_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  commissionAmount: number;
+
+  @Column({ name: 'commission_notes', type: 'text', nullable: true })
+  commissionNotes?: string;
+
+  @Column({ name: 'commission_payment_status', length: 50, default: 'UNPAID' })
+  commissionPaymentStatus: string;
+
+  @Column({ name: 'commission_paid_at', type: 'timestamptz', nullable: true })
+  commissionPaidAt?: Date | null;
+
+  @Column({ name: 'commission_paid_reference', length: 100, nullable: true })
+  commissionPaidReference?: string | null;
+
+  @Column({ name: 'commission_paid_notes', type: 'text', nullable: true })
+  commissionPaidNotes?: string | null;
+
+  // --- Financing Institution Tracking (Client Demo Feedback New Story 3) ---
+  @Column({ name: 'financing_option', length: 50, default: 'CASH' })
+  financingOption: string;
+
+  @Column({ name: 'financing_type', length: 50, nullable: true })
+  financingType?: string; // 'BANK' | 'MICROFINANCE'
+
+  @Column({ name: 'financing_institution_name', length: 200, nullable: true })
+  financingInstitutionName?: string;
+
+  @Column({ name: 'financing_contact_person', length: 200, nullable: true })
+  financingContactPerson?: string;
+
+  @Column({ name: 'financing_contact_phone', length: 50, nullable: true })
+  financingContactPhone?: string;
+
+  @Column({ name: 'financing_percentage', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  financingPercentage?: number;
+
+  @Column({ name: 'financing_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  financingAmount: number;
+
+  @Column({ name: 'customer_contribution_percentage', type: 'numeric', precision: 5, scale: 2, nullable: true })
+  customerContributionPercentage?: number;
+
+  @Column({ name: 'customer_contribution_amount', type: 'numeric', precision: 18, scale: 2, default: 0 })
+  customerContributionAmount: number;
+
+  @Column({ name: 'financing_status', length: 50, default: 'NOT_SUBMITTED' })
+  financingStatus: string; // 'NOT_SUBMITTED' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'DISBURSED'
+
+  @Column({ name: 'financing_application_number', length: 100, nullable: true })
+  financingApplicationNumber?: string;
+
+  @Column({ name: 'financing_submission_date', type: 'date', nullable: true })
+  financingSubmissionDate?: string;
+
+  @Column({ name: 'financing_approval_date', type: 'date', nullable: true })
+  financingApprovalDate?: string;
+
+  @Column({ name: 'financing_approved_amount', type: 'numeric', precision: 18, scale: 2, nullable: true })
+  financingApprovedAmount?: number;
+
+  @Column({ name: 'financing_disbursed_amount', type: 'numeric', precision: 18, scale: 2, nullable: true })
+  financingDisbursedAmount?: number;
+
+  @Column({ name: 'financing_disbursement_date', type: 'date', nullable: true })
+  financingDisbursementDate?: string;
+
+  @Column({ name: 'financing_notes', type: 'text', nullable: true })
+  financingNotes?: string;
 
   @Column({ name: 'trade_in_vehicle', type: 'boolean', default: false })
   tradeInVehicle: boolean;

@@ -57,7 +57,7 @@ export const ProductsPage: React.FC = () => {
         }}
       >
         <Car size={16} color="var(--accent-cyan)" />
-        <span>Vehicle Specifications &amp; Powertrain (KMS-FB-16)</span>
+        <span>Vehicle Specifications &amp; Powertrain</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
         <div className="form-group" style={{ margin: 0 }}>

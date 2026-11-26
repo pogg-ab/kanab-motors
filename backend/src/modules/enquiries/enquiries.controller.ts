@@ -17,6 +17,11 @@ import { EnquiryQueryDto } from './dto/enquiry-query.dto';
 import { PositiveBigIntIdPipe } from '../../common/pipes/positive-bigint-id.pipe';
 import { UpdateEnquiryStatusDto } from './dto/update-enquiry-status.dto';
 import { EnquiryApprovalDto } from './dto/enquiry-approval.dto';
+import { CreateInspectionDto } from './dto/create-inspection.dto';
+import { CompleteInspectionDto } from './dto/complete-inspection.dto';
+import { ExtendInspectionDto, CancelInspectionDto } from './dto/extend-inspection.dto';
+import { UpdateFinancingStatusDto } from './dto/update-financing-status.dto';
+import { UpdateCommissionPaymentDto } from './dto/update-commission-payment.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Sales Enquiry Management (KMSICAMS-2 & KMSICAMS-14)')
@@ -52,6 +57,52 @@ export class EnquiriesController {
   @ApiOperation({ summary: 'Get pre-advance slip by ID (Story E17)' })
   getSlipById(@Param('slipId', PositiveBigIntIdPipe) slipId: string) {
     return this.enquiriesService.getSlipById(slipId);
+  }
+
+  // --- Reports (Commission & Financing) ---
+  @RequirePermissions('ENQUIRIES_VIEW')
+  @Get(['reports/commission', 'reports/commissions'])
+  @ApiOperation({ summary: 'Commission Agent Sales Tracking & Commission Payable Report (New Story 1)' })
+  getCommissionReport() {
+    return this.enquiriesService.getCommissionReport();
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Post('commission-payment/agent')
+  @ApiOperation({ summary: 'Bulk update commission payment status for all enquiries of an agent' })
+  updateAgentCommissions(
+    @Body() dto: UpdateCommissionPaymentDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.updateAgentCommissions(dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch(':id/commission-payment')
+  @ApiOperation({ summary: 'Update commission payment status for a sales enquiry (PAID / UNPAID)' })
+  updateCommissionPayment(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdateCommissionPaymentDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.updateCommissionPayment(id, dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_VIEW')
+  @Get(['reports/financing', 'reports/financings'])
+  @ApiOperation({ summary: 'Bank & Microfinance Financing Performance Report (New Story 3)' })
+  getFinancingReport() {
+    return this.enquiriesService.getFinancingReport();
+  }
+
+  // --- Inspections List ---
+  @RequirePermissions('ENQUIRIES_VIEW')
+  @Get('inspections')
+  @ApiOperation({ summary: 'List customer vehicle inspections with countdown and status (New Story 2)' })
+  getInspections(@Query('status') status?: string, @Query('search') search?: string) {
+    return this.enquiriesService.getInspections({ status, search });
   }
 
   @RequirePermissions('ENQUIRIES_VIEW')
@@ -122,5 +173,104 @@ export class EnquiriesController {
   ) {
     const userId = req?.user?.userId ? Number(req.user.userId) : 1;
     return this.enquiriesService.updateStatus(id, body.status, body.rejectionReason, userId);
+  }
+
+  // --- Customer Vehicle Inspection Endpoints (New Story 2) ---
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Post(':id/inspection')
+  @ApiOperation({ summary: 'Initiate customer vehicle inspection with countdown timer (New Story 2)' })
+  initiateInspection(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: CreateInspectionDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.initiateInspection(id, dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_VIEW')
+  @Get(':id/inspection')
+  @ApiOperation({ summary: 'Get active inspection for enquiry with live countdown (New Story 2)' })
+  getInspectionByEnquiryId(@Param('id', PositiveBigIntIdPipe) id: string) {
+    return this.enquiriesService.getInspectionByEnquiryId(id);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Post('inspections/:inspectionId/complete')
+  @ApiOperation({ summary: 'Complete inspection with outcome (Accepted, Rejected, Pending Decision) (New Story 2)' })
+  completeInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: CompleteInspectionDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.completeInspection(inspectionId, dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch('inspections/:inspectionId/complete')
+  patchCompleteInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: CompleteInspectionDto,
+    @Req() req?: any,
+  ) {
+    return this.completeInspection(inspectionId, dto, req);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Post('inspections/:inspectionId/extend')
+  @ApiOperation({ summary: 'Extend active inspection deadline with mandatory reason (New Story 2)' })
+  extendInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: ExtendInspectionDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.extendInspection(inspectionId, dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch('inspections/:inspectionId/extend')
+  patchExtendInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: ExtendInspectionDto,
+    @Req() req?: any,
+  ) {
+    return this.extendInspection(inspectionId, dto, req);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Post('inspections/:inspectionId/cancel')
+  @ApiOperation({ summary: 'Cancel active inspection with mandatory reason (New Story 2)' })
+  cancelInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: CancelInspectionDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.cancelInspection(inspectionId, dto, userId);
+  }
+
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch('inspections/:inspectionId/cancel')
+  patchCancelInspection(
+    @Param('inspectionId', PositiveBigIntIdPipe) inspectionId: string,
+    @Body() dto: CancelInspectionDto,
+    @Req() req?: any,
+  ) {
+    return this.cancelInspection(inspectionId, dto, req);
+  }
+
+  // --- Financing Status Endpoint (New Story 3) ---
+  @RequirePermissions('ENQUIRIES_CREATE')
+  @Patch([':id/financing', ':id/financing-status'])
+  @ApiOperation({ summary: 'Update financing application, approval, and disbursement status (New Story 3)' })
+  updateFinancingStatus(
+    @Param('id', PositiveBigIntIdPipe) id: string,
+    @Body() dto: UpdateFinancingStatusDto,
+    @Req() req?: any,
+  ) {
+    const userId = req?.user?.userId ? Number(req.user.userId) : 1;
+    return this.enquiriesService.updateFinancingStatus(id, dto, userId);
   }
 }

@@ -35,11 +35,12 @@ import {
   CustomerFinancialSummaryItem,
   CurrentStockReportItem,
   VehicleStatusReportItem,
+  CommissionReport,
 } from '../../api/client';
 
 export const ReportsHubPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'sales' | 'operational' | 'inventory' | 'financial' | 'credit_and_aging'>('sales');
-  const [salesSubTab, setSalesSubTab] = useState<'daily' | 'monthly' | 'model' | 'category' | 'customer' | 'region' | 'salesperson'>('daily');
+  const [salesSubTab, setSalesSubTab] = useState<'daily' | 'monthly' | 'model' | 'category' | 'customer' | 'region' | 'salesperson' | 'commission_agent'>('daily');
   const [operationalSubTab, setOperationalSubTab] = useState<'invoices' | 'deliveries' | 'enquiries' | 'bookings'>('invoices');
   const [reportView, setReportView] = useState<'chart' | 'table'>('chart');
 
@@ -54,6 +55,7 @@ export const ReportsHubPage: React.FC = () => {
   const [salesByRegion, setSalesByRegion] = useState<SalesByRegionItem[]>([]);
   const [salesByCustomerType, setSalesByCustomerType] = useState<SalesByCustomerTypeItem[]>([]);
   const [salesBySalesperson, setSalesBySalesperson] = useState<SalesBySalespersonItem[]>([]);
+  const [commissionReport, setCommissionReport] = useState<CommissionReport | null>(null);
   const [invoicesReport, setInvoicesReport] = useState<InvoiceReportItem[]>([]);
   const [deliveriesReport, setDeliveriesReport] = useState<DeliveryReportItem[]>([]);
   const [enquiriesReport, setEnquiriesReport] = useState<any[]>([]);
@@ -100,6 +102,7 @@ export const ReportsHubPage: React.FC = () => {
         finRep,
         cSales,
         sAging,
+        commRep,
       ] = await Promise.all([
         api.getDailySalesReport({ startDate: startDate || undefined, endDate: endDate || undefined }).catch(() => []),
         api.getMonthlySalesReport().catch(() => []),
@@ -118,6 +121,7 @@ export const ReportsHubPage: React.FC = () => {
         api.getCustomerFinancialSummary().catch(() => []),
         api.getCreditSalesReport().catch(() => ({ items: [] })),
         api.getStockAgingReport().catch(() => ({ items: [] })),
+        api.getCommissionReport().catch(() => null),
       ]);
 
       setDailySales(daily);
@@ -137,6 +141,7 @@ export const ReportsHubPage: React.FC = () => {
       setFinancialSummary(finRep);
       setCreditSalesData(cSales);
       setStockAgingData(sAging);
+      setCommissionReport(commRep);
     } catch {
       // Ignore
     } finally {
@@ -166,6 +171,7 @@ export const ReportsHubPage: React.FC = () => {
   const filteredSalesByRegion = salesByRegion.filter(matchesSearch);
   const filteredSalesByCustomerType = salesByCustomerType.filter(matchesSearch);
   const filteredSalesBySalesperson = salesBySalesperson.filter(matchesSearch);
+  const filteredCommissionAgents = (commissionReport?.agentBreakdown || []).filter(matchesSearch);
   const filteredInvoicesReport = invoicesReport.filter((row) => matchesSearch(row) && matchesStatus(row));
   const filteredDeliveriesReport = deliveriesReport.filter((row) => matchesSearch(row) && matchesStatus(row));
   const filteredEnquiriesReport = enquiriesReport.filter((row) => matchesSearch(row) && matchesStatus(row));
@@ -247,7 +253,8 @@ export const ReportsHubPage: React.FC = () => {
       if (salesSubTab === 'category') return filteredSalesByCategory.map((r) => ({ label: r.category_name, value: Number(r.total_sales), detail: `${r.invoice_count} invoices` }));
       if (salesSubTab === 'customer') return filteredSalesByCustomer.map((r) => ({ label: r.full_name, value: Number(r.total_sales), detail: `${r.invoice_count} invoices` }));
       if (salesSubTab === 'region') return filteredSalesByRegion.map((r) => ({ label: r.region_name, value: Number(r.total_sales), detail: `${r.invoice_count} invoices` }));
-      return filteredSalesBySalesperson.map((r) => ({ label: r.salesperson_name, value: Number(r.total_sales), detail: `${r.invoice_count} invoices` }));
+      if (salesSubTab === 'salesperson') return filteredSalesBySalesperson.map((r) => ({ label: r.salesperson_name, value: Number(r.total_sales), detail: `${r.invoice_count} invoices` }));
+      return filteredCommissionAgents.map((r: any) => ({ label: r.agentName, value: Number(r.totalCommissionAmount), detail: `${r.enquiryCount} deals · ${r.status || 'UNPAID'}` }));
     }
     if (activeTab === 'operational') {
       if (operationalSubTab === 'invoices') return filteredInvoicesReport.map((r) => ({ label: r.invoice_number, value: Number(r.gross_total), detail: r.status }));
@@ -579,6 +586,7 @@ export const ReportsHubPage: React.FC = () => {
             <option value="customer">By Customer</option>
             <option value="region">By Region</option>
             <option value="salesperson">By Salesperson</option>
+            <option value="commission_agent">Commission Agents & Payouts</option>
           </select>
         )}
         {activeTab === 'operational' && (
@@ -632,6 +640,7 @@ export const ReportsHubPage: React.FC = () => {
                 { key: 'customer', label: 'By Customer' },
                 { key: 'region', label: 'By Region' },
                 { key: 'salesperson', label: 'By Salesperson' },
+                { key: 'commission_agent', label: 'By Commission Agent' },
               ].map((st) => (
                 <button
                   key={st.key}
@@ -1004,6 +1013,95 @@ export const ReportsHubPage: React.FC = () => {
                             <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{sp.salesperson_name}</td>
                             <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{sp.invoice_count}</td>
                             <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 800, color: '#10B981' }}>{formatETB(sp.total_sales)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sales by Commission Agent & Payouts */}
+            {salesSubTab === 'commission_agent' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700 }}>Commission Agent Performance & Payout Tracking</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                      Total Incurred: <strong>{formatETB(commissionReport?.totalCommissionAmount || 0)}</strong> · Paid: <strong style={{ color: '#10B981' }}>{formatETB(commissionReport?.paidCommissionAmount ?? commissionReport?.totalPaidCommission ?? 0)}</strong> · Due: <strong style={{ color: '#F59E0B' }}>{formatETB(commissionReport?.unpaidCommissionAmount ?? commissionReport?.totalUnpaidCommission ?? 0)}</strong>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => exportToCSV('commission_agents_report', commissionReport?.agentBreakdown || [])}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Download size={14} /> Export CSV
+                  </button>
+                </div>
+
+                <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '0.85rem 1rem' }}>AGENT NAME & CONTACT</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>DEALS</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>SALES VOLUME (ETB)</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>COMMISSION EARNED (ETB)</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>PAID (ETB)</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>OUTSTANDING DUE (ETB)</th>
+                        <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>PAYOUT STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCommissionAgents.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            No commission agent sales data recorded yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCommissionAgents.map((agent: any, idx: number) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>
+                              <div style={{ color: 'var(--text-primary)' }}>{agent.agentName}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{agent.agentPhone || 'No phone'}</div>
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                              <span style={{ padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', fontSize: '0.75rem', fontWeight: 700 }}>
+                                {agent.enquiryCount}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 600 }}>{formatETB(agent.totalSalesAmount)}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-purple, #a855f7)' }}>{formatETB(agent.totalCommissionAmount)}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: '#10B981' }}>{formatETB(agent.paidCommissionAmount || 0)}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: '#F59E0B' }}>{formatETB(agent.unpaidCommissionAmount ?? agent.totalCommissionAmount ?? 0)}</td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '999px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  background: agent.status === 'PAID' ? 'rgba(16, 185, 129, 0.15)' : agent.status === 'PARTIAL' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                  color: agent.status === 'PAID' ? '#10B981' : agent.status === 'PARTIAL' ? '#06B6D4' : '#F59E0B',
+                                  border: `1px solid ${agent.status === 'PAID' ? 'rgba(16, 185, 129, 0.3)' : agent.status === 'PARTIAL' ? 'rgba(6, 182, 212, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                                }}
+                              >
+                                {agent.status === 'PAID' ? '✓ PAID' : agent.status === 'PARTIAL' ? 'PARTIAL' : 'UNPAID'}
+                              </span>
+                            </td>
                           </tr>
                         ))
                       )}

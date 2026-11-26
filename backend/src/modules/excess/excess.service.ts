@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { Customer } from '../customers/entities/customer.entity';
 import { CustomerAccountSummary } from '../customers/entities/customer-account-summary.entity';
 import { Booking } from '../bookings/entities/booking.entity';
 import { LedgerService } from '../ledger/ledger.service';
@@ -174,14 +175,17 @@ export class ExcessService {
         relations: ['customer'],
       });
     if (!targetSummary) {
-      const targetCustomer = await this.dataSource.getRepository('Customer').findOne({
-        where: { customerId: body.targetCustomerId },
+      const targetCustomer = await this.dataSource.getRepository(Customer).findOne({
+        where: [
+          { customerId: body.targetCustomerId },
+          { customerCode: body.targetCustomerId },
+        ],
       });
       if (!targetCustomer) {
         throw new NotFoundException(`Recipient customer #${body.targetCustomerId} not found`);
       }
       targetSummary = this.dataSource.getRepository(CustomerAccountSummary).create({
-        customerId: body.targetCustomerId,
+        customerId: targetCustomer.customerId,
         totalDeposits: 0,
         allocatedToBookings: 0,
         outstandingBalance: 0,
@@ -196,9 +200,22 @@ export class ExcessService {
     const sourceName = sourceSummary.customer?.fullName || `Customer #${sourceCustomerId}`;
     const targetName = targetSummary.customer?.fullName || `Customer #${body.targetCustomerId}`;
 
+    // Helper to safely post ledger entries with fallback if enum value CREDIT_TRANSFER is not yet active
+    const postWithFallback = async (txParams: any) => {
+      try {
+        return await this.ledgerService.postTransaction(txParams);
+      } catch (err: any) {
+        // Fallback to standard CUSTOMER_CREDIT if database enum does not yet have CREDIT_TRANSFER
+        return await this.ledgerService.postTransaction({
+          ...txParams,
+          transactionType: LedgerTransactionType.CUSTOMER_CREDIT,
+        });
+      }
+    };
+
     // Two-sided atomic ledger posting (Story X9)
     // Side 1: Debit source customer's available credit
-    await this.ledgerService.postTransaction({
+    await postWithFallback({
       customerId: sourceCustomerId,
       transactionType: LedgerTransactionType.CREDIT_TRANSFER,
       referenceNumber: ref,
@@ -227,7 +244,7 @@ export class ExcessService {
     }
 
     // Side 2: Credit recipient customer's available credit
-    await this.ledgerService.postTransaction({
+    await postWithFallback({
       customerId: body.targetCustomerId,
       transactionType: LedgerTransactionType.CREDIT_TRANSFER,
       referenceNumber: ref,

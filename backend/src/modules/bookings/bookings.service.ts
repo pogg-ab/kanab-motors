@@ -108,11 +108,27 @@ export class BookingsService {
 
     let enquiryPref: any = null;
     let fallbackNotes: string | undefined = dto.customerRequirementsNotes;
+    let commAgentName: string | undefined = undefined;
+    let commPct: number | undefined = undefined;
+    let commAmt: number = 0;
+    let finOption = 'CASH';
+    let finInst: string | undefined = undefined;
+    let finAmt: number = 0;
+    let custContribAmt: number = grossTotal;
+
     if (enquiryId) {
       const enquiry = await this.enquiryRepo.findOne({ where: { enquiryId } });
       if (enquiry) {
         enquiry.status = EnquiryStatus.CONVERTED;
         await this.enquiryRepo.save(enquiry);
+        commAgentName = enquiry.commissionAgentName;
+        commPct = enquiry.commissionPercentage;
+        commAmt = enquiry.commissionAmount;
+        finOption = enquiry.financingOption || 'CASH';
+        finInst = enquiry.financingInstitutionName;
+        finAmt = enquiry.financingAmount;
+        custContribAmt = enquiry.customerContributionAmount || grossTotal;
+
         enquiryPref = {
           leadSource: enquiry.leadSource,
           branchShowroom: enquiry.branchShowroom,
@@ -153,6 +169,13 @@ export class BookingsService {
       paymentMethod: dto.paymentMethod || 'BANK_DEPOSIT',
       customerRequirementsNotes: fallbackNotes,
       enquiryPreferences: enquiryPref,
+      commissionAgentName: commAgentName,
+      commissionPercentage: commPct,
+      commissionAmount: commAmt,
+      financingOption: finOption,
+      financingInstitutionName: finInst,
+      financingAmount: finAmt,
+      customerContributionAmount: custContribAmt,
       createdBy: userId,
     });
 

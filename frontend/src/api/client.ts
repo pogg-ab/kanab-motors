@@ -328,7 +328,7 @@ export interface SalesEnquiry {
   estimatedSalesValue: number;
   salespersonName: string;
   paymentMode: string;
-  status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CONVERTED';
+  status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CONVERTED' | 'EXPIRED' | 'CANCELLED';
   rejectionReason?: string;
   leadSource?: string;
   branchShowroom?: string;
@@ -345,7 +345,120 @@ export interface SalesEnquiry {
   financeProvider?: string;
   tradeInVehicle?: boolean;
   customerRequirementsNotes?: string;
+  commissionAgentName?: string;
+  commissionPercentage?: number;
+  commissionAmount?: number;
+  commissionNotes?: string;
+  commissionPaymentStatus?: string;
+  commissionPaidAt?: string;
+  commissionPaidReference?: string;
+  commissionPaidNotes?: string;
+  financingOption?: 'CASH' | 'BANK_FINANCING' | 'MICROFINANCE_FINANCING';
+  financingType?: 'BANK' | 'MICROFINANCE';
+  financingInstitutionName?: string;
+  financingContactPerson?: string;
+  financingContactPhone?: string;
+  financingPercentage?: number;
+  financingAmount?: number;
+  customerContributionPercentage?: number;
+  customerContributionAmount?: number;
+  financingStatus?: 'NOT_SUBMITTED' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'DISBURSED';
+  financingApplicationNumber?: string;
+  financingApprovedAmount?: number;
+  financingDisbursedAmount?: number;
+  financingDisbursedAt?: string;
+  financingNotes?: string;
+  inspections?: CustomerVehicleInspection[];
   createdAt: string;
+}
+
+export interface CustomerVehicleInspection {
+  inspectionId: string;
+  inspectionNumber: string;
+  enquiryId: string;
+  enquiry?: SalesEnquiry;
+  customerId: string;
+  customer?: Customer;
+  itemId: string;
+  item?: ProductItem;
+  unitId?: string;
+  vehicleUnit?: any;
+  vinChassisNumber?: string;
+  engineNumber?: string;
+  inspectorName?: string;
+  scheduledAt: string;
+  startedAt?: string;
+  durationMinutes: number;
+  deadlineAt: string;
+  completedAt?: string;
+  inspectionStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+  inspectionOutcome?: 'ACCEPTED' | 'REJECTED' | 'PENDING_DECISION';
+  outcomeReason?: string;
+  extensionReason?: string;
+  extendedMinutes?: number;
+  cancellationReason?: string;
+  customerSignatureAck?: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CommissionReport {
+  totalEnquiries: number;
+  totalSalesAmount: number;
+  totalCommissionAmount: number;
+  totalPaidCommission?: number;
+  totalUnpaidCommission?: number;
+  paidCommissionAmount?: number;
+  unpaidCommissionAmount?: number;
+  agentBreakdown: Array<{
+    agentName: string;
+    agentPhone: string;
+    enquiryCount: number;
+    totalSalesAmount: number;
+    totalCommissionAmount: number;
+    paidCommissionAmount?: number;
+    unpaidCommissionAmount?: number;
+    status?: string;
+    enquiries?: Array<{
+      enquiryId: string;
+      enquiryNumber: string;
+      customerName: string;
+      vehicleModel: string;
+      salesAmount: number;
+      commissionPercentage: number;
+      commissionAmount: number;
+      status: string;
+      commissionPaymentStatus?: string;
+      commissionPaidAt?: string;
+      commissionPaidReference?: string;
+      commissionPaidNotes?: string;
+      date: string;
+    }>;
+  }>;
+  records: any[];
+}
+
+export interface FinancingReport {
+  summary: {
+    totalFinancedEnquiries: number;
+    totalSalesAmount: number;
+    totalRequestedFinancing: number;
+    totalApprovedFinancing: number;
+    totalDisbursedFinancing: number;
+    totalCustomerContribution: number;
+    byStatus: Record<string, number>;
+  };
+  institutionBreakdown: Array<{
+    institutionName: string;
+    financingType: string;
+    enquiryCount: number;
+    totalSalesAmount: number;
+    totalRequestedFinancing: number;
+    totalApprovedFinancing: number;
+    totalDisbursedFinancing: number;
+    totalCustomerContribution: number;
+  }>;
+  records: any[];
 }
 
 export interface PreAdvanceSlip {
@@ -401,6 +514,13 @@ export interface Booking {
   allottedQuantity?: number;
   remainingQuantity?: number;
   paymentMethod?: string;
+  commissionAgentName?: string;
+  commissionPercentage?: number;
+  commissionAmount?: number;
+  financingOption?: 'CASH' | 'BANK_FINANCING' | 'MICROFINANCE_FINANCING';
+  financingInstitutionName?: string;
+  financingAmount?: number;
+  customerContributionAmount?: number;
   customerRequirementsNotes?: string;
   enquiryPreferences?: any;
   createdAt: string;
@@ -1446,6 +1566,28 @@ export const api = {
     apiClient.get<PreAdvanceSlip>(`/enquiries/slips/${slipId}`).then((r) => r.data),
   getPreAdvanceSlipByEnquiryId: (enquiryId: string) =>
     apiClient.get<PreAdvanceSlip>(`/enquiries/${enquiryId}/slip`).then((r) => r.data),
+  initiateInspection: (enquiryId: string, data: any) =>
+    apiClient.post<CustomerVehicleInspection>(`/enquiries/${enquiryId}/inspection`, data).then((r) => r.data),
+  getInspectionByEnquiryId: (enquiryId: string) =>
+    apiClient.get<CustomerVehicleInspection>(`/enquiries/${enquiryId}/inspection`).then((r) => r.data),
+  getInspections: (params?: any) =>
+    apiClient.get<CustomerVehicleInspection[]>('/enquiries/inspections', { params }).then((r) => r.data),
+  completeInspection: (id: string, data: any) =>
+    apiClient.patch<CustomerVehicleInspection>(`/enquiries/inspections/${id}/complete`, data).then((r) => r.data),
+  extendInspection: (id: string, data: any) =>
+    apiClient.patch<CustomerVehicleInspection>(`/enquiries/inspections/${id}/extend`, data).then((r) => r.data),
+  cancelInspection: (id: string, reason: string) =>
+    apiClient.patch<CustomerVehicleInspection>(`/enquiries/inspections/${id}/cancel`, { reason }).then((r) => r.data),
+  updateFinancingStatus: (enquiryId: string, data: any) =>
+    apiClient.patch<SalesEnquiry>(`/enquiries/${enquiryId}/financing-status`, data).then((r) => r.data),
+  getCommissionReport: () =>
+    apiClient.get<CommissionReport>('/enquiries/reports/commissions').then((r) => r.data),
+  updateCommissionPayment: (enquiryId: string, data: { status: string; paymentReference?: string; notes?: string }) =>
+    apiClient.patch<SalesEnquiry>(`/enquiries/${enquiryId}/commission-payment`, data).then((r) => r.data),
+  updateAgentCommissions: (data: { agentName: string; agentPhone?: string; status: string; paymentReference?: string; notes?: string }) =>
+    apiClient.post<any>('/enquiries/commission-payment/agent', data).then((r) => r.data),
+  getFinancingReport: () =>
+    apiClient.get<FinancingReport>('/enquiries/reports/financing').then((r) => r.data),
 
   // Bookings (Stories B1-B14)
   getBookings: (params?: any) =>
