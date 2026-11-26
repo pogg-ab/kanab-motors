@@ -489,17 +489,79 @@ async function bootstrap() {
     }),
   );
 
-  // Serve uploaded files statically
-  const uploadsPath = path.resolve(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsPath)) {
-    fs.mkdirSync(uploadsPath, { recursive: true });
+  // Serve uploaded files statically across both root and backend uploads directories
+  const currentCwd = process.cwd();
+  const projectRoot = currentCwd.endsWith('backend') ? path.resolve(currentCwd, '..') : currentCwd;
+  const rootUploadsPath = path.resolve(projectRoot, 'uploads');
+  const backendUploadsPath = path.resolve(projectRoot, 'backend', 'uploads');
+
+  const uploadDirs = [rootUploadsPath, backendUploadsPath];
+  for (const dir of uploadDirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const companyDir = path.resolve(dir, 'company');
+    if (!fs.existsSync(companyDir)) {
+      fs.mkdirSync(companyDir, { recursive: true });
+    }
+    app.useStaticAssets(dir, {
+      prefix: '/uploads/',
+    });
+    app.useStaticAssets(dir, {
+      prefix: '/api/uploads/',
+    });
   }
-  app.useStaticAssets(uploadsPath, {
-    prefix: '/uploads/',
-  });
-  app.useStaticAssets(uploadsPath, {
-    prefix: '/api/uploads/',
-  });
+
+  // Graceful fallback for company logos/branding requests so missing or legacy image URLs never return broken 404s
+  const expressApp = app.getHttpAdapter().getInstance();
+  const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"><rect width="120" height="120" rx="20" fill="#0284c7"/><text x="60" y="70" font-family="system-ui, -apple-system, sans-serif" font-size="38" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="central">KM</text></svg>`;
+
+  const handleCompanyImageFallback = (req: any, res: any) => {
+    // 1. Check if the exact requested file exists in any upload directory or company/ subdir
+    const requestedPath = req.path || req.url;
+    const cleanFilename = path.basename(requestedPath.split('?')[0]);
+
+    for (const dir of uploadDirs) {
+      const candidates = [
+        path.resolve(dir, 'company', cleanFilename),
+        path.resolve(dir, cleanFilename),
+      ];
+      for (const candidate of candidates) {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          return res.sendFile(candidate);
+        }
+      }
+    }
+
+    // 2. Check if ANY valid company logo file exists in company/ folder
+    for (const dir of uploadDirs) {
+      const companyDir = path.resolve(dir, 'company');
+      if (fs.existsSync(companyDir)) {
+        const files = fs.readdirSync(companyDir).filter((f) => /\.(png|jpe?g|webp|svg|ico)$/i.test(f));
+        if (files.length > 0) {
+          const matchedFile = path.resolve(companyDir, files[0]);
+          return res.sendFile(matchedFile);
+        }
+      }
+    }
+
+    // 3. Fallback: serve crisp default KANAB Motors SVG branding with 200 OK
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.status(200).send(fallbackSvg);
+  };
+
+  expressApp.get(
+    [
+      '/api/uploads/company/*',
+      '/uploads/company/*',
+      '/api/uploads/company_*',
+      '/uploads/company_*',
+      '/api/uploads/*logo*',
+      '/uploads/*logo*',
+    ],
+    handleCompanyImageFallback,
+  );
 
   // Swagger Documentation Setup
   const config = new DocumentBuilder()

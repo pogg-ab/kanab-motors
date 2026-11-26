@@ -10,13 +10,35 @@ export function resolveCompanyAssetUrl(assetPath?: string | null): string | unde
   if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed;
 
   const base = API_BASE_URL.replace(/\/$/, '');
+  const hostRoot = base.replace(/\/api$/, '');
+
+  // 1. If it starts with /api/uploads/
+  if (trimmed.startsWith('/api/uploads/')) {
+    return hostRoot ? `${hostRoot}${trimmed}` : trimmed;
+  }
+  // 2. If it starts with /uploads/
+  if (trimmed.startsWith('/uploads/')) {
+    return hostRoot ? `${hostRoot}${trimmed}` : trimmed;
+  }
+  // 3. If it starts with uploads/
+  if (trimmed.startsWith('uploads/')) {
+    return hostRoot ? `${hostRoot}/${trimmed}` : `/${trimmed}`;
+  }
+  // 4. If it starts with /api/
   if (trimmed.startsWith('/api/')) {
     return base.startsWith('http') ? `${base}${trimmed.slice(4)}` : trimmed;
   }
-  if (trimmed.startsWith('/uploads/')) {
-    return `${base}${trimmed}`;
+  // 5. If it starts with company/
+  if (trimmed.startsWith('company/')) {
+    return hostRoot ? `${hostRoot}/api/uploads/${trimmed}` : `/api/uploads/${trimmed}`;
   }
-  return trimmed;
+  // 6. Bare filename without slash (e.g. "company-logo-1-..." or "company_677-...")
+  if (!trimmed.includes('/')) {
+    return hostRoot ? `${hostRoot}/api/uploads/company/${trimmed}` : `/api/uploads/company/${trimmed}`;
+  }
+
+  // Fallback
+  return hostRoot ? `${hostRoot}/${trimmed.replace(/^\//, '')}` : trimmed;
 }
 
 export function resolveDocumentUrl(docPath?: string | null): string {

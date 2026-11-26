@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
   Req,
+  Res,
   ValidationPipe,
   UsePipes,
 } from '@nestjs/common';
@@ -43,6 +44,48 @@ export class CompanyProfileController {
   @ApiOperation({ summary: 'Get public non-sensitive Company Branding (name and logo) for Login, Sidebar, and browser tab' })
   getPublicBranding() {
     return this.companyProfileService.getPublicBranding();
+  }
+
+  @Get('logo')
+  @ApiOperation({ summary: 'Get current company logo image binary directly' })
+  async getLogoImage(@Res() res: any) {
+    const profile = await this.companyProfileService.getProfile();
+    const logoPath = profile?.logo;
+    const cleanFilename = logoPath ? path.basename(logoPath.split('?')[0]) : null;
+
+    const currentCwd = process.cwd();
+    const projectRoot = currentCwd.endsWith('backend') ? path.resolve(currentCwd, '..') : currentCwd;
+    const searchDirs = [
+      path.resolve(projectRoot, 'uploads', 'company'),
+      path.resolve(projectRoot, 'backend', 'uploads', 'company'),
+      path.resolve(projectRoot, 'uploads'),
+      path.resolve(projectRoot, 'backend', 'uploads'),
+    ];
+
+    if (cleanFilename) {
+      for (const dir of searchDirs) {
+        const candidate = path.resolve(dir, cleanFilename);
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          return res.sendFile(candidate);
+        }
+      }
+    }
+
+    // Fallback: check if ANY company logo exists
+    for (const dir of searchDirs) {
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir).filter((f) => /\.(png|jpe?g|webp|svg|ico)$/i.test(f));
+        if (files.length > 0) {
+          return res.sendFile(path.resolve(dir, files[0]));
+        }
+      }
+    }
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.status(200).send(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"><rect width="120" height="120" rx="20" fill="#0284c7"/><text x="60" y="70" font-family="system-ui, -apple-system, sans-serif" font-size="38" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="central">KM</text></svg>`,
+    );
   }
 
   @Get()
@@ -113,6 +156,24 @@ export class CompanyProfileController {
       throw new BadRequestException('A logo image file is required');
     }
     const logoUrl = `/api/uploads/company/${file.filename}`;
+    try {
+      const currentCwd = process.cwd();
+      const projectRoot = currentCwd.endsWith('backend') ? path.resolve(currentCwd, '..') : currentCwd;
+      const targetDirs = [
+        path.resolve(projectRoot, 'uploads', 'company'),
+        path.resolve(projectRoot, 'backend', 'uploads', 'company'),
+        path.resolve(projectRoot, 'frontend', 'public', 'uploads', 'company'),
+      ];
+      for (const tDir of targetDirs) {
+        if (!fs.existsSync(tDir)) fs.mkdirSync(tDir, { recursive: true });
+        const targetPath = path.resolve(tDir, file.filename);
+        if (file.path && targetPath !== file.path && fs.existsSync(file.path)) {
+          fs.copyFileSync(file.path, targetPath);
+        }
+      }
+    } catch {
+      // Best-effort mirror
+    }
     const userId = req?.user?.userId;
     const profile = await this.companyProfileService.updateLogo(id, logoUrl, userId);
     return { logoUrl, profile };

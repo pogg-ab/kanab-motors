@@ -7,6 +7,7 @@ import { CompanyProfileService } from './company-profile.service';
 import { CompanyProfile } from '../purchase-orders/entities/company-profile.entity';
 import { CompanyBankAccount } from '../purchase-orders/entities/company-bank-account.entity';
 import { PurchaseOrder } from '../purchase-orders/entities/purchase-order.entity';
+import { CompanyImporter } from './entities/company-importer.entity';
 import { CreateBankAccountDto } from './dto/bank-account.dto';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
 
@@ -70,6 +71,16 @@ describe('CompanyProfileService', () => {
     count: jest.fn(),
   };
 
+  const mockImporterRepo = {
+    find: jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn().mockImplementation((dto) => dto),
+    save: jest.fn().mockImplementation(async (entity) => ({ importerId: 1, ...entity })),
+    delete: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -87,6 +98,10 @@ describe('CompanyProfileService', () => {
         {
           provide: getRepositoryToken(PurchaseOrder),
           useValue: mockPoRepo,
+        },
+        {
+          provide: getRepositoryToken(CompanyImporter),
+          useValue: mockImporterRepo,
         },
       ],
     }).compile();
