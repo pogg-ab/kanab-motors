@@ -73,6 +73,12 @@ export const apiClient = axios.create({
   },
 });
 
+let onUnauthorizedCallback: (() => void) | null = null;
+
+export function setOnUnauthorizedCallback(cb: (() => void) | null) {
+  onUnauthorizedCallback = cb;
+}
+
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('kanab_token');
   if (token) {
@@ -80,6 +86,29 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const url = String(error?.config?.url || '');
+
+    // 401 Unauthorized: token expired or invalid (do not auto-logout on failed /auth/login attempts)
+    if (status === 401 && !url.includes('/auth/login')) {
+      if (typeof onUnauthorizedCallback === 'function') {
+        onUnauthorizedCallback();
+      } else {
+        localStorage.removeItem('kanab_token');
+        localStorage.removeItem('kanab_user');
+        localStorage.removeItem('kanab_active_tab');
+        sessionStorage.removeItem('kanab_admin_navigated');
+        sessionStorage.setItem('kanab_session_expired', 'Your session has expired. Please log in again to continue.');
+        window.dispatchEvent(new CustomEvent('kanab_auth_logout'));
+      }
+    }
+    return Promise.reject(error);
+  },
+);
 
 export interface AppUser {
   userId: number;

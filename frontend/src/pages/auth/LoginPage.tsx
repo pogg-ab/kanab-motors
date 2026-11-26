@@ -106,7 +106,27 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('Admin@123');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    const expiredMsg = sessionStorage.getItem('kanab_session_expired');
+    if (expiredMsg) {
+      sessionStorage.removeItem('kanab_session_expired');
+      return expiredMsg;
+    }
+    return null;
+  });
+
+  React.useEffect(() => {
+    const checkExpired = () => {
+      const msg = sessionStorage.getItem('kanab_session_expired');
+      if (msg) {
+        sessionStorage.removeItem('kanab_session_expired');
+        setError(msg);
+      }
+    };
+    checkExpired();
+    window.addEventListener('kanab_auth_logout', checkExpired);
+    return () => window.removeEventListener('kanab_auth_logout', checkExpired);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
